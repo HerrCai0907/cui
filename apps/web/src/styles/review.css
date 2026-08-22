@@ -118,6 +118,7 @@
   background: #f8fafc;
   box-shadow: 0 8px 22px rgb(31 41 55 / 8%);
   overflow: hidden;
+  scroll-margin-block-start: 14px;
 }
 
 .atomic-review-item-header {
@@ -236,6 +237,7 @@
   border: 1px solid #d6dde7;
   border-radius: 8px;
   background: #ffffff;
+  scroll-margin-block-start: 14px;
 }
 
 .review-diff-file-header {

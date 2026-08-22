@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { ReviewPage } from '../features/review/components/ReviewPage';
 import { getRoundReview } from '../features/review/api/reviewApi';
+import type {
+  ReviewNavigation,
+  ReviewNavigationTarget,
+} from '../features/review/model/reviewNavigation';
 import {
   createReviewPath,
   parseReviewRoute,
@@ -22,6 +26,10 @@ export function App() {
   const [review, setReview] = useState<ApiRound | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [reviewNavigation, setReviewNavigation] =
+    useState<ReviewNavigation | null>(null);
+  const [reviewNavigationTarget, setReviewNavigationTarget] =
+    useState<ReviewNavigationTarget | null>(null);
   const sessionController = useSessionController(DEFAULT_WORKSPACE);
 
   useEffect(() => {
@@ -41,6 +49,8 @@ export function App() {
       setReview(null);
       setReviewLoading(false);
       setReviewError(null);
+      setReviewNavigation(null);
+      setReviewNavigationTarget(null);
       return;
     }
 
@@ -82,6 +92,8 @@ export function App() {
   function startNewSession(workspace?: string) {
     setReviewRoute(null);
     setReview(null);
+    setReviewNavigation(null);
+    setReviewNavigationTarget(null);
     if (location.pathname !== '/') {
       history.pushState({}, '', '/');
     }
@@ -92,6 +104,8 @@ export function App() {
   function openSession(sessionId: string) {
     setReviewRoute(null);
     setReview(null);
+    setReviewNavigation(null);
+    setReviewNavigationTarget(null);
     setReviewError(null);
     if (location.pathname !== '/') {
       history.pushState({}, '', '/');
@@ -121,7 +135,13 @@ export function App() {
     history.pushState({}, '', '/');
     setReviewRoute(null);
     setReview(null);
+    setReviewNavigation(null);
+    setReviewNavigationTarget(null);
     setReviewError(null);
+  }
+
+  function navigateToReviewTarget(target: ReviewNavigationTarget) {
+    setReviewNavigationTarget({ ...target });
   }
 
   return (
@@ -134,8 +154,15 @@ export function App() {
         workspaces={sessionController.workspaces}
         onOpenChange={sessionController.setSidebarOpen}
         onOpenSession={openSession}
+        onNavigateReview={
+          reviewRoute?.mode === 'atomic' ? navigateToReviewTarget : undefined
+        }
         onStartNewSession={startNewSession}
         onToggleWorkspace={sessionController.toggleWorkspace}
+        reviewNavigationActive={reviewRoute?.mode === 'atomic'}
+        reviewNavigation={
+          reviewRoute?.mode === 'atomic' ? reviewNavigation : null
+        }
       />
 
       <section
@@ -152,9 +179,11 @@ export function App() {
           <ReviewPage
             error={reviewError ?? sessionController.error}
             loading={reviewLoading}
+            navigationTarget={reviewNavigationTarget}
             review={review}
             reviewRoute={reviewRoute}
             onOpenFullReview={openFullReview}
+            onReviewNavigationChange={setReviewNavigation}
           />
         ) : (
           <>

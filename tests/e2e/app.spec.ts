@@ -142,9 +142,9 @@ test('renders atomic review output for a round diff', async ({ page }) => {
     ' }',
   ].join('\n');
   const testDiff = [
-    'diff --git a/src/example.test.ts b/src/example.test.ts',
-    '--- a/src/example.test.ts',
-    '+++ b/src/example.test.ts',
+    'diff --git a/tests/example.ts b/tests/example.ts',
+    '--- a/tests/example.ts',
+    '+++ b/tests/example.ts',
     '@@ -1,3 +1,4 @@',
     ' test("value", () => {',
     '-  expect(value()).toBe(1);',
@@ -221,7 +221,7 @@ test('renders atomic review output for a round diff', async ({ page }) => {
                 capabilityLabel: '测试修改',
                 title: 'Update value assertion',
                 intent: 'Adjust the test assertion for the updated value() output.',
-                files: ['src/example.test.ts'],
+                files: ['tests/example.ts'],
                 diff: testDiff,
                 outputJson: {
                   id: 'atomic-2',
@@ -230,7 +230,7 @@ test('renders atomic review output for a round diff', async ({ page }) => {
                   capability_label: '测试修改',
                   title: 'Update value assertion',
                   intent: 'Adjust the test assertion for the updated value() output.',
-                  files: ['src/example.test.ts'],
+                  files: ['tests/example.ts'],
                 },
               },
             ],
@@ -249,6 +249,28 @@ test('renders atomic review output for a round diff', async ({ page }) => {
     page.getByRole('heading', { name: 'Adjust return value' }),
   ).toBeVisible();
   await expect(page.getByText('src/example.ts').first()).toBeVisible();
+  const reviewNavigation = page.getByRole('navigation', {
+    name: 'Atomic review navigation',
+  });
+
+  await expect(
+    reviewNavigation.getByText('Atomic Review', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    reviewNavigation.getByRole('button', { name: /1\. Adjust return value/ }),
+  ).toBeVisible();
+  await expect(
+    reviewNavigation.getByRole('button', { name: /2\. Update value assertion/ }),
+  ).toBeVisible();
+  await expect(
+    reviewNavigation.getByRole('button', { name: /src\/example\.ts/ }),
+  ).toBeVisible();
+  await expect(
+    reviewNavigation.getByRole('button', { name: /tests\/example\.ts/ }),
+  ).toBeVisible();
+  await expect(
+    reviewNavigation.getByRole('button', { name: /^example\.ts$/ }),
+  ).toHaveCount(0);
   const atomicChange = page
     .locator('.atomic-review-item')
     .filter({ hasText: 'Adjust return value' });
@@ -264,6 +286,11 @@ test('renders atomic review output for a round diff', async ({ page }) => {
   await expect(testChange).toHaveClass(/is-capability-test/);
   await expect(testChange.getByText('+  expect(value()).toBe(2);')).toBeVisible();
   await atomicChange.getByRole('button', { name: 'Approve all' }).click();
+  await expect(
+    reviewNavigation.locator('.review-navigation-status', {
+      hasText: 'Approved',
+    }).first().getByRole('button', { name: /src\/example\.ts/ }),
+  ).toBeVisible();
   await expect(atomicChange.getByText('+  return 2;')).not.toBeVisible();
   await atomicChange.getByRole('button', { name: 'Unapprove all' }).click();
   await expect(atomicChange.getByText('+  return 2;')).toBeVisible();
@@ -277,6 +304,10 @@ test('renders atomic review output for a round diff', async ({ page }) => {
   ).toBeVisible();
   await expect(intent).toBeVisible();
   await expect(atomicChange.getByText('+  return 2;')).not.toBeVisible();
+  await reviewNavigation.getByRole('button', { name: /src\/example\.ts/ }).click();
+  await expect(page.getByLabel('Collapse atomic change 1')).toBeVisible();
+  await expect(atomicChange.getByText('+  return 2;')).toBeVisible();
+  await atomicChange.getByLabel('Collapse atomic change 1').click();
   await page.reload();
   await expect(page.getByLabel('Expand atomic change 1')).toBeVisible();
   await expect(atomicChange.getByText('+  return 2;')).not.toBeVisible();

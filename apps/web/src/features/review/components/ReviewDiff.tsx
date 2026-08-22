@@ -1,13 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
 import type { ApiAtomicDiffReview } from '../../../types';
 import { AtomicReview } from './AtomicReview';
 import { DiffFileList } from './DiffFileList';
 import { parseDiff } from '../model/diffParser';
 import {
   createEmptyAtomicItemState,
-  createEmptyReviewBrowserState,
-  loadReviewBrowserState,
-  saveReviewBrowserState,
   toggleString,
   type AtomicReviewItemState,
   type ReviewBrowserState,
@@ -17,7 +13,10 @@ type ReviewDiffProps = {
   diff: string;
   atomicReview?: ApiAtomicDiffReview;
   mode: 'atomic' | 'full';
-  stateKey: string;
+  reviewState: ReviewBrowserState;
+  onUpdateReviewState: (
+    updater: (current: ReviewBrowserState) => ReviewBrowserState,
+  ) => void;
   onOpenFullReview?: () => void;
 };
 
@@ -25,44 +24,18 @@ export function ReviewDiff({
   diff,
   atomicReview,
   mode,
-  stateKey,
+  reviewState,
+  onUpdateReviewState,
   onOpenFullReview,
 }: ReviewDiffProps) {
   const files = parseDiff(diff);
-  const initialReviewStateRef = useRef<ReviewBrowserState | null>(null);
-
-  if (!initialReviewStateRef.current) {
-    initialReviewStateRef.current = loadReviewBrowserState(stateKey);
-  }
-
-  const [reviewState, setReviewState] = useState<ReviewBrowserState>(() =>
-    initialReviewStateRef.current ?? createEmptyReviewBrowserState(),
-  );
-  const reviewStateRef = useRef(reviewState);
-
-  useEffect(() => {
-    const storedState = loadReviewBrowserState(stateKey);
-
-    reviewStateRef.current = storedState;
-    setReviewState(storedState);
-  }, [stateKey]);
 
   if (files.length === 0) {
     return <p className="empty-review">No code changes in this round.</p>;
   }
 
-  function updateReviewState(
-    updater: (current: ReviewBrowserState) => ReviewBrowserState,
-  ) {
-    const next = updater(reviewStateRef.current);
-
-    reviewStateRef.current = next;
-    setReviewState(next);
-    saveReviewBrowserState(stateKey, next);
-  }
-
   function toggleFullReviewFile(fileId: string, approved: boolean) {
-    updateReviewState((current) => ({
+    onUpdateReviewState((current) => ({
       ...current,
       fullApprovedFileIds: toggleString(current.fullApprovedFileIds, fileId, approved),
     }));
@@ -72,7 +45,7 @@ export function ReviewDiff({
     itemId: string,
     updater: (current: AtomicReviewItemState) => AtomicReviewItemState,
   ) {
-    updateReviewState((current) => {
+    onUpdateReviewState((current) => {
       const currentItem = current.atomicItems[itemId] ?? createEmptyAtomicItemState();
 
       return {

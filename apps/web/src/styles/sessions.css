@@ -145,6 +145,139 @@
   white-space: normal;
 }
 
+.review-navigation {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.review-navigation-root {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 34px;
+  border: 1px solid #cfd8e3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1f2937;
+  padding: 0 10px;
+}
+
+.review-navigation-root span {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.9rem;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-navigation-root small {
+  flex: 0 0 auto;
+  color: #667085;
+  font-size: 0.74rem;
+  font-weight: 750;
+}
+
+.review-navigation-list {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+  padding-bottom: 12px;
+}
+
+.review-navigation-item {
+  display: grid;
+  gap: 5px;
+}
+
+.review-navigation-atomic,
+.review-navigation-file {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: #374151;
+  text-align: left;
+}
+
+.review-navigation-atomic {
+  gap: 7px;
+  min-height: 32px;
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.review-navigation-atomic:hover,
+.review-navigation-file:hover {
+  background: #edf1f5;
+  color: #111827;
+}
+
+.review-navigation-atomic svg,
+.review-navigation-file svg {
+  flex: 0 0 auto;
+  color: #64748b;
+}
+
+.review-navigation-atomic span,
+.review-navigation-file span,
+.review-navigation-status-label span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-navigation-status {
+  display: grid;
+  gap: 4px;
+  padding-left: 22px;
+}
+
+.review-navigation-status-label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  min-height: 24px;
+  color: #667085;
+  padding: 0 8px;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.review-navigation-status-label small {
+  flex: 0 0 auto;
+  color: #8a94a3;
+  font-size: 0.72rem;
+}
+
+.review-navigation-files {
+  display: grid;
+  gap: 3px;
+  padding-left: 14px;
+}
+
+.review-navigation-file {
+  gap: 7px;
+  min-height: 28px;
+  border-radius: 7px;
+  padding: 0 8px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 0.76rem;
+}
+
 .chat-area {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
