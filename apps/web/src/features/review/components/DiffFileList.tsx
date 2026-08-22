@@ -9,12 +9,14 @@ import { DiffRow } from './DiffRow';
 type DiffFileListProps = {
   files: DiffFile[];
   approvedFileIds?: Set<string>;
+  getFileSectionId?: (file: DiffFile) => string;
   onToggleFile?: (fileId: string, approved: boolean) => void;
 };
 
 export function DiffFileList({
   files,
   approvedFileIds,
+  getFileSectionId,
   onToggleFile,
 }: DiffFileListProps) {
   const [localApprovedFileIds, setLocalApprovedFileIds] = useState<
@@ -76,7 +78,11 @@ export function DiffFileList({
         const lines = expandedLinesByFileId[file.id] ?? file.lines;
 
         return (
-          <section className="review-diff-file" key={file.id}>
+          <section
+            className="review-diff-file"
+            id={getFileSectionId?.(file)}
+            key={file.id}
+          >
             <header className="review-diff-file-header">
               <label className="review-diff-collapse-control">
                 <input

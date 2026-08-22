@@ -1,12 +1,19 @@
 import {
   ChevronDown,
   ChevronRight,
+  Circle,
+  FileText,
+  Hash,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
 } from 'lucide-react';
 import { formatRelativeTime } from '../../../shared/lib/dates';
 import type { SessionSummary } from '../../../types';
+import type {
+  ReviewNavigation,
+  ReviewNavigationTarget,
+} from '../../review/model/reviewNavigation';
 
 type SessionSidebarProps = {
   open: boolean;
@@ -14,10 +21,13 @@ type SessionSidebarProps = {
   expandedWorkspaces: Set<string>;
   sessionCount: number;
   activeSessionId?: string;
+  reviewNavigation?: ReviewNavigation | null;
+  reviewNavigationActive?: boolean;
   onOpenChange: (open: boolean) => void;
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
   onOpenSession: (sessionId: string) => void;
+  onNavigateReview?: (target: ReviewNavigationTarget) => void;
 };
 
 export function SessionSidebar({
@@ -26,10 +36,13 @@ export function SessionSidebar({
   expandedWorkspaces,
   sessionCount,
   activeSessionId,
+  reviewNavigation,
+  reviewNavigationActive,
   onOpenChange,
   onStartNewSession,
   onToggleWorkspace,
   onOpenSession,
+  onNavigateReview,
 }: SessionSidebarProps) {
   return (
     <aside className="sidebar" aria-label="Workspace sessions">
@@ -53,35 +66,111 @@ export function SessionSidebar({
 
       {open && (
         <>
-          <button
-            className="new-session"
-            type="button"
-            onClick={() => onStartNewSession()}
-          >
-            <Plus size={16} />
-            New session
-          </button>
+          {reviewNavigationActive ? (
+            <ReviewNavigationTree
+              navigation={reviewNavigation}
+              onNavigate={onNavigateReview ?? (() => undefined)}
+            />
+          ) : (
+            <>
+              <button
+                className="new-session"
+                type="button"
+                onClick={() => onStartNewSession()}
+              >
+                <Plus size={16} />
+                New session
+              </button>
 
-          <nav className="workspace-list">
-            {Object.entries(workspaces).map(([workspace, workspaceSessions]) => (
-              <WorkspaceGroup
-                activeSessionId={activeSessionId}
-                expanded={expandedWorkspaces.has(workspace)}
-                key={workspace}
-                sessions={workspaceSessions}
-                workspace={workspace}
-                onOpenSession={onOpenSession}
-                onStartNewSession={onStartNewSession}
-                onToggleWorkspace={onToggleWorkspace}
-              />
-            ))}
-            {sessionCount === 0 && (
-              <p className="empty-sidebar">No sessions yet</p>
-            )}
-          </nav>
+              <nav className="workspace-list">
+                {Object.entries(workspaces).map(([workspace, workspaceSessions]) => (
+                  <WorkspaceGroup
+                    activeSessionId={activeSessionId}
+                    expanded={expandedWorkspaces.has(workspace)}
+                    key={workspace}
+                    sessions={workspaceSessions}
+                    workspace={workspace}
+                    onOpenSession={onOpenSession}
+                    onStartNewSession={onStartNewSession}
+                    onToggleWorkspace={onToggleWorkspace}
+                  />
+                ))}
+                {sessionCount === 0 && (
+                  <p className="empty-sidebar">No sessions yet</p>
+                )}
+              </nav>
+            </>
+          )}
         </>
       )}
     </aside>
+  );
+}
+
+function ReviewNavigationTree({
+  navigation,
+  onNavigate,
+}: {
+  navigation?: ReviewNavigation | null;
+  onNavigate: (target: ReviewNavigationTarget) => void;
+}) {
+  return (
+    <nav className="review-navigation" aria-label="Atomic review navigation">
+      <div className="review-navigation-root">
+        <span>Atomic Review</span>
+        <small>{navigation?.items.length ?? 0}</small>
+      </div>
+      {!navigation && (
+        <p className="empty-sidebar">No sections yet.</p>
+      )}
+      <div className="review-navigation-list">
+        {navigation?.items.map((item) => (
+          <section className="review-navigation-item" key={item.itemId}>
+            <button
+              className="review-navigation-atomic"
+              type="button"
+              onClick={() =>
+                onNavigate({
+                  itemId: item.itemId,
+                  targetId: item.targetId,
+                })
+              }
+            >
+              <Hash size={14} />
+              <span>{item.order}. {item.title}</span>
+            </button>
+            {item.statusGroups.map((group) => (
+              <div className="review-navigation-status" key={group.status}>
+                <div className="review-navigation-status-label">
+                  <Circle size={8} />
+                  <span>{group.label}</span>
+                  <small>{group.files.length}</small>
+                </div>
+                <div className="review-navigation-files">
+                  {group.files.map((file) => (
+                    <button
+                      className="review-navigation-file"
+                      type="button"
+                      key={file.id}
+                      title={file.path}
+                      onClick={() =>
+                        onNavigate({
+                          itemId: item.itemId,
+                          targetId: file.targetId,
+                        })
+                      }
+                    >
+                      <FileText size={13} />
+                      <span>{file.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
+        ))}
+      </div>
+    </nav>
   );
 }
 

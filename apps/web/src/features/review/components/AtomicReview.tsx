@@ -8,6 +8,10 @@ import {
   toggleString,
   type AtomicReviewItemState,
 } from '../model/reviewBrowserState';
+import {
+  createAtomicReviewFileSectionId,
+  createAtomicReviewSectionId,
+} from '../model/reviewNavigation';
 
 type AtomicReviewProps = {
   review?: ApiAtomicDiffReview;
@@ -65,7 +69,7 @@ export function AtomicReview({
         </div>
       </header>
       <div className="atomic-review-list">
-        {review.items.map((item) => (
+        {[...review.items].sort(compareAtomicReviewItems).map((item) => (
           <AtomicReviewItem
             item={item}
             itemState={itemStates[item.id] ?? createEmptyAtomicItemState()}
@@ -75,6 +79,17 @@ export function AtomicReview({
         ))}
       </div>
     </section>
+  );
+}
+
+function compareAtomicReviewItems(
+  left: ApiAtomicDiffReviewItem,
+  right: ApiAtomicDiffReviewItem,
+): number {
+  return (
+    left.order - right.order ||
+    left.title.localeCompare(right.title) ||
+    left.id.localeCompare(right.id)
   );
 }
 
@@ -146,10 +161,11 @@ function AtomicReviewItem({
   }
 
   return (
-    <article
+    <section
       className={`atomic-review-item ${capabilityToneClass(
         item.capabilityType,
       )}`}
+      id={createAtomicReviewSectionId(item.id)}
     >
       <header className="atomic-review-item-header">
         <div className="atomic-review-heading-row">
@@ -183,11 +199,14 @@ function AtomicReviewItem({
           <DiffFileList
             files={files}
             approvedFileIds={approvedFileIds}
+            getFileSectionId={(file) =>
+              createAtomicReviewFileSectionId(item.id, file.id)
+            }
             onToggleFile={toggleFile}
           />
         </div>
       )}
-    </article>
+    </section>
   );
 }
 
