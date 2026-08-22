@@ -1,0 +1,393 @@
+.new-session {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #cfd8e3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1f2937;
+  padding: 0 12px;
+  font-weight: 650;
+}
+
+.new-session:hover {
+  border-color: #aab8c8;
+  background: #f3f6f9;
+}
+
+.workspace-list {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+  padding-bottom: 12px;
+}
+
+.empty-sidebar {
+  margin: 8px;
+  color: #7a8696;
+  font-size: 0.86rem;
+}
+
+.workspace-group {
+  display: block;
+}
+
+.workspace-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #374151;
+  padding: 0 8px;
+  text-align: left;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.workspace-button:hover {
+  background: #edf1f5;
+}
+
+.workspace-button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-list {
+  display: grid;
+  gap: 4px;
+  margin-top: 2px;
+  padding-left: 24px;
+}
+
+.session-button {
+  display: grid;
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #46515f;
+  padding: 7px 10px;
+  text-align: left;
+}
+
+.session-button:hover {
+  background: #edf1f5;
+}
+
+.session-button.is-active {
+  border-color: #c9d3df;
+  background: #e8eef5;
+  color: #111827;
+}
+
+.session-button span,
+.session-button small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-button span {
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.session-button small {
+  margin-top: 2px;
+  color: #6f7a89;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.session-button.is-active small {
+  color: #8a93a1;
+  white-space: normal;
+}
+
+.chat-area {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 72px;
+  border-bottom: 1px solid #e0e6ee;
+  padding: 14px 28px;
+}
+
+.section-label {
+  display: block;
+  margin-bottom: 4px;
+  color: #667085;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.chat-header h1 {
+  margin: 0;
+  color: #151b23;
+  font-size: 1.1rem;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.session-progress {
+  max-width: 760px;
+  margin: 5px 0 0;
+  color: #7b8491;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.message-stream {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 22px;
+  overflow: auto;
+  padding: 28px min(7vw, 92px);
+}
+
+.message {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 760px);
+  gap: 14px;
+  align-items: start;
+}
+
+.message.user {
+  justify-content: end;
+}
+
+.message-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #d8e0e9;
+  border-radius: 8px;
+  background: #f4f7fa;
+  color: #445161;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.message.user .message-avatar {
+  background: #26313f;
+  color: #ffffff;
+}
+
+.message-body {
+  min-width: 0;
+  border: 1px solid #dce3eb;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px 16px;
+}
+
+.message.user .message-body {
+  background: #f7fafc;
+}
+
+.message.trace .message-avatar {
+  background: #eef6f0;
+  color: #2f6b46;
+}
+
+.message.trace .message-body {
+  border-color: #cfddcf;
+  background: #fbfdfb;
+}
+
+.message-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.message-title-row {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.message-meta strong {
+  color: #1d2733;
+  font-size: 0.88rem;
+}
+
+.review-button {
+  gap: 5px;
+  min-height: 24px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #405168;
+  padding: 0 8px;
+  font-size: 0.76rem;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.review-button:hover {
+  border-color: #9fb0c4;
+  background: #eef3f8;
+  color: #1f2937;
+}
+
+.message-meta time {
+  color: #7a8696;
+  font-size: 0.78rem;
+}
+
+.message-body p {
+  margin: 0;
+  color: #344054;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.empty-state {
+  width: min(680px, 100%);
+  margin: auto;
+  border: 1px solid #dce3eb;
+  border-radius: 8px;
+  background: #fbfcfd;
+  padding: 22px;
+}
+
+.empty-state h2 {
+  margin: 0 0 8px;
+  color: #151b23;
+  font-size: 1.08rem;
+  letter-spacing: 0;
+}
+
+.empty-state p {
+  margin: 0 0 16px;
+  color: #596675;
+  line-height: 1.55;
+}
+
+.empty-state input {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid #cfd8e3;
+  border-radius: 8px;
+  outline: none;
+  background: #ffffff;
+  color: #17202a;
+  padding: 8px 11px;
+}
+
+.empty-state input:focus {
+  border-color: #6d8aa7;
+  box-shadow: 0 0 0 3px rgb(109 138 167 / 16%);
+}
+
+.loading-line,
+.error-line {
+  width: min(760px, 100%);
+  margin: 0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
+
+.loading-line {
+  border: 1px solid #d6e2ee;
+  background: #f6f9fc;
+  color: #536274;
+}
+
+.error-line {
+  border: 1px solid #f1c7c2;
+  background: #fff6f5;
+  color: #a23b32;
+}
+
+.composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  border-top: 1px solid #e0e6ee;
+  background: #fbfcfd;
+  padding: 16px min(7vw, 92px);
+}
+
+.composer textarea {
+  width: 100%;
+  min-height: 44px;
+  max-height: calc(100vh / 3);
+  resize: none;
+  overflow-y: hidden;
+  border: 1px solid #cfd8e3;
+  border-radius: 8px;
+  outline: none;
+  background: #ffffff;
+  color: #17202a;
+  padding: 11px 13px;
+  line-height: 1.45;
+}
+
+.composer textarea:focus {
+  border-color: #6d8aa7;
+  box-shadow: 0 0 0 3px rgb(109 138 167 / 16%);
+}
+
+.send-button {
+  gap: 8px;
+  min-width: 104px;
+  height: 44px;
+  border-radius: 8px;
+  background: #1f2937;
+  color: #ffffff;
+  padding: 0 16px;
+  font-weight: 750;
+}
+
+.send-button:hover {
+  background: #111827;
+}
+
+.send-button:disabled:hover {
+  background: #1f2937;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
