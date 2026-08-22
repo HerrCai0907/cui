@@ -415,3 +415,157 @@ test('keeps only the running session blocked while another turn is active', asyn
   await expect(page.getByText('Waiting for TRAEX...')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send message' })).toBeDisabled();
 });
+
+test('reconnects to a running turn after page reload', async ({ page }) => {
+  const runningSession = {
+    id: 'session-1',
+    workspace: '/Users/bytedance/cui',
+    title: 'Running session',
+    createdAt: '2026-08-22T00:00:00.000Z',
+    updatedAt: '2026-08-22T00:00:00.000Z',
+    messages: [
+      {
+        id: 'message-1',
+        role: 'user',
+        content: 'Run a long task',
+        createdAt: '2026-08-22T00:00:00.000Z',
+      },
+    ],
+    rounds: [],
+    runningTurnId: 'turn-1',
+  };
+  const completedSession = {
+    ...runningSession,
+    runningTurnId: undefined,
+    messages: [
+      ...runningSession.messages,
+      {
+        id: 'message-2',
+        role: 'assistant',
+        kind: 'response',
+        content: 'Finished after reconnect.',
+        createdAt: '2026-08-22T00:00:01.000Z',
+      },
+    ],
+  };
+  let sessionListRequests = 0;
+
+  await page.addInitScript(() => {
+    const eventSourceUrls: string[] = [];
+
+    (
+      window as Window & {
+        __eventSourceUrls?: string[];
+      }
+    ).__eventSourceUrls = eventSourceUrls;
+
+    class MockEventSource extends EventTarget {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSED = 2;
+      readonly CONNECTING = 0;
+      readonly OPEN = 1;
+      readonly CLOSED = 2;
+      readonly url: string;
+      readonly withCredentials = false;
+      readyState = MockEventSource.CONNECTING;
+      onerror: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onopen: ((event: Event) => void) | null = null;
+
+      constructor(url: string | URL) {
+        super();
+        this.url = String(url);
+        eventSourceUrls.push(this.url);
+
+        window.setTimeout(() => {
+          this.readyState = MockEventSource.OPEN;
+          this.dispatchEvent(new Event('open'));
+          this.dispatchEvent(
+            new MessageEvent('delta', {
+              data: JSON.stringify({
+                type: 'delta',
+                text: 'Recovered response',
+              }),
+            }),
+          );
+          this.dispatchEvent(
+            new MessageEvent('done', {
+              data: JSON.stringify({
+                type: 'done',
+                session: {
+                  id: 'session-1',
+                  workspace: '/Users/bytedance/cui',
+                  title: 'Running session',
+                  createdAt: '2026-08-22T00:00:00.000Z',
+                  updatedAt: '2026-08-22T00:00:00.000Z',
+                  messages: [
+                    {
+                      id: 'message-1',
+                      role: 'user',
+                      content: 'Run a long task',
+                      createdAt: '2026-08-22T00:00:00.000Z',
+                    },
+                    {
+                      id: 'message-2',
+                      role: 'assistant',
+                      kind: 'response',
+                      content: 'Finished after reconnect.',
+                      createdAt: '2026-08-22T00:00:01.000Z',
+                    },
+                  ],
+                  rounds: [],
+                },
+              }),
+            }),
+          );
+        }, 0);
+      }
+
+      close() {
+        this.readyState = MockEventSource.CLOSED;
+      }
+    }
+
+    window.EventSource = MockEventSource as typeof EventSource;
+  });
+
+  await page.route('**/api/sessions', async (route) => {
+    if (route.request().method() === 'GET') {
+      sessionListRequests += 1;
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          sessions: [sessionListRequests === 1 ? runningSession : completedSession],
+        }),
+      });
+      return;
+    }
+
+    await route.fallback();
+  });
+  await page.route('**/api/sessions/session-1', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ session: runningSession }),
+    });
+  });
+
+  await page.goto('/');
+
+  await expect(page.getByRole('heading', { name: 'Running session' })).toBeVisible();
+  await expect(page.getByText('Finished after reconnect.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send message' })).toBeEnabled();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            window as Window & {
+              __eventSourceUrls?: string[];
+            }
+          ).__eventSourceUrls ?? [],
+      ),
+    )
+    .toEqual(['/api/turns/turn-1/events']);
+});

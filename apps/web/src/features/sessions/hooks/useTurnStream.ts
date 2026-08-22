@@ -33,6 +33,7 @@ export function useTurnStream({
   setRunningSession,
 }: UseTurnStreamInput) {
   const eventSourceRefs = useRef<Map<string, EventSource>>(new Map());
+  const turnIdRefs = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     return () => {
@@ -40,14 +41,23 @@ export function useTurnStream({
         eventSource.close();
       });
       eventSourceRefs.current.clear();
+      turnIdRefs.current.clear();
     };
   }, []);
 
   function streamTurn(sessionId: string, turnId: string) {
+    if (
+      turnIdRefs.current.get(sessionId) === turnId &&
+      eventSourceRefs.current.has(sessionId)
+    ) {
+      return;
+    }
+
     eventSourceRefs.current.get(sessionId)?.close();
 
     const eventSource = new EventSource(`/api/turns/${turnId}/events`);
     eventSourceRefs.current.set(sessionId, eventSource);
+    turnIdRefs.current.set(sessionId, turnId);
     const streamingTraceMessageId = `stream-${turnId}-trace`;
     const streamingResponseMessageId = `stream-${turnId}-response`;
     const streamMessageState = createStreamMessageState();
@@ -57,16 +67,19 @@ export function useTurnStream({
       eventSource.close();
       if (eventSourceRefs.current.get(sessionId) === eventSource) {
         eventSourceRefs.current.delete(sessionId);
+        turnIdRefs.current.delete(sessionId);
       }
     };
 
     const updateResponseMessage = (text: string) => {
       setActiveSession((session) => {
-        if (!session) {
+        const currentSession = session ?? activeSessionRef.current;
+
+        if (!currentSession) {
           return session;
         }
 
-        const nextSession = appendResponseDelta(session, {
+        const nextSession = appendResponseDelta(currentSession, {
           state: streamMessageState,
           sessionId,
           responseMessageId: streamingResponseMessageId,
@@ -80,11 +93,13 @@ export function useTurnStream({
 
     const updateTraceMessage = (rawEvent: unknown) => {
       setActiveSession((session) => {
-        if (!session) {
+        const currentSession = session ?? activeSessionRef.current;
+
+        if (!currentSession) {
           return session;
         }
 
-        const nextSession = appendTraceEvent(session, {
+        const nextSession = appendTraceEvent(currentSession, {
           state: streamMessageState,
           sessionId,
           traceMessageId: streamingTraceMessageId,

@@ -37,6 +37,7 @@ export type ChatSession = {
 
 export type ChatSessionView = Omit<ChatSession, 'rounds'> & {
   rounds?: ChatRoundSummary[];
+  runningTurnId?: string;
 };
 
 export type AiCreateSessionInput = {

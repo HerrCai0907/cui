@@ -79,7 +79,12 @@ export class SessionService {
   async listSessionViews(): Promise<ChatSessionView[]> {
     const sessions = await this.store.listSessions();
 
-    return sessions.map(toSessionView);
+    return sessions.map((session) =>
+      toSessionView(
+        session,
+        this.turnRegistry.getRunningTurnIdForSession(session.id),
+      ),
+    );
   }
 
   async getSession(sessionId: string): Promise<ChatSession | undefined> {
@@ -91,7 +96,12 @@ export class SessionService {
   ): Promise<ChatSessionView | undefined> {
     const session = await this.store.getSession(sessionId);
 
-    return session ? toSessionView(session) : undefined;
+    return session
+      ? toSessionView(
+          session,
+          this.turnRegistry.getRunningTurnIdForSession(session.id),
+        )
+      : undefined;
   }
 
   async getRoundReview(
@@ -233,7 +243,10 @@ export class SessionService {
     );
     this.finishCreateSession(request, run.result, runningTurn);
 
-    return { session: toSessionView(createdSession), turnId: runningTurn.id };
+    return {
+      session: toSessionView(createdSession, runningTurn.id),
+      turnId: runningTurn.id,
+    };
   }
 
   async continueSession(
@@ -339,7 +352,10 @@ export class SessionService {
       session.workspace,
     );
 
-    return { session: toSessionView(updatedSession), turnId: runningTurn.id };
+    return {
+      session: toSessionView(updatedSession, runningTurn.id),
+      turnId: runningTurn.id,
+    };
   }
 
   hasRunningTurn(turnId: string): boolean {

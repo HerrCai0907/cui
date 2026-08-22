@@ -23,6 +23,16 @@ export class TurnRegistry {
     return this.activeSessionIds.has(sessionId);
   }
 
+  getRunningTurnIdForSession(sessionId: string): string | undefined {
+    for (const turn of this.runningTurns.values()) {
+      if (turn.sessionId === sessionId && !turn.completed) {
+        return turn.id;
+      }
+    }
+
+    return undefined;
+  }
+
   hasRunningTurn(turnId: string): boolean {
     return this.runningTurns.has(turnId);
   }

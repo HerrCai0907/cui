@@ -1,6 +1,9 @@
 import type { ChatSession, ChatSessionView } from '../../types.js';
 
-export function toSessionView(session: ChatSession): ChatSessionView {
+export function toSessionView(
+  session: ChatSession,
+  runningTurnId?: string,
+): ChatSessionView {
   return {
     ...session,
     rounds: session.rounds?.map(({ round, hasChanges, createdAt }) => ({
@@ -8,5 +11,6 @@ export function toSessionView(session: ChatSession): ChatSessionView {
       hasChanges,
       createdAt,
     })),
+    ...(runningTurnId ? { runningTurnId } : {}),
   };
 }

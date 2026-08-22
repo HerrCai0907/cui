@@ -31,6 +31,7 @@ export type ApiSession = {
   updatedAt: string;
   messages: ApiMessage[];
   rounds?: ApiRoundSummary[];
+  runningTurnId?: string;
 };
 
 export type ApiAtomicCapabilityType = 0 | 1 | 2 | 3 | 4 | 5;

@@ -125,8 +125,24 @@ export function useSessionController(defaultWorkspace: string) {
 
       setSessions(loadedSessions.map(toSessionSummary));
 
-      if (!activeSessionRef.current && loadedSessions[0]) {
+      loadedSessions.forEach((session) => {
+        if (session.runningTurnId) {
+          setRunningSession(session.id, true);
+        }
+      });
+
+      const currentActiveSession = activeSessionRef.current;
+      const nextActiveSession =
+        currentActiveSession &&
+        loadedSessions.find((session) => session.id === currentActiveSession.id);
+
+      if (!currentActiveSession && loadedSessions[0]) {
         setCurrentActiveSession(loadedSessions[0]);
+        if (loadedSessions[0].runningTurnId) {
+          streamTurn(loadedSessions[0].id, loadedSessions[0].runningTurnId);
+        }
+      } else if (nextActiveSession?.runningTurnId) {
+        streamTurn(nextActiveSession.id, nextActiveSession.runningTurnId);
       }
     } catch (reason) {
       setError(
@@ -157,6 +173,10 @@ export function useSessionController(defaultWorkspace: string) {
       setExpandedWorkspaces((current) =>
         new Set(current).add(session.workspace),
       );
+      if (session.runningTurnId) {
+        setRunningSession(session.id, true);
+        streamTurn(session.id, session.runningTurnId);
+      }
     } catch (reason) {
       if (openSessionRequestIdRef.current !== requestId) {
         return;
