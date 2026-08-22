@@ -14,6 +14,10 @@ import type {
   ReviewNavigation,
   ReviewNavigationTarget,
 } from '../../review/model/reviewNavigation';
+import {
+  groupWorkspacesForDisplay,
+  type WorkspaceDisplayItem,
+} from '../model/sessionSummaries';
 
 type SessionSidebarProps = {
   open: boolean;
@@ -46,6 +50,8 @@ export function SessionSidebar({
   onOpenSession,
   onNavigateReview,
 }: SessionSidebarProps) {
+  const workspaceGroups = groupWorkspacesForDisplay(workspaces);
+
   return (
     <aside className="sidebar" aria-label="Workspace sessions">
       <div className="sidebar-header">
@@ -85,18 +91,32 @@ export function SessionSidebar({
               </button>
 
               <nav className="workspace-list">
-                {Object.entries(workspaces).map(([workspace, workspaceSessions]) => (
-                  <WorkspaceGroup
-                    activeSessionId={activeSessionId}
-                    expanded={expandedWorkspaces.has(workspace)}
-                    key={workspace}
-                    runningSessionIds={runningSessionIds}
-                    sessions={workspaceSessions}
-                    workspace={workspace}
-                    onOpenSession={onOpenSession}
-                    onStartNewSession={onStartNewSession}
-                    onToggleWorkspace={onToggleWorkspace}
-                  />
+                {workspaceGroups.map((workspaceGroup) => (
+                  <section
+                    className="workspace-display-group"
+                    key={workspaceGroup.id}
+                  >
+                    {workspaceGroup.prefix && (
+                      <div
+                        className="workspace-prefix"
+                        title={workspaceGroup.prefix}
+                      >
+                        {workspaceGroup.prefix}
+                      </div>
+                    )}
+                    {workspaceGroup.workspaces.map((workspace) => (
+                      <WorkspaceGroup
+                        activeSessionId={activeSessionId}
+                        expanded={expandedWorkspaces.has(workspace.workspace)}
+                        key={workspace.workspace}
+                        runningSessionIds={runningSessionIds}
+                        workspace={workspace}
+                        onOpenSession={onOpenSession}
+                        onStartNewSession={onStartNewSession}
+                        onToggleWorkspace={onToggleWorkspace}
+                      />
+                    ))}
+                  </section>
                 ))}
                 {sessionCount === 0 && (
                   <p className="empty-sidebar">No sessions yet</p>
@@ -181,7 +201,6 @@ function WorkspaceGroup({
   activeSessionId,
   expanded,
   runningSessionIds,
-  sessions,
   workspace,
   onOpenSession,
   onStartNewSession,
@@ -190,8 +209,7 @@ function WorkspaceGroup({
   activeSessionId?: string;
   expanded: boolean;
   runningSessionIds: Set<string>;
-  sessions: SessionSummary[];
-  workspace: string;
+  workspace: WorkspaceDisplayItem;
   onOpenSession: (sessionId: string) => void;
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
@@ -203,18 +221,20 @@ function WorkspaceGroup({
           className="workspace-button"
           type="button"
           aria-expanded={expanded}
-          onClick={() => onToggleWorkspace(workspace)}
+          aria-label={workspace.workspace}
+          title={workspace.workspace}
+          onClick={() => onToggleWorkspace(workspace.workspace)}
         >
           {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          <span>{workspace}</span>
+          <span>{workspace.label}</span>
         </button>
         {expanded && (
           <button
             className="workspace-new-session"
             type="button"
-            aria-label={`New session in ${workspace}`}
+            aria-label={`New session in ${workspace.workspace}`}
             title="New session in workspace"
-            onClick={() => onStartNewSession(workspace)}
+            onClick={() => onStartNewSession(workspace.workspace)}
           >
             <Plus size={15} />
           </button>
@@ -223,7 +243,7 @@ function WorkspaceGroup({
 
       {expanded && (
         <div className="session-list">
-          {sessions.map((session) => {
+          {workspace.sessions.map((session) => {
             const active = activeSessionId === session.id;
             const needsAttention =
               runningSessionIds.has(session.id) ||

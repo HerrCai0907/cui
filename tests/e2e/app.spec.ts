@@ -110,7 +110,62 @@ test('starts a new session from an expanded workspace row', async ({ page }) => 
   await expect(page.getByLabel('Workspace path')).toHaveValue(
     '/Users/bytedance/other',
   );
-  await expect(page.getByPlaceholder('Start with an initial prompt...')).toBeVisible();
+  await expect(
+    page.getByPlaceholder('Start with an initial prompt...'),
+  ).toBeVisible();
+});
+
+test('merges shared workspace path prefixes in the sidebar', async ({ page }) => {
+  const firstSession = {
+    id: 'session-1',
+    workspace: '/Users/bytedance/cui',
+    title: 'CUI session',
+    createdAt: '2026-08-22T00:00:00.000Z',
+    updatedAt: '2026-08-22T00:00:00.000Z',
+    messages: [],
+    rounds: [],
+  };
+  const secondSession = {
+    id: 'session-2',
+    workspace: '/Users/bytedance/oss/go',
+    title: 'Go session',
+    createdAt: '2026-08-22T00:00:01.000Z',
+    updatedAt: '2026-08-22T00:00:01.000Z',
+    messages: [],
+    rounds: [],
+  };
+
+  await page.route('**/api/sessions', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          sessions: [firstSession, secondSession],
+        }),
+      });
+      return;
+    }
+
+    await route.fallback();
+  });
+
+  await page.goto('/');
+
+  const sidebar = page.getByLabel('Workspace sessions');
+
+  await expect(
+    sidebar.getByText('/Users/bytedance', { exact: true }),
+  ).toBeVisible();
+  await expect(sidebar.getByText('cui', { exact: true })).toBeVisible();
+  await expect(sidebar.getByText('oss/go', { exact: true })).toBeVisible();
+  await expect(
+    sidebar.getByText('/Users/bytedance/oss/go', { exact: true }),
+  ).toHaveCount(0);
+
+  await page.getByRole('button', { name: '/Users/bytedance/oss/go' }).click();
+  await expect(
+    page.getByRole('button', { name: 'New session in /Users/bytedance/oss/go' }),
+  ).toBeVisible();
 });
 
 test('restores the last opened session after a browser refresh', async ({
