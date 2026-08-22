@@ -1,4 +1,10 @@
-import type { ExecutionTraceEvent, ExecutionTraceItem, LegacyEventMessage, TokenUsage } from '../../../types';
+import type {
+  ExecutionTraceEvent,
+  ExecutionTraceItem,
+  LegacyEventMessage,
+  TodoListTraceItemEntry,
+  TokenUsage,
+} from '../../../types';
 
 export function parseExecutionTrace(content: string): ExecutionTraceEvent[] {
   return content
@@ -79,7 +85,11 @@ function normalizeTraceEvent(raw: unknown): ExecutionTraceEvent {
     };
   }
 
-  if (type === 'item.started' || type === 'item.completed') {
+  if (
+    type === 'item.started' ||
+    type === 'item.updated' ||
+    type === 'item.completed'
+  ) {
     return {
       type,
       item: normalizeTraceItem(raw.item),
@@ -161,6 +171,14 @@ function normalizeTraceItem(raw: unknown): ExecutionTraceItem {
     };
   }
 
+  if (type === 'todo_list') {
+    return {
+      id,
+      type,
+      items: normalizeTodoListItems(raw.items),
+    };
+  }
+
   return {
     ...raw,
     id,
@@ -173,10 +191,30 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function normalizeTodoListItems(value: unknown): TodoListTraceItemEntry[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(isRecord)
+    .map((item) => ({
+      text: getString(item, 'text') ?? '',
+      completed: getBoolean(item, 'completed') ?? false,
+    }))
+    .filter((item) => item.text);
+}
+
 function getString(value: Record<string, unknown>, key: string): string | undefined {
   const property = value[key];
 
   return typeof property === 'string' ? property : undefined;
+}
+
+function getBoolean(value: Record<string, unknown>, key: string): boolean | undefined {
+  const property = value[key];
+
+  return typeof property === 'boolean' ? property : undefined;
 }
 
 function getNumberOrNull(value: Record<string, unknown>, key: string): number | null | undefined {

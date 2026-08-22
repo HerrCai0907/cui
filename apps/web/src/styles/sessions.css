@@ -275,42 +275,17 @@
 }
 
 .review-navigation-atomic span,
-.review-navigation-file span,
-.review-navigation-status-label span {
+.review-navigation-file span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.review-navigation-status {
-  display: grid;
-  gap: 4px;
-  padding-left: 22px;
-}
-
-.review-navigation-status-label {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 7px;
-  min-height: 24px;
-  color: #667085;
-  padding: 0 8px;
-  font-size: 0.74rem;
-  font-weight: 800;
-}
-
-.review-navigation-status-label small {
-  flex: 0 0 auto;
-  color: #8a94a3;
-  font-size: 0.72rem;
-}
-
 .review-navigation-files {
   display: grid;
   gap: 3px;
-  padding-left: 14px;
+  padding-left: 22px;
 }
 
 .review-navigation-file {

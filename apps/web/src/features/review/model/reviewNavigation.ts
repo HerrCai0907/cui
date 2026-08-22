@@ -17,18 +17,12 @@ export type ReviewNavigationFile = {
   deletions: number;
 };
 
-export type ReviewNavigationStatusGroup = {
-  status: 'approved' | 'pending';
-  label: string;
-  files: ReviewNavigationFile[];
-};
-
 export type ReviewNavigationItem = {
   itemId: string;
   order: number;
   title: string;
   targetId: string;
-  statusGroups: ReviewNavigationStatusGroup[];
+  files: ReviewNavigationFile[];
 };
 
 export type ReviewNavigation = {
@@ -69,28 +63,16 @@ export function createAtomicReviewNavigation(
         reviewState.atomicItems[item.id] ?? createEmptyAtomicItemState();
       const approvedFileIds = new Set(itemState.approvedFileIds);
       const files = filesByItem.get(item.id) ?? [];
-      const approved: ReviewNavigationFile[] = [];
-      const pending: ReviewNavigationFile[] = [];
-
-      files.forEach((file) => {
-        const navFile = createNavigationFile(item, file, basenameCounts);
-
-        if (approvedFileIds.has(file.id)) {
-          approved.push(navFile);
-        } else {
-          pending.push(navFile);
-        }
-      });
+      const pendingFiles = files
+        .filter((file) => !approvedFileIds.has(file.id))
+        .map((file) => createNavigationFile(item, file, basenameCounts));
 
       return {
         itemId: item.id,
         order: item.order,
         title: item.title,
         targetId: createAtomicReviewSectionId(item.id),
-        statusGroups: [
-          { status: 'approved', label: 'approved', files: approved },
-          { status: 'pending', label: 'pending', files: pending },
-        ],
+        files: pendingFiles,
       };
     }),
   };
