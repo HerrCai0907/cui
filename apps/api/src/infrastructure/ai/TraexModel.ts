@@ -249,7 +249,7 @@ export class TraexModel implements AiModel {
 
         onEvent({ type: 'raw', event });
       },
-    }).then(async ({ content, beforeDiff, afterDiff, rawEvents }) => {
+    }).then(async ({ content, beforeSnapshot, afterSnapshot, rawEvents }) => {
       const sessionId =
         expectedSessionId ?? observedSessionId ?? extractThreadId(rawEvents);
 
@@ -266,8 +266,9 @@ export class TraexModel implements AiModel {
         ...(captureDiff
           ? {
               gitDiff: {
-                beforeDiff,
-                afterDiff,
+                baseCommit: beforeSnapshot.gitCommit,
+                beforeDiff: beforeSnapshot.diff,
+                afterDiff: afterSnapshot.diff,
               },
             }
           : {}),

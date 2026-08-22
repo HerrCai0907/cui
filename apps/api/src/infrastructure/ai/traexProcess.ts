@@ -2,7 +2,10 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { GitDiffService } from '../diff/GitDiffService.js';
+import {
+  GitDiffService,
+  type DiffSnapshot,
+} from '../diff/GitDiffService.js';
 import { parseJsonLine } from './traexEvents.js';
 
 type RunProcessInput = {
@@ -18,8 +21,8 @@ type RunProcessInput = {
 
 type RunProcessResult = {
   content: string;
-  beforeDiff: string;
-  afterDiff: string;
+  beforeSnapshot: DiffSnapshot;
+  afterSnapshot: DiffSnapshot;
   rawEvents: unknown[];
 };
 
@@ -33,9 +36,9 @@ export async function runTraexProcess({
   diffService,
   onRawEvent,
 }: RunProcessInput): Promise<RunProcessResult> {
-  const beforeDiff = captureDiff
-    ? await diffService.captureWorkspaceDiff(cwd)
-    : '';
+  const beforeSnapshot = captureDiff
+    ? await diffService.captureWorkspaceSnapshot(cwd)
+    : { gitCommit: '', diff: '' };
 
   return new Promise((resolve, reject) => {
     const events: unknown[] = [];
@@ -144,10 +147,22 @@ export async function runTraexProcess({
             .catch(() => '')
             .then(async (content) => {
               const afterDiff = captureDiff
-                ? await diffService.captureWorkspaceDiff(cwd)
+                ? await diffService.captureWorkspaceDiff(
+                    cwd,
+                    beforeSnapshot.gitCommit,
+                  )
                 : '';
+              const afterSnapshot = {
+                gitCommit: beforeSnapshot.gitCommit,
+                diff: afterDiff,
+              };
 
-              resolve({ content, beforeDiff, afterDiff, rawEvents: events });
+              resolve({
+                content,
+                beforeSnapshot,
+                afterSnapshot,
+                rawEvents: events,
+              });
             })
             .finally(() => {
               void cleanupOutputDir(outputDir);
