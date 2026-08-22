@@ -202,5 +202,9 @@ function capabilityToneClass(
     return 'is-capability-feature';
   }
 
+  if (capabilityType === 5) {
+    return 'is-capability-test';
+  }
+
   return 'is-capability-change';
 }

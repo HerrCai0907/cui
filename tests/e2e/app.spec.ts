@@ -62,6 +62,16 @@ test('renders atomic review output for a round diff', async ({ page }) => {
     '+  return 2;',
     ' }',
   ].join('\n');
+  const testDiff = [
+    'diff --git a/src/example.test.ts b/src/example.test.ts',
+    '--- a/src/example.test.ts',
+    '+++ b/src/example.test.ts',
+    '@@ -1,3 +1,4 @@',
+    ' test("value", () => {',
+    '-  expect(value()).toBe(1);',
+    '+  expect(value()).toBe(2);',
+    ' });',
+  ].join('\n');
 
   page.on('console', (message) => {
     if (message.type() === 'error') {
@@ -110,7 +120,7 @@ test('renders atomic review output for a round diff', async ({ page }) => {
                 id: 'atomic-1',
                 order: 1,
                 capabilityType: 3,
-                capabilityLabel: '单点修改',
+                capabilityLabel: '局部修复',
                 title: 'Adjust return value',
                 intent: 'Change the local function behavior to return the new value.',
                 files: ['src/example.ts'],
@@ -119,10 +129,29 @@ test('renders atomic review output for a round diff', async ({ page }) => {
                   id: 'atomic-1',
                   order: 1,
                   capability_type: 3,
-                  capability_label: '单点修改',
+                  capability_label: '局部修复',
                   title: 'Adjust return value',
                   intent: 'Change the local function behavior to return the new value.',
                   files: ['src/example.ts'],
+                },
+              },
+              {
+                id: 'atomic-2',
+                order: 2,
+                capabilityType: 5,
+                capabilityLabel: '测试修改',
+                title: 'Update value assertion',
+                intent: 'Adjust the test assertion for the updated value() output.',
+                files: ['src/example.test.ts'],
+                diff: testDiff,
+                outputJson: {
+                  id: 'atomic-2',
+                  order: 2,
+                  capability_type: 5,
+                  capability_label: '测试修改',
+                  title: 'Update value assertion',
+                  intent: 'Adjust the test assertion for the updated value() output.',
+                  files: ['src/example.test.ts'],
                 },
               },
             ],
@@ -135,7 +164,7 @@ test('renders atomic review output for a round diff', async ({ page }) => {
   await page.goto('/ui/sessions/session-1/rounds/1/atomic_review');
 
   await expect(page.getByRole('heading', { name: 'Round 1' })).toBeVisible();
-  await expect(page.getByText('1 atomic changes')).toBeVisible();
+  await expect(page.getByText('2 atomic changes')).toBeVisible();
   await expect(page.getByText('Round changes')).not.toBeVisible();
   await expect(
     page.getByRole('heading', { name: 'Adjust return value' }),
@@ -148,8 +177,13 @@ test('renders atomic review output for a round diff', async ({ page }) => {
     'Change the local function behavior to return the new value.',
     { exact: true },
   );
+  const testChange = page
+    .locator('.atomic-review-item')
+    .filter({ hasText: 'Update value assertion' });
 
   await expect(atomicChange.getByText('+  return 2;')).toBeVisible();
+  await expect(testChange).toHaveClass(/is-capability-test/);
+  await expect(testChange.getByText('+  expect(value()).toBe(2);')).toBeVisible();
   await atomicChange.getByRole('button', { name: 'Approve all' }).click();
   await expect(atomicChange.getByText('+  return 2;')).not.toBeVisible();
   await atomicChange.getByRole('button', { name: 'Unapprove all' }).click();
@@ -176,7 +210,7 @@ test('renders atomic review output for a round diff', async ({ page }) => {
   await page.getByRole('button', { name: 'Full review' }).click();
   await expect(page).toHaveURL(/\/ui\/sessions\/session-1\/rounds\/1\/full_review$/);
   await expect(page.getByText('Round changes')).toBeVisible();
-  await expect(page.getByText('1 atomic changes')).not.toBeVisible();
+  await expect(page.getByText('2 atomic changes')).not.toBeVisible();
   await expect(page.getByText('+  return 2;').first()).toBeVisible();
   await page.getByLabel('Approve src/example.ts').check();
   await page.reload();
