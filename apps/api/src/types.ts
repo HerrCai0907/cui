@@ -50,7 +50,7 @@ export type AiContinueSessionInput = {
   prompt: string;
 };
 
-export type AtomicCapabilityType = 0 | 1 | 2 | 3 | 4;
+export type AtomicCapabilityType = 0 | 1 | 2 | 3 | 4 | 5;
 
 export type AtomicDiffReviewItem = {
   id: string;

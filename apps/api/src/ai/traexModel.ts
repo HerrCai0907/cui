@@ -293,6 +293,7 @@ function createAtomicDiffReviewPrompt(input: AiAtomicDiffReviewInput): string {
     '2: 新功能，包括新加一个函数、新加一个类',
     '3: 单点修改，例如修改函数局部逻辑',
     '4: 多点调整，例如函数修改签名，导致所有上下游都需要跟着变化',
+    '5: 测试修改，包括新增测试、修改测试断言、调整测试夹具或测试快照',
     '',
     '拆分规则：',
     '1. 按照人类 review 代码时的理解顺序排列，从结构入口、数据模型、核心逻辑、调用点、展示或测试逐步展开。',
@@ -432,11 +433,20 @@ function normalizeOutputJson(
 }
 
 function parseCapabilityType(value: number | undefined): AtomicCapabilityType {
-  if (value === 0 || value === 1 || value === 2 || value === 3 || value === 4) {
+  if (
+    value === 0 ||
+    value === 1 ||
+    value === 2 ||
+    value === 3 ||
+    value === 4 ||
+    value === 5
+  ) {
     return value;
   }
 
-  throw new Error('Atomic diff review capabilityType must be 0, 1, 2, 3, or 4');
+  throw new Error(
+    'Atomic diff review capabilityType must be 0, 1, 2, 3, 4, or 5',
+  );
 }
 
 function capabilityLabelForType(value: AtomicCapabilityType): string {
@@ -451,6 +461,8 @@ function capabilityLabelForType(value: AtomicCapabilityType): string {
       return '单点修改';
     case 4:
       return '多点调整';
+    case 5:
+      return '测试修改';
   }
 }
 
