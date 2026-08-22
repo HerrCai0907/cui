@@ -3,6 +3,7 @@ export type ChatRole = 'assistant' | 'user';
 export type ChatMessage = {
   id: string;
   role: ChatRole;
+  kind?: 'response' | 'trace';
   content: string;
   createdAt: string;
 };
@@ -31,6 +32,7 @@ export type AiContinueSessionInput = {
 export type AiResponse = {
   sessionId: string;
   content: string;
+  trace?: string;
   rawEvents: unknown[];
 };
 

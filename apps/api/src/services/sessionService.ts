@@ -23,6 +23,10 @@ export type TurnStreamEvent =
       text: string;
     }
   | {
+      type: 'raw';
+      event: unknown;
+    }
+  | {
       type: 'done';
       session: ChatSession;
     }
@@ -75,7 +79,7 @@ export class SessionService {
     const sessionId = aiResponse.sessionId;
     const now = new Date().toISOString();
     const userMessage = createMessage('user', request.prompt);
-    const assistantMessage = createMessage('assistant', aiResponse.content);
+    const assistantMessages = createAssistantMessages(aiResponse);
     const session: ChatSession = {
       id: sessionId,
       workspace: request.workspace,
@@ -83,7 +87,7 @@ export class SessionService {
       summary: '',
       createdAt: now,
       updatedAt: now,
-      messages: [userMessage, assistantMessage],
+      messages: [userMessage, ...assistantMessages],
     };
 
     await this.logger.session(sessionId).info('session.created', {
@@ -163,7 +167,7 @@ export class SessionService {
       prompt: request.prompt,
     });
     const userMessage = createMessage('user', request.prompt);
-    const assistantMessage = createMessage('assistant', aiResponse.content);
+    const assistantMessages = createAssistantMessages(aiResponse);
 
     await this.logger.session(sessionId).info('session.continued', {
       sessionId,
@@ -177,7 +181,7 @@ export class SessionService {
       workspace: session.workspace,
     });
 
-    const updatedSession = await this.store.appendMessages(sessionId, [userMessage, assistantMessage]);
+    const updatedSession = await this.store.appendMessages(sessionId, [userMessage, ...assistantMessages]);
 
     return this.refreshSessionSummary(updatedSession);
   }
@@ -280,8 +284,8 @@ export class SessionService {
   ): void {
     result
       .then(async (aiResponse) => {
-        const assistantMessage = createMessage('assistant', aiResponse.content);
-        const updatedSession = await this.store.appendMessages(aiResponse.sessionId, [assistantMessage]);
+        const assistantMessages = createAssistantMessages(aiResponse);
+        const updatedSession = await this.store.appendMessages(aiResponse.sessionId, assistantMessages);
         const session = await this.refreshSessionSummary(updatedSession);
 
         await this.logger.session(aiResponse.sessionId).info('session.created', {
@@ -315,8 +319,8 @@ export class SessionService {
   ): void {
     result
       .then(async (aiResponse) => {
-        const assistantMessage = createMessage('assistant', aiResponse.content);
-        const updatedSession = await this.store.appendMessages(aiResponse.sessionId, [assistantMessage]);
+        const assistantMessages = createAssistantMessages(aiResponse);
+        const updatedSession = await this.store.appendMessages(aiResponse.sessionId, assistantMessages);
         const session = await this.refreshSessionSummary(updatedSession);
 
         await this.logger.session(aiResponse.sessionId).info('session.continued', {
@@ -381,16 +385,40 @@ export class SessionBusyError extends Error {
 function handleAiRunEvent(event: AiRunEvent, emit: (event: TurnStreamEvent) => void): void {
   if (event.type === 'delta') {
     emit({ type: 'delta', text: event.text });
+    return;
+  }
+
+  if (event.type === 'raw') {
+    emit({ type: 'raw', event: event.event });
   }
 }
 
-function createMessage(role: ChatMessage['role'], content: string): ChatMessage {
+function createMessage(
+  role: ChatMessage['role'],
+  content: string,
+  kind?: ChatMessage['kind'],
+): ChatMessage {
   return {
     id: randomUUID(),
     role,
+    ...(kind ? { kind } : {}),
     content,
     createdAt: new Date().toISOString(),
   };
+}
+
+function createAssistantMessages(aiResponse: { content: string; trace?: string }): ChatMessage[] {
+  const messages: ChatMessage[] = [];
+  const trace = aiResponse.trace?.trim() || 'TRAEX run completed.';
+  const content = aiResponse.content.trim();
+
+  messages.push(createMessage('assistant', trace, 'trace'));
+
+  if (content) {
+    messages.push(createMessage('assistant', content, 'response'));
+  }
+
+  return messages;
 }
 
 function createTitle(prompt: string): string {
@@ -404,7 +432,9 @@ function createTitle(prompt: string): string {
 }
 
 function createSummaryPrompt(session: ChatSession): string {
-  const recentMessages = selectRecentTurnMessages(session.messages);
+  const recentMessages = selectRecentTurnMessages(
+    session.messages.filter((message) => message.kind !== 'trace'),
+  );
   const transcript = recentMessages
     .map((message) => `${message.role === 'user' ? '用户' : '助手'}：${message.content}`)
     .join('\n\n');

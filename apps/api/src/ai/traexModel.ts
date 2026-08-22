@@ -139,7 +139,7 @@ export class TraexModel implements AiModel {
           onEvent({ type: 'session', sessionId });
         }
 
-        for (const text of extractTextDeltas(event)) {
+        for (const text of extractResponseDeltas(event)) {
           onEvent({ type: 'delta', text });
         }
 
@@ -157,6 +157,7 @@ export class TraexModel implements AiModel {
       return {
         sessionId,
         content: content.trim(),
+        trace: formatRawEvents(rawEvents),
         rawEvents,
       };
     });
@@ -388,7 +389,7 @@ function parseJsonLine(line: string): unknown | undefined {
   }
 }
 
-function extractTextDeltas(event: unknown): string[] {
+function extractResponseDeltas(event: unknown): string[] {
   if (!event || typeof event !== 'object') {
     return [];
   }
@@ -409,13 +410,17 @@ function extractTextDeltas(event: unknown): string[] {
         return getTextFields(payload, ['message']).map((text) => `${text}\n\n`);
       }
 
-      if (payloadType === 'agent_message_delta' || payloadType === 'agent_reasoning_delta') {
+      if (payloadType === 'agent_message_delta') {
         return getTextFields(payload, ['text', 'delta', 'message']);
       }
     }
   }
 
   return [];
+}
+
+function formatRawEvents(events: unknown[]): string {
+  return events.map((event) => JSON.stringify(event)).join('\n');
 }
 
 function getStringProperty(value: object, key: string): string | undefined {

@@ -1,59 +1,18 @@
 import {
   ChevronDown,
   ChevronRight,
+  ClipboardList,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
   Send,
 } from 'lucide-react';
-import { FormEvent, StrictMode, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, StrictMode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { TraceView } from './components/TraceView';
+import { encodeExecutionTraceEvent } from './trace/parseExecutionTrace';
+import type { ApiMessage, ApiSession, SessionSummary, SubmittedTurn, TurnStreamEvent } from './types';
 import './styles.css';
-
-type ApiMessage = {
-  id: string;
-  role: 'assistant' | 'user';
-  content: string;
-  createdAt: string;
-};
-
-type ApiSession = {
-  id: string;
-  workspace: string;
-  title: string;
-  summary?: string;
-  createdAt: string;
-  updatedAt: string;
-  messages: ApiMessage[];
-};
-
-type SessionSummary = {
-  id: string;
-  workspace: string;
-  title: string;
-  summary?: string;
-  updatedAt: string;
-};
-
-type SubmittedTurn = {
-  status: 'ok';
-  session: ApiSession;
-  turnId: string;
-};
-
-type TurnStreamEvent =
-  | {
-      type: 'delta';
-      text: string;
-    }
-  | {
-      type: 'done';
-      session: ApiSession;
-    }
-  | {
-      type: 'failed';
-      error: string;
-    };
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -66,7 +25,10 @@ function App() {
   const [workspaceDraft, setWorkspaceDraft] = useState('/Users/bytedance/cui');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedTraceIds, setExpandedTraceIds] = useState<Set<string>>(() => new Set());
   const eventSourceRef = useRef<EventSource | null>(null);
+  const lastEnterKeyDownRef = useRef<number | null>(null);
+  const messageStreamRef = useRef<HTMLDivElement | null>(null);
 
   const workspaces = useMemo(
     () =>
@@ -88,6 +50,16 @@ function App() {
       eventSourceRef.current?.close();
     };
   }, []);
+
+  useLayoutEffect(() => {
+    const messageStream = messageStreamRef.current;
+
+    if (!messageStream || !activeSession) {
+      return;
+    }
+
+    messageStream.scrollTop = messageStream.scrollHeight;
+  }, [activeSession?.id, activeSession?.messages]);
 
   function toggleWorkspace(workspaceId: string) {
     setExpandedWorkspaces((current) => {
@@ -203,43 +175,102 @@ function App() {
 
     const eventSource = new EventSource(`/api/turns/${turnId}/events`);
     eventSourceRef.current = eventSource;
-    const streamingMessageId = `stream-${turnId}`;
-    let streamedText = '';
+    const streamingTraceMessageId = `stream-${turnId}-trace`;
+    const streamingResponseMessageId = `stream-${turnId}-response`;
+    let streamedTrace = '';
+    let streamedResponse = '';
     let streamClosed = false;
 
-    const appendDelta = (text: string) => {
+    const appendResponseDelta = (text: string) => {
       if (!text) {
         return;
       }
 
-      streamedText += text;
+      streamedResponse += text;
+
       setActiveSession((session) => {
         if (!session) {
           return session;
         }
 
-        const existingMessage = session.messages.find((message) => message.id === streamingMessageId);
+        const existingMessage = session.messages.find(
+          (message) => message.id === streamingResponseMessageId,
+        );
 
         if (existingMessage) {
           return {
             ...session,
             messages: session.messages.map((message) =>
-              message.id === streamingMessageId ? { ...message, content: streamedText } : message,
+              message.id === streamingResponseMessageId
+                ? { ...message, content: streamedResponse }
+                : message,
             ),
           };
         }
 
+        const streamMessage: ApiMessage = {
+          id: streamingResponseMessageId,
+          role: 'assistant',
+          kind: 'response',
+          content: streamedResponse,
+          createdAt: new Date().toISOString(),
+        };
+
         return {
           ...session,
-          messages: [
-            ...session.messages,
-            {
-              id: streamingMessageId,
-              role: 'assistant',
-              content: streamedText,
-              createdAt: new Date().toISOString(),
-            },
-          ],
+          messages: [...session.messages, streamMessage],
+        };
+      });
+    };
+
+    const appendTraceEvent = (rawEvent: unknown) => {
+      const json = encodeExecutionTraceEvent(rawEvent);
+
+      if (!json) {
+        return;
+      }
+
+      streamedTrace = streamedTrace ? `${streamedTrace}\n${json}` : json;
+      setExpandedTraceIds((current) => new Set(current).add(streamingTraceMessageId));
+
+      setActiveSession((session) => {
+        if (!session) {
+          return session;
+        }
+
+        const existingMessage = session.messages.find((message) => message.id === streamingTraceMessageId);
+
+        if (existingMessage) {
+          return {
+            ...session,
+            messages: session.messages.map((message) =>
+              message.id === streamingTraceMessageId ? { ...message, content: streamedTrace } : message,
+            ),
+          };
+        }
+
+        const streamMessage: ApiMessage = {
+          id: streamingTraceMessageId,
+          role: 'assistant',
+          kind: 'trace',
+          content: streamedTrace,
+          createdAt: new Date().toISOString(),
+        };
+        const responseIndex = session.messages.findIndex(
+          (message) => message.id === streamingResponseMessageId,
+        );
+        const messages =
+          responseIndex === -1
+            ? [...session.messages, streamMessage]
+            : [
+                ...session.messages.slice(0, responseIndex),
+                streamMessage,
+                ...session.messages.slice(responseIndex),
+              ];
+
+        return {
+          ...session,
+          messages,
         };
       });
     };
@@ -248,7 +279,15 @@ function App() {
       const data = parseMessageEvent(event);
 
       if (data?.type === 'delta') {
-        appendDelta(data.text);
+        appendResponseDelta(data.text);
+      }
+    });
+
+    eventSource.addEventListener('raw', (event) => {
+      const data = parseMessageEvent(event);
+
+      if (data?.type === 'raw') {
+        appendTraceEvent(data.event);
       }
     });
 
@@ -260,6 +299,13 @@ function App() {
       }
 
       setActiveSession(data.session);
+      setExpandedTraceIds((current) => {
+        const next = new Set(current);
+
+        next.delete(streamingTraceMessageId);
+
+        return next;
+      });
       setLoading(false);
       void refreshSessions();
       streamClosed = true;
@@ -395,10 +441,9 @@ function App() {
             <h1>{activeSession?.title ?? 'New session'}</h1>
             {activeSession?.summary && <p className="session-progress">{activeSession.summary}</p>}
           </div>
-          <div className="model-pill">GPT workspace</div>
         </header>
 
-        <div className="message-stream" role="log" aria-live="polite">
+        <div className="message-stream" ref={messageStreamRef} role="log" aria-live="polite">
           {!activeSession && (
             <div className="empty-state">
               <h2>Start a TRAEX-backed AI session</h2>
@@ -411,18 +456,43 @@ function App() {
             </div>
           )}
 
-          {activeSession?.messages.map((message) => (
-            <article className={`message ${message.role}`} key={message.id}>
-              <div className="message-avatar">{message.role === 'assistant' ? 'AI' : 'You'}</div>
-              <div className="message-body">
-                <div className="message-meta">
-                  <strong>{message.role === 'assistant' ? 'Assistant' : 'You'}</strong>
-                  <time>{formatMessageTime(message.createdAt)}</time>
+          {activeSession?.messages.map((message) => {
+            const isTrace = message.kind === 'trace';
+            const traceExpanded = expandedTraceIds.has(message.id);
+
+            return (
+              <article className={`message ${message.role} ${isTrace ? 'trace' : ''}`} key={message.id}>
+                <div className="message-avatar">{isTrace ? <ClipboardList size={17} /> : message.role === 'assistant' ? 'AI' : 'You'}</div>
+                <div className="message-body">
+                  <div className="message-meta">
+                    <strong>{getMessageTitle(message)}</strong>
+                    <time>{formatMessageTime(message.createdAt)}</time>
+                  </div>
+                  {isTrace ? (
+                    <TraceView
+                      content={message.content}
+                      expanded={traceExpanded}
+                      onExpandedChange={(open) => {
+                        setExpandedTraceIds((current) => {
+                          const next = new Set(current);
+
+                          if (open) {
+                            next.add(message.id);
+                          } else {
+                            next.delete(message.id);
+                          }
+
+                          return next;
+                        });
+                      }}
+                    />
+                  ) : (
+                    <p>{message.content}</p>
+                  )}
                 </div>
-                <p>{message.content}</p>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
 
           {loading && <p className="loading-line">Waiting for TRAEX...</p>}
           {error && <p className="error-line">{error}</p>}
@@ -439,8 +509,22 @@ function App() {
             rows={1}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey && !loading) {
+              if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) {
+                lastEnterKeyDownRef.current = null;
+                return;
+              }
+
+              const previousEnterKeyDown = lastEnterKeyDownRef.current;
+              lastEnterKeyDownRef.current = event.timeStamp;
+
+              if (
+                previousEnterKeyDown !== null &&
+                event.timeStamp - previousEnterKeyDown < 500 &&
+                !loading &&
+                draft.trim()
+              ) {
                 event.preventDefault();
+                lastEnterKeyDownRef.current = null;
                 event.currentTarget.form?.requestSubmit();
               }
             }}
@@ -466,6 +550,14 @@ function formatMessageTime(value: string): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function getMessageTitle(message: ApiMessage): string {
+  if (message.kind === 'trace') {
+    return 'Execution Trace';
+  }
+
+  return message.role === 'assistant' ? 'Assistant' : 'You';
 }
 
 function formatRelativeTime(value: string): string {
