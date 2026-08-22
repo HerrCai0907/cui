@@ -2,9 +2,24 @@ export type ApiMessage = {
   id: string;
   role: 'assistant' | 'user';
   kind?: 'response' | 'trace';
+  round?: number;
   content: string;
   createdAt: string;
 };
+
+export type ApiRound = {
+  round: number;
+  beforeDiff: string;
+  afterDiff: string;
+  diff: string;
+  hasChanges: boolean;
+  createdAt: string;
+};
+
+export type ApiRoundSummary = Pick<
+  ApiRound,
+  'round' | 'hasChanges' | 'createdAt'
+>;
 
 export type ApiSession = {
   id: string;
@@ -14,6 +29,7 @@ export type ApiSession = {
   createdAt: string;
   updatedAt: string;
   messages: ApiMessage[];
+  rounds?: ApiRoundSummary[];
 };
 
 export type SessionSummary = {

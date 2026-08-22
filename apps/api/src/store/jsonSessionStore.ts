@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { ChatMessage, ChatSession } from '../types.js';
+import { ChatMessage, ChatRound, ChatSession } from '../types.js';
 
 type SessionStoreData = {
   sessions: ChatSession[];
@@ -28,13 +28,19 @@ export class JsonSessionStore {
 
   async createSession(session: ChatSession): Promise<ChatSession> {
     await this.updateData((data) => ({
-      sessions: [session, ...data.sessions.filter((current) => current.id !== session.id)],
+      sessions: [
+        session,
+        ...data.sessions.filter((current) => current.id !== session.id),
+      ],
     }));
 
     return session;
   }
 
-  async appendMessages(sessionId: string, messages: ChatMessage[]): Promise<ChatSession> {
+  async appendMessages(
+    sessionId: string,
+    messages: ChatMessage[],
+  ): Promise<ChatSession> {
     let updatedSession: ChatSession | undefined;
 
     await this.updateData((data) => {
@@ -60,6 +66,48 @@ export class JsonSessionStore {
     }
 
     return updatedSession;
+  }
+
+  async appendRoundAndMessages(
+    sessionId: string,
+    round: ChatRound | undefined,
+    messages: ChatMessage[],
+  ): Promise<ChatSession> {
+    let updatedSession: ChatSession | undefined;
+
+    await this.updateData((data) => {
+      const sessions = data.sessions.map((session) => {
+        if (session.id !== sessionId) {
+          return session;
+        }
+
+        updatedSession = {
+          ...session,
+          updatedAt: new Date().toISOString(),
+          messages: [...session.messages, ...messages],
+          ...(round ? { rounds: [...(session.rounds ?? []), round] } : {}),
+        };
+
+        return updatedSession;
+      });
+
+      return { sessions };
+    });
+
+    if (!updatedSession) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    return updatedSession;
+  }
+
+  async getRound(
+    sessionId: string,
+    roundNumber: number,
+  ): Promise<ChatRound | undefined> {
+    const session = await this.getSession(sessionId);
+
+    return session?.rounds?.find((round) => round.round === roundNumber);
   }
 
   async updateSessionSummary(
@@ -110,13 +158,19 @@ export class JsonSessionStore {
     }
   }
 
-  private async updateData(updater: (data: SessionStoreData) => SessionStoreData): Promise<void> {
+  private async updateData(
+    updater: (data: SessionStoreData) => SessionStoreData,
+  ): Promise<void> {
     this.writeQueue = this.writeQueue.then(async () => {
       const current = await this.readData();
       const next = updater(current);
 
       await mkdir(dirname(this.filePath), { recursive: true });
-      await writeFile(this.filePath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+      await writeFile(
+        this.filePath,
+        `${JSON.stringify(next, null, 2)}\n`,
+        'utf8',
+      );
     });
 
     return this.writeQueue;

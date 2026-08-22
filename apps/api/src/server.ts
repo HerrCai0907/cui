@@ -16,7 +16,11 @@ dotenv.config();
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
 const logger = new AppLogger();
-const sessionService = new SessionService(new TraexModel(), new JsonSessionStore(), logger);
+const sessionService = new SessionService(
+  new TraexModel(),
+  new JsonSessionStore(),
+  logger,
+);
 
 app.use(cors());
 app.use(express.json());
@@ -45,7 +49,7 @@ app.get('/api/health', (_request, response) => {
 
 app.get('/api/sessions', async (_request, response, next) => {
   try {
-    response.json({ sessions: await sessionService.listSessions() });
+    response.json({ sessions: await sessionService.listSessionViews() });
   } catch (error) {
     next(error);
   }
@@ -53,7 +57,9 @@ app.get('/api/sessions', async (_request, response, next) => {
 
 app.get('/api/sessions/:sessionId', async (request, response, next) => {
   try {
-    const session = await sessionService.getSession(request.params.sessionId);
+    const session = await sessionService.getSessionView(
+      request.params.sessionId,
+    );
 
     if (!session) {
       response.status(404).json({ error: 'Session not found' });
@@ -65,6 +71,36 @@ app.get('/api/sessions/:sessionId', async (request, response, next) => {
     next(error);
   }
 });
+
+app.get(
+  '/api/sessions/:sessionId/rounds/:round/review',
+  async (request, response, next) => {
+    try {
+      const round = Number(request.params.round);
+
+      if (!Number.isInteger(round) || round < 1) {
+        response
+          .status(400)
+          .json({ error: 'round must be a positive integer' });
+        return;
+      }
+
+      const review = await sessionService.getRoundReview(
+        request.params.sessionId,
+        round,
+      );
+
+      if (!review) {
+        response.status(404).json({ error: 'Round review not found' });
+        return;
+      }
+
+      response.json({ review });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 app.post('/api/sessions', async (request, response, next) => {
   try {
@@ -82,21 +118,29 @@ app.post('/api/sessions', async (request, response, next) => {
   }
 });
 
-app.post('/api/sessions/:sessionId/messages', async (request, response, next) => {
-  try {
-    const prompt = parsePrompt(request.body);
+app.post(
+  '/api/sessions/:sessionId/messages',
+  async (request, response, next) => {
+    try {
+      const prompt = parsePrompt(request.body);
 
-    if (!prompt) {
-      response.status(400).json({ error: 'prompt must be a non-empty string' });
-      return;
+      if (!prompt) {
+        response
+          .status(400)
+          .json({ error: 'prompt must be a non-empty string' });
+        return;
+      }
+
+      const submittedTurn = await sessionService.beginContinueSession(
+        request.params.sessionId,
+        { prompt },
+      );
+      response.status(202).json({ status: 'ok', ...submittedTurn });
+    } catch (error) {
+      next(error);
     }
-
-    const submittedTurn = await sessionService.beginContinueSession(request.params.sessionId, { prompt });
-    response.status(202).json({ status: 'ok', ...submittedTurn });
-  } catch (error) {
-    next(error);
-  }
-});
+  },
+);
 
 app.get('/api/turns/:turnId/events', (request, response) => {
   if (!sessionService.hasRunningTurn(request.params.turnId)) {
@@ -112,13 +156,16 @@ app.get('/api/turns/:turnId/events', (request, response) => {
   });
   response.flushHeaders?.();
 
-  const unsubscribe = sessionService.subscribeToTurn(request.params.turnId, (event) => {
-    writeSse(response, event.type, event);
+  const unsubscribe = sessionService.subscribeToTurn(
+    request.params.turnId,
+    (event) => {
+      writeSse(response, event.type, event);
 
-    if (event.type === 'done' || event.type === 'failed') {
-      response.end();
-    }
-  });
+      if (event.type === 'done' || event.type === 'failed') {
+        response.end();
+      }
+    },
+  );
 
   request.on('close', unsubscribe);
 });
@@ -143,7 +190,9 @@ app.use(
     }
 
     if (error instanceof SessionBusyError) {
-      response.status(409).json({ error: 'Session already has a running turn' });
+      response
+        .status(409)
+        .json({ error: 'Session already has a running turn' });
       return;
     }
 
@@ -160,7 +209,9 @@ app.listen(port, () => {
 
 type ParsedBody<T> = { ok: true; value: T } | { ok: false; error: string };
 
-function parseCreateSessionBody(body: unknown): ParsedBody<{ workspace: string; prompt: string }> {
+function parseCreateSessionBody(
+  body: unknown,
+): ParsedBody<{ workspace: string; prompt: string }> {
   if (!body || typeof body !== 'object') {
     return { ok: false, error: 'body must be an object' };
   }
@@ -199,7 +250,11 @@ function parsePrompt(body: unknown): string | undefined {
   return prompt.trim();
 }
 
-function writeSse(response: express.Response, eventName: string, event: TurnStreamEvent): void {
+function writeSse(
+  response: express.Response,
+  eventName: string,
+  event: TurnStreamEvent,
+): void {
   response.write(`event: ${eventName}\n`);
   response.write(`data: ${JSON.stringify(event)}\n\n`);
 }
