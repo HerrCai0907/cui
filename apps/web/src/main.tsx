@@ -1,23 +1,51 @@
 import {
+  ArrowLeft,
   ChevronDown,
   ChevronRight,
   ClipboardList,
+  FileDiff,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
   Send,
 } from 'lucide-react';
-import { FormEvent, StrictMode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  FormEvent,
+  StrictMode,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { createRoot } from 'react-dom/client';
+import { ReviewDiff } from './components/ReviewDiff';
 import { TraceView } from './components/TraceView';
 import { encodeExecutionTraceEvent } from './trace/parseExecutionTrace';
-import type { ApiMessage, ApiSession, SessionSummary, SubmittedTurn, TurnStreamEvent } from './types';
+import type {
+  ApiMessage,
+  ApiRound,
+  ApiSession,
+  SessionSummary,
+  SubmittedTurn,
+  TurnStreamEvent,
+} from './types';
 import './styles.css';
 
+type ReviewRoute = {
+  sessionId: string;
+  round: number;
+};
+
 function App() {
+  const [reviewRoute, setReviewRoute] = useState<ReviewRoute | null>(() =>
+    parseReviewRoute(location.pathname),
+  );
+  const [review, setReview] = useState<ApiRound | null>(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<Set<string>>(
-    () => new Set([location.pathname === '/' ? '/Users/bytedance/cui' : location.pathname]),
+    () => new Set(['/Users/bytedance/cui']),
   );
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [activeSession, setActiveSession] = useState<ApiSession | null>(null);
@@ -25,7 +53,9 @@ function App() {
   const [workspaceDraft, setWorkspaceDraft] = useState('/Users/bytedance/cui');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expandedTraceIds, setExpandedTraceIds] = useState<Set<string>>(() => new Set());
+  const [expandedTraceIds, setExpandedTraceIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const eventSourceRef = useRef<EventSource | null>(null);
   const lastEnterKeyDownRef = useRef<number | null>(null);
   const messageStreamRef = useRef<HTMLDivElement | null>(null);
@@ -47,10 +77,71 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const handlePopState = () => {
+      setReviewRoute(parseReviewRoute(location.pathname));
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  useEffect(() => {
     return () => {
       eventSourceRef.current?.close();
     };
   }, []);
+
+  useEffect(() => {
+    if (!reviewRoute) {
+      setReview(null);
+      setReviewLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    setReviewLoading(true);
+    setError(null);
+    fetch(
+      `/api/sessions/${encodeURIComponent(reviewRoute.sessionId)}/rounds/${reviewRoute.round}/review`,
+    )
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load review: HTTP ${response.status}`);
+        }
+
+        return (await response.json()) as { review: ApiRound };
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setReview(data.review);
+        }
+      })
+      .catch((reason) => {
+        if (!cancelled) {
+          setReview(null);
+          setError(
+            reason instanceof Error ? reason.message : 'Failed to load review',
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setReviewLoading(false);
+        }
+      });
+
+    if (activeSession?.id !== reviewRoute.sessionId) {
+      void openSession(reviewRoute.sessionId, { resetReviewRoute: false });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reviewRoute?.sessionId, reviewRoute?.round]);
 
   useLayoutEffect(() => {
     const messageStream = messageStreamRef.current;
@@ -74,7 +165,8 @@ function App() {
 
       textarea.style.height = 'auto';
       textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
-      textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+      textarea.style.overflowY =
+        textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
     };
 
     resizeTextarea();
@@ -122,13 +214,27 @@ function App() {
         setActiveSession(data.sessions[0]);
       }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Failed to load sessions');
+      setError(
+        reason instanceof Error ? reason.message : 'Failed to load sessions',
+      );
     }
   }
 
-  async function openSession(sessionId: string) {
+  async function openSession(
+    sessionId: string,
+    options: { resetReviewRoute?: boolean } = {},
+  ) {
+    const resetReviewRoute = options.resetReviewRoute ?? true;
+
     setLoading(true);
     setError(null);
+    if (resetReviewRoute) {
+      setReviewRoute(null);
+      setReview(null);
+    }
+    if (resetReviewRoute && location.pathname !== '/') {
+      history.pushState({}, '', '/');
+    }
 
     try {
       const response = await fetch(`/api/sessions/${sessionId}`);
@@ -140,8 +246,13 @@ function App() {
       const data = (await response.json()) as { session: ApiSession };
       setActiveSession(data.session);
       setWorkspaceDraft(data.session.workspace);
+      setExpandedWorkspaces((current) =>
+        new Set(current).add(data.session.workspace),
+      );
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Failed to open session');
+      setError(
+        reason instanceof Error ? reason.message : 'Failed to open session',
+      );
     } finally {
       setLoading(false);
     }
@@ -162,7 +273,9 @@ function App() {
 
     try {
       const response = await fetch(
-        activeSession ? `/api/sessions/${activeSession.id}/messages` : '/api/sessions',
+        activeSession
+          ? `/api/sessions/${activeSession.id}/messages`
+          : '/api/sessions',
         {
           method: 'POST',
           headers: {
@@ -171,7 +284,10 @@ function App() {
           body: JSON.stringify(
             activeSession
               ? { prompt: trimmed }
-              : { workspace: workspaceDraft.trim() || '/Users/bytedance/cui', prompt: trimmed },
+              : {
+                  workspace: workspaceDraft.trim() || '/Users/bytedance/cui',
+                  prompt: trimmed,
+                },
           ),
         },
       );
@@ -182,7 +298,9 @@ function App() {
 
       const data = (await response.json()) as SubmittedTurn;
       setActiveSession(data.session);
-      setExpandedWorkspaces((current) => new Set(current).add(data.session.workspace));
+      setExpandedWorkspaces((current) =>
+        new Set(current).add(data.session.workspace),
+      );
       void refreshSessions();
       streamTurn(data.turnId);
     } catch (reason) {
@@ -255,20 +373,26 @@ function App() {
       }
 
       streamedTrace = streamedTrace ? `${streamedTrace}\n${json}` : json;
-      setExpandedTraceIds((current) => new Set(current).add(streamingTraceMessageId));
+      setExpandedTraceIds((current) =>
+        new Set(current).add(streamingTraceMessageId),
+      );
 
       setActiveSession((session) => {
         if (!session) {
           return session;
         }
 
-        const existingMessage = session.messages.find((message) => message.id === streamingTraceMessageId);
+        const existingMessage = session.messages.find(
+          (message) => message.id === streamingTraceMessageId,
+        );
 
         if (existingMessage) {
           return {
             ...session,
             messages: session.messages.map((message) =>
-              message.id === streamingTraceMessageId ? { ...message, content: streamedTrace } : message,
+              message.id === streamingTraceMessageId
+                ? { ...message, content: streamedTrace }
+                : message,
             ),
           };
         }
@@ -364,9 +488,41 @@ function App() {
       return;
     }
 
+    setReviewRoute(null);
+    setReview(null);
+    if (location.pathname !== '/') {
+      history.pushState({}, '', '/');
+    }
     setActiveSession(null);
     setDraft('');
     setError(null);
+  }
+
+  function openReview(sessionId: string, round: number) {
+    const path = `/ui/sessions/${encodeURIComponent(sessionId)}/rounds/${round}/review`;
+
+    window.open(path, '_blank', 'noopener,noreferrer');
+  }
+
+  function closeReview() {
+    history.pushState({}, '', '/');
+    setReviewRoute(null);
+    setReview(null);
+  }
+
+  function hasReviewDiff(message: ApiMessage): boolean {
+    if (
+      message.role !== 'assistant' ||
+      message.kind !== 'response' ||
+      !message.round
+    ) {
+      return false;
+    }
+
+    return Boolean(
+      activeSession?.rounds?.find((round) => round.round === message.round)
+        ?.hasChanges,
+    );
   }
 
   function parseMessageEvent(event: Event): TurnStreamEvent | undefined {
@@ -398,173 +554,289 @@ function App() {
             title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
             onClick={() => setSidebarOpen((open) => !open)}
           >
-            {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+            {sidebarOpen ? (
+              <PanelLeftClose size={18} />
+            ) : (
+              <PanelLeftOpen size={18} />
+            )}
           </button>
         </div>
 
         {sidebarOpen && (
           <>
-            <button className="new-session" type="button" disabled={loading} onClick={startNewSession}>
+            <button
+              className="new-session"
+              type="button"
+              disabled={loading}
+              onClick={startNewSession}
+            >
               <Plus size={16} />
               New session
             </button>
 
             <nav className="workspace-list">
-              {Object.entries(workspaces).map(([workspace, workspaceSessions]) => {
-                const expanded = expandedWorkspaces.has(workspace);
+              {Object.entries(workspaces).map(
+                ([workspace, workspaceSessions]) => {
+                  const expanded = expandedWorkspaces.has(workspace);
 
-                return (
-                  <section className="workspace-group" key={workspace}>
-                    <button
-                      className="workspace-button"
-                      type="button"
-                      aria-expanded={expanded}
-                      onClick={() => toggleWorkspace(workspace)}
-                    >
-                      {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                      <span>{workspace}</span>
-                    </button>
+                  return (
+                    <section className="workspace-group" key={workspace}>
+                      <button
+                        className="workspace-button"
+                        type="button"
+                        aria-expanded={expanded}
+                        onClick={() => toggleWorkspace(workspace)}
+                      >
+                        {expanded ? (
+                          <ChevronDown size={16} />
+                        ) : (
+                          <ChevronRight size={16} />
+                        )}
+                        <span>{workspace}</span>
+                      </button>
 
-                    {expanded && (
-                      <div className="session-list">
-                        {workspaceSessions.map((session) => {
-                          const active = activeSession?.id === session.id;
+                      {expanded && (
+                        <div className="session-list">
+                          {workspaceSessions.map((session) => {
+                            const active = activeSession?.id === session.id;
 
-                          return (
-                            <button
-                              className={`session-button ${active ? 'is-active' : ''}`}
-                              key={session.id}
-                              type="button"
-                              disabled={loading}
-                              onClick={() => void openSession(session.id)}
-                            >
-                              <span>{session.title}</span>
-                              <small>
-                                {active && session.summary
-                                  ? session.summary
-                                  : formatRelativeTime(session.updatedAt)}
-                              </small>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </section>
-                );
-              })}
-              {sessions.length === 0 && <p className="empty-sidebar">No sessions yet</p>}
+                            return (
+                              <button
+                                className={`session-button ${active ? 'is-active' : ''}`}
+                                key={session.id}
+                                type="button"
+                                disabled={loading}
+                                onClick={() => void openSession(session.id)}
+                              >
+                                <span>{session.title}</span>
+                                <small>
+                                  {active && session.summary
+                                    ? session.summary
+                                    : formatRelativeTime(session.updatedAt)}
+                                </small>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </section>
+                  );
+                },
+              )}
+              {sessions.length === 0 && (
+                <p className="empty-sidebar">No sessions yet</p>
+              )}
             </nav>
           </>
         )}
       </aside>
 
-      <section className="chat-area" aria-label="AI conversation">
+      <section
+        className="chat-area"
+        aria-label={reviewRoute ? 'Round review' : 'AI conversation'}
+      >
         <header className="chat-header">
           <div>
-            <span className="section-label">Session</span>
-            <h1>{activeSession?.title ?? 'New session'}</h1>
-            {activeSession?.summary && <p className="session-progress">{activeSession.summary}</p>}
+            <span className="section-label">
+              {reviewRoute ? 'Review' : 'Session'}
+            </span>
+            <h1>
+              {reviewRoute
+                ? `Round ${reviewRoute.round}`
+                : (activeSession?.title ?? 'New session')}
+            </h1>
+            {reviewRoute ? (
+              <p className="session-progress">
+                {activeSession?.title ?? reviewRoute.sessionId}
+              </p>
+            ) : (
+              activeSession?.summary && (
+                <p className="session-progress">{activeSession.summary}</p>
+              )
+            )}
           </div>
+          {reviewRoute && (
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={closeReview}
+            >
+              <ArrowLeft size={16} />
+              Back
+            </button>
+          )}
         </header>
 
-        <div className="message-stream" ref={messageStreamRef} role="log" aria-live="polite">
-          {!activeSession && (
-            <div className="empty-state">
-              <h2>Start a TRAEX-backed AI session</h2>
-              <p>Pick a workspace path, type the initial prompt, and the backend will create a persistent session.</p>
-              <input
-                value={workspaceDraft}
-                aria-label="Workspace path"
-                onChange={(event) => setWorkspaceDraft(event.target.value)}
-              />
-            </div>
-          )}
-
-          {activeSession?.messages.map((message) => {
-            const isTrace = message.kind === 'trace';
-            const traceExpanded = expandedTraceIds.has(message.id);
-
-            return (
-              <article className={`message ${message.role} ${isTrace ? 'trace' : ''}`} key={message.id}>
-                <div className="message-avatar">{isTrace ? <ClipboardList size={17} /> : message.role === 'assistant' ? 'AI' : 'You'}</div>
-                <div className="message-body">
-                  <div className="message-meta">
-                    <strong>{getMessageTitle(message)}</strong>
-                    <time>{formatMessageTime(message.createdAt)}</time>
+        {reviewRoute ? (
+          <div className="review-page">
+            {reviewLoading && <p className="loading-line">Loading review...</p>}
+            {!reviewLoading && review && (
+              <>
+                <div className="review-summary">
+                  <div>
+                    <span className="section-label">Session</span>
+                    <strong>{reviewRoute.sessionId}</strong>
                   </div>
-                  {isTrace ? (
-                    <TraceView
-                      content={message.content}
-                      expanded={traceExpanded}
-                      onExpandedChange={(open) => {
-                        setExpandedTraceIds((current) => {
-                          const next = new Set(current);
-
-                          if (open) {
-                            next.add(message.id);
-                          } else {
-                            next.delete(message.id);
-                          }
-
-                          return next;
-                        });
-                      }}
-                    />
-                  ) : (
-                    <p>{message.content}</p>
-                  )}
+                  <div>
+                    <span className="section-label">Changed</span>
+                    <strong>{formatMessageTime(review.createdAt)}</strong>
+                  </div>
                 </div>
-              </article>
-            );
-          })}
+                <ReviewDiff diff={review.diff} />
+              </>
+            )}
+            {!reviewLoading && !review && !error && (
+              <p className="empty-review">
+                No review diff was stored for this round.
+              </p>
+            )}
+            {error && <p className="error-line">{error}</p>}
+          </div>
+        ) : (
+          <>
+            <div
+              className="message-stream"
+              ref={messageStreamRef}
+              role="log"
+              aria-live="polite"
+            >
+              {!activeSession && (
+                <div className="empty-state">
+                  <h2>Start a TRAEX-backed AI session</h2>
+                  <p>
+                    Pick a workspace path, type the initial prompt, and the
+                    backend will create a persistent session.
+                  </p>
+                  <input
+                    value={workspaceDraft}
+                    aria-label="Workspace path"
+                    onChange={(event) => setWorkspaceDraft(event.target.value)}
+                  />
+                </div>
+              )}
 
-          {loading && <p className="loading-line">Waiting for TRAEX...</p>}
-          {error && <p className="error-line">{error}</p>}
-        </div>
+              {activeSession?.messages.map((message) => {
+                const isTrace = message.kind === 'trace';
+                const traceExpanded = expandedTraceIds.has(message.id);
 
-        <form className="composer" onSubmit={handleSubmit}>
-          <label className="sr-only" htmlFor="message-input">
-            Message
-          </label>
-          <textarea
-            id="message-input"
-            ref={composerTextareaRef}
-            value={draft}
-            placeholder={activeSession ? 'Continue this session...' : 'Start with an initial prompt...'}
-            rows={1}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) {
-                lastEnterKeyDownRef.current = null;
-                return;
-              }
+                return (
+                  <article
+                    className={`message ${message.role} ${isTrace ? 'trace' : ''}`}
+                    key={message.id}
+                  >
+                    <div className="message-avatar">
+                      {isTrace ? (
+                        <ClipboardList size={17} />
+                      ) : message.role === 'assistant' ? (
+                        'AI'
+                      ) : (
+                        'You'
+                      )}
+                    </div>
+                    <div className="message-body">
+                      <div className="message-meta">
+                        <div className="message-title-row">
+                          <strong>{getMessageTitle(message)}</strong>
+                          {message.round && hasReviewDiff(message) && (
+                            <button
+                              className="review-button"
+                              type="button"
+                              onClick={() =>
+                                openReview(activeSession.id, message.round!)
+                              }
+                            >
+                              <FileDiff size={14} />
+                              [review]
+                            </button>
+                          )}
+                        </div>
+                        <time>{formatMessageTime(message.createdAt)}</time>
+                      </div>
+                      {isTrace ? (
+                        <TraceView
+                          content={message.content}
+                          expanded={traceExpanded}
+                          onExpandedChange={(open) => {
+                            setExpandedTraceIds((current) => {
+                              const next = new Set(current);
 
-              const previousEnterKeyDown = lastEnterKeyDownRef.current;
-              lastEnterKeyDownRef.current = event.timeStamp;
+                              if (open) {
+                                next.add(message.id);
+                              } else {
+                                next.delete(message.id);
+                              }
 
-              if (
-                previousEnterKeyDown !== null &&
-                event.timeStamp - previousEnterKeyDown < 500 &&
-                !loading &&
-                draft.trim()
-              ) {
-                event.preventDefault();
-                lastEnterKeyDownRef.current = null;
-                event.currentTarget.form?.requestSubmit();
-              }
-            }}
-          />
-          <button
-            className="send-button"
-            type="submit"
-            aria-label="Send message"
-            title="Send"
-            disabled={loading}
-          >
-            <Send size={18} />
-            <span>Send</span>
-          </button>
-        </form>
+                              return next;
+                            });
+                          }}
+                        />
+                      ) : (
+                        <p>{message.content}</p>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+
+              {loading && <p className="loading-line">Waiting for TRAEX...</p>}
+              {error && <p className="error-line">{error}</p>}
+            </div>
+
+            <form className="composer" onSubmit={handleSubmit}>
+              <label className="sr-only" htmlFor="message-input">
+                Message
+              </label>
+              <textarea
+                id="message-input"
+                ref={composerTextareaRef}
+                value={draft}
+                placeholder={
+                  activeSession
+                    ? 'Continue this session...'
+                    : 'Start with an initial prompt...'
+                }
+                rows={1}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (
+                    event.key !== 'Enter' ||
+                    event.shiftKey ||
+                    event.ctrlKey ||
+                    event.metaKey ||
+                    event.altKey
+                  ) {
+                    lastEnterKeyDownRef.current = null;
+                    return;
+                  }
+
+                  const previousEnterKeyDown = lastEnterKeyDownRef.current;
+                  lastEnterKeyDownRef.current = event.timeStamp;
+
+                  if (
+                    previousEnterKeyDown !== null &&
+                    event.timeStamp - previousEnterKeyDown < 500 &&
+                    !loading &&
+                    draft.trim()
+                  ) {
+                    event.preventDefault();
+                    lastEnterKeyDownRef.current = null;
+                    event.currentTarget.form?.requestSubmit();
+                  }
+                }}
+              />
+              <button
+                className="send-button"
+                type="submit"
+                aria-label="Send message"
+                title="Send"
+                disabled={loading}
+              >
+                <Send size={18} />
+                <span>Send</span>
+              </button>
+            </form>
+          </>
+        )}
       </section>
     </main>
   );
@@ -598,6 +870,25 @@ function formatRelativeTime(value: string): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function parseReviewRoute(pathname: string): ReviewRoute | null {
+  const match = /^\/ui\/sessions\/([^/]+)\/rounds\/(\d+)\/review\/?$/.exec(
+    pathname,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  try {
+    return {
+      sessionId: decodeURIComponent(match[1]),
+      round: Number(match[2]),
+    };
+  } catch {
+    return null;
+  }
 }
 
 createRoot(document.getElementById('root')!).render(

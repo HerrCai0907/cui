@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { GitDiffService } from '../diff/gitDiffService.js';
 import {
   AiContinueSessionInput,
   AiCreateSessionInput,
@@ -14,20 +15,27 @@ import {
 
 type TraexModelOptions = {
   binary?: string;
+  diffService?: GitDiffService;
   permissionMode?: string;
   timeoutMs?: number;
 };
 
 export class TraexModel implements AiModel {
   private readonly binary: string;
+  private readonly diffService: GitDiffService;
   private readonly permissionMode: string;
   private readonly timeoutMs: number;
 
   constructor(options: TraexModelOptions = {}) {
     this.binary = options.binary ?? process.env.TRAEX_BIN ?? 'traecli';
+    this.diffService = options.diffService ?? new GitDiffService();
     this.permissionMode =
-      options.permissionMode ?? process.env.TRAEX_PERMISSION_MODE ?? 'bypass_permissions';
-    this.timeoutMs = Number(options.timeoutMs ?? process.env.TRAEX_TIMEOUT_MS ?? 10 * 60 * 1000);
+      options.permissionMode ??
+      process.env.TRAEX_PERMISSION_MODE ??
+      'bypass_permissions';
+    this.timeoutMs = Number(
+      options.timeoutMs ?? process.env.TRAEX_TIMEOUT_MS ?? 10 * 60 * 1000,
+    );
   }
 
   async createSession(input: AiCreateSessionInput): Promise<AiResponse> {
@@ -42,10 +50,13 @@ export class TraexModel implements AiModel {
       '-',
     ];
 
-    return this.run(undefined, args, input.prompt);
+    return this.run(undefined, args, input.prompt, input.workspace);
   }
 
-  createSessionStream(input: AiCreateSessionInput, onEvent: (event: AiRunEvent) => void): AiRun {
+  createSessionStream(
+    input: AiCreateSessionInput,
+    onEvent: (event: AiRunEvent) => void,
+  ): AiRun {
     const args = [
       'exec',
       '-C',
@@ -57,7 +68,14 @@ export class TraexModel implements AiModel {
       '-',
     ];
 
-    return this.startRun(undefined, args, input.prompt, onEvent);
+    return this.startRun(
+      undefined,
+      args,
+      input.prompt,
+      input.workspace,
+      true,
+      onEvent,
+    );
   }
 
   async continueSession(input: AiContinueSessionInput): Promise<AiResponse> {
@@ -72,10 +90,12 @@ export class TraexModel implements AiModel {
       '-',
     ];
 
-    return this.run(input.sessionId, args, input.prompt);
+    return this.run(input.sessionId, args, input.prompt, input.workspace);
   }
 
-  async summarizeConversation(input: AiCreateSessionInput): Promise<ConversationSummary> {
+  async summarizeConversation(
+    input: AiCreateSessionInput,
+  ): Promise<ConversationSummary> {
     const args = [
       'exec',
       '-C',
@@ -86,12 +106,21 @@ export class TraexModel implements AiModel {
       '--json',
       '-',
     ];
-    const response = await this.run(undefined, args, input.prompt);
+    const response = await this.run(
+      undefined,
+      args,
+      input.prompt,
+      input.workspace,
+      false,
+    );
 
     return parseConversationSummary(response.content);
   }
 
-  continueSessionStream(input: AiContinueSessionInput, onEvent: (event: AiRunEvent) => void): AiRun {
+  continueSessionStream(
+    input: AiContinueSessionInput,
+    onEvent: (event: AiRunEvent) => void,
+  ): AiRun {
     const args = [
       'exec',
       'resume',
@@ -103,17 +132,39 @@ export class TraexModel implements AiModel {
       '-',
     ];
 
-    return this.startRun(input.sessionId, args, input.prompt, onEvent);
+    return this.startRun(
+      input.sessionId,
+      args,
+      input.prompt,
+      input.workspace,
+      true,
+      onEvent,
+    );
   }
 
-  private async run(expectedSessionId: string | undefined, args: string[], prompt: string): Promise<AiResponse> {
-    return this.startRun(expectedSessionId, args, prompt, () => undefined).result;
+  private async run(
+    expectedSessionId: string | undefined,
+    args: string[],
+    prompt: string,
+    workspace: string,
+    captureDiff = true,
+  ): Promise<AiResponse> {
+    return this.startRun(
+      expectedSessionId,
+      args,
+      prompt,
+      workspace,
+      captureDiff,
+      () => undefined,
+    ).result;
   }
 
   private startRun(
     expectedSessionId: string | undefined,
     args: string[],
     prompt: string,
+    workspace: string,
+    captureDiff: boolean,
     onEvent: (event: AiRunEvent) => void,
   ): AiRun {
     const sessionIdSignal = createDeferred<string>();
@@ -127,9 +178,11 @@ export class TraexModel implements AiModel {
     const result = runProcess({
       command: this.binary,
       args,
-      cwd: process.cwd(),
+      cwd: workspace,
       input: prompt,
       timeoutMs: this.timeoutMs,
+      captureDiff,
+      diffService: this.diffService,
       onRawEvent: (event) => {
         const sessionId = extractThreadId([event]);
 
@@ -145,8 +198,9 @@ export class TraexModel implements AiModel {
 
         onEvent({ type: 'raw', event });
       },
-    }).then(async ({ content, rawEvents }) => {
-      const sessionId = expectedSessionId ?? observedSessionId ?? extractThreadId(rawEvents);
+    }).then(async ({ content, beforeDiff, afterDiff, rawEvents }) => {
+      const sessionId =
+        expectedSessionId ?? observedSessionId ?? extractThreadId(rawEvents);
 
       if (!sessionId) {
         throw new Error('TraeX did not return a thread id');
@@ -158,6 +212,14 @@ export class TraexModel implements AiModel {
         sessionId,
         content: content.trim(),
         trace: formatRawEvents(rawEvents),
+        ...(captureDiff
+          ? {
+              gitDiff: {
+                beforeDiff,
+                afterDiff,
+              },
+            }
+          : {}),
         rawEvents,
       };
     });
@@ -184,7 +246,9 @@ function parseConversationSummary(content: string): ConversationSummary {
   const progress = getStringProperty(parsed, 'progress')?.trim();
 
   if (!title || !progress) {
-    throw new Error('Conversation summary JSON must include title and progress');
+    throw new Error(
+      'Conversation summary JSON must include title and progress',
+    );
   }
 
   return {
@@ -237,7 +301,10 @@ function extractThreadId(events: unknown[]): string | undefined {
         const sessionMetaId = getStringProperty(payload, 'id');
         const threadId = getStringProperty(payload, 'thread_id');
 
-        if (getStringProperty(event, 'type') === 'session_meta' && sessionMetaId) {
+        if (
+          getStringProperty(event, 'type') === 'session_meta' &&
+          sessionMetaId
+        ) {
           return sessionMetaId;
         }
 
@@ -257,22 +324,32 @@ type RunProcessInput = {
   cwd: string;
   input: string;
   timeoutMs: number;
+  captureDiff: boolean;
+  diffService: GitDiffService;
   onRawEvent: (event: unknown) => void;
 };
 
 type RunProcessResult = {
   content: string;
+  beforeDiff: string;
+  afterDiff: string;
   rawEvents: unknown[];
 };
 
-function runProcess({
+async function runProcess({
   command,
   args,
   cwd,
   input,
   timeoutMs,
+  captureDiff,
+  diffService,
   onRawEvent,
 }: RunProcessInput): Promise<RunProcessResult> {
+  const beforeDiff = captureDiff
+    ? await diffService.captureWorkspaceDiff(cwd)
+    : '';
+
   return new Promise((resolve, reject) => {
     const events: unknown[] = [];
     let outputPath: string | undefined;
@@ -285,7 +362,12 @@ function runProcess({
       .then((createdOutputDir) => {
         outputDir = createdOutputDir;
         outputPath = join(createdOutputDir, 'last-message.txt');
-        const childArgs = [...args.slice(0, -1), '--output-last-message', outputPath, args.at(-1)!];
+        const childArgs = [
+          ...args.slice(0, -1),
+          '--output-last-message',
+          outputPath,
+          args.at(-1)!,
+        ];
 
         const child = spawn(command, childArgs, {
           cwd,
@@ -352,15 +434,21 @@ function runProcess({
           }
 
           if (code !== 0) {
-            reject(new Error(`TraeX command exited with ${code}: ${stderr.trim()}`));
+            reject(
+              new Error(`TraeX command exited with ${code}: ${stderr.trim()}`),
+            );
             void cleanupOutputDir(outputDir);
             return;
           }
 
           readFile(outputPath!, 'utf8')
             .catch(() => '')
-            .then((content) => {
-              resolve({ content, rawEvents: events });
+            .then(async (content) => {
+              const afterDiff = captureDiff
+                ? await diffService.captureWorkspaceDiff(cwd)
+                : '';
+
+              resolve({ content, beforeDiff, afterDiff, rawEvents: events });
             })
             .finally(() => {
               void cleanupOutputDir(outputDir);
