@@ -29,6 +29,7 @@ function App() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const lastEnterKeyDownRef = useRef<number | null>(null);
   const messageStreamRef = useRef<HTMLDivElement | null>(null);
+  const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const workspaces = useMemo(
     () =>
@@ -60,6 +61,29 @@ function App() {
 
     messageStream.scrollTop = messageStream.scrollHeight;
   }, [activeSession?.id, activeSession?.messages]);
+
+  useLayoutEffect(() => {
+    const textarea = composerTextareaRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    const resizeTextarea = () => {
+      const maxHeight = Math.floor(window.innerHeight / 3);
+
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+      textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+    };
+
+    resizeTextarea();
+    window.addEventListener('resize', resizeTextarea);
+
+    return () => {
+      window.removeEventListener('resize', resizeTextarea);
+    };
+  }, [draft]);
 
   function toggleWorkspace(workspaceId: string) {
     setExpandedWorkspaces((current) => {
@@ -504,6 +528,7 @@ function App() {
           </label>
           <textarea
             id="message-input"
+            ref={composerTextareaRef}
             value={draft}
             placeholder={activeSession ? 'Continue this session...' : 'Start with an initial prompt...'}
             rows={1}

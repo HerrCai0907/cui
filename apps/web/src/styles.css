@@ -590,8 +590,9 @@ textarea:disabled {
 .composer textarea {
   width: 100%;
   min-height: 44px;
-  max-height: 160px;
-  resize: vertical;
+  max-height: calc(100vh / 3);
+  resize: none;
+  overflow-y: hidden;
   border: 1px solid #cfd8e3;
   border-radius: 8px;
   outline: none;

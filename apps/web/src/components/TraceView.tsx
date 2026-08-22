@@ -1,5 +1,5 @@
 import { CheckCircle2, Circle, MessageSquare, Play, Terminal, TextSearch } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import type { ExecutionTraceEvent, ExecutionTraceItem, TokenUsage } from '../types';
 import { formatExecutionTraceSummary, parseExecutionTrace } from '../trace/parseExecutionTrace';
 
@@ -11,6 +11,29 @@ type TraceViewProps = {
 
 export function TraceView({ content, expanded, onExpandedChange }: TraceViewProps) {
   const events = parseExecutionTrace(content);
+  const traceListRef = useRef<HTMLOListElement | null>(null);
+  const shouldAutoScrollRef = useRef(true);
+
+  useLayoutEffect(() => {
+    const traceList = traceListRef.current;
+
+    if (!expanded || !traceList || !shouldAutoScrollRef.current) {
+      return;
+    }
+
+    traceList.scrollTop = traceList.scrollHeight;
+  }, [content, expanded]);
+
+  const updateAutoScroll = () => {
+    const traceList = traceListRef.current;
+
+    if (!traceList) {
+      return;
+    }
+
+    const distanceFromBottom = traceList.scrollHeight - traceList.scrollTop - traceList.clientHeight;
+    shouldAutoScrollRef.current = distanceFromBottom <= 8;
+  };
 
   return (
     <details
@@ -22,7 +45,7 @@ export function TraceView({ content, expanded, onExpandedChange }: TraceViewProp
         <span>{expanded ? 'Hide execution trace' : 'Show execution trace'}</span>
         <small>{formatExecutionTraceSummary(events)}</small>
       </summary>
-      <ol className="trace-list">
+      <ol className="trace-list" onScroll={updateAutoScroll} ref={traceListRef}>
         {events.map((event, index) => (
           <TraceEventRow event={event} key={index} />
         ))}
