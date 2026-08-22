@@ -141,6 +141,10 @@
   background: #fff3e8;
 }
 
+.atomic-review-item.is-capability-test .atomic-review-item-header {
+  background: #ecfdf3;
+}
+
 .atomic-review-heading-row {
   display: grid;
   grid-template-columns: 30px auto minmax(0, 1fr);

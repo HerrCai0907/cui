@@ -46,10 +46,7 @@ function parseAtomicDiffReviewItem(
   const id =
     getStringProperty(item, 'id')?.trim() || `atomic-${String(order)}`;
   const files = getStringArrayProperty(item, 'files');
-  const capabilityLabel =
-    getStringProperty(item, 'capabilityLabel')?.trim() ||
-    getStringProperty(item, 'capability_label')?.trim() ||
-    capabilityLabelForType(capabilityType);
+  const capabilityLabel = capabilityLabelForType(capabilityType);
   const outputJson = normalizeOutputJson(item, {
     id,
     order,
@@ -84,7 +81,11 @@ function normalizeOutputJson(
     typeof outputJson === 'object' &&
     !Array.isArray(outputJson)
   ) {
-    return outputJson as Record<string, unknown>;
+    return {
+      ...(outputJson as Record<string, unknown>),
+      capability_type: fallback.capabilityType,
+      capability_label: fallback.capabilityLabel,
+    };
   }
 
   return {
@@ -104,14 +105,13 @@ function parseCapabilityType(value: number | undefined): AtomicCapabilityType {
     value === 1 ||
     value === 2 ||
     value === 3 ||
-    value === 4 ||
     value === 5
   ) {
     return value;
   }
 
   throw new Error(
-    'Atomic diff review capabilityType must be 0, 1, 2, 3, 4, or 5',
+    'Atomic diff review capabilityType must be 0, 1, 2, 3, or 5',
   );
 }
 
@@ -124,9 +124,7 @@ function capabilityLabelForType(value: AtomicCapabilityType): string {
     case 2:
       return '新功能';
     case 3:
-      return '单点修改';
-    case 4:
-      return '多点调整';
+      return '局部修复';
     case 5:
       return '测试修改';
   }
