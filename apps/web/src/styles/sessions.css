@@ -114,10 +114,25 @@
   background: #edf1f5;
 }
 
+.session-button.is-active-session {
+  border-color: #f2b279;
+  background: #fff7ed;
+  color: #1f2937;
+}
+
+.session-button.is-active-session:hover {
+  background: #ffedd5;
+}
+
 .session-button.is-active {
   border-color: #c9d3df;
   background: #e8eef5;
   color: #111827;
+}
+
+.session-button.is-active.is-active-session {
+  border-color: #c9d3df;
+  background: #e8eef5;
 }
 
 .session-button span,
@@ -128,9 +143,21 @@
   white-space: nowrap;
 }
 
-.session-button span {
+.session-title-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.session-button .session-title {
   font-size: 0.9rem;
   font-weight: 650;
+}
+
+.session-status-dot {
+  flex: 0 0 auto;
+  color: #f97316;
 }
 
 .session-button small {

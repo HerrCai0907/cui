@@ -32,6 +32,8 @@ export type ApiSession = {
   updatedAt: string;
   messages: ApiMessage[];
   rounds?: ApiRoundSummary[];
+  currentRound: number;
+  isRunning: boolean;
   runningTurnId?: string;
 };
 
@@ -70,6 +72,9 @@ export type SessionSummary = {
   title: string;
   summary?: string;
   updatedAt: string;
+  currentRound: number;
+  isRunning: boolean;
+  hasUnreadRound: boolean;
 };
 
 export type SubmittedTurn = {

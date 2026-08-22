@@ -13,9 +13,11 @@ import {
   listSessions,
 } from '../api/sessionsApi';
 import {
+  getCurrentRound,
   groupSessionsByWorkspace,
   toSessionSummary,
 } from '../model/sessionSummaries';
+import { setLastSeenRound } from '../model/sessionBrowserState';
 import { useTurnStream } from './useTurnStream';
 import type { ApiSession, SessionSummary } from '../../../types';
 
@@ -130,12 +132,13 @@ export function useSessionController(defaultWorkspace: string) {
       const loadedSessions = await listSessions();
 
       setSessions(loadedSessions.map(toSessionSummary));
-
-      loadedSessions.forEach((session) => {
-        if (session.runningTurnId) {
-          setRunningSession(session.id, true);
-        }
-      });
+      setRunningSessionIds(
+        new Set(
+          loadedSessions
+            .filter((session) => session.isRunning ?? session.runningTurnId)
+            .map((session) => session.id),
+        ),
+      );
 
       const currentActiveSession = activeSessionRef.current;
       const nextActiveSession =
@@ -298,6 +301,28 @@ export function useSessionController(defaultWorkspace: string) {
     session: ApiSession | null,
     options: SetCurrentActiveSessionOptions = {},
   ) {
+    const previousSession = activeSessionRef.current;
+
+    if (previousSession && previousSession.id !== session?.id) {
+      setLastSeenRound(previousSession.id, getCurrentRound(previousSession));
+    }
+
+    if (session) {
+      setLastSeenRound(session.id, getCurrentRound(session));
+      setSessions((current) =>
+        current.map((summary) =>
+          summary.id === session.id
+            ? {
+                ...summary,
+                currentRound: getCurrentRound(session),
+                isRunning: session.isRunning ?? Boolean(session.runningTurnId),
+                hasUnreadRound: false,
+              }
+            : summary,
+        ),
+      );
+    }
+
     activeSessionRef.current = session;
     setActiveSession(session);
     if (session && (options.persist ?? true)) {
@@ -317,6 +342,11 @@ export function useSessionController(defaultWorkspace: string) {
 
       return next;
     });
+    setSessions((current) =>
+      current.map((summary) =>
+        summary.id === sessionId ? { ...summary, isRunning: running } : summary,
+      ),
+    );
   }
 
   function setSubmittingSession(sessionId: string, submitting: boolean) {
@@ -345,6 +375,7 @@ export function useSessionController(defaultWorkspace: string) {
     messageStreamRef,
     refreshSessions,
     openSession,
+    runningSessionIds,
     setDraft,
     setSidebarOpen,
     setTraceExpanded,
