@@ -226,6 +226,91 @@ test('renders atomic review output for a round diff', async ({ page }) => {
   expect(browserErrors).toEqual([]);
 });
 
+test('expands review diff context by 10 lines in each direction', async ({
+  page,
+}) => {
+  const session = {
+    id: 'session-context',
+    workspace: '/Users/bytedance/cui',
+    title: 'Context expansion session',
+    createdAt: '2026-08-22T00:00:00.000Z',
+    updatedAt: '2026-08-22T00:00:00.000Z',
+    messages: [],
+    rounds: [
+      {
+        round: 1,
+        hasChanges: true,
+        createdAt: '2026-08-22T00:00:00.000Z',
+      },
+    ],
+  };
+  const contextLines = Array.from(
+    { length: 40 },
+    (_, index) => ` const value${index + 1} = ${index + 1};`,
+  );
+  const diff = [
+    'diff --git a/src/context.ts b/src/context.ts',
+    '--- a/src/context.ts',
+    '+++ b/src/context.ts',
+    '@@ -1,40 +1,40 @@',
+    ...contextLines.slice(0, 19),
+    '-const value20 = 20;',
+    '+const value20 = 200;',
+    ...contextLines.slice(20),
+  ].join('\n');
+
+  await page.route('**/api/sessions', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ sessions: [session] }),
+      });
+      return;
+    }
+
+    await route.fallback();
+  });
+  await page.route('**/api/sessions/session-context', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ session }),
+    });
+  });
+  await page.route(
+    '**/api/sessions/session-context/rounds/1/review',
+    async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          review: {
+            round: 1,
+            beforeDiff: '',
+            afterDiff: diff,
+            diff,
+            hasChanges: true,
+            createdAt: '2026-08-22T00:00:00.000Z',
+          },
+        }),
+      });
+    },
+  );
+
+  await page.goto('/ui/sessions/session-context/rounds/1/full_review');
+
+  await expect(page.getByText(' const value17 = 17;')).toBeVisible();
+  await expect(page.getByText(' const value16 = 16;')).not.toBeVisible();
+  await expect(page.getByText(' const value23 = 23;')).toBeVisible();
+  await expect(page.getByText(' const value24 = 24;')).not.toBeVisible();
+
+  await page.getByLabel('Expand 10 lines up').click();
+  await expect(page.getByText(' const value7 = 7;')).toBeVisible();
+  await expect(page.getByText(' const value6 = 6;')).not.toBeVisible();
+
+  await page.getByLabel('Expand 10 lines down').click();
+  await expect(page.getByText(' const value33 = 33;')).toBeVisible();
+  await expect(page.getByText(' const value34 = 34;')).not.toBeVisible();
+});
+
 test('keeps only the running session blocked while another turn is active', async ({
   page,
 }) => {
