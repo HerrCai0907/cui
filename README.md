@@ -1,6 +1,15 @@
 # CUI
 
-Full-stack TypeScript app with a React frontend and an Express backend.
+CUI is a coding agents UI designed for better collaboration between humans and AI.
+
+## Development
+
+```sh
+npm install
+npm run dev
+```
+
+The web app runs at `http://localhost:5173` and proxies API requests to the backend at `http://localhost:3000`.
 
 ## Scripts
 
@@ -8,6 +17,5 @@ Full-stack TypeScript app with a React frontend and an Express backend.
 npm run dev
 npm run build
 npm run typecheck
+npm run test:e2e
 ```
-
-The frontend runs on `http://localhost:5173` and proxies API requests to the backend on `http://localhost:3000`.
