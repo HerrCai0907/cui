@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { ApiAtomicDiffReview, ApiAtomicDiffReviewItem } from '../types';
 
 const CONTEXT_LINE_COUNT = 3;
+const REVIEW_STATE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const REVIEW_STATE_VERSION = 1;
 
 type DiffLineKind = 'add' | 'remove' | 'context' | 'meta' | 'ellipsis';
 
@@ -34,10 +36,27 @@ type ParsedFileBlock = {
   lines: string[];
 };
 
+type AtomicReviewItemState = {
+  collapsed?: boolean;
+  approvedFileIds: string[];
+};
+
+type ReviewBrowserState = {
+  fullApprovedFileIds: string[];
+  atomicItems: Record<string, AtomicReviewItemState>;
+};
+
+type StoredReviewBrowserState = ReviewBrowserState & {
+  version: typeof REVIEW_STATE_VERSION;
+  updatedAt: number;
+  expiresAt: number;
+};
+
 type ReviewDiffProps = {
   diff: string;
   atomicReview?: ApiAtomicDiffReview;
   mode: 'atomic' | 'full';
+  stateKey: string;
   onOpenFullReview?: () => void;
 };
 
@@ -45,12 +64,64 @@ export function ReviewDiff({
   diff,
   atomicReview,
   mode,
+  stateKey,
   onOpenFullReview,
 }: ReviewDiffProps) {
   const files = parseDiff(diff, CONTEXT_LINE_COUNT);
+  const initialReviewStateRef = useRef<ReviewBrowserState | null>(null);
+
+  if (!initialReviewStateRef.current) {
+    initialReviewStateRef.current = loadReviewBrowserState(stateKey);
+  }
+
+  const [reviewState, setReviewState] = useState<ReviewBrowserState>(() =>
+    initialReviewStateRef.current ?? createEmptyReviewBrowserState(),
+  );
+  const reviewStateRef = useRef(reviewState);
+
+  useEffect(() => {
+    const storedState = loadReviewBrowserState(stateKey);
+
+    reviewStateRef.current = storedState;
+    setReviewState(storedState);
+  }, [stateKey]);
 
   if (files.length === 0) {
     return <p className="empty-review">No code changes in this round.</p>;
+  }
+
+  function updateReviewState(
+    updater: (current: ReviewBrowserState) => ReviewBrowserState,
+  ) {
+    const next = updater(reviewStateRef.current);
+
+    reviewStateRef.current = next;
+    setReviewState(next);
+    saveReviewBrowserState(stateKey, next);
+  }
+
+  function toggleFullReviewFile(fileId: string, approved: boolean) {
+    updateReviewState((current) => ({
+      ...current,
+      fullApprovedFileIds: toggleString(current.fullApprovedFileIds, fileId, approved),
+    }));
+  }
+
+  function updateAtomicItemState(
+    itemId: string,
+    updater: (current: AtomicReviewItemState) => AtomicReviewItemState,
+  ) {
+    updateReviewState((current) => {
+      const currentItem = current.atomicItems[itemId] ?? createEmptyAtomicItemState();
+
+      return {
+        ...current,
+        atomicItems: {
+          ...current.atomicItems,
+          [itemId]: updater(currentItem),
+        },
+      };
+    });
   }
 
   if (mode === 'full') {
@@ -63,7 +134,11 @@ export function ReviewDiff({
               <strong>Round changes</strong>
             </div>
           </header>
-          <DiffFileList files={files} />
+          <DiffFileList
+            files={files}
+            approvedFileIds={new Set(reviewState.fullApprovedFileIds)}
+            onToggleFile={toggleFullReviewFile}
+          />
         </section>
       </div>
     );
@@ -71,16 +146,28 @@ export function ReviewDiff({
 
   return (
     <div className="review-diff" aria-label="Atomic review diff">
-      <AtomicReview review={atomicReview} onOpenFullReview={onOpenFullReview} />
+      <AtomicReview
+        review={atomicReview}
+        itemStates={reviewState.atomicItems}
+        onUpdateItemState={updateAtomicItemState}
+        onOpenFullReview={onOpenFullReview}
+      />
     </div>
   );
 }
 
 function AtomicReview({
   review,
+  itemStates,
+  onUpdateItemState,
   onOpenFullReview,
 }: {
   review?: ApiAtomicDiffReview;
+  itemStates: Record<string, AtomicReviewItemState>;
+  onUpdateItemState: (
+    itemId: string,
+    updater: (current: AtomicReviewItemState) => AtomicReviewItemState,
+  ) => void;
   onOpenFullReview?: () => void;
 }) {
   if (!review) {
@@ -124,7 +211,12 @@ function AtomicReview({
       </header>
       <div className="atomic-review-list">
         {review.items.map((item) => (
-          <AtomicReviewItem item={item} key={item.id} />
+          <AtomicReviewItem
+            item={item}
+            itemState={itemStates[item.id] ?? createEmptyAtomicItemState()}
+            key={item.id}
+            onUpdateItemState={onUpdateItemState}
+          />
         ))}
       </div>
     </section>
@@ -149,39 +241,49 @@ function AtomicReviewTopline({
   );
 }
 
-function AtomicReviewItem({ item }: { item: ApiAtomicDiffReviewItem }) {
-  const [collapsed, setCollapsed] = useState(false);
+function AtomicReviewItem({
+  item,
+  itemState,
+  onUpdateItemState,
+}: {
+  item: ApiAtomicDiffReviewItem;
+  itemState: AtomicReviewItemState;
+  onUpdateItemState: (
+    itemId: string,
+    updater: (current: AtomicReviewItemState) => AtomicReviewItemState,
+  ) => void;
+}) {
+  const collapsed = Boolean(itemState.collapsed);
   const files = parseDiff(item.diff, CONTEXT_LINE_COUNT);
-  const [approvedFileIds, setApprovedFileIds] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const approvedFileIds = new Set(itemState.approvedFileIds);
   const allFilesApproved =
     files.length > 0 && files.every((file) => approvedFileIds.has(file.id));
 
+  function toggleCollapsed() {
+    onUpdateItemState(item.id, (current) => ({
+      ...current,
+      collapsed: !Boolean(current.collapsed),
+    }));
+  }
+
   function approveAllFiles() {
-    setApprovedFileIds((current) => {
+    onUpdateItemState(item.id, (current) => {
       if (allFilesApproved) {
-        return new Set();
+        return { ...current, approvedFileIds: [] };
       }
 
-      const next = new Set(current);
-      files.forEach((file) => next.add(file.id));
-      return next;
+      return {
+        ...current,
+        approvedFileIds: files.map((file) => file.id),
+      };
     });
   }
 
   function toggleFile(fileId: string, approved: boolean) {
-    setApprovedFileIds((current) => {
-      const next = new Set(current);
-
-      if (approved) {
-        next.add(fileId);
-      } else {
-        next.delete(fileId);
-      }
-
-      return next;
-    });
+    onUpdateItemState(item.id, (current) => ({
+      ...current,
+      approvedFileIds: toggleString(current.approvedFileIds, fileId, approved),
+    }));
   }
 
   return (
@@ -194,7 +296,7 @@ function AtomicReviewItem({ item }: { item: ApiAtomicDiffReviewItem }) {
             aria-expanded={!collapsed}
             aria-label={`${collapsed ? 'Expand' : 'Collapse'} atomic change ${item.order}`}
             title={collapsed ? 'Expand atomic change' : 'Collapse atomic change'}
-            onClick={() => setCollapsed((current) => !current)}
+            onClick={toggleCollapsed}
           >
             {collapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
           </button>
@@ -222,6 +324,111 @@ function AtomicReviewItem({ item }: { item: ApiAtomicDiffReviewItem }) {
       )}
     </article>
   );
+}
+
+function createEmptyReviewBrowserState(): ReviewBrowserState {
+  return {
+    fullApprovedFileIds: [],
+    atomicItems: {},
+  };
+}
+
+function createEmptyAtomicItemState(): AtomicReviewItemState {
+  return {
+    approvedFileIds: [],
+  };
+}
+
+function loadReviewBrowserState(stateKey: string): ReviewBrowserState {
+  const emptyState = createEmptyReviewBrowserState();
+
+  try {
+    const rawState = window.localStorage.getItem(stateKey);
+
+    if (!rawState) {
+      return emptyState;
+    }
+
+    const parsed = JSON.parse(rawState) as Partial<StoredReviewBrowserState>;
+
+    if (
+      parsed.version !== REVIEW_STATE_VERSION ||
+      typeof parsed.expiresAt !== 'number' ||
+      parsed.expiresAt <= Date.now()
+    ) {
+      window.localStorage.removeItem(stateKey);
+      return emptyState;
+    }
+
+    return {
+      fullApprovedFileIds: parseStringList(parsed.fullApprovedFileIds),
+      atomicItems: parseAtomicItemStates(parsed.atomicItems),
+    };
+  } catch {
+    window.localStorage.removeItem(stateKey);
+    return emptyState;
+  }
+}
+
+function saveReviewBrowserState(stateKey: string, state: ReviewBrowserState) {
+  try {
+    const now = Date.now();
+    const storedState: StoredReviewBrowserState = {
+      ...state,
+      version: REVIEW_STATE_VERSION,
+      updatedAt: now,
+      expiresAt: now + REVIEW_STATE_TTL_MS,
+    };
+
+    window.localStorage.setItem(stateKey, JSON.stringify(storedState));
+  } catch {
+    // Local persistence is a convenience only; keep the review UI usable.
+  }
+}
+
+function parseAtomicItemStates(value: unknown): Record<string, AtomicReviewItemState> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.entries(value).reduce<Record<string, AtomicReviewItemState>>(
+    (states, [itemId, itemState]) => {
+      if (!itemState || typeof itemState !== 'object' || Array.isArray(itemState)) {
+        return states;
+      }
+
+      const candidate = itemState as Partial<AtomicReviewItemState>;
+
+      states[itemId] = {
+        collapsed:
+          typeof candidate.collapsed === 'boolean' ? candidate.collapsed : undefined,
+        approvedFileIds: parseStringList(candidate.approvedFileIds),
+      };
+
+      return states;
+    },
+    {},
+  );
+}
+
+function parseStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is string => typeof item === 'string');
+}
+
+function toggleString(values: string[], value: string, included: boolean): string[] {
+  const next = new Set(values);
+
+  if (included) {
+    next.add(value);
+  } else {
+    next.delete(value);
+  }
+
+  return [...next];
 }
 
 function DiffFileList({

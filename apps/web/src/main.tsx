@@ -700,9 +700,11 @@ function App() {
                   </div>
                 </div>
                 <ReviewDiff
+                  key={reviewBrowserStateKey(reviewRoute)}
                   diff={review.diff}
                   atomicReview={review.atomicReview}
                   mode={reviewRoute.mode}
+                  stateKey={reviewBrowserStateKey(reviewRoute)}
                   onOpenFullReview={openFullReview}
                 />
               </>
@@ -913,6 +915,10 @@ function parseReviewRoute(pathname: string): ReviewRoute | null {
   } catch {
     return null;
   }
+}
+
+function reviewBrowserStateKey(route: ReviewRoute): string {
+  return `cui:review-state:v1:${route.sessionId}:${route.round}`;
 }
 
 createRoot(document.getElementById('root')!).render(

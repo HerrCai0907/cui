@@ -164,13 +164,64 @@ test('renders atomic review output for a round diff', async ({ page }) => {
   ).toBeVisible();
   await expect(intent).toBeVisible();
   await expect(atomicChange.getByText('+  return 2;')).not.toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel('Expand atomic change 1')).toBeVisible();
+  await expect(atomicChange.getByText('+  return 2;')).not.toBeVisible();
   await atomicChange.getByLabel('Expand atomic change 1').click();
   await expect(intent).toBeVisible();
+  await atomicChange.getByLabel('Approve src/example.ts').check();
+  await page.reload();
+  await expect(atomicChange.getByText('+  return 2;')).not.toBeVisible();
   await expect(page.getByText('JSON output')).toHaveCount(0);
   await page.getByRole('button', { name: 'Full review' }).click();
   await expect(page).toHaveURL(/\/ui\/sessions\/session-1\/rounds\/1\/full_review$/);
   await expect(page.getByText('Round changes')).toBeVisible();
   await expect(page.getByText('1 atomic changes')).not.toBeVisible();
   await expect(page.getByText('+  return 2;').first()).toBeVisible();
+  await page.getByLabel('Approve src/example.ts').check();
+  await page.reload();
+  await expect(page.getByText('+  return 2;').first()).not.toBeVisible();
+  expect(
+    await page.evaluate(() => {
+      const rawState = localStorage.getItem('cui:review-state:v1:session-1:1');
+
+      if (!rawState) {
+        return null;
+      }
+
+      const state = JSON.parse(rawState) as {
+        expiresAt?: number;
+        updatedAt?: number;
+      };
+
+      return {
+        ttlMs: (state.expiresAt ?? 0) - (state.updatedAt ?? 0),
+      };
+    }),
+  ).toEqual({ ttlMs: 7 * 24 * 60 * 60 * 1000 });
+
+  await page.evaluate(() => {
+    localStorage.setItem(
+      'cui:review-state:v1:session-1:1',
+      JSON.stringify({
+        version: 1,
+        fullApprovedFileIds: ['0:src/example.ts'],
+        atomicItems: {
+          'atomic-1': {
+            collapsed: true,
+            approvedFileIds: ['0:src/example.ts'],
+          },
+        },
+        updatedAt: Date.now() - 8 * 24 * 60 * 60 * 1000,
+        expiresAt: Date.now() - 1,
+      }),
+    );
+  });
+  await page.goto('/ui/sessions/session-1/rounds/1/atomic_review');
+  await expect(page.getByLabel('Collapse atomic change 1')).toBeVisible();
+  await expect(page.getByText('+  return 2;')).toBeVisible();
+  await expect(
+    page.evaluate(() => localStorage.getItem('cui:review-state:v1:session-1:1')),
+  ).resolves.toBeNull();
   expect(browserErrors).toEqual([]);
 });
