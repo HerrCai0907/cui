@@ -79,14 +79,14 @@ export function App() {
     };
   }, [reviewRoute?.sessionId, reviewRoute?.round, reviewRoute?.mode]);
 
-  function startNewSession() {
+  function startNewSession(workspace?: string) {
     setReviewRoute(null);
     setReview(null);
     if (location.pathname !== '/') {
       history.pushState({}, '', '/');
     }
     setReviewError(null);
-    sessionController.startNewSession();
+    sessionController.startNewSession(workspace);
   }
 
   function openSession(sessionId: string) {

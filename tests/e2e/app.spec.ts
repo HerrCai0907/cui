@@ -34,6 +34,85 @@ test('loads the new session screen without browser errors', async ({ page }) => 
   expect(browserErrors).toEqual([]);
 });
 
+test('starts a new session from an expanded workspace row', async ({ page }) => {
+  const currentWorkspaceSession = {
+    id: 'session-1',
+    workspace: '/Users/bytedance/cui',
+    title: 'Current workspace session',
+    createdAt: '2026-08-22T00:00:00.000Z',
+    updatedAt: '2026-08-22T00:00:00.000Z',
+    messages: [
+      {
+        id: 'message-1',
+        role: 'assistant',
+        kind: 'response',
+        content: 'Current workspace response',
+        createdAt: '2026-08-22T00:00:00.000Z',
+      },
+    ],
+    rounds: [],
+  };
+  const otherWorkspaceSession = {
+    id: 'session-2',
+    workspace: '/Users/bytedance/other',
+    title: 'Other workspace session',
+    createdAt: '2026-08-22T00:00:00.000Z',
+    updatedAt: '2026-08-22T00:00:01.000Z',
+    messages: [
+      {
+        id: 'message-2',
+        role: 'assistant',
+        kind: 'response',
+        content: 'Other workspace response',
+        createdAt: '2026-08-22T00:00:01.000Z',
+      },
+    ],
+    rounds: [],
+  };
+
+  await page.route('**/api/sessions', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          sessions: [otherWorkspaceSession, currentWorkspaceSession],
+        }),
+      });
+      return;
+    }
+
+    await route.fallback();
+  });
+  await page.route('**/api/sessions/session-2', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ session: otherWorkspaceSession }),
+    });
+  });
+
+  await page.goto('/');
+
+  await expect(
+    page.getByRole('button', { name: 'New session in /Users/bytedance/cui' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'New session in /Users/bytedance/other' }),
+  ).toHaveCount(0);
+
+  await page
+    .getByRole('button', { name: '/Users/bytedance/other' })
+    .click();
+  await page
+    .getByRole('button', { name: 'New session in /Users/bytedance/other' })
+    .click();
+
+  await expect(page.getByRole('heading', { name: 'New session' })).toBeVisible();
+  await expect(page.getByLabel('Workspace path')).toHaveValue(
+    '/Users/bytedance/other',
+  );
+  await expect(page.getByPlaceholder('Start with an initial prompt...')).toBeVisible();
+});
+
 test('renders atomic review output for a round diff', async ({ page }) => {
   const browserErrors: string[] = [];
   const session = {
