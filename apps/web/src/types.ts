@@ -106,6 +106,7 @@ export type ExecutionTraceEvent =
   | TurnStartedTraceEvent
   | TurnCompletedTraceEvent
   | ItemStartedTraceEvent
+  | ItemUpdatedTraceEvent
   | ItemCompletedTraceEvent
   | LegacyTraceEvent
   | UnknownTraceEvent;
@@ -126,6 +127,11 @@ export type TurnCompletedTraceEvent = {
 
 export type ItemStartedTraceEvent = {
   type: 'item.started';
+  item: ExecutionTraceItem;
+};
+
+export type ItemUpdatedTraceEvent = {
+  type: 'item.updated';
   item: ExecutionTraceItem;
 };
 
@@ -166,6 +172,7 @@ export type ExecutionTraceItem =
   | ReasoningTraceItem
   | AgentMessageTraceItem
   | CommandExecutionTraceItem
+  | TodoListTraceItem
   | GenericTraceItem;
 
 export type ReasoningTraceItem = {
@@ -187,6 +194,17 @@ export type CommandExecutionTraceItem = {
   aggregated_output?: string;
   exit_code?: number | null;
   status?: 'in_progress' | 'completed' | 'failed' | 'cancelled' | string;
+};
+
+export type TodoListTraceItem = {
+  id: string;
+  type: 'todo_list';
+  items: TodoListTraceItemEntry[];
+};
+
+export type TodoListTraceItemEntry = {
+  text: string;
+  completed: boolean;
 };
 
 export type GenericTraceItem = {

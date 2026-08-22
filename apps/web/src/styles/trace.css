@@ -131,6 +131,49 @@
   white-space: pre-wrap;
 }
 
+.trace-todo-list {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trace-todo-list li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  min-width: 0;
+  color: #344054;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.trace-todo-list svg {
+  margin-top: 2px;
+  color: #7a8797;
+}
+
+.trace-todo-list span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.trace-todo-list li.is-completed {
+  color: #697586;
+}
+
+.trace-todo-list li.is-completed svg {
+  color: #2f6b46;
+}
+
+.trace-todo-list li.is-completed span {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: #9aa7b6;
+}
+
 .trace-event-success .trace-event-icon {
   border-color: #b9d7c2;
   background: #f2faf4;
@@ -153,4 +196,10 @@
   border-color: #d6d2e6;
   background: #f8f6fc;
   color: #655483;
+}
+
+.trace-event-todo .trace-event-icon {
+  border-color: #c7d9d1;
+  background: #f5faf7;
+  color: #37644b;
 }

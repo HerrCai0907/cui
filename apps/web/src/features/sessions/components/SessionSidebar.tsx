@@ -162,34 +162,25 @@ function ReviewNavigationTree({
               <Hash size={14} />
               <span>{item.order}. {item.title}</span>
             </button>
-            {item.statusGroups.map((group) => (
-              <div className="review-navigation-status" key={group.status}>
-                <div className="review-navigation-status-label">
-                  <Circle size={8} />
-                  <span>{group.label}</span>
-                  <small>{group.files.length}</small>
-                </div>
-                <div className="review-navigation-files">
-                  {group.files.map((file) => (
-                    <button
-                      className="review-navigation-file"
-                      type="button"
-                      key={file.id}
-                      title={file.path}
-                      onClick={() =>
-                        onNavigate({
-                          itemId: item.itemId,
-                          targetId: file.targetId,
-                        })
-                      }
-                    >
-                      <FileText size={13} />
-                      <span>{file.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+            <div className="review-navigation-files">
+              {item.files.map((file) => (
+                <button
+                  className="review-navigation-file"
+                  type="button"
+                  key={file.id}
+                  title={file.path}
+                  onClick={() =>
+                    onNavigate({
+                      itemId: item.itemId,
+                      targetId: file.targetId,
+                    })
+                  }
+                >
+                  <FileText size={13} />
+                  <span>{file.label}</span>
+                </button>
+              ))}
+            </div>
           </section>
         ))}
       </div>

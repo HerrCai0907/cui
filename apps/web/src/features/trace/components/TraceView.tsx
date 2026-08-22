@@ -1,6 +1,19 @@
-import { CheckCircle2, Circle, MessageSquare, Play, Terminal, TextSearch } from 'lucide-react';
+import {
+  CheckCircle2,
+  Circle,
+  ListChecks,
+  MessageSquare,
+  Play,
+  Terminal,
+  TextSearch,
+} from 'lucide-react';
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
-import type { ExecutionTraceEvent, ExecutionTraceItem, TokenUsage } from '../../../types';
+import type {
+  ExecutionTraceEvent,
+  ExecutionTraceItem,
+  TodoListTraceItemEntry,
+  TokenUsage,
+} from '../../../types';
 import { shortId } from '../../../shared/lib/ids';
 import { formatExecutionTraceSummary, parseExecutionTrace } from '../model/parseExecutionTrace';
 
@@ -66,7 +79,7 @@ function TraceEventRow({ event }: { event: ExecutionTraceEvent }) {
           <strong>{view.title}</strong>
           {view.meta && <small>{view.meta}</small>}
         </div>
-        {view.content && <pre>{view.content}</pre>}
+        {view.content}
       </div>
     </li>
   );
@@ -75,7 +88,7 @@ function TraceEventRow({ event }: { event: ExecutionTraceEvent }) {
 function describeTraceEvent(event: ExecutionTraceEvent): {
   title: string;
   meta?: string;
-  content?: string;
+  content?: ReactNode;
   tone: string;
   icon: ReactNode;
 } {
@@ -105,23 +118,27 @@ function describeTraceEvent(event: ExecutionTraceEvent): {
     };
   }
 
-  if (event.type === 'item.started' || event.type === 'item.completed') {
-    const completed = event.type === 'item.completed';
+  if (
+    event.type === 'item.started' ||
+    event.type === 'item.updated' ||
+    event.type === 'item.completed'
+  ) {
     const item = describeTraceItem(event.item);
+    const status = formatTraceItemEventStatus(event.type);
 
     return {
       title: item.title,
-      meta: [completed ? 'completed' : 'started', item.meta].filter(Boolean).join(' / '),
+      meta: [status, item.meta].filter(Boolean).join(' / '),
       content: item.content,
       tone: item.tone,
-      icon: completed ? item.completedIcon : item.startedIcon,
+      icon: event.type === 'item.started' ? item.startedIcon : item.completedIcon,
     };
   }
 
   if (event.type === 'event_msg') {
     return {
       title: formatEventName(event.payload.type ?? 'event message'),
-      content: formatLegacyMessage(event.payload),
+      content: formatPreformattedContent(formatLegacyMessage(event.payload)),
       tone: 'trace-event-neutral',
       icon: <Circle size={12} />,
     };
@@ -131,7 +148,7 @@ function describeTraceEvent(event: ExecutionTraceEvent): {
     return {
       title: 'Session metadata',
       meta: shortId(stringValue(event.payload.id)),
-      content: formatJson(event.payload),
+      content: formatPreformattedContent(formatJson(event.payload)),
       tone: 'trace-event-neutral',
       icon: <TextSearch size={14} />,
     };
@@ -140,7 +157,7 @@ function describeTraceEvent(event: ExecutionTraceEvent): {
   if (event.type === 'response_item') {
     return {
       title: `Response item${event.payload.type ? `: ${formatEventName(String(event.payload.type))}` : ''}`,
-      content: formatJson(event.payload),
+      content: formatPreformattedContent(formatJson(event.payload)),
       tone: 'trace-event-neutral',
       icon: <TextSearch size={14} />,
     };
@@ -149,7 +166,7 @@ function describeTraceEvent(event: ExecutionTraceEvent): {
   if (event.type === 'text_delta') {
     return {
       title: 'Text delta',
-      content: event.text ?? event.delta,
+      content: formatPreformattedContent(event.text ?? event.delta),
       tone: 'trace-event-message',
       icon: <MessageSquare size={14} />,
     };
@@ -158,7 +175,7 @@ function describeTraceEvent(event: ExecutionTraceEvent): {
   if (event.type === 'stdout') {
     return {
       title: 'Stdout',
-      content: event.text,
+      content: formatPreformattedContent(event.text),
       tone: 'trace-event-command',
       icon: <Terminal size={14} />,
     };
@@ -166,7 +183,7 @@ function describeTraceEvent(event: ExecutionTraceEvent): {
 
   return {
     title: 'Unknown event',
-    content: formatJson(event.raw),
+    content: formatPreformattedContent(formatJson(event.raw)),
     tone: 'trace-event-neutral',
     icon: <TextSearch size={14} />,
   };
@@ -175,7 +192,7 @@ function describeTraceEvent(event: ExecutionTraceEvent): {
 function describeTraceItem(item: ExecutionTraceItem): {
   title: string;
   meta?: string;
-  content?: string;
+  content?: ReactNode;
   tone: string;
   startedIcon: ReactNode;
   completedIcon: ReactNode;
@@ -187,7 +204,7 @@ function describeTraceItem(item: ExecutionTraceItem): {
     return {
       title: item.command ? `Command: ${item.command}` : 'Command execution',
       meta: [status, exitCode].filter(Boolean).join(' / '),
-      content: item.aggregated_output?.trim(),
+      content: formatPreformattedContent(item.aggregated_output?.trim()),
       tone: status === 'completed' && item.exit_code === 0 ? 'trace-event-success' : 'trace-event-command',
       startedIcon: <Terminal size={14} />,
       completedIcon: <Terminal size={14} />,
@@ -197,7 +214,7 @@ function describeTraceItem(item: ExecutionTraceItem): {
   if (item.type === 'agent_message') {
     return {
       title: 'Assistant message',
-      content: item.text,
+      content: formatPreformattedContent(item.text),
       tone: 'trace-event-message',
       startedIcon: <MessageSquare size={14} />,
       completedIcon: <MessageSquare size={14} />,
@@ -207,21 +224,68 @@ function describeTraceItem(item: ExecutionTraceItem): {
   if (item.type === 'reasoning') {
     return {
       title: 'Reasoning',
-      content: item.text,
+      content: formatPreformattedContent(item.text),
       tone: 'trace-event-reasoning',
       startedIcon: <TextSearch size={14} />,
       completedIcon: <TextSearch size={14} />,
     };
   }
 
+  if (item.type === 'todo_list') {
+    const completedCount = item.items.filter((todo) => todo.completed).length;
+    const totalCount = item.items.length;
+
+    return {
+      title: 'Todo list',
+      meta: `${completedCount}/${totalCount} done`,
+      content: <TodoList items={item.items} />,
+      tone: 'trace-event-todo',
+      startedIcon: <ListChecks size={14} />,
+      completedIcon: <ListChecks size={14} />,
+    };
+  }
+
   return {
     title: item.originalType ? formatEventName(item.originalType) : 'Unknown item',
     meta: shortId(item.id),
-    content: formatJson(item),
+    content: formatPreformattedContent(formatJson(item)),
     tone: 'trace-event-neutral',
     startedIcon: <Circle size={12} />,
     completedIcon: <CheckCircle2 size={14} />,
   };
+}
+
+function TodoList({ items }: { items: TodoListTraceItemEntry[] }) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <ul className="trace-todo-list">
+      {items.map((item, index) => (
+        <li className={item.completed ? 'is-completed' : ''} key={`${item.text}-${index}`}>
+          {item.completed ? <CheckCircle2 size={14} /> : <Circle size={14} />}
+          <span>{item.text}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function formatTraceItemEventStatus(eventType: 'item.started' | 'item.updated' | 'item.completed'): string {
+  if (eventType === 'item.started') {
+    return 'started';
+  }
+
+  if (eventType === 'item.updated') {
+    return 'updated';
+  }
+
+  return 'completed';
+}
+
+function formatPreformattedContent(content: string | undefined): ReactNode {
+  return content ? <pre>{content}</pre> : undefined;
 }
 
 function formatUsage(usage: TokenUsage): string {
