@@ -1,4 +1,5 @@
 export const DEFAULT_CONTEXT_LINE_COUNT = 3;
+export const CONTEXT_EXPAND_LINE_COUNT = 10;
 
 export type DiffLineKind = 'add' | 'remove' | 'context' | 'meta' | 'ellipsis';
 
@@ -8,6 +9,9 @@ export type DiffLine = {
   oldLine?: number;
   newLine?: number;
   content: string;
+  hiddenLines?: DiffLine[];
+  canExpandUp?: boolean;
+  canExpandDown?: boolean;
 };
 
 export type DiffFile = {
@@ -19,7 +23,16 @@ export type DiffFile = {
   metadata: string[];
 };
 
-type ParsedHunkLine = Omit<DiffLine, 'id'>;
+type ParsedHunkLine = Omit<
+  DiffLine,
+  'id' | 'hiddenLines' | 'canExpandUp' | 'canExpandDown'
+>;
+
+type ParsedDiffLine = ParsedHunkLine & {
+  hiddenLines?: ParsedHunkLine[];
+  canExpandUp?: boolean;
+  canExpandDown?: boolean;
+};
 
 type ParsedHunk = {
   lines: ParsedHunkLine[];
@@ -113,13 +126,9 @@ function parseFileBlock(
     index = parsedHunk.nextIndex;
   }
 
-  const clippedLines = clipHunks(hunks, contextLineCount).map(
-    (line, lineIndex) => ({
-      ...line,
-      id: `${fileIndex}:${lineIndex}:${line.kind}:${line.oldLine ?? ''}:${
-        line.newLine ?? ''
-      }`,
-    }),
+  let lineIndex = 0;
+  const clippedLines = clipHunks(hunks, contextLineCount).map((line) =>
+    addDiffLineId(fileIndex, line, () => lineIndex++),
   );
 
   return {
@@ -198,8 +207,8 @@ function parseHunk(
 function clipHunks(
   hunks: ParsedHunk[],
   contextLineCount: number,
-): ParsedHunkLine[] {
-  const lines: ParsedHunkLine[] = [];
+): ParsedDiffLine[] {
+  const lines: ParsedDiffLine[] = [];
 
   hunks.forEach((hunk, hunkIndex) => {
     const changedIndexes = hunk.lines
@@ -219,16 +228,77 @@ function clipHunks(
       })),
     );
 
+    if (lines.length > 0 && hunkIndex > 0) {
+      lines.push({ kind: 'ellipsis', content: '...' });
+    }
+
+    let nextLineIndex = 0;
+
     ranges.forEach((range, rangeIndex) => {
-      if (lines.length > 0 && (hunkIndex > 0 || rangeIndex > 0)) {
-        lines.push({ kind: 'ellipsis', content: '...' });
-      }
+      appendHiddenGap(lines, hunk.lines.slice(nextLineIndex, range.start), {
+        canExpandDown: rangeIndex > 0,
+        canExpandUp: true,
+      });
 
       lines.push(...hunk.lines.slice(range.start, range.end + 1));
+      nextLineIndex = range.end + 1;
+    });
+
+    appendHiddenGap(lines, hunk.lines.slice(nextLineIndex), {
+      canExpandDown: true,
+      canExpandUp: false,
     });
   });
 
   return lines;
+}
+
+function appendHiddenGap(
+  lines: ParsedDiffLine[],
+  hiddenLines: ParsedHunkLine[],
+  options: {
+    canExpandUp: boolean;
+    canExpandDown: boolean;
+  },
+) {
+  if (hiddenLines.length === 0) {
+    return;
+  }
+
+  lines.push({
+    kind: 'ellipsis',
+    content: '...',
+    hiddenLines,
+    canExpandDown: options.canExpandDown,
+    canExpandUp: options.canExpandUp,
+  });
+}
+
+function addDiffLineId(
+  fileIndex: number,
+  line: ParsedDiffLine,
+  getNextLineIndex: () => number,
+): DiffLine {
+  const lineIndex = getNextLineIndex();
+  const diffLine: DiffLine = {
+    id: `${fileIndex}:${lineIndex}:${line.kind}:${line.oldLine ?? ''}:${
+      line.newLine ?? ''
+    }`,
+    kind: line.kind,
+    oldLine: line.oldLine,
+    newLine: line.newLine,
+    content: line.content,
+    canExpandDown: line.canExpandDown,
+    canExpandUp: line.canExpandUp,
+  };
+
+  if (line.hiddenLines) {
+    diffLine.hiddenLines = line.hiddenLines.map((hiddenLine) =>
+      addDiffLineId(fileIndex, hiddenLine, getNextLineIndex),
+    );
+  }
+
+  return diffLine;
 }
 
 function mergeRanges(ranges: Array<{ start: number; end: number }>) {
