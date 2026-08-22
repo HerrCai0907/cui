@@ -296,19 +296,26 @@ function runProcess({
           },
         });
 
-        const timer = setTimeout(() => {
-          if (!settled) {
-            settled = true;
-            child.kill('SIGTERM');
-            reject(new Error(`TraeX command timed out after ${timeoutMs}ms`));
-            void cleanupOutputDir(outputDir);
-          }
-        }, timeoutMs);
+        let idleTimer: ReturnType<typeof setTimeout>;
+        const resetIdleTimer = () => {
+          clearTimeout(idleTimer);
+          idleTimer = setTimeout(() => {
+            if (!settled) {
+              settled = true;
+              child.kill('SIGTERM');
+              reject(new Error(`TraeX command produced no output for ${timeoutMs}ms`));
+              void cleanupOutputDir(outputDir);
+            }
+          }, timeoutMs);
+        };
+
+        resetIdleTimer();
 
         child.stdout.setEncoding('utf8');
         child.stderr.setEncoding('utf8');
 
         child.stdout.on('data', (chunk: string) => {
+          resetIdleTimer();
           stdout += chunk;
           const lines = stdout.split('\n');
           stdout = lines.pop() ?? '';
@@ -324,13 +331,14 @@ function runProcess({
         });
 
         child.stderr.on('data', (chunk: string) => {
+          resetIdleTimer();
           stderr += chunk;
         });
 
         child.on('error', (error) => {
           if (!settled) {
             settled = true;
-            clearTimeout(timer);
+            clearTimeout(idleTimer);
             reject(error);
             void cleanupOutputDir(outputDir);
           }
@@ -342,7 +350,7 @@ function runProcess({
           }
 
           settled = true;
-          clearTimeout(timer);
+          clearTimeout(idleTimer);
 
           const trailingEvent = parseJsonLine(stdout);
 
