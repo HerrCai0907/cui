@@ -4,12 +4,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GitDiffService } from '../diff/gitDiffService.js';
 import {
+  AiAtomicDiffReviewInput,
   AiContinueSessionInput,
   AiCreateSessionInput,
   AiModel,
   AiResponse,
   AiRun,
   AiRunEvent,
+  AtomicCapabilityType,
+  AtomicDiffReview,
+  AtomicDiffReviewItem,
   ConversationSummary,
 } from '../types.js';
 
@@ -115,6 +119,50 @@ export class TraexModel implements AiModel {
     );
 
     return parseConversationSummary(response.content);
+  }
+
+  async createAtomicDiffReview(
+    input: AiAtomicDiffReviewInput,
+  ): Promise<AtomicDiffReview> {
+    const args = [
+      'exec',
+      '-C',
+      input.workspace,
+      '--permission-mode',
+      this.permissionMode,
+      '--skip-git-repo-check',
+      '--json',
+      '-',
+    ];
+    let response: AiResponse | undefined;
+
+    try {
+      response = await this.run(
+        undefined,
+        args,
+        createAtomicDiffReviewPrompt(input),
+        input.workspace,
+        false,
+      );
+
+      return {
+        status: 'ready',
+        generatedAt: new Date().toISOString(),
+        analysisSessionId: response.sessionId,
+        items: parseAtomicDiffReviewItems(response.content),
+        rawResponse: response.content,
+      };
+    } catch (error) {
+      return {
+        status: 'failed',
+        generatedAt: new Date().toISOString(),
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to create atomic diff review',
+        ...(response ? { rawResponse: response.content } : {}),
+      };
+    }
   }
 
   continueSessionStream(
@@ -233,6 +281,191 @@ export class TraexModel implements AiModel {
       result,
     };
   }
+}
+
+function createAtomicDiffReviewPrompt(input: AiAtomicDiffReviewInput): string {
+  return [
+    '你是代码审查助手。请把给定的一轮 AI 修改 diff 拆分成 N 个原子能力。',
+    '',
+    '原子能力类型必须使用以下编号：',
+    '0: 格式调整',
+    '1: 重构，包括重命名、拆分函数、移动代码位置等',
+    '2: 新功能，包括新加一个函数、新加一个类',
+    '3: 单点修改，例如修改函数局部逻辑',
+    '4: 多点调整，例如函数修改签名，导致所有上下游都需要跟着变化',
+    '',
+    '拆分规则：',
+    '1. 按照人类 review 代码时的理解顺序排列，从结构入口、数据模型、核心逻辑、调用点、展示或测试逐步展开。',
+    '2. 每个原子能力必须只表达一个可独立理解的修改意图。',
+    '3. 每个原子能力都必须包含该能力对应的 unified diff 片段。diff 可以裁剪上下文，但必须保留 diff --git、---、+++、@@ 以及相关增删行。',
+    '4. 对每个原子能力解释修改意图，说明为什么做这个修改，而不是只复述改了哪些行。',
+    '5. 只基于输入材料，不要编造文件或行为。',
+    '6. 只输出 JSON，不要输出 Markdown、代码围栏或额外解释。',
+    '',
+    '输出 JSON schema：',
+    '{',
+    '  "items": [',
+    '    {',
+    '      "id": "atomic-1",',
+    '      "order": 1,',
+    '      "capabilityType": 2,',
+    '      "capabilityLabel": "新功能",',
+    '      "title": "短标题",',
+    '      "intent": "修改意图说明",',
+    '      "files": ["path/to/file"],',
+    '      "diff": "unified diff text",',
+    '      "outputJson": {',
+    '        "id": "atomic-1",',
+    '        "order": 1,',
+    '        "capability_type": 2,',
+    '        "capability_label": "新功能",',
+    '        "title": "短标题",',
+    '        "intent": "修改意图说明",',
+    '        "files": ["path/to/file"]',
+    '      }',
+    '    }',
+    '  ]',
+    '}',
+    '',
+    `原始 session id：${input.originalSessionId}`,
+    `轮次：${input.round}`,
+    '',
+    '<SESSION_INPUT>',
+    input.sessionInput,
+    '</SESSION_INPUT>',
+    '',
+    '<EXECUTION_TRACE>',
+    input.executionTrace || '无',
+    '</EXECUTION_TRACE>',
+    '',
+    '<ASSISTANT_OUTPUT>',
+    input.assistantOutput || '无',
+    '</ASSISTANT_OUTPUT>',
+    '',
+    '<DIFF>',
+    input.diff || '无',
+    '</DIFF>',
+  ].join('\n');
+}
+
+function parseAtomicDiffReviewItems(content: string): AtomicDiffReviewItem[] {
+  const parsed = parseSummaryJson(content);
+
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Atomic diff review was not valid JSON');
+  }
+
+  const rawItems = 'items' in parsed ? parsed.items : undefined;
+
+  if (!Array.isArray(rawItems)) {
+    throw new Error('Atomic diff review JSON must include items array');
+  }
+
+  return rawItems.map((item, index) => parseAtomicDiffReviewItem(item, index));
+}
+
+function parseAtomicDiffReviewItem(
+  item: unknown,
+  index: number,
+): AtomicDiffReviewItem {
+  if (!item || typeof item !== 'object') {
+    throw new Error(`Atomic diff review item ${index + 1} must be an object`);
+  }
+
+  const order = getNumberProperty(item, 'order') ?? index + 1;
+  const capabilityType = parseCapabilityType(
+    getNumberProperty(item, 'capabilityType') ??
+      getNumberProperty(item, 'capability_type'),
+  );
+  const title = requiredStringProperty(item, 'title', index);
+  const intent = requiredStringProperty(item, 'intent', index);
+  const diff = requiredStringProperty(item, 'diff', index);
+  const id =
+    getStringProperty(item, 'id')?.trim() || `atomic-${String(order)}`;
+  const files = getStringArrayProperty(item, 'files');
+  const capabilityLabel =
+    getStringProperty(item, 'capabilityLabel')?.trim() ||
+    getStringProperty(item, 'capability_label')?.trim() ||
+    capabilityLabelForType(capabilityType);
+  const outputJson = normalizeOutputJson(item, {
+    id,
+    order,
+    capabilityType,
+    capabilityLabel,
+    title,
+    intent,
+    files,
+  });
+
+  return {
+    id,
+    order,
+    capabilityType,
+    capabilityLabel,
+    title,
+    intent,
+    files,
+    diff,
+    outputJson,
+  };
+}
+
+function normalizeOutputJson(
+  item: object,
+  fallback: Omit<AtomicDiffReviewItem, 'diff' | 'outputJson'>,
+): Record<string, unknown> {
+  const outputJson = 'outputJson' in item ? item.outputJson : undefined;
+
+  if (outputJson && typeof outputJson === 'object' && !Array.isArray(outputJson)) {
+    return outputJson as Record<string, unknown>;
+  }
+
+  return {
+    id: fallback.id,
+    order: fallback.order,
+    capability_type: fallback.capabilityType,
+    capability_label: fallback.capabilityLabel,
+    title: fallback.title,
+    intent: fallback.intent,
+    files: fallback.files,
+  };
+}
+
+function parseCapabilityType(value: number | undefined): AtomicCapabilityType {
+  if (value === 0 || value === 1 || value === 2 || value === 3 || value === 4) {
+    return value;
+  }
+
+  throw new Error('Atomic diff review capabilityType must be 0, 1, 2, 3, or 4');
+}
+
+function capabilityLabelForType(value: AtomicCapabilityType): string {
+  switch (value) {
+    case 0:
+      return '格式调整';
+    case 1:
+      return '重构';
+    case 2:
+      return '新功能';
+    case 3:
+      return '单点修改';
+    case 4:
+      return '多点调整';
+  }
+}
+
+function requiredStringProperty(
+  value: object,
+  key: string,
+  index: number,
+): string {
+  const property = getStringProperty(value, key)?.trim();
+
+  if (!property) {
+    throw new Error(`Atomic diff review item ${index + 1} must include ${key}`);
+  }
+
+  return property;
 }
 
 function parseConversationSummary(content: string): ConversationSummary {
@@ -520,13 +753,25 @@ function formatRawEvents(events: unknown[]): string {
 }
 
 function getStringProperty(value: object, key: string): string | undefined {
-  if (!(key in value)) {
-    return undefined;
-  }
-
-  const property = value[key as keyof typeof value];
+  const property = (value as Record<string, unknown>)[key];
 
   return typeof property === 'string' ? property : undefined;
+}
+
+function getNumberProperty(value: object, key: string): number | undefined {
+  const property = (value as Record<string, unknown>)[key];
+
+  return typeof property === 'number' ? property : undefined;
+}
+
+function getStringArrayProperty(value: object, key: string): string[] {
+  const property = (value as Record<string, unknown>)[key];
+
+  if (!Array.isArray(property)) {
+    return [];
+  }
+
+  return property.filter((item): item is string => typeof item === 'string');
 }
 
 function getTextFields(value: object, keys: string[]): string[] {

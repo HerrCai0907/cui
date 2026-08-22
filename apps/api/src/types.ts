@@ -16,6 +16,7 @@ export type ChatRound = {
   diff: string;
   hasChanges: boolean;
   createdAt: string;
+  atomicReview?: AtomicDiffReview;
 };
 
 export type ChatRoundSummary = Pick<
@@ -47,6 +48,45 @@ export type AiContinueSessionInput = {
   sessionId: string;
   workspace: string;
   prompt: string;
+};
+
+export type AtomicCapabilityType = 0 | 1 | 2 | 3 | 4;
+
+export type AtomicDiffReviewItem = {
+  id: string;
+  order: number;
+  capabilityType: AtomicCapabilityType;
+  capabilityLabel: string;
+  title: string;
+  intent: string;
+  files: string[];
+  diff: string;
+  outputJson: Record<string, unknown>;
+};
+
+export type AtomicDiffReview =
+  | {
+      status: 'ready';
+      generatedAt: string;
+      analysisSessionId: string;
+      items: AtomicDiffReviewItem[];
+      rawResponse: string;
+    }
+  | {
+      status: 'failed';
+      generatedAt: string;
+      error: string;
+      rawResponse?: string;
+    };
+
+export type AiAtomicDiffReviewInput = {
+  workspace: string;
+  originalSessionId: string;
+  round: number;
+  sessionInput: string;
+  executionTrace: string;
+  assistantOutput: string;
+  diff: string;
 };
 
 export type AiResponse = {
@@ -92,6 +132,9 @@ export type AiRun = {
 export interface AiModel {
   createSession(input: AiCreateSessionInput): Promise<AiResponse>;
   continueSession(input: AiContinueSessionInput): Promise<AiResponse>;
+  createAtomicDiffReview(
+    input: AiAtomicDiffReviewInput,
+  ): Promise<AtomicDiffReview>;
   summarizeConversation(
     input: AiCreateSessionInput,
   ): Promise<ConversationSummary>;

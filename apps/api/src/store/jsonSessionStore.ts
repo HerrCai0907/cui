@@ -1,6 +1,11 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { ChatMessage, ChatRound, ChatSession } from '../types.js';
+import {
+  AtomicDiffReview,
+  ChatMessage,
+  ChatRound,
+  ChatSession,
+} from '../types.js';
 
 type SessionStoreData = {
   sessions: ChatSession[];
@@ -108,6 +113,48 @@ export class JsonSessionStore {
     const session = await this.getSession(sessionId);
 
     return session?.rounds?.find((round) => round.round === roundNumber);
+  }
+
+  async updateRoundAtomicReview(
+    sessionId: string,
+    roundNumber: number,
+    atomicReview: AtomicDiffReview,
+  ): Promise<ChatRound> {
+    let updatedRound: ChatRound | undefined;
+
+    await this.updateData((data) => {
+      const sessions = data.sessions.map((session) => {
+        if (session.id !== sessionId) {
+          return session;
+        }
+
+        const rounds = session.rounds?.map((round) => {
+          if (round.round !== roundNumber) {
+            return round;
+          }
+
+          updatedRound = {
+            ...round,
+            atomicReview,
+          };
+
+          return updatedRound;
+        });
+
+        return {
+          ...session,
+          ...(rounds ? { rounds } : {}),
+        };
+      });
+
+      return { sessions };
+    });
+
+    if (!updatedRound) {
+      throw new Error(`Round not found: ${sessionId}#${roundNumber}`);
+    }
+
+    return updatedRound;
   }
 
   async updateSessionSummary(

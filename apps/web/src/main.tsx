@@ -35,6 +35,7 @@ import './styles.css';
 type ReviewRoute = {
   sessionId: string;
   round: number;
+  mode: 'atomic' | 'full';
 };
 
 function App() {
@@ -141,7 +142,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [reviewRoute?.sessionId, reviewRoute?.round]);
+  }, [reviewRoute?.sessionId, reviewRoute?.round, reviewRoute?.mode]);
 
   useLayoutEffect(() => {
     const messageStream = messageStreamRef.current;
@@ -499,9 +500,19 @@ function App() {
   }
 
   function openReview(sessionId: string, round: number) {
-    const path = `/ui/sessions/${encodeURIComponent(sessionId)}/rounds/${round}/review`;
+    const path = `/ui/sessions/${encodeURIComponent(sessionId)}/rounds/${round}/atomic_review`;
 
     window.open(path, '_blank', 'noopener,noreferrer');
+  }
+
+  function openFullReview() {
+    if (!reviewRoute) {
+      return;
+    }
+
+    window.location.assign(
+      `/ui/sessions/${encodeURIComponent(reviewRoute.sessionId)}/rounds/${reviewRoute.round}/full_review`,
+    );
   }
 
   function closeReview() {
@@ -638,7 +649,11 @@ function App() {
         <header className="chat-header">
           <div>
             <span className="section-label">
-              {reviewRoute ? 'Review' : 'Session'}
+              {reviewRoute
+                ? reviewRoute.mode === 'atomic'
+                  ? 'Atomic Review'
+                  : 'Full Review'
+                : 'Session'}
             </span>
             <h1>
               {reviewRoute
@@ -669,7 +684,9 @@ function App() {
 
         {reviewRoute ? (
           <div className="review-page">
-            {reviewLoading && <p className="loading-line">Loading review...</p>}
+            {reviewLoading && (
+              <p className="loading-line">Loading review analysis...</p>
+            )}
             {!reviewLoading && review && (
               <>
                 <div className="review-summary">
@@ -682,7 +699,12 @@ function App() {
                     <strong>{formatMessageTime(review.createdAt)}</strong>
                   </div>
                 </div>
-                <ReviewDiff diff={review.diff} />
+                <ReviewDiff
+                  diff={review.diff}
+                  atomicReview={review.atomicReview}
+                  mode={reviewRoute.mode}
+                  onOpenFullReview={openFullReview}
+                />
               </>
             )}
             {!reviewLoading && !review && !error && (
@@ -873,9 +895,10 @@ function formatRelativeTime(value: string): string {
 }
 
 function parseReviewRoute(pathname: string): ReviewRoute | null {
-  const match = /^\/ui\/sessions\/([^/]+)\/rounds\/(\d+)\/review\/?$/.exec(
-    pathname,
-  );
+  const match =
+    /^\/ui\/sessions\/([^/]+)\/rounds\/(\d+)\/(atomic_review|full_review)\/?$/.exec(
+      pathname,
+    );
 
   if (!match) {
     return null;
@@ -885,6 +908,7 @@ function parseReviewRoute(pathname: string): ReviewRoute | null {
     return {
       sessionId: decodeURIComponent(match[1]),
       round: Number(match[2]),
+      mode: match[3] === 'full_review' ? 'full' : 'atomic',
     };
   } catch {
     return null;

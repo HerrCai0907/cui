@@ -4,6 +4,7 @@ import {
   AiResponse,
   AiRunEvent,
   AiRunResult,
+  AtomicDiffReview,
   ChatMessage,
   ChatRound,
   ChatSession,
@@ -96,7 +97,13 @@ export class SessionService {
     sessionId: string,
     round: number,
   ): Promise<ChatRound | undefined> {
-    const review = await this.store.getRound(sessionId, round);
+    const session = await this.store.getSession(sessionId);
+
+    if (!session) {
+      return undefined;
+    }
+
+    let review = session.rounds?.find((current) => current.round === round);
 
     if (!review) {
       return undefined;
@@ -107,11 +114,40 @@ export class SessionService {
       review.afterDiff,
     );
 
-    return {
+    review = {
       ...review,
       diff,
       hasChanges: this.diffService.hasChanges(diff),
     };
+
+    if (review.hasChanges && !review.atomicReview) {
+      const atomicReview = await this.createAtomicDiffReview({
+        sessionId,
+        workspace: session.workspace,
+        prompt: createRoundInputTranscript(session, round),
+        aiResponse: {
+          sessionId,
+          content: getRoundAssistantOutput(session, round),
+          trace: getRoundExecutionTrace(session, round),
+          rawEvents: [],
+        },
+        round: review,
+      });
+
+      review = await this.store.updateRoundAtomicReview(
+        sessionId,
+        round,
+        atomicReview,
+      );
+
+      review = {
+        ...review,
+        diff,
+        hasChanges: this.diffService.hasChanges(diff),
+      };
+    }
+
+    return review;
   }
 
   async createSession(request: CreateSessionRequest): Promise<ChatSession> {
@@ -127,6 +163,15 @@ export class SessionService {
     const now = new Date().toISOString();
     const userMessage = createMessage('user', request.prompt);
     const round = this.createRound(aiResponse, 1);
+    if (round?.hasChanges) {
+      round.atomicReview = await this.createAtomicDiffReview({
+        sessionId,
+        workspace: request.workspace,
+        prompt: request.prompt,
+        aiResponse,
+        round,
+      });
+    }
     const assistantMessages = createAssistantMessages(aiResponse, round);
     const session: ChatSession = {
       id: sessionId,
@@ -224,6 +269,15 @@ export class SessionService {
     });
     const userMessage = createMessage('user', request.prompt);
     const round = this.createNextRound(session, aiResponse);
+    if (round?.hasChanges) {
+      round.atomicReview = await this.createAtomicDiffReview({
+        sessionId,
+        workspace: session.workspace,
+        prompt: createSessionInputTranscript(session, request.prompt),
+        aiResponse,
+        round,
+      });
+    }
     const assistantMessages = createAssistantMessages(aiResponse, round);
 
     await this.logger.session(sessionId).info('session.continued', {
@@ -373,6 +427,15 @@ export class SessionService {
           aiResponse.sessionId,
         );
         const round = this.createNextRound(currentSession, aiResponse);
+        if (round?.hasChanges) {
+          round.atomicReview = await this.createAtomicDiffReview({
+            sessionId: aiResponse.sessionId,
+            workspace: request.workspace,
+            prompt: createSessionInputTranscript(currentSession, request.prompt),
+            aiResponse,
+            round,
+          });
+        }
         const assistantMessages = createAssistantMessages(aiResponse, round);
         const updatedSession = await this.store.appendRoundAndMessages(
           aiResponse.sessionId,
@@ -425,6 +488,15 @@ export class SessionService {
           aiResponse.sessionId,
         );
         const round = this.createNextRound(currentSession, aiResponse);
+        if (round?.hasChanges) {
+          round.atomicReview = await this.createAtomicDiffReview({
+            sessionId: aiResponse.sessionId,
+            workspace,
+            prompt: createSessionInputTranscript(currentSession, request.prompt),
+            aiResponse,
+            round,
+          });
+        }
         const assistantMessages = createAssistantMessages(aiResponse, round);
         const updatedSession = await this.store.appendRoundAndMessages(
           aiResponse.sessionId,
@@ -520,6 +592,50 @@ export class SessionService {
       hasChanges: this.diffService.hasChanges(diff),
       createdAt: new Date().toISOString(),
     };
+  }
+
+  private async createAtomicDiffReview(input: {
+    sessionId: string;
+    workspace: string;
+    prompt: string;
+    aiResponse: AiResponse;
+    round: ChatRound;
+  }): Promise<AtomicDiffReview> {
+    try {
+      const review = await this.aiModel.createAtomicDiffReview({
+        workspace: input.workspace,
+        originalSessionId: input.sessionId,
+        round: input.round.round,
+        sessionInput: input.prompt,
+        executionTrace: input.aiResponse.trace ?? '',
+        assistantOutput: input.aiResponse.content,
+        diff: input.round.diff,
+      });
+
+      await this.logger.session(input.sessionId).info('round.review.created', {
+        sessionId: input.sessionId,
+        round: input.round.round,
+        status: review.status,
+        itemCount: review.status === 'ready' ? review.items.length : 0,
+      });
+
+      return review;
+    } catch (error) {
+      await this.logger.session(input.sessionId).warn('round.review.failed', {
+        sessionId: input.sessionId,
+        round: input.round.round,
+        error,
+      });
+
+      return {
+        status: 'failed',
+        generatedAt: new Date().toISOString(),
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to create atomic diff review',
+      };
+    }
   }
 }
 
@@ -633,6 +749,101 @@ function createSummaryPrompt(session: ChatSession): string {
     '',
     '输出格式：{"title":"...","progress":"..."}',
   ].join('\n');
+}
+
+function createSessionInputTranscript(
+  session: ChatSession | undefined,
+  currentPrompt: string,
+): string {
+  const messages = [...(session?.messages ?? [])];
+  const hasCurrentPrompt = messages.some(
+    (message) => message.role === 'user' && message.content === currentPrompt,
+  );
+
+  if (!hasCurrentPrompt) {
+    messages.push(createMessage('user', currentPrompt));
+  }
+
+  const transcript = messages
+    .filter((message) => message.kind !== 'trace')
+    .map((message) => {
+      const role = message.role === 'user' ? '用户' : '助手';
+
+      return `${role}：${message.content}`;
+    })
+    .join('\n\n');
+
+  return transcript || currentPrompt;
+}
+
+function createRoundInputTranscript(
+  session: ChatSession,
+  round: number,
+): string {
+  const responseIndex = findRoundResponseIndex(session, round);
+  const messages =
+    responseIndex === -1
+      ? session.messages
+      : session.messages.slice(0, responseIndex);
+  const transcript = messages
+    .filter((message) => message.kind !== 'trace')
+    .map((message) => {
+      const role = message.role === 'user' ? '用户' : '助手';
+
+      return `${role}：${message.content}`;
+    })
+    .join('\n\n');
+
+  return transcript || getRoundUserInput(session, round);
+}
+
+function getRoundUserInput(session: ChatSession, round: number): string {
+  const responseIndex = findRoundResponseIndex(session, round);
+  const searchEnd = responseIndex === -1 ? session.messages.length : responseIndex;
+
+  for (let index = searchEnd - 1; index >= 0; index -= 1) {
+    const message = session.messages[index];
+
+    if (message.role === 'user') {
+      return message.content;
+    }
+  }
+
+  return '';
+}
+
+function getRoundExecutionTrace(session: ChatSession, round: number): string {
+  const responseIndex = findRoundResponseIndex(session, round);
+  const searchEnd = responseIndex === -1 ? session.messages.length : responseIndex;
+
+  for (let index = searchEnd - 1; index >= 0; index -= 1) {
+    const message = session.messages[index];
+
+    if (message.kind === 'trace') {
+      return message.content;
+    }
+
+    if (message.kind === 'response') {
+      break;
+    }
+  }
+
+  return '';
+}
+
+function getRoundAssistantOutput(session: ChatSession, round: number): string {
+  const responseIndex = findRoundResponseIndex(session, round);
+
+  return responseIndex === -1 ? '' : session.messages[responseIndex].content;
+}
+
+function findRoundResponseIndex(session: ChatSession, round: number): number {
+  return session.messages.findIndex(
+    (message) =>
+      message.role === 'assistant' &&
+      message.kind === 'response' &&
+      message.round === round,
+  );
 }
 
 function selectRecentTurnMessages(messages: ChatMessage[]): ChatMessage[] {

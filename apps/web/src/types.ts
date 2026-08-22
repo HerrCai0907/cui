@@ -14,6 +14,7 @@ export type ApiRound = {
   diff: string;
   hasChanges: boolean;
   createdAt: string;
+  atomicReview?: ApiAtomicDiffReview;
 };
 
 export type ApiRoundSummary = Pick<
@@ -31,6 +32,35 @@ export type ApiSession = {
   messages: ApiMessage[];
   rounds?: ApiRoundSummary[];
 };
+
+export type ApiAtomicCapabilityType = 0 | 1 | 2 | 3 | 4;
+
+export type ApiAtomicDiffReviewItem = {
+  id: string;
+  order: number;
+  capabilityType: ApiAtomicCapabilityType;
+  capabilityLabel: string;
+  title: string;
+  intent: string;
+  files: string[];
+  diff: string;
+  outputJson: Record<string, unknown>;
+};
+
+export type ApiAtomicDiffReview =
+  | {
+      status: 'ready';
+      generatedAt: string;
+      analysisSessionId: string;
+      items: ApiAtomicDiffReviewItem[];
+      rawResponse: string;
+    }
+  | {
+      status: 'failed';
+      generatedAt: string;
+      error: string;
+      rawResponse?: string;
+    };
 
 export type SessionSummary = {
   id: string;
