@@ -1,0 +1,10 @@
+node_modules
+dist
+data
+apps/api/data
+logs
+apps/api/logs
+.env
+.env.local
+.DS_Store
+npm-debug.log*
