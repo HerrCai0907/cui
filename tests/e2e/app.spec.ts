@@ -225,3 +225,108 @@ test('renders atomic review output for a round diff', async ({ page }) => {
   ).resolves.toBeNull();
   expect(browserErrors).toEqual([]);
 });
+
+test('keeps only the running session blocked while another turn is active', async ({
+  page,
+}) => {
+  const sessionOne = {
+    id: 'session-1',
+    workspace: '/Users/bytedance/cui',
+    title: 'Running session',
+    createdAt: '2026-08-22T00:00:00.000Z',
+    updatedAt: '2026-08-22T00:00:00.000Z',
+    messages: [],
+    rounds: [],
+  };
+  const sessionTwo = {
+    id: 'session-2',
+    workspace: '/Users/bytedance/cui',
+    title: 'Other session',
+    createdAt: '2026-08-22T00:00:00.000Z',
+    updatedAt: '2026-08-22T00:00:00.000Z',
+    messages: [
+      {
+        id: 'message-2',
+        role: 'assistant',
+        kind: 'response',
+        content: 'Available session',
+        createdAt: '2026-08-22T00:00:00.000Z',
+      },
+    ],
+    rounds: [],
+  };
+  const startedSessionOne = {
+    ...sessionOne,
+    messages: [
+      {
+        id: 'message-1',
+        role: 'user',
+        content: 'Run a long task',
+        createdAt: '2026-08-22T00:00:00.000Z',
+      },
+    ],
+  };
+
+  await page.route('**/api/sessions', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ sessions: [sessionOne, sessionTwo] }),
+      });
+      return;
+    }
+
+    await route.fallback();
+  });
+  await page.route('**/api/sessions/session-1', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ session: sessionOne }),
+    });
+  });
+  await page.route('**/api/sessions/session-2', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ session: sessionTwo }),
+    });
+  });
+  await page.route('**/api/sessions/session-1/messages', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: 'ok',
+        session: startedSessionOne,
+        turnId: 'turn-1',
+      }),
+    });
+  });
+  await page.route('**/api/turns/turn-1/events', async () => {
+    // Keep the stream open so session-1 remains blocked.
+  });
+
+  await page.goto('/');
+  await page.getByPlaceholder('Continue this session...').fill('Run a long task');
+  await page.getByRole('button', { name: 'Send message' }).click();
+
+  await expect(page.getByText('Waiting for TRAEX...')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send message' })).toBeDisabled();
+
+  await page.getByRole('button', { name: 'Other session' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Other session' })).toBeVisible();
+  await expect(page.getByText('Available session')).toBeVisible();
+  await expect(page.getByText('Waiting for TRAEX...')).not.toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send message' })).toBeEnabled();
+
+  await page.getByRole('button', { name: 'New session' }).click();
+
+  await expect(page.getByRole('heading', { name: 'New session' })).toBeVisible();
+  await expect(page.getByPlaceholder('Start with an initial prompt...')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send message' })).toBeEnabled();
+
+  await page.getByRole('button', { name: 'Running session' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Running session' })).toBeVisible();
+  await expect(page.getByText('Waiting for TRAEX...')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send message' })).toBeDisabled();
+});

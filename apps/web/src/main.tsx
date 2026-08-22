@@ -52,15 +52,27 @@ function App() {
   const [activeSession, setActiveSession] = useState<ApiSession | null>(null);
   const [draft, setDraft] = useState('');
   const [workspaceDraft, setWorkspaceDraft] = useState('/Users/bytedance/cui');
-  const [loading, setLoading] = useState(false);
+  const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [submittingSessionIds, setSubmittingSessionIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [creatingSession, setCreatingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedTraceIds, setExpandedTraceIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const activeSessionRef = useRef<ApiSession | null>(null);
+  const eventSourceRefs = useRef<Map<string, EventSource>>(new Map());
+  const openSessionRequestIdRef = useRef(0);
   const lastEnterKeyDownRef = useRef<number | null>(null);
   const messageStreamRef = useRef<HTMLDivElement | null>(null);
   const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const activeSessionBlocked = activeSession
+    ? runningSessionIds.has(activeSession.id) ||
+      submittingSessionIds.has(activeSession.id)
+    : creatingSession;
 
   const workspaces = useMemo(
     () =>
@@ -91,7 +103,10 @@ function App() {
 
   useEffect(() => {
     return () => {
-      eventSourceRef.current?.close();
+      eventSourceRefs.current.forEach((eventSource) => {
+        eventSource.close();
+      });
+      eventSourceRefs.current.clear();
     };
   }, []);
 
@@ -211,8 +226,8 @@ function App() {
         })),
       );
 
-      if (!activeSession && data.sessions[0]) {
-        setActiveSession(data.sessions[0]);
+      if (!activeSessionRef.current && data.sessions[0]) {
+        setCurrentActiveSession(data.sessions[0]);
       }
     } catch (reason) {
       setError(
@@ -226,8 +241,9 @@ function App() {
     options: { resetReviewRoute?: boolean } = {},
   ) {
     const resetReviewRoute = options.resetReviewRoute ?? true;
+    const requestId = openSessionRequestIdRef.current + 1;
 
-    setLoading(true);
+    openSessionRequestIdRef.current = requestId;
     setError(null);
     if (resetReviewRoute) {
       setReviewRoute(null);
@@ -245,17 +261,23 @@ function App() {
       }
 
       const data = (await response.json()) as { session: ApiSession };
-      setActiveSession(data.session);
+      if (openSessionRequestIdRef.current !== requestId) {
+        return;
+      }
+
+      setCurrentActiveSession(data.session);
       setWorkspaceDraft(data.session.workspace);
       setExpandedWorkspaces((current) =>
         new Set(current).add(data.session.workspace),
       );
     } catch (reason) {
+      if (openSessionRequestIdRef.current !== requestId) {
+        return;
+      }
+
       setError(
         reason instanceof Error ? reason.message : 'Failed to open session',
       );
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -263,12 +285,17 @@ function App() {
     event.preventDefault();
 
     const trimmed = draft.trim();
+    const submittedSessionId = activeSession?.id ?? null;
 
-    if (!trimmed) {
+    if (!trimmed || activeSessionBlocked) {
       return;
     }
 
-    setLoading(true);
+    if (submittedSessionId) {
+      setSubmittingSession(submittedSessionId, true);
+    } else {
+      setCreatingSession(true);
+    }
     setError(null);
     setDraft('');
 
@@ -298,26 +325,45 @@ function App() {
       }
 
       const data = (await response.json()) as SubmittedTurn;
-      setActiveSession(data.session);
+      setRunningSession(data.session.id, true);
+      if (submittedSessionId) {
+        setSubmittingSession(submittedSessionId, false);
+      }
+      setCreatingSession(false);
+
+      if (
+        (submittedSessionId && activeSessionRef.current?.id === submittedSessionId) ||
+        (!submittedSessionId && !activeSessionRef.current)
+      ) {
+        setCurrentActiveSession(data.session);
+      }
+
       setExpandedWorkspaces((current) =>
         new Set(current).add(data.session.workspace),
       );
       void refreshSessions();
-      streamTurn(data.turnId);
+      streamTurn(data.session.id, data.turnId);
     } catch (reason) {
-      setDraft(trimmed);
-      setError(reason instanceof Error ? reason.message : 'Request failed');
-      setLoading(false);
-      eventSourceRef.current?.close();
-      eventSourceRef.current = null;
+      if (submittedSessionId) {
+        setSubmittingSession(submittedSessionId, false);
+      }
+      setCreatingSession(false);
+
+      if (
+        (submittedSessionId && activeSessionRef.current?.id === submittedSessionId) ||
+        (!submittedSessionId && !activeSessionRef.current)
+      ) {
+        setDraft(trimmed);
+        setError(reason instanceof Error ? reason.message : 'Request failed');
+      }
     }
   }
 
-  function streamTurn(turnId: string) {
-    eventSourceRef.current?.close();
+  function streamTurn(sessionId: string, turnId: string) {
+    eventSourceRefs.current.get(sessionId)?.close();
 
     const eventSource = new EventSource(`/api/turns/${turnId}/events`);
-    eventSourceRef.current = eventSource;
+    eventSourceRefs.current.set(sessionId, eventSource);
     const streamingTraceMessageId = `stream-${turnId}-trace`;
     const streamingResponseMessageId = `stream-${turnId}-response`;
     let streamedTrace = '';
@@ -332,7 +378,7 @@ function App() {
       streamedResponse += text;
 
       setActiveSession((session) => {
-        if (!session) {
+        if (!session || session.id !== sessionId) {
           return session;
         }
 
@@ -341,7 +387,7 @@ function App() {
         );
 
         if (existingMessage) {
-          return {
+          const nextSession = {
             ...session,
             messages: session.messages.map((message) =>
               message.id === streamingResponseMessageId
@@ -349,6 +395,9 @@ function App() {
                 : message,
             ),
           };
+
+          activeSessionRef.current = nextSession;
+          return nextSession;
         }
 
         const streamMessage: ApiMessage = {
@@ -359,10 +408,13 @@ function App() {
           createdAt: new Date().toISOString(),
         };
 
-        return {
+        const nextSession = {
           ...session,
           messages: [...session.messages, streamMessage],
         };
+
+        activeSessionRef.current = nextSession;
+        return nextSession;
       });
     };
 
@@ -379,7 +431,7 @@ function App() {
       );
 
       setActiveSession((session) => {
-        if (!session) {
+        if (!session || session.id !== sessionId) {
           return session;
         }
 
@@ -388,7 +440,7 @@ function App() {
         );
 
         if (existingMessage) {
-          return {
+          const nextSession = {
             ...session,
             messages: session.messages.map((message) =>
               message.id === streamingTraceMessageId
@@ -396,6 +448,9 @@ function App() {
                 : message,
             ),
           };
+
+          activeSessionRef.current = nextSession;
+          return nextSession;
         }
 
         const streamMessage: ApiMessage = {
@@ -417,10 +472,13 @@ function App() {
                 ...session.messages.slice(responseIndex),
               ];
 
-        return {
+        const nextSession = {
           ...session,
           messages,
         };
+
+        activeSessionRef.current = nextSession;
+        return nextSession;
       });
     };
 
@@ -447,7 +505,9 @@ function App() {
         return;
       }
 
-      setActiveSession(data.session);
+      if (activeSessionRef.current?.id === data.session.id) {
+        setCurrentActiveSession(data.session);
+      }
       setExpandedTraceIds((current) => {
         const next = new Set(current);
 
@@ -455,21 +515,27 @@ function App() {
 
         return next;
       });
-      setLoading(false);
+      setRunningSession(sessionId, false);
       void refreshSessions();
       streamClosed = true;
       eventSource.close();
-      eventSourceRef.current = null;
+      if (eventSourceRefs.current.get(sessionId) === eventSource) {
+        eventSourceRefs.current.delete(sessionId);
+      }
     });
 
     eventSource.addEventListener('failed', (event) => {
       const data = parseMessageEvent(event);
 
-      setError(data?.type === 'failed' ? data.error : 'Request failed');
-      setLoading(false);
+      if (activeSessionRef.current?.id === sessionId) {
+        setError(data?.type === 'failed' ? data.error : 'Request failed');
+      }
+      setRunningSession(sessionId, false);
       streamClosed = true;
       eventSource.close();
-      eventSourceRef.current = null;
+      if (eventSourceRefs.current.get(sessionId) === eventSource) {
+        eventSourceRefs.current.delete(sessionId);
+      }
     });
 
     eventSource.onerror = () => {
@@ -477,26 +543,59 @@ function App() {
         return;
       }
 
-      setError('Stream connection failed');
-      setLoading(false);
+      if (activeSessionRef.current?.id === sessionId) {
+        setError('Stream connection failed');
+      }
+      setRunningSession(sessionId, false);
       eventSource.close();
-      eventSourceRef.current = null;
+      if (eventSourceRefs.current.get(sessionId) === eventSource) {
+        eventSourceRefs.current.delete(sessionId);
+      }
     };
   }
 
   function startNewSession() {
-    if (loading) {
-      return;
-    }
-
     setReviewRoute(null);
     setReview(null);
     if (location.pathname !== '/') {
       history.pushState({}, '', '/');
     }
-    setActiveSession(null);
+    setCurrentActiveSession(null);
     setDraft('');
     setError(null);
+  }
+
+  function setCurrentActiveSession(session: ApiSession | null) {
+    activeSessionRef.current = session;
+    setActiveSession(session);
+  }
+
+  function setRunningSession(sessionId: string, running: boolean) {
+    setRunningSessionIds((current) => {
+      const next = new Set(current);
+
+      if (running) {
+        next.add(sessionId);
+      } else {
+        next.delete(sessionId);
+      }
+
+      return next;
+    });
+  }
+
+  function setSubmittingSession(sessionId: string, submitting: boolean) {
+    setSubmittingSessionIds((current) => {
+      const next = new Set(current);
+
+      if (submitting) {
+        next.add(sessionId);
+      } else {
+        next.delete(sessionId);
+      }
+
+      return next;
+    });
   }
 
   function openReview(sessionId: string, round: number) {
@@ -578,7 +677,6 @@ function App() {
             <button
               className="new-session"
               type="button"
-              disabled={loading}
               onClick={startNewSession}
             >
               <Plus size={16} />
@@ -616,7 +714,6 @@ function App() {
                                 className={`session-button ${active ? 'is-active' : ''}`}
                                 key={session.id}
                                 type="button"
-                                disabled={loading}
                                 onClick={() => void openSession(session.id)}
                               >
                                 <span>{session.title}</span>
@@ -802,7 +899,9 @@ function App() {
                 );
               })}
 
-              {loading && <p className="loading-line">Waiting for TRAEX...</p>}
+              {activeSessionBlocked && (
+                <p className="loading-line">Waiting for TRAEX...</p>
+              )}
               {error && <p className="error-line">{error}</p>}
             </div>
 
@@ -839,7 +938,7 @@ function App() {
                   if (
                     previousEnterKeyDown !== null &&
                     event.timeStamp - previousEnterKeyDown < 500 &&
-                    !loading &&
+                    !activeSessionBlocked &&
                     draft.trim()
                   ) {
                     event.preventDefault();
@@ -853,7 +952,7 @@ function App() {
                 type="submit"
                 aria-label="Send message"
                 title="Send"
-                disabled={loading}
+                disabled={activeSessionBlocked}
               >
                 <Send size={18} />
                 <span>Send</span>
