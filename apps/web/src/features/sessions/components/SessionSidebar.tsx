@@ -4,6 +4,7 @@ import {
   Circle,
   FileText,
   Hash,
+  LoaderCircle,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
@@ -236,14 +237,14 @@ function WorkspaceGroup({
         <div className="session-list">
           {workspace.sessions.map((session) => {
             const active = activeSessionId === session.id;
-            const needsAttention =
-              runningSessionIds.has(session.id) ||
-              session.isRunning ||
-              session.hasUnreadRound;
+            const isRunning =
+              runningSessionIds.has(session.id) || session.isRunning;
+            const hasUnreadRound = !isRunning && session.hasUnreadRound;
             const className = [
               'session-button',
               active ? 'is-active' : '',
-              needsAttention ? 'is-active-session' : '',
+              isRunning ? 'is-running-session' : '',
+              hasUnreadRound ? 'is-unread-session' : '',
             ]
               .filter(Boolean)
               .join(' ');
@@ -257,7 +258,14 @@ function WorkspaceGroup({
               >
                 <span className="session-title-row">
                   <span className="session-title">{session.title}</span>
-                  {needsAttention && (
+                  {isRunning && (
+                    <LoaderCircle
+                      className="session-running-icon"
+                      size={13}
+                      aria-hidden="true"
+                    />
+                  )}
+                  {hasUnreadRound && (
                     <Circle
                       className="session-status-dot"
                       size={8}

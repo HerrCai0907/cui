@@ -878,6 +878,7 @@ test('highlights running and unread sidebar sessions', async ({ page }) => {
     isRunning: false,
   };
   let sessionListRequests = 0;
+  let turnCompleted = false;
 
   await page.addInitScript(() => {
     (
@@ -961,7 +962,7 @@ test('highlights running and unread sidebar sessions', async ({ page }) => {
         contentType: 'application/json',
         body: JSON.stringify({
           sessions: [
-            sessionListRequests === 1 ? runningSession : completedSession,
+            turnCompleted ? completedSession : runningSession,
             otherSession,
           ],
         }),
@@ -988,9 +989,11 @@ test('highlights running and unread sidebar sessions', async ({ page }) => {
   const runningButton = page.getByRole('button', { name: 'Running session' });
   const otherButton = page.getByRole('button', { name: 'Other session' });
 
-  await expect(runningButton).toHaveClass(/is-active-session/);
+  await expect(runningButton).toHaveClass(/is-running-session/);
+  await expect(runningButton).not.toHaveClass(/is-unread-session/);
   await otherButton.click();
-  await expect(runningButton).toHaveClass(/is-active-session/);
+  await expect(runningButton).toHaveClass(/is-running-session/);
+  await expect(runningButton).not.toHaveClass(/is-unread-session/);
   await expect
     .poll(() =>
       page.evaluate(() =>
@@ -998,6 +1001,7 @@ test('highlights running and unread sidebar sessions', async ({ page }) => {
       ),
     )
     .toBe('0');
+  turnCompleted = true;
   await page.evaluate(() =>
     (
       window as Window & {
@@ -1006,9 +1010,11 @@ test('highlights running and unread sidebar sessions', async ({ page }) => {
     ).__completeTurn?.(),
   );
   await expect.poll(() => sessionListRequests).toBeGreaterThan(1);
-  await expect(runningButton).toHaveClass(/is-active-session/);
+  await expect(runningButton).not.toHaveClass(/is-running-session/);
+  await expect(runningButton).toHaveClass(/is-unread-session/);
   await runningButton.click();
-  await expect(runningButton).not.toHaveClass(/is-active-session/);
+  await expect(runningButton).not.toHaveClass(/is-running-session/);
+  await expect(runningButton).not.toHaveClass(/is-unread-session/);
   await expect
     .poll(() =>
       page.evaluate(() =>
