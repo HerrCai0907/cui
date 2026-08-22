@@ -516,7 +516,7 @@ test('keeps only the running session blocked while another turn is active', asyn
   await expect(page.getByText('Waiting for TRAEX...')).not.toBeVisible();
   await expect(page.getByRole('button', { name: 'Send message' })).toBeEnabled();
 
-  await page.getByRole('button', { name: 'New session' }).click();
+  await page.getByRole('button', { name: 'New session', exact: true }).click();
 
   await expect(page.getByRole('heading', { name: 'New session' })).toBeVisible();
   await expect(page.getByPlaceholder('Start with an initial prompt...')).toBeVisible();
