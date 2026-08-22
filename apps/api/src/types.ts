@@ -11,6 +11,7 @@ export type ChatMessage = {
 
 export type ChatRound = {
   round: number;
+  baseCommit?: string;
   beforeDiff: string;
   afterDiff: string;
   diff: string;
@@ -95,6 +96,7 @@ export type AiResponse = {
   content: string;
   trace?: string;
   gitDiff?: {
+    baseCommit?: string;
     beforeDiff: string;
     afterDiff: string;
   };

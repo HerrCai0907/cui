@@ -9,6 +9,7 @@ export type ApiMessage = {
 
 export type ApiRound = {
   round: number;
+  baseCommit?: string;
   beforeDiff: string;
   afterDiff: string;
   diff: string;

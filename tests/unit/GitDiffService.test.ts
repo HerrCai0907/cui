@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { GitDiffService } from '../../apps/api/src/infrastructure/diff/GitDiffService.js';
 
@@ -97,3 +101,59 @@ test('createRoundDiff includes end-of-file newline-only changes', () => {
     ].join('\n'),
   );
 });
+
+test('captureWorkspaceDiff can stay based on the round start commit', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'cui-git-diff-'));
+  const diffService = new GitDiffService();
+
+  try {
+    await runGit(['init'], cwd);
+    await runGit(['config', 'user.email', 'test@example.com'], cwd);
+    await runGit(['config', 'user.name', 'Test User'], cwd);
+    await writeFile(join(cwd, 'example.ts'), 'export const value = 1;\n');
+    await runGit(['add', 'example.ts'], cwd);
+    await runGit(['commit', '-m', 'initial'], cwd);
+
+    const beforeSnapshot = await diffService.captureWorkspaceSnapshot(cwd);
+
+    await writeFile(join(cwd, 'example.ts'), 'export const value = 2;\n');
+    await runGit(['add', 'example.ts'], cwd);
+    await runGit(['commit', '-m', 'round change'], cwd);
+
+    assert.equal(await diffService.captureWorkspaceDiff(cwd), '');
+
+    const afterDiff = await diffService.captureWorkspaceDiff(
+      cwd,
+      beforeSnapshot.gitCommit,
+    );
+
+    assert.equal(beforeSnapshot.diff, '');
+    assert.match(beforeSnapshot.gitCommit, /^[0-9a-f]{40}$/);
+    assert.equal(
+      diffService.createRoundDiff(beforeSnapshot.diff, afterDiff),
+      [
+        'diff --git a/example.ts b/example.ts',
+        '--- a/example.ts',
+        '+++ b/example.ts',
+        '@@ -1,1 +1,1 @@',
+        '-export const value = 1;',
+        '+export const value = 2;',
+      ].join('\n'),
+    );
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+function runGit(args: string[], cwd: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile('git', args, { cwd }, (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
+}

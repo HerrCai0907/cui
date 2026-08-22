@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process';
 
 export type DiffSnapshot = {
-  beforeDiff: string;
-  afterDiff: string;
+  gitCommit: string;
+  diff: string;
 };
 
 type TextSnapshot = {
@@ -36,15 +36,25 @@ type DiffOperation =
 export class GitDiffService {
   private static readonly maxLcsMatrixCells = 4_000_000;
 
-  async captureWorkspaceDiff(cwd: string): Promise<string> {
-    const diffBase = await this.runGit(['rev-parse', '--verify', 'HEAD'], cwd);
+  async captureWorkspaceSnapshot(cwd: string): Promise<DiffSnapshot> {
+    const gitCommit = await this.captureHeadCommit(cwd);
+    const diff = await this.captureWorkspaceDiff(cwd, gitCommit);
+
+    return { gitCommit, diff };
+  }
+
+  async captureWorkspaceDiff(
+    cwd: string,
+    baseCommit?: string,
+  ): Promise<string> {
+    const diffBase = baseCommit ?? (await this.captureHeadCommit(cwd));
     const trackedDiffArgs = [
       'diff',
       '--no-ext-diff',
       '--src-prefix=a/',
       '--dst-prefix=b/',
       '--unified=999999',
-      ...(diffBase.trim() ? ['HEAD'] : []),
+      ...(diffBase ? [diffBase] : []),
       '--',
     ];
     const trackedDiff = await this.runGit(trackedDiffArgs, cwd);
@@ -619,6 +629,10 @@ export class GitDiffService {
       .split('\0')
       .filter(Boolean)
       .filter((file) => !file.startsWith('.trae/'));
+  }
+
+  private async captureHeadCommit(cwd: string): Promise<string> {
+    return (await this.runGit(['rev-parse', '--verify', 'HEAD'], cwd)).trim();
   }
 
   private runGit(args: string[], cwd: string, okCodes = [0]): Promise<string> {
