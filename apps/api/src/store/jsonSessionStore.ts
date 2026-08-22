@@ -62,6 +62,37 @@ export class JsonSessionStore {
     return updatedSession;
   }
 
+  async updateSessionSummary(
+    sessionId: string,
+    summary: Pick<ChatSession, 'title' | 'summary'>,
+  ): Promise<ChatSession> {
+    let updatedSession: ChatSession | undefined;
+
+    await this.updateData((data) => {
+      const sessions = data.sessions.map((session) => {
+        if (session.id !== sessionId) {
+          return session;
+        }
+
+        updatedSession = {
+          ...session,
+          title: summary.title,
+          summary: summary.summary,
+        };
+
+        return updatedSession;
+      });
+
+      return { sessions };
+    });
+
+    if (!updatedSession) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    return updatedSession;
+  }
+
   private async readData(): Promise<SessionStoreData> {
     try {
       const raw = await readFile(this.filePath, 'utf8');

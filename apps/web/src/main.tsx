@@ -21,6 +21,7 @@ type ApiSession = {
   id: string;
   workspace: string;
   title: string;
+  summary?: string;
   createdAt: string;
   updatedAt: string;
   messages: ApiMessage[];
@@ -30,6 +31,7 @@ type SessionSummary = {
   id: string;
   workspace: string;
   title: string;
+  summary?: string;
   updatedAt: string;
 };
 
@@ -115,6 +117,7 @@ function App() {
           id: session.id,
           workspace: session.workspace,
           title: session.title,
+          summary: session.summary,
           updatedAt: session.updatedAt,
         })),
       );
@@ -354,20 +357,26 @@ function App() {
 
                     {expanded && (
                       <div className="session-list">
-                        {workspaceSessions.map((session) => (
-                          <button
-                            className={`session-button ${
-                              activeSession?.id === session.id ? 'is-active' : ''
-                            }`}
-                            key={session.id}
-                            type="button"
-                            disabled={loading}
-                            onClick={() => void openSession(session.id)}
-                          >
-                            <span>{session.title}</span>
-                            <small>{formatRelativeTime(session.updatedAt)}</small>
-                          </button>
-                        ))}
+                        {workspaceSessions.map((session) => {
+                          const active = activeSession?.id === session.id;
+
+                          return (
+                            <button
+                              className={`session-button ${active ? 'is-active' : ''}`}
+                              key={session.id}
+                              type="button"
+                              disabled={loading}
+                              onClick={() => void openSession(session.id)}
+                            >
+                              <span>{session.title}</span>
+                              <small>
+                                {active && session.summary
+                                  ? session.summary
+                                  : formatRelativeTime(session.updatedAt)}
+                              </small>
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
                   </section>
@@ -384,6 +393,7 @@ function App() {
           <div>
             <span className="section-label">Session</span>
             <h1>{activeSession?.title ?? 'New session'}</h1>
+            {activeSession?.summary && <p className="session-progress">{activeSession.summary}</p>}
           </div>
           <div className="model-pill">GPT workspace</div>
         </header>

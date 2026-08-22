@@ -80,6 +80,7 @@ export class SessionService {
       id: sessionId,
       workspace: request.workspace,
       title: createTitle(request.prompt),
+      summary: '',
       createdAt: now,
       updatedAt: now,
       messages: [userMessage, assistantMessage],
@@ -97,7 +98,9 @@ export class SessionService {
       workspace: request.workspace,
     });
 
-    return this.store.createSession(session);
+    const createdSession = await this.store.createSession(session);
+
+    return this.refreshSessionSummary(createdSession);
   }
 
   async beginCreateSession(request: CreateSessionRequest): Promise<SubmittedTurn> {
@@ -128,6 +131,7 @@ export class SessionService {
       id: sessionId,
       workspace: request.workspace,
       title: createTitle(request.prompt),
+      summary: '',
       createdAt: now,
       updatedAt: now,
       messages: [userMessage],
@@ -173,7 +177,9 @@ export class SessionService {
       workspace: session.workspace,
     });
 
-    return this.store.appendMessages(sessionId, [userMessage, assistantMessage]);
+    const updatedSession = await this.store.appendMessages(sessionId, [userMessage, assistantMessage]);
+
+    return this.refreshSessionSummary(updatedSession);
   }
 
   async beginContinueSession(sessionId: string, request: ContinueSessionRequest): Promise<SubmittedTurn> {
@@ -275,7 +281,8 @@ export class SessionService {
     result
       .then(async (aiResponse) => {
         const assistantMessage = createMessage('assistant', aiResponse.content);
-        const session = await this.store.appendMessages(aiResponse.sessionId, [assistantMessage]);
+        const updatedSession = await this.store.appendMessages(aiResponse.sessionId, [assistantMessage]);
+        const session = await this.refreshSessionSummary(updatedSession);
 
         await this.logger.session(aiResponse.sessionId).info('session.created', {
           sessionId: aiResponse.sessionId,
@@ -309,7 +316,8 @@ export class SessionService {
     result
       .then(async (aiResponse) => {
         const assistantMessage = createMessage('assistant', aiResponse.content);
-        const session = await this.store.appendMessages(aiResponse.sessionId, [assistantMessage]);
+        const updatedSession = await this.store.appendMessages(aiResponse.sessionId, [assistantMessage]);
+        const session = await this.refreshSessionSummary(updatedSession);
 
         await this.logger.session(aiResponse.sessionId).info('session.continued', {
           sessionId: aiResponse.sessionId,
@@ -332,6 +340,27 @@ export class SessionService {
           error: error instanceof Error ? error.message : 'Session continuation failed',
         });
       });
+  }
+
+  private async refreshSessionSummary(session: ChatSession): Promise<ChatSession> {
+    try {
+      const summary = await this.aiModel.summarizeConversation({
+        workspace: session.workspace,
+        prompt: createSummaryPrompt(session),
+      });
+
+      return this.store.updateSessionSummary(session.id, {
+        title: summary.title,
+        summary: summary.progress,
+      });
+    } catch (error) {
+      void this.logger.session(session.id).warn('session.summary.failed', {
+        sessionId: session.id,
+        error,
+      });
+
+      return session;
+    }
   }
 }
 
@@ -372,4 +401,43 @@ function createTitle(prompt: string): string {
   }
 
   return `${compact.slice(0, 45)}...`;
+}
+
+function createSummaryPrompt(session: ChatSession): string {
+  const recentMessages = selectRecentTurnMessages(session.messages);
+  const transcript = recentMessages
+    .map((message) => `${message.role === 'user' ? '用户' : '助手'}：${message.content}`)
+    .join('\n\n');
+
+  return [
+    '请根据下面的对话历史生成当前会话摘要。只输出 JSON，不要输出 Markdown 或解释。',
+    '',
+    '要求：',
+    '1. title：对话标题，30 个中文字符以内。',
+    '2. progress：当前进展，200 个中文字符以内，说明已经讨论/完成到哪里、下一步关键上下文。',
+    '3. 只基于给定历史，不要补充未知事实。',
+    '',
+    `工作区：${session.workspace}`,
+    '',
+    '对话历史：',
+    transcript || '无',
+    '',
+    '输出格式：{"title":"...","progress":"..."}',
+  ].join('\n');
+}
+
+function selectRecentTurnMessages(messages: ChatMessage[]): ChatMessage[] {
+  let userTurns = 0;
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].role === 'user') {
+      userTurns += 1;
+
+      if (userTurns === 4) {
+        return messages.slice(index);
+      }
+    }
+  }
+
+  return messages;
 }

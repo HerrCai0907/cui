@@ -221,6 +221,12 @@ textarea:disabled {
   margin-top: 2px;
   color: #6f7a89;
   font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.session-button.is-active small {
+  color: #8a93a1;
+  white-space: normal;
 }
 
 .chat-area {
@@ -258,6 +264,14 @@ textarea:disabled {
   font-size: 1.1rem;
   line-height: 1.25;
   letter-spacing: 0;
+}
+
+.session-progress {
+  max-width: 760px;
+  margin: 5px 0 0;
+  color: #7b8491;
+  font-size: 0.82rem;
+  line-height: 1.45;
 }
 
 .model-pill {

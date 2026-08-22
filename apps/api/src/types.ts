@@ -11,6 +11,7 @@ export type ChatSession = {
   id: string;
   workspace: string;
   title: string;
+  summary?: string;
   createdAt: string;
   updatedAt: string;
   messages: ChatMessage[];
@@ -31,6 +32,11 @@ export type AiResponse = {
   sessionId: string;
   content: string;
   rawEvents: unknown[];
+};
+
+export type ConversationSummary = {
+  title: string;
+  progress: string;
 };
 
 export type AiRunEvent =
@@ -55,6 +61,7 @@ export type AiRun = {
 export interface AiModel {
   createSession(input: AiCreateSessionInput): Promise<AiResponse>;
   continueSession(input: AiContinueSessionInput): Promise<AiResponse>;
+  summarizeConversation(input: AiCreateSessionInput): Promise<ConversationSummary>;
   createSessionStream(input: AiCreateSessionInput, onEvent: (event: AiRunEvent) => void): AiRun;
   continueSessionStream(input: AiContinueSessionInput, onEvent: (event: AiRunEvent) => void): AiRun;
 }

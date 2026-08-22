@@ -9,6 +9,7 @@ import {
   AiResponse,
   AiRun,
   AiRunEvent,
+  ConversationSummary,
 } from '../types.js';
 
 type TraexModelOptions = {
@@ -72,6 +73,22 @@ export class TraexModel implements AiModel {
     ];
 
     return this.run(input.sessionId, args, input.prompt);
+  }
+
+  async summarizeConversation(input: AiCreateSessionInput): Promise<ConversationSummary> {
+    const args = [
+      'exec',
+      '-C',
+      input.workspace,
+      '--permission-mode',
+      this.permissionMode,
+      '--skip-git-repo-check',
+      '--json',
+      '-',
+    ];
+    const response = await this.run(undefined, args, input.prompt);
+
+    return parseConversationSummary(response.content);
   }
 
   continueSessionStream(input: AiContinueSessionInput, onEvent: (event: AiRunEvent) => void): AiRun {
@@ -153,6 +170,50 @@ export class TraexModel implements AiModel {
       result,
     };
   }
+}
+
+function parseConversationSummary(content: string): ConversationSummary {
+  const parsed = parseSummaryJson(content);
+
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Conversation summary was not valid JSON');
+  }
+
+  const title = getStringProperty(parsed, 'title')?.trim();
+  const progress = getStringProperty(parsed, 'progress')?.trim();
+
+  if (!title || !progress) {
+    throw new Error('Conversation summary JSON must include title and progress');
+  }
+
+  return {
+    title: limitCharacters(title, 30),
+    progress: limitCharacters(progress, 200),
+  };
+}
+
+function parseSummaryJson(content: string): unknown {
+  try {
+    return JSON.parse(content);
+  } catch {
+    const match = content.match(/\{[\s\S]*\}/);
+
+    if (!match) {
+      return undefined;
+    }
+
+    try {
+      return JSON.parse(match[0]);
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+function limitCharacters(value: string, maxLength: number): string {
+  const compact = value.replace(/\s+/g, ' ').trim();
+
+  return Array.from(compact).slice(0, maxLength).join('');
 }
 
 function extractThreadId(events: unknown[]): string | undefined {
