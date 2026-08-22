@@ -21,6 +21,7 @@ type SessionSidebarProps = {
   expandedWorkspaces: Set<string>;
   sessionCount: number;
   activeSessionId?: string;
+  runningSessionIds: Set<string>;
   reviewNavigation?: ReviewNavigation | null;
   reviewNavigationActive?: boolean;
   onOpenChange: (open: boolean) => void;
@@ -36,6 +37,7 @@ export function SessionSidebar({
   expandedWorkspaces,
   sessionCount,
   activeSessionId,
+  runningSessionIds,
   reviewNavigation,
   reviewNavigationActive,
   onOpenChange,
@@ -88,6 +90,7 @@ export function SessionSidebar({
                     activeSessionId={activeSessionId}
                     expanded={expandedWorkspaces.has(workspace)}
                     key={workspace}
+                    runningSessionIds={runningSessionIds}
                     sessions={workspaceSessions}
                     workspace={workspace}
                     onOpenSession={onOpenSession}
@@ -177,6 +180,7 @@ function ReviewNavigationTree({
 function WorkspaceGroup({
   activeSessionId,
   expanded,
+  runningSessionIds,
   sessions,
   workspace,
   onOpenSession,
@@ -185,6 +189,7 @@ function WorkspaceGroup({
 }: {
   activeSessionId?: string;
   expanded: boolean;
+  runningSessionIds: Set<string>;
   sessions: SessionSummary[];
   workspace: string;
   onOpenSession: (sessionId: string) => void;
@@ -220,15 +225,36 @@ function WorkspaceGroup({
         <div className="session-list">
           {sessions.map((session) => {
             const active = activeSessionId === session.id;
+            const needsAttention =
+              runningSessionIds.has(session.id) ||
+              session.isRunning ||
+              session.hasUnreadRound;
+            const className = [
+              'session-button',
+              active ? 'is-active' : '',
+              needsAttention ? 'is-active-session' : '',
+            ]
+              .filter(Boolean)
+              .join(' ');
 
             return (
               <button
-                className={`session-button ${active ? 'is-active' : ''}`}
+                className={className}
                 key={session.id}
                 type="button"
                 onClick={() => onOpenSession(session.id)}
               >
-                <span>{session.title}</span>
+                <span className="session-title-row">
+                  <span className="session-title">{session.title}</span>
+                  {needsAttention && (
+                    <Circle
+                      className="session-status-dot"
+                      size={8}
+                      aria-hidden="true"
+                      fill="currentColor"
+                    />
+                  )}
+                </span>
                 <small>
                   {active && session.summary
                     ? session.summary

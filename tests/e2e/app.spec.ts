@@ -571,13 +571,19 @@ test('keeps only the running session blocked while another turn is active', asyn
         createdAt: '2026-08-22T00:00:00.000Z',
       },
     ],
+    currentRound: 0,
+    isRunning: true,
+    runningTurnId: 'turn-1',
   };
+  let sessionStarted = false;
 
   await page.route('**/api/sessions', async (route) => {
     if (route.request().method() === 'GET') {
       await route.fulfill({
         contentType: 'application/json',
-        body: JSON.stringify({ sessions: [sessionOne, sessionTwo] }),
+        body: JSON.stringify({
+          sessions: [sessionStarted ? startedSessionOne : sessionOne, sessionTwo],
+        }),
       });
       return;
     }
@@ -587,7 +593,9 @@ test('keeps only the running session blocked while another turn is active', asyn
   await page.route('**/api/sessions/session-1', async (route) => {
     await route.fulfill({
       contentType: 'application/json',
-      body: JSON.stringify({ session: sessionOne }),
+      body: JSON.stringify({
+        session: sessionStarted ? startedSessionOne : sessionOne,
+      }),
     });
   });
   await page.route('**/api/sessions/session-2', async (route) => {
@@ -597,6 +605,7 @@ test('keeps only the running session blocked while another turn is active', asyn
     });
   });
   await page.route('**/api/sessions/session-1/messages', async (route) => {
+    sessionStarted = true;
     await route.fulfill({
       contentType: 'application/json',
       body: JSON.stringify({
@@ -635,6 +644,203 @@ test('keeps only the running session blocked while another turn is active', asyn
   await expect(page.getByRole('heading', { name: 'Running session' })).toBeVisible();
   await expect(page.getByText('Waiting for TRAEX...')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send message' })).toBeDisabled();
+});
+
+test('highlights running and unread sidebar sessions', async ({ page }) => {
+  const runningSession = {
+    id: 'session-1',
+    workspace: '/Users/bytedance/cui',
+    title: 'Running session',
+    createdAt: '2026-08-22T00:00:00.000Z',
+    updatedAt: '2026-08-22T00:00:00.000Z',
+    messages: [
+      {
+        id: 'message-1',
+        role: 'user',
+        content: 'Run a long task',
+        createdAt: '2026-08-22T00:00:00.000Z',
+      },
+    ],
+    rounds: [],
+    currentRound: 0,
+    isRunning: true,
+    runningTurnId: 'turn-1',
+  };
+  const completedSession = {
+    ...runningSession,
+    updatedAt: '2026-08-22T00:00:01.000Z',
+    messages: [
+      ...runningSession.messages,
+      {
+        id: 'message-2',
+        role: 'assistant',
+        kind: 'response',
+        content: 'Finished while hidden.',
+        createdAt: '2026-08-22T00:00:01.000Z',
+      },
+    ],
+    currentRound: 1,
+    isRunning: false,
+    runningTurnId: undefined,
+  };
+  const otherSession = {
+    id: 'session-2',
+    workspace: '/Users/bytedance/cui',
+    title: 'Other session',
+    createdAt: '2026-08-22T00:00:00.000Z',
+    updatedAt: '2026-08-22T00:00:00.000Z',
+    messages: [
+      {
+        id: 'message-3',
+        role: 'assistant',
+        kind: 'response',
+        content: 'Other session response.',
+        createdAt: '2026-08-22T00:00:00.000Z',
+      },
+    ],
+    rounds: [],
+    currentRound: 1,
+    isRunning: false,
+  };
+  let sessionListRequests = 0;
+
+  await page.addInitScript(() => {
+    (
+      window as Window & {
+        __completeTurn?: () => void;
+      }
+    ).__completeTurn = undefined;
+
+    class MockEventSource extends EventTarget {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSED = 2;
+      readonly CONNECTING = 0;
+      readonly OPEN = 1;
+      readonly CLOSED = 2;
+      readonly url: string;
+      readonly withCredentials = false;
+      readyState = MockEventSource.CONNECTING;
+      onerror: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onopen: ((event: Event) => void) | null = null;
+
+      constructor(url: string | URL) {
+        super();
+        this.url = String(url);
+        this.readyState = MockEventSource.OPEN;
+
+        (
+          window as Window & {
+            __completeTurn?: () => void;
+          }
+        ).__completeTurn = () => {
+          this.dispatchEvent(new Event('open'));
+          this.dispatchEvent(
+            new MessageEvent('done', {
+              data: JSON.stringify({
+                type: 'done',
+                session: {
+                  id: 'session-1',
+                  workspace: '/Users/bytedance/cui',
+                  title: 'Running session',
+                  createdAt: '2026-08-22T00:00:00.000Z',
+                  updatedAt: '2026-08-22T00:00:01.000Z',
+                  messages: [
+                    {
+                      id: 'message-1',
+                      role: 'user',
+                      content: 'Run a long task',
+                      createdAt: '2026-08-22T00:00:00.000Z',
+                    },
+                    {
+                      id: 'message-2',
+                      role: 'assistant',
+                      kind: 'response',
+                      content: 'Finished while hidden.',
+                      createdAt: '2026-08-22T00:00:01.000Z',
+                    },
+                  ],
+                  rounds: [],
+                  currentRound: 1,
+                  isRunning: false,
+                },
+              }),
+            }),
+          );
+        };
+      }
+
+      close() {
+        this.readyState = MockEventSource.CLOSED;
+      }
+    }
+
+    window.EventSource = MockEventSource as typeof EventSource;
+  });
+
+  await page.route('**/api/sessions', async (route) => {
+    if (route.request().method() === 'GET') {
+      sessionListRequests += 1;
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          sessions: [
+            sessionListRequests === 1 ? runningSession : completedSession,
+            otherSession,
+          ],
+        }),
+      });
+      return;
+    }
+
+    await route.fallback();
+  });
+  await page.route('**/api/sessions/session-1', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ session: completedSession }),
+    });
+  });
+  await page.route('**/api/sessions/session-2', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ session: otherSession }),
+    });
+  });
+
+  await page.goto('/');
+  const runningButton = page.getByRole('button', { name: 'Running session' });
+  const otherButton = page.getByRole('button', { name: 'Other session' });
+
+  await expect(runningButton).toHaveClass(/is-active-session/);
+  await otherButton.click();
+  await expect(runningButton).toHaveClass(/is-active-session/);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        localStorage.getItem('cui:session-last-seen-round:v1:session-1'),
+      ),
+    )
+    .toBe('0');
+  await page.evaluate(() =>
+    (
+      window as Window & {
+        __completeTurn?: () => void;
+      }
+    ).__completeTurn?.(),
+  );
+  await expect.poll(() => sessionListRequests).toBeGreaterThan(1);
+  await expect(runningButton).toHaveClass(/is-active-session/);
+  await runningButton.click();
+  await expect(runningButton).not.toHaveClass(/is-active-session/);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        localStorage.getItem('cui:session-last-seen-round:v1:session-1'),
+      ),
+    )
+    .toBe('1');
 });
 
 test('reconnects to a running turn after page reload', async ({ page }) => {

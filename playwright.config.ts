@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const baseURL = process.env.PLAYWRIGHT_TEST_BASE_URL ?? 'http://localhost:5173';
+const serverPort = new URL(baseURL).port || '5173';
+
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 30_000,
@@ -12,14 +15,14 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [['html', { open: 'never' }], ['list']],
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },
   webServer: {
-    command: 'npm run dev -w @cui/web',
-    url: 'http://localhost:5173',
+    command: `npm run dev -w @cui/web -- --port ${serverPort} --strictPort`,
+    url: baseURL,
     reuseExistingServer: true,
     timeout: 60_000,
   },

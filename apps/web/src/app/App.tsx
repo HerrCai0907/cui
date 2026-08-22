@@ -150,6 +150,7 @@ export function App() {
         activeSessionId={sessionController.activeSession?.id}
         expandedWorkspaces={sessionController.expandedWorkspaces}
         open={sessionController.sidebarOpen}
+        runningSessionIds={sessionController.runningSessionIds}
         sessionCount={sessionController.sessionCount}
         workspaces={sessionController.workspaces}
         onOpenChange={sessionController.setSidebarOpen}

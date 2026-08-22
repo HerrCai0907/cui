@@ -38,6 +38,8 @@ export type ChatSession = {
 
 export type ChatSessionView = Omit<ChatSession, 'rounds'> & {
   rounds?: ChatRoundSummary[];
+  currentRound: number;
+  isRunning: boolean;
   runningTurnId?: string;
 };
 
