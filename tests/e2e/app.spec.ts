@@ -113,6 +113,83 @@ test('starts a new session from an expanded workspace row', async ({ page }) => 
   await expect(page.getByPlaceholder('Start with an initial prompt...')).toBeVisible();
 });
 
+test('restores the last opened session after a browser refresh', async ({
+  page,
+}) => {
+  const firstSession = {
+    id: 'session-1',
+    workspace: '/Users/bytedance/cui',
+    title: 'First session',
+    createdAt: '2026-08-22T00:00:00.000Z',
+    updatedAt: '2026-08-22T00:00:00.000Z',
+    messages: [
+      {
+        id: 'message-1',
+        role: 'assistant',
+        kind: 'response',
+        content: 'First session response',
+        createdAt: '2026-08-22T00:00:00.000Z',
+      },
+    ],
+    rounds: [],
+  };
+  const lastOpenedSession = {
+    id: 'session-2',
+    workspace: '/Users/bytedance/cui',
+    title: 'Last opened session',
+    createdAt: '2026-08-22T00:00:01.000Z',
+    updatedAt: '2026-08-22T00:00:01.000Z',
+    messages: [
+      {
+        id: 'message-2',
+        role: 'assistant',
+        kind: 'response',
+        content: 'Last opened session response',
+        createdAt: '2026-08-22T00:00:01.000Z',
+      },
+    ],
+    rounds: [],
+  };
+
+  await page.route('**/api/sessions', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          sessions: [firstSession, lastOpenedSession],
+        }),
+      });
+      return;
+    }
+
+    await route.fallback();
+  });
+  await page.route('**/api/sessions/session-2', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ session: lastOpenedSession }),
+    });
+  });
+
+  await page.goto('/');
+  await expect(page.getByText('First session response')).toBeVisible();
+
+  await page.getByRole('button', { name: /Last opened session/ }).click();
+  await expect(page.getByText('Last opened session response')).toBeVisible();
+  await expect(
+    page.evaluate(() =>
+      localStorage.getItem('cui:last-active-session-id:v1'),
+    ),
+  ).resolves.toBe('session-2');
+  await page.reload();
+
+  await expect(page.getByText('Last opened session response')).toBeVisible();
+  await expect(page.getByText('First session response')).not.toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /Last opened session/ }),
+  ).toHaveClass(/is-active/);
+});
+
 test('renders atomic review output for a round diff', async ({ page }) => {
   const browserErrors: string[] = [];
   const session = {

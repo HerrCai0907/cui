@@ -23,6 +23,12 @@ type OpenSessionOptions = {
   resetError?: boolean;
 };
 
+type SetCurrentActiveSessionOptions = {
+  persist?: boolean;
+};
+
+const LAST_ACTIVE_SESSION_STORAGE_KEY = 'cui:last-active-session-id:v1';
+
 export function useSessionController(defaultWorkspace: string) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<Set<string>>(
@@ -136,10 +142,24 @@ export function useSessionController(defaultWorkspace: string) {
         currentActiveSession &&
         loadedSessions.find((session) => session.id === currentActiveSession.id);
 
-      if (!currentActiveSession && loadedSessions[0]) {
-        setCurrentActiveSession(loadedSessions[0]);
-        if (loadedSessions[0].runningTurnId) {
-          streamTurn(loadedSessions[0].id, loadedSessions[0].runningTurnId);
+      if (!currentActiveSession) {
+        const lastActiveSessionId = readLastActiveSessionId();
+        const restoredSession =
+          lastActiveSessionId &&
+          loadedSessions.find((session) => session.id === lastActiveSessionId);
+        const fallbackSession = restoredSession ?? loadedSessions[0];
+
+        if (lastActiveSessionId && !restoredSession) {
+          clearLastActiveSessionId();
+        }
+
+        if (fallbackSession) {
+          setCurrentActiveSession(fallbackSession, {
+            persist: Boolean(restoredSession),
+          });
+          if (fallbackSession.runningTurnId) {
+            streamTurn(fallbackSession.id, fallbackSession.runningTurnId);
+          }
         }
       } else if (nextActiveSession?.runningTurnId) {
         streamTurn(nextActiveSession.id, nextActiveSession.runningTurnId);
@@ -274,9 +294,15 @@ export function useSessionController(defaultWorkspace: string) {
     });
   }
 
-  function setCurrentActiveSession(session: ApiSession | null) {
+  function setCurrentActiveSession(
+    session: ApiSession | null,
+    options: SetCurrentActiveSessionOptions = {},
+  ) {
     activeSessionRef.current = session;
     setActiveSession(session);
+    if (session && (options.persist ?? true)) {
+      writeLastActiveSessionId(session.id);
+    }
   }
 
   function setRunningSession(sessionId: string, running: boolean) {
@@ -331,4 +357,28 @@ export function useSessionController(defaultWorkspace: string) {
     workspaces,
     sessionCount: sessions.length,
   };
+}
+
+function readLastActiveSessionId(): string | null {
+  try {
+    return window.localStorage.getItem(LAST_ACTIVE_SESSION_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeLastActiveSessionId(sessionId: string) {
+  try {
+    window.localStorage.setItem(LAST_ACTIVE_SESSION_STORAGE_KEY, sessionId);
+  } catch {
+    // Ignore storage failures so private browsing or quota errors do not block chat.
+  }
+}
+
+function clearLastActiveSessionId() {
+  try {
+    window.localStorage.removeItem(LAST_ACTIVE_SESSION_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures so private browsing or quota errors do not block chat.
+  }
 }
