@@ -15,7 +15,7 @@ type SessionSidebarProps = {
   sessionCount: number;
   activeSessionId?: string;
   onOpenChange: (open: boolean) => void;
-  onStartNewSession: () => void;
+  onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
   onOpenSession: (sessionId: string) => void;
 };
@@ -56,7 +56,7 @@ export function SessionSidebar({
           <button
             className="new-session"
             type="button"
-            onClick={onStartNewSession}
+            onClick={() => onStartNewSession()}
           >
             <Plus size={16} />
             New session
@@ -71,6 +71,7 @@ export function SessionSidebar({
                 sessions={workspaceSessions}
                 workspace={workspace}
                 onOpenSession={onOpenSession}
+                onStartNewSession={onStartNewSession}
                 onToggleWorkspace={onToggleWorkspace}
               />
             ))}
@@ -90,6 +91,7 @@ function WorkspaceGroup({
   sessions,
   workspace,
   onOpenSession,
+  onStartNewSession,
   onToggleWorkspace,
 }: {
   activeSessionId?: string;
@@ -97,19 +99,33 @@ function WorkspaceGroup({
   sessions: SessionSummary[];
   workspace: string;
   onOpenSession: (sessionId: string) => void;
+  onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
 }) {
   return (
     <section className="workspace-group">
-      <button
-        className="workspace-button"
-        type="button"
-        aria-expanded={expanded}
-        onClick={() => onToggleWorkspace(workspace)}
-      >
-        {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-        <span>{workspace}</span>
-      </button>
+      <div className="workspace-row">
+        <button
+          className="workspace-button"
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => onToggleWorkspace(workspace)}
+        >
+          {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          <span>{workspace}</span>
+        </button>
+        {expanded && (
+          <button
+            className="workspace-new-session"
+            type="button"
+            aria-label={`New session in ${workspace}`}
+            title="New session in workspace"
+            onClick={() => onStartNewSession(workspace)}
+          >
+            <Plus size={15} />
+          </button>
+        )}
+      </div>
 
       {expanded && (
         <div className="session-list">

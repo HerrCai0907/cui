@@ -250,9 +250,13 @@ export function useSessionController(defaultWorkspace: string) {
     }
   }
 
-  function startNewSession() {
+  function startNewSession(workspace?: string) {
     setCurrentActiveSession(null);
     setDraft('');
+    if (workspace) {
+      setWorkspaceDraft(workspace);
+      setExpandedWorkspaces((current) => new Set(current).add(workspace));
+    }
     setError(null);
   }
 

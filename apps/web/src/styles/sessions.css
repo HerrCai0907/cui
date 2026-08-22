@@ -38,6 +38,13 @@
   display: block;
 }
 
+.workspace-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 4px;
+}
+
 .workspace-button {
   display: flex;
   align-items: center;
@@ -56,6 +63,25 @@
 
 .workspace-button:hover {
   background: #edf1f5;
+}
+
+.workspace-new-session {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #4d5a69;
+  padding: 0;
+}
+
+.workspace-new-session:hover {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #1f2937;
 }
 
 .workspace-button span {
