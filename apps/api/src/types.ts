@@ -129,6 +129,7 @@ export type AiRunEvent =
 export type AiRun = {
   sessionId: Promise<string>;
   result: Promise<AiRunResult>;
+  cancel: () => void;
 };
 
 export interface AiModel {
@@ -138,4 +139,11 @@ export interface AiModel {
   summarizeConversation(input: AiCreateSessionInput): Promise<ConversationSummary>;
   createSessionStream(input: AiCreateSessionInput, onEvent: (event: AiRunEvent) => void): AiRun;
   continueSessionStream(input: AiContinueSessionInput, onEvent: (event: AiRunEvent) => void): AiRun;
+}
+
+export class AiRunCancelledError extends Error {
+  constructor(message = "AI run was cancelled") {
+    super(message);
+    this.name = "AiRunCancelledError";
+  }
 }

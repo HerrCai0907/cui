@@ -38,3 +38,9 @@ export async function continueSession(
     body: JSON.stringify(input),
   });
 }
+
+export async function stopSession(sessionId: string): Promise<void> {
+  await fetchJson<{ status: "ok" }>(`/api/sessions/${sessionId}/stop`, {
+    method: "POST",
+  });
+}

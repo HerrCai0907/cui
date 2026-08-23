@@ -100,6 +100,9 @@ export type TurnStreamEvent =
   | {
       type: "failed";
       error: string;
+    }
+  | {
+      type: "cancelled";
     };
 
 export type ExecutionTraceEvent =

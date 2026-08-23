@@ -12,7 +12,10 @@ export type RunningTurn = {
   events: StoredTurnStreamEvent[];
   subscribers: Set<(event: StoredTurnStreamEvent) => void>;
   completed: boolean;
+  completion: Promise<TurnStreamEvent>;
   nextEventId: number;
+  cancel: () => void;
+  resolveCompletion: (event: TurnStreamEvent) => void;
 };
 
 export class TurnRegistry {
@@ -33,18 +36,35 @@ export class TurnRegistry {
     return undefined;
   }
 
+  getRunningTurnForSession(sessionId: string): RunningTurn | undefined {
+    for (const turn of this.runningTurns.values()) {
+      if (turn.sessionId === sessionId && !turn.completed) {
+        return turn;
+      }
+    }
+
+    return undefined;
+  }
+
   hasRunningTurn(turnId: string): boolean {
     return this.runningTurns.has(turnId);
   }
 
-  createRunningTurn(sessionId: string): RunningTurn {
+  createRunningTurn(sessionId: string, cancel: () => void): RunningTurn {
+    let resolveCompletion!: (event: TurnStreamEvent) => void;
+    const completion = new Promise<TurnStreamEvent>((resolve) => {
+      resolveCompletion = resolve;
+    });
     const turn: RunningTurn = {
       id: randomUUID(),
       sessionId,
       events: [],
       subscribers: new Set(),
       completed: false,
+      completion,
       nextEventId: 1,
+      cancel,
+      resolveCompletion,
     };
 
     this.runningTurns.set(turn.id, turn);
@@ -63,8 +83,9 @@ export class TurnRegistry {
     turn.events.push(storedEvent);
     turn.subscribers.forEach((subscriber) => subscriber(storedEvent));
 
-    if (event.type === "done" || event.type === "failed") {
+    if (event.type === "done" || event.type === "failed" || event.type === "cancelled") {
       turn.completed = true;
+      turn.resolveCompletion(event);
       this.activeSessionIds.delete(turn.sessionId);
       setTimeout(
         () => {

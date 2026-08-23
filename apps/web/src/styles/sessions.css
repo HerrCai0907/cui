@@ -671,6 +671,14 @@
   background: #111827;
 }
 
+.send-button.is-stop {
+  background: #b42318;
+}
+
+.send-button.is-stop:hover {
+  background: #8f1d14;
+}
+
 .send-button:disabled:hover {
   background: #1f2937;
 }

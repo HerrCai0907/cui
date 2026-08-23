@@ -182,7 +182,7 @@ export class TraexModel implements AiModel {
       onEvent({ type: "session", sessionId: expectedSessionId });
     }
 
-    const result = runTraexProcess({
+    const processRun = runTraexProcess({
       command: this.binary,
       args,
       cwd: workspace,
@@ -205,31 +205,34 @@ export class TraexModel implements AiModel {
 
         onEvent({ type: "raw", event });
       },
-    }).then(async ({ content, beforeSnapshot, afterSnapshot, rawEvents }) => {
-      const sessionId = expectedSessionId ?? observedSessionId ?? extractThreadId(rawEvents);
-
-      if (!sessionId) {
-        throw new Error("TraeX did not return a thread id");
-      }
-
-      sessionIdSignal.resolve(sessionId);
-
-      return {
-        sessionId,
-        content: content.trim(),
-        trace: formatRawEvents(rawEvents),
-        ...(captureDiff
-          ? {
-              gitDiff: {
-                baseCommit: beforeSnapshot.gitCommit,
-                beforeDiff: beforeSnapshot.diff,
-                afterDiff: afterSnapshot.diff,
-              },
-            }
-          : {}),
-        rawEvents,
-      };
     });
+    const result = processRun.promise.then(
+      async ({ content, beforeSnapshot, afterSnapshot, rawEvents }) => {
+        const sessionId = expectedSessionId ?? observedSessionId ?? extractThreadId(rawEvents);
+
+        if (!sessionId) {
+          throw new Error("TraeX did not return a thread id");
+        }
+
+        sessionIdSignal.resolve(sessionId);
+
+        return {
+          sessionId,
+          content: content.trim(),
+          trace: formatRawEvents(rawEvents),
+          ...(captureDiff
+            ? {
+                gitDiff: {
+                  baseCommit: beforeSnapshot.gitCommit,
+                  beforeDiff: beforeSnapshot.diff,
+                  afterDiff: afterSnapshot.diff,
+                },
+              }
+            : {}),
+          rawEvents,
+        };
+      },
+    );
 
     result.catch((error: unknown) => {
       sessionIdSignal.reject(error);
@@ -238,6 +241,7 @@ export class TraexModel implements AiModel {
     return {
       sessionId: sessionIdSignal.promise,
       result,
+      cancel: processRun.cancel,
     };
   }
 }

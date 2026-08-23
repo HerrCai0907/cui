@@ -15,6 +15,7 @@ import type {
   AtomicDiffReview,
   ConversationSummary,
 } from "../../apps/api/src/types.js";
+import { AiRunCancelledError } from "../../apps/api/src/types.js";
 
 test("beginContinueSession refreshes summary after user input and before turn completion", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
@@ -157,9 +158,50 @@ test("beginContinueSession completes without waiting for atomic review generatio
   }
 });
 
+test("cancelRunningTurn stops an active stream and emits a cancellation event", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    await store.createSession({
+      id: "session-1",
+      workspace: cwd,
+      title: "Initial title",
+      summary: "",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [],
+      rounds: [],
+    });
+
+    const submitted = await service.beginContinueSession("session-1", {
+      prompt: "Run until stopped.",
+    });
+    const events: unknown[] = [];
+
+    service.subscribeToTurn(submitted.turnId, (event) => {
+      events.push(event);
+    });
+
+    await service.cancelRunningTurn("session-1");
+
+    assert.equal(aiModel.cancelled, true);
+    assert.equal(
+      events.some((event) => eventType(event) === "cancelled"),
+      true,
+    );
+    assert.equal((await service.getSessionView("session-1"))?.isRunning, false);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 class FakeAiModel implements AiModel {
   readonly summaryPrompts: string[] = [];
   readonly atomicReviewInputs: AiAtomicDiffReviewInput[] = [];
+  cancelled = false;
   private readonly run = createDeferred<AiRunResult>();
   private readonly summary = createDeferred<ConversationSummary>();
   private readonly atomicReview = createDeferred<AtomicDiffReview>();
@@ -192,6 +234,10 @@ class FakeAiModel implements AiModel {
     return {
       sessionId: Promise.resolve("session-1"),
       result: this.run.promise,
+      cancel: () => {
+        this.cancelled = true;
+        this.run.reject(new AiRunCancelledError());
+      },
     };
   }
 

@@ -71,7 +71,7 @@ test("keeps only the running session blocked while another turn is active", asyn
   await page.getByRole("button", { name: "Send message" }).click();
 
   await expect(page.getByText("Waiting for TRAEX...")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Send message" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Stop generation" })).toBeEnabled();
 
   await page.getByRole("button", { name: "Other session" }).click();
 
@@ -90,7 +90,119 @@ test("keeps only the running session blocked while another turn is active", asyn
 
   await expect(page.getByRole("heading", { name: "Running session" })).toBeVisible();
   await expect(page.getByText("Waiting for TRAEX...")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Send message" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Stop generation" })).toBeEnabled();
+});
+
+test("stops a running session and restores the send button", async ({ page }) => {
+  const initialSession = {
+    id: "session-1",
+    workspace: currentWorkspace,
+    title: "Running session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [],
+    currentRound: 0,
+    isRunning: false,
+  };
+  const startedSession = {
+    ...initialSession,
+    messages: [
+      {
+        id: "message-1",
+        role: "user",
+        content: "Run a long task",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    isRunning: true,
+    runningTurnId: "turn-1",
+  };
+  const stoppedSession = {
+    ...startedSession,
+    isRunning: false,
+    runningTurnId: undefined,
+  };
+  let running = false;
+  let stopRequests = 0;
+
+  await page.addInitScript(() => {
+    class MockEventSource extends EventTarget {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSED = 2;
+      readonly CONNECTING = 0;
+      readonly OPEN = 1;
+      readonly CLOSED = 2;
+      readonly url: string;
+      readonly withCredentials = false;
+      readyState = MockEventSource.CONNECTING;
+      onerror: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onopen: ((event: Event) => void) | null = null;
+
+      constructor(url: string | URL) {
+        super();
+        this.url = String(url);
+
+        (
+          window as Window & {
+            __cancelTurn?: () => void;
+          }
+        ).__cancelTurn = () => {
+          this.dispatchEvent(
+            new MessageEvent("cancelled", {
+              data: JSON.stringify({
+                type: "cancelled",
+              }),
+            }),
+          );
+        };
+      }
+
+      close() {
+        this.readyState = MockEventSource.CLOSED;
+      }
+    }
+
+    window.EventSource = MockEventSource as typeof EventSource;
+  });
+
+  await mockSessions(page, () => [running ? startedSession : stoppedSession]);
+  await mockSessionById(page, "session-1", () => (running ? startedSession : stoppedSession));
+  await page.route("**/api/sessions/session-1/messages", async (route) => {
+    running = true;
+    await fulfillJson(route, {
+      status: "ok",
+      session: startedSession,
+      turnId: "turn-1",
+    });
+  });
+  await page.route("**/api/sessions/session-1/stop", async (route) => {
+    stopRequests += 1;
+    running = false;
+    await page.evaluate(() =>
+      (
+        window as Window & {
+          __cancelTurn?: () => void;
+        }
+      ).__cancelTurn?.(),
+    );
+    await fulfillJson(route, {
+      status: "ok",
+    });
+  });
+
+  await page.goto("/");
+  await page.getByPlaceholder("Continue this session...").fill("Run a long task");
+  await page.getByRole("button", { name: "Send message" }).click();
+
+  await expect(page.getByRole("button", { name: "Stop generation" })).toBeVisible();
+  await page.getByRole("button", { name: "Stop generation" }).click();
+
+  await expect.poll(() => stopRequests).toBe(1);
+  await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
+  await expect(page.getByText("Waiting for TRAEX...")).not.toBeVisible();
 });
 
 test("restores streamed execution trace after switching back to a running session", async ({

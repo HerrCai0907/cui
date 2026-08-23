@@ -1,5 +1,11 @@
 import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { continueSession, createSession, getSession, listSessions } from "../api/sessionsApi";
+import {
+  continueSession,
+  createSession,
+  getSession,
+  listSessions,
+  stopSession,
+} from "../api/sessionsApi";
 import {
   getCurrentRound,
   groupSessionsByWorkspace,
@@ -40,6 +46,7 @@ export function useSessionController(defaultWorkspace: string) {
   const [workspaceDraft, setWorkspaceDraft] = useState(defaultWorkspace);
   const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(() => new Set());
   const [submittingSessionIds, setSubmittingSessionIds] = useState<Set<string>>(() => new Set());
+  const [stoppingSessionIds, setStoppingSessionIds] = useState<Set<string>>(() => new Set());
   const [creatingSession, setCreatingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedTraceIds, setExpandedTraceIds] = useState<Set<string>>(() => new Set());
@@ -48,6 +55,8 @@ export function useSessionController(defaultWorkspace: string) {
   const lastEnterKeyDownRef = useRef<number | null>(null);
   const messageStreamRef = useRef<HTMLDivElement | null>(null);
   const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const activeSessionRunning = activeSession ? runningSessionIds.has(activeSession.id) : false;
+  const activeSessionStopping = activeSession ? stoppingSessionIds.has(activeSession.id) : false;
   const activeSessionBlocked = activeSession
     ? runningSessionIds.has(activeSession.id) || submittingSessionIds.has(activeSession.id)
     : creatingSession;
@@ -61,7 +70,7 @@ export function useSessionController(defaultWorkspace: string) {
     () => groupSessionsByWorkspace(sidebarSessionPartition.history),
     [sidebarSessionPartition.history],
   );
-  const { applyRunningTurnOverlay, streamTurn } = useTurnStream({
+  const { applyRunningTurnOverlay, closeTurnStream, streamTurn } = useTurnStream({
     activeSessionRef,
     refreshSessions,
     setActiveSession,
@@ -299,6 +308,30 @@ export function useSessionController(defaultWorkspace: string) {
     }
   }
 
+  async function stopActiveSession() {
+    const sessionId = activeSessionRef.current?.id;
+
+    if (!sessionId || !runningSessionIds.has(sessionId) || stoppingSessionIds.has(sessionId)) {
+      return;
+    }
+
+    setError(null);
+    setStoppingSession(sessionId, true);
+
+    try {
+      await stopSession(sessionId);
+      closeTurnStream(sessionId);
+      setRunningSession(sessionId, false);
+      await refreshSessions();
+    } catch (reason) {
+      if (activeSessionRef.current?.id === sessionId) {
+        setError(reason instanceof Error ? reason.message : "Failed to stop session");
+      }
+    } finally {
+      setStoppingSession(sessionId, false);
+    }
+  }
+
   function startNewSession(workspace?: string) {
     setCurrentActiveSession(null);
     setDraft("");
@@ -390,9 +423,25 @@ export function useSessionController(defaultWorkspace: string) {
     });
   }
 
+  function setStoppingSession(sessionId: string, stopping: boolean) {
+    setStoppingSessionIds((current) => {
+      const next = new Set(current);
+
+      if (stopping) {
+        next.add(sessionId);
+      } else {
+        next.delete(sessionId);
+      }
+
+      return next;
+    });
+  }
+
   return {
     activeSession,
     activeSessionBlocked,
+    activeSessionRunning,
+    activeSessionStopping,
     composerTextareaRef,
     draft,
     error,
@@ -413,6 +462,7 @@ export function useSessionController(defaultWorkspace: string) {
     sidebarOpen,
     sidebarWidth,
     startNewSession,
+    stopActiveSession,
     submitDraft,
     toggleWorkspace,
     workspaceDraft,

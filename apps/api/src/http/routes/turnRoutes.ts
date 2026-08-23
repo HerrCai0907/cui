@@ -22,7 +22,7 @@ export function createTurnRouter(sessionService: SessionService): Router {
     const unsubscribe = sessionService.subscribeToTurn(request.params.turnId, (event) => {
       writeSse(response, event.type, event);
 
-      if (event.type === "done" || event.type === "failed") {
+      if (event.type === "done" || event.type === "failed" || event.type === "cancelled") {
         response.end();
       }
     });
