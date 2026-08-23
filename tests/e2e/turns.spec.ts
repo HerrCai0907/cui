@@ -517,6 +517,145 @@ test("highlights running and unread sidebar sessions", async ({ page }) => {
     .toBe("1");
 });
 
+test("stays on new session when a background turn completes", async ({ page }) => {
+  const runningSession = {
+    id: "session-1",
+    workspace: currentWorkspace,
+    title: "Running session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-1",
+        role: "user",
+        content: "Run a long task",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    rounds: [],
+    currentRound: 0,
+    isRunning: true,
+    runningTurnId: "turn-1",
+  };
+  const completedSession = {
+    ...runningSession,
+    updatedAt: "2026-08-22T00:00:01.000Z",
+    messages: [
+      ...runningSession.messages,
+      {
+        id: "message-2",
+        role: "assistant",
+        kind: "response",
+        content: "Finished while on new session.",
+        createdAt: "2026-08-22T00:00:01.000Z",
+      },
+    ],
+    currentRound: 1,
+    isRunning: false,
+    runningTurnId: undefined,
+  };
+  let turnCompleted = false;
+
+  await page.addInitScript(() => {
+    (
+      window as Window & {
+        __completeTurn?: () => void;
+      }
+    ).__completeTurn = undefined;
+
+    class MockEventSource extends EventTarget {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSED = 2;
+      readonly CONNECTING = 0;
+      readonly OPEN = 1;
+      readonly CLOSED = 2;
+      readonly url: string;
+      readonly withCredentials = false;
+      readyState = MockEventSource.CONNECTING;
+      onerror: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onopen: ((event: Event) => void) | null = null;
+
+      constructor(url: string | URL) {
+        super();
+        this.url = String(url);
+        this.readyState = MockEventSource.OPEN;
+
+        (
+          window as Window & {
+            __completeTurn?: () => void;
+          }
+        ).__completeTurn = () => {
+          this.dispatchEvent(
+            new MessageEvent("done", {
+              data: JSON.stringify({
+                type: "done",
+                session: {
+                  id: "session-1",
+                  workspace: "/Users/bytedance/cui",
+                  title: "Running session",
+                  createdAt: "2026-08-22T00:00:00.000Z",
+                  updatedAt: "2026-08-22T00:00:01.000Z",
+                  messages: [
+                    {
+                      id: "message-1",
+                      role: "user",
+                      content: "Run a long task",
+                      createdAt: "2026-08-22T00:00:00.000Z",
+                    },
+                    {
+                      id: "message-2",
+                      role: "assistant",
+                      kind: "response",
+                      content: "Finished while on new session.",
+                      createdAt: "2026-08-22T00:00:01.000Z",
+                    },
+                  ],
+                  rounds: [],
+                  currentRound: 1,
+                  isRunning: false,
+                },
+              }),
+            }),
+          );
+        };
+      }
+
+      close() {
+        this.readyState = MockEventSource.CLOSED;
+      }
+    }
+
+    window.EventSource = MockEventSource as typeof EventSource;
+  });
+
+  await mockSessions(page, () => [turnCompleted ? completedSession : runningSession]);
+  await mockSessionById(page, "session-1", () =>
+    turnCompleted ? completedSession : runningSession,
+  );
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Running session" })).toBeVisible();
+  await page.getByRole("button", { name: "New session", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "New session" })).toBeVisible();
+
+  turnCompleted = true;
+  await page.evaluate(() =>
+    (
+      window as Window & {
+        __completeTurn?: () => void;
+      }
+    ).__completeTurn?.(),
+  );
+
+  await expect(page.getByRole("heading", { name: "New session" })).toBeVisible();
+  await expect(page.getByText("Finished while on new session.")).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Running session" })).not.toHaveClass(
+    /is-running-session/,
+  );
+});
+
 test("reconnects to a running turn after page reload", async ({ page }) => {
   const runningSession = {
     id: "session-1",

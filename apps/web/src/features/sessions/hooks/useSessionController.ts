@@ -57,6 +57,7 @@ export function useSessionController(defaultWorkspace: string) {
   const [error, setError] = useState<string | null>(null);
   const [expandedTraceIds, setExpandedTraceIds] = useState<Set<string>>(() => new Set());
   const activeSessionRef = useRef<ApiSession | null>(null);
+  const autoRestoreSessionRef = useRef(true);
   const openSessionRequestIdRef = useRef(0);
   const lastEnterKeyDownRef = useRef<number | null>(null);
   const messageStreamRef = useRef<HTMLDivElement | null>(null);
@@ -253,8 +254,11 @@ export function useSessionController(defaultWorkspace: string) {
       const nextActiveSession =
         currentActiveSession &&
         loadedSessions.find((session) => session.id === currentActiveSession.id);
+      const shouldRestoreInitialSession = !currentActiveSession && autoRestoreSessionRef.current;
 
-      if (!currentActiveSession) {
+      autoRestoreSessionRef.current = false;
+
+      if (shouldRestoreInitialSession) {
         const lastActiveSessionId = readLastActiveSessionId();
         const restoredSession =
           lastActiveSessionId &&
@@ -402,6 +406,7 @@ export function useSessionController(defaultWorkspace: string) {
   }
 
   function startNewSession(workspace?: string) {
+    autoRestoreSessionRef.current = false;
     setCurrentActiveSession(null);
     setDraft("");
     if (workspace) {
