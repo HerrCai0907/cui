@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { ReviewPage } from "../features/review/components/ReviewPage";
 import { getRoundReview } from "../features/review/api/reviewApi";
 import type {
@@ -136,18 +136,23 @@ export function App() {
   }
 
   return (
-    <main className={`app-shell ${sessionController.sidebarOpen ? "" : "is-collapsed"}`}>
+    <main
+      className={`app-shell ${sessionController.sidebarOpen ? "" : "is-collapsed"}`}
+      style={{ "--sidebar-width": `${sessionController.sidebarWidth}px` } as CSSProperties}
+    >
       <SessionSidebar
         activeSessionId={sessionController.activeSession?.id}
         expandedWorkspaces={sessionController.expandedWorkspaces}
         historyOpen={sessionController.historyOpen}
         open={sessionController.sidebarOpen}
+        width={sessionController.sidebarWidth}
         runningSessionIds={sessionController.runningSessionIds}
         historySessionCount={sessionController.historySessionCount}
         historyWorkspaces={sessionController.historyWorkspaces}
         sessionCount={sessionController.sessionCount}
         workspaces={sessionController.workspaces}
         onOpenChange={sessionController.setSidebarOpen}
+        onWidthChange={sessionController.setSidebarWidth}
         onHistoryOpenChange={sessionController.setHistoryOpen}
         onOpenSession={openSession}
         onNavigateReview={reviewRoute?.mode === "atomic" ? navigateToReviewTarget : undefined}

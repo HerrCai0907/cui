@@ -7,6 +7,7 @@ import {
   toSessionSummary,
 } from "../model/sessionSummaries";
 import {
+  clampSidebarWidth,
   loadSessionSidebarBrowserState,
   saveSessionSidebarBrowserState,
   setLastSeenRound,
@@ -30,6 +31,7 @@ export function useSessionController(defaultWorkspace: string) {
     loadSessionSidebarBrowserState(defaultWorkspace),
   );
   const sidebarOpen = sidebarBrowserState.sidebarOpen;
+  const sidebarWidth = sidebarBrowserState.sidebarWidth;
   const historyOpen = sidebarBrowserState.historyOpen;
   const expandedWorkspaces = sidebarBrowserState.expandedWorkspaces;
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -128,6 +130,13 @@ export function useSessionController(defaultWorkspace: string) {
     updateSidebarBrowserState((current) => ({
       ...current,
       sidebarOpen: open,
+    }));
+  }
+
+  function setSidebarWidth(width: number) {
+    updateSidebarBrowserState((current) => ({
+      ...current,
+      sidebarWidth: clampSidebarWidth(width),
     }));
   }
 
@@ -398,9 +407,11 @@ export function useSessionController(defaultWorkspace: string) {
     setDraft,
     setHistoryOpen,
     setSidebarOpen,
+    setSidebarWidth,
     setTraceExpanded,
     setWorkspaceDraft,
     sidebarOpen,
+    sidebarWidth,
     startNewSession,
     submitDraft,
     toggleWorkspace,

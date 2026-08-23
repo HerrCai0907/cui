@@ -76,6 +76,50 @@ test("moves older sessions into collapsed history", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Session 17" })).toBeVisible();
 });
 
+test("resizes and restores the session sidebar width", async ({ page }) => {
+  const session = {
+    id: "session-1",
+    workspace: currentWorkspace,
+    title: "Resizable session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [],
+  };
+
+  await mockSessions(page, [session]);
+
+  await page.goto("/");
+
+  const sidebar = page.getByLabel("Workspace sessions");
+  const resizeHandle = page.getByLabel("Resize sidebar");
+  const initialBox = await sidebar.boundingBox();
+  const handleBox = await resizeHandle.boundingBox();
+
+  expect(initialBox).not.toBeNull();
+  expect(handleBox).not.toBeNull();
+
+  await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + 40);
+  await page.mouse.down();
+  await page.mouse.move(handleBox!.x + handleBox!.width / 2 + 96, handleBox!.y + 40);
+  await page.mouse.up();
+
+  await expect.poll(async () => (await sidebar.boundingBox())?.width).toBeGreaterThan(
+    initialBox!.width + 80,
+  );
+  await expect(
+    page.evaluate(() => JSON.parse(localStorage.getItem("cui:session-sidebar-state:v1") ?? "null")),
+  ).resolves.toMatchObject({
+    version: 1,
+    sidebarWidth: expect.any(Number),
+  });
+
+  const resizedWidth = (await sidebar.boundingBox())!.width;
+
+  await page.reload();
+  await expect.poll(async () => (await sidebar.boundingBox())?.width).toBeCloseTo(resizedWidth, 0);
+});
+
 test("restores session sidebar expansion state after a browser refresh", async ({ page }) => {
   const sessions = Array.from({ length: 18 }, (_, index) => {
     const workspace =
