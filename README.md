@@ -10,9 +10,11 @@ npm run build
 npm run start
 ```
 
-The web app runs at `http://localhost:5173` and proxies API requests to the backend at `http://localhost:3000`.
+The production preview web app runs at `http://localhost:5173` and proxies API requests to the backend at `http://localhost:3000`.
 Use `npm run start -- --port 5174` to start the web app on a different port.
 Use `npm run start -- --api-port 3001` to start the API on a different port.
+
+End-to-end tests use separate default ports: Playwright starts the web app at `http://localhost:5174` and points its API proxy at `http://localhost:3001`. Override those with `PLAYWRIGHT_TEST_PORT`, `PLAYWRIGHT_TEST_API_PORT`, or `PLAYWRIGHT_TEST_BASE_URL` when needed.
 
 ## Scripts
 
