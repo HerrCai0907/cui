@@ -353,17 +353,15 @@ function WorkspaceGroup({
           {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           <span>{workspace.label}</span>
         </button>
-        {expanded && (
-          <button
-            className="workspace-new-session"
-            type="button"
-            aria-label={`New session in ${workspace.workspace}`}
-            title="New session in workspace"
-            onClick={() => onStartNewSession(workspace.workspace)}
-          >
-            <Plus size={15} />
-          </button>
-        )}
+        <button
+          className="workspace-new-session"
+          type="button"
+          aria-label={`New session in ${workspace.workspace}`}
+          title="New session in workspace"
+          onClick={() => onStartNewSession(workspace.workspace)}
+        >
+          <Plus size={15} />
+        </button>
       </div>
 
       {expanded && (

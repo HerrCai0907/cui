@@ -34,7 +34,7 @@ test("merges shared workspace path prefixes in the sidebar", async ({ page }) =>
   await expect(sidebar.getByText("oss/go", { exact: true })).toBeVisible();
   await expect(sidebar.getByText("/Users/bytedance/oss/go", { exact: true })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "/Users/bytedance/oss/go" }).click();
+  await page.getByRole("button", { name: "/Users/bytedance/oss/go", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "New session in /Users/bytedance/oss/go" }),
   ).toBeVisible();
@@ -180,7 +180,7 @@ test("restores session sidebar expansion state after a browser refresh", async (
   await page.reload();
   await expect(
     page.getByRole("button", { name: `New session in ${currentWorkspace}` }),
-  ).toHaveCount(0);
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "New session in /Users/bytedance/other" }),
   ).toBeVisible();

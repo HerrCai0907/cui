@@ -26,7 +26,7 @@ test("loads the new session screen without browser errors", async ({ page }) => 
   expect(browserErrors).toEqual([]);
 });
 
-test("starts a new session from an expanded workspace row", async ({ page }) => {
+test("starts a new session from any workspace row", async ({ page }) => {
   const currentWorkspaceSession = {
     id: "session-1",
     workspace: currentWorkspace,
@@ -72,9 +72,8 @@ test("starts a new session from an expanded workspace row", async ({ page }) => 
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "New session in /Users/bytedance/other" }),
-  ).toHaveCount(0);
+  ).toBeVisible();
 
-  await page.getByRole("button", { name: "/Users/bytedance/other" }).click();
   await page.getByRole("button", { name: "New session in /Users/bytedance/other" }).click();
 
   await expect(page.getByRole("heading", { name: "New session" })).toBeVisible();
