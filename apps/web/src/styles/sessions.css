@@ -517,6 +517,57 @@
   white-space: pre-wrap;
 }
 
+.message-content {
+  min-width: 0;
+  color: #344054;
+  line-height: 1.65;
+}
+
+.message-text {
+  white-space: pre-wrap;
+}
+
+.message-inline-code,
+.message-code-block code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.9em;
+}
+
+.message-inline-code {
+  border: 1px solid #d5dee8;
+  border-radius: 5px;
+  background: #f4f7fa;
+  color: #1f2937;
+  padding: 0.1em 0.34em;
+  white-space: break-spaces;
+}
+
+.message-code-block {
+  max-width: 100%;
+  margin: 10px 0;
+  overflow-x: auto;
+  border: 1px solid #d8e1eb;
+  border-radius: 8px;
+  background: #f7f9fb;
+  padding: 12px;
+}
+
+.message-code-block:first-child {
+  margin-top: 0;
+}
+
+.message-code-block:last-child {
+  margin-bottom: 0;
+}
+
+.message-code-block code {
+  display: block;
+  min-width: max-content;
+  color: #1f2937;
+  line-height: 1.55;
+  white-space: pre;
+}
+
 .empty-state {
   width: min(680px, 100%);
   margin: auto;

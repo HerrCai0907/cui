@@ -3,6 +3,7 @@ import type { RefObject } from "react";
 import { TraceView } from "../../trace/components/TraceView";
 import { formatMessageTime } from "../../../shared/lib/dates";
 import type { ApiMessage, ApiSession } from "../../../types";
+import { AssistantMessageContent } from "./AssistantMessageContent";
 import { getMessageTitle } from "../model/messages";
 
 type MessageStreamProps = {
@@ -112,6 +113,8 @@ function MessageItem({
             expanded={expanded}
             onExpandedChange={(open) => onTraceExpandedChange(message.id, open)}
           />
+        ) : message.role === "assistant" ? (
+          <AssistantMessageContent content={message.content} />
         ) : (
           <p>{message.content}</p>
         )}
