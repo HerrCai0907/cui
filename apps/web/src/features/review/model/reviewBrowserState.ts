@@ -4,6 +4,8 @@ const REVIEW_STATE_VERSION = 1;
 export type AtomicReviewItemState = {
   collapsed?: boolean;
   approvedFileIds: string[];
+  commentOpen?: boolean;
+  commentDraft?: string;
 };
 
 export type ReviewBrowserState = {
@@ -105,6 +107,9 @@ function parseAtomicItemStates(value: unknown): Record<string, AtomicReviewItemS
       states[itemId] = {
         collapsed: typeof candidate.collapsed === "boolean" ? candidate.collapsed : undefined,
         approvedFileIds: parseStringList(candidate.approvedFileIds),
+        commentOpen: typeof candidate.commentOpen === "boolean" ? candidate.commentOpen : undefined,
+        commentDraft:
+          typeof candidate.commentDraft === "string" ? candidate.commentDraft : undefined,
       };
 
       return states;

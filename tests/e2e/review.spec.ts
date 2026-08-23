@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-import { currentWorkspace, mockRoundReview, mockSession, mockSessions } from "./helpers";
+import {
+  currentWorkspace,
+  fulfillJson,
+  mockRoundReview,
+  mockSession,
+  mockSessions,
+} from "./helpers";
 
 test("renders atomic review output for a round diff", async ({ page }) => {
   const browserErrors: string[] = [];
@@ -286,4 +292,150 @@ test("expands review diff context by 10 lines in each direction", async ({ page 
   await page.getByLabel("Expand 10 lines down").click();
   await expect(page.getByText(" const value33 = 33;")).toBeVisible();
   await expect(page.getByText(" const value34 = 34;")).not.toBeVisible();
+});
+
+test("sends all atomic review comments together", async ({ page }) => {
+  const session = {
+    id: "session-comment",
+    workspace: currentWorkspace,
+    title: "Atomic comment session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [
+      {
+        round: 1,
+        hasChanges: true,
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    currentRound: 1,
+    isRunning: false,
+  };
+  const startedSession = {
+    ...session,
+    messages: [
+      {
+        id: "message-1",
+        role: "user",
+        content: "Please simplify this function.",
+        createdAt: "2026-08-22T00:01:00.000Z",
+      },
+    ],
+    isRunning: true,
+    runningTurnId: "turn-comment",
+  };
+  const diff = [
+    "diff --git a/src/example.ts b/src/example.ts",
+    "--- a/src/example.ts",
+    "+++ b/src/example.ts",
+    "@@ -1,3 +1,4 @@",
+    " export function value() {",
+    "-  return 1;",
+    "+  return 2;",
+    " }",
+  ].join("\n");
+  const testDiff = [
+    "diff --git a/tests/example.ts b/tests/example.ts",
+    "--- a/tests/example.ts",
+    "+++ b/tests/example.ts",
+    "@@ -1,3 +1,4 @@",
+    ' test("value", () => {',
+    "-  expect(value()).toBe(1);",
+    "+  expect(value()).toBe(2);",
+    " });",
+  ].join("\n");
+  let submittedPrompt = "";
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+  await mockRoundReview(page, "session-comment", 1, {
+    round: 1,
+    beforeDiff: "",
+    afterDiff: diff,
+    diff,
+    hasChanges: true,
+    createdAt: "2026-08-22T00:00:00.000Z",
+    atomicReview: {
+      status: "ready",
+      generatedAt: "2026-08-22T00:00:00.000Z",
+      analysisSessionId: "analysis-session-comment",
+      rawResponse: "",
+      items: [
+        {
+          id: "atomic-1",
+          order: 1,
+          capabilityType: 3,
+          capabilityLabel: "局部修复",
+          title: "Adjust return value",
+          intent: "Change the local function behavior to return the new value.",
+          files: ["src/example.ts"],
+          diff,
+          outputJson: {},
+        },
+        {
+          id: "atomic-2",
+          order: 2,
+          capabilityType: 5,
+          capabilityLabel: "测试修改",
+          title: "Update value assertion",
+          intent: "Adjust the test assertion for the updated value() output.",
+          files: ["tests/example.ts"],
+          diff: testDiff,
+          outputJson: {},
+        },
+      ],
+    },
+  });
+  await page.route("**/api/sessions/session-comment/messages", async (route) => {
+    const body = route.request().postDataJSON() as { prompt: string };
+
+    submittedPrompt = body.prompt;
+    await fulfillJson(route, {
+      status: "ok",
+      session: startedSession,
+      turnId: "turn-comment",
+    });
+  });
+  await page.route("**/api/turns/turn-comment/events", async () => {
+    // Keep the stream open so the review send flow can switch back to the session view.
+  });
+
+  await page.goto("/ui/sessions/session-comment/rounds/1/atomic_review");
+
+  const firstChange = page
+    .locator(".atomic-review-item")
+    .filter({ hasText: "Adjust return value" });
+  const secondChange = page
+    .locator(".atomic-review-item")
+    .filter({ hasText: "Update value assertion" });
+  const sendCommentsButton = page.getByRole("button", {
+    name: "Send 0 atomic review comments",
+  });
+
+  await expect(sendCommentsButton).toBeDisabled();
+  await firstChange.getByRole("button", { name: "Comment on atomic change 1" }).click();
+  await expect(firstChange.getByPlaceholder("Comment on this atomic change...")).toBeVisible();
+  await firstChange
+    .getByPlaceholder("Comment on this atomic change...")
+    .fill("Please simplify this function.");
+  await page.reload();
+  await expect(firstChange.getByPlaceholder("Comment on this atomic change...")).toHaveValue(
+    "Please simplify this function.",
+  );
+  await expect(page.getByRole("button", { name: "Send 1 atomic review comment" })).toBeEnabled();
+
+  await secondChange.getByRole("button", { name: "Comment on atomic change 2" }).click();
+  await secondChange
+    .getByPlaceholder("Comment on this atomic change...")
+    .fill("Please align the test name too.");
+  await page.getByRole("button", { name: "Send 2 atomic review comments" }).click();
+
+  await expect(page).toHaveURL("/");
+  expect(submittedPrompt).toContain("Please simplify this function.");
+  expect(submittedPrompt).toContain("Please align the test name too.");
+  expect(submittedPrompt).toContain("Atomic review 1. Adjust return value");
+  expect(submittedPrompt).toContain("Atomic review 2. Update value assertion");
+  expect(submittedPrompt).toContain("+  return 2;");
+  expect(submittedPrompt).toContain("+  expect(value()).toBe(2);");
 });

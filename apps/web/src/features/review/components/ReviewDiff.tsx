@@ -14,8 +14,12 @@ type ReviewDiffProps = {
   atomicReview?: ApiAtomicDiffReview;
   mode: "atomic" | "full";
   reviewState: ReviewBrowserState;
+  commentCount: number;
+  commentsDisabled: boolean;
+  sendingComments: boolean;
   onUpdateReviewState: (updater: (current: ReviewBrowserState) => ReviewBrowserState) => void;
   onOpenFullReview?: () => void;
+  onSubmitAtomicComments: () => void | Promise<void>;
 };
 
 export function ReviewDiff({
@@ -23,8 +27,12 @@ export function ReviewDiff({
   atomicReview,
   mode,
   reviewState,
+  commentCount,
+  commentsDisabled,
+  sendingComments,
   onUpdateReviewState,
   onOpenFullReview,
+  onSubmitAtomicComments,
 }: ReviewDiffProps) {
   const files = parseDiff(diff);
 
@@ -81,8 +89,12 @@ export function ReviewDiff({
       <AtomicReview
         review={atomicReview}
         itemStates={reviewState.atomicItems}
+        commentCount={commentCount}
+        commentsDisabled={commentsDisabled}
+        sendingComments={sendingComments}
         onUpdateItemState={updateAtomicItemState}
         onOpenFullReview={onOpenFullReview}
+        onSubmitComments={onSubmitAtomicComments}
       />
     </div>
   );

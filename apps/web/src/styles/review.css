@@ -109,6 +109,33 @@
   gap: 16px;
 }
 
+.atomic-review-send-comments {
+  position: sticky;
+  right: 18px;
+  bottom: 18px;
+  justify-self: end;
+  width: auto;
+  min-height: 42px;
+  gap: 8px;
+  padding: 0 16px;
+  box-shadow: 0 14px 30px rgb(31 41 55 / 22%);
+  z-index: 3;
+}
+
+.atomic-review-comment-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 22%);
+  color: #ffffff;
+  padding: 0 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
 .atomic-review-item {
   display: grid;
   min-width: 0;
@@ -148,7 +175,7 @@
 
 .atomic-review-heading-row {
   display: grid;
-  grid-template-columns: 30px auto minmax(0, 1fr);
+  grid-template-columns: 30px auto minmax(0, 1fr) 30px;
   min-width: 0;
   align-items: center;
   gap: 10px;
@@ -176,10 +203,6 @@
 .atomic-review-item-header h2 {
   margin: 0;
   min-width: 0;
-  color: #17202a;
-  font-size: 1rem;
-  line-height: 1.35;
-  letter-spacing: 0;
   overflow-wrap: anywhere;
 }
 
@@ -214,6 +237,38 @@
   cursor: not-allowed;
 }
 
+.atomic-review-comment-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #c3cfdd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #42526a;
+  padding: 0;
+}
+
+.atomic-review-comment-toggle:hover,
+.atomic-review-comment-toggle[aria-expanded="true"] {
+  border-color: #9fb0c4;
+  background: #eef3f8;
+  color: #1f2937;
+}
+
+.atomic-review-comment-dot {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid #ffffff;
+  border-radius: 999px;
+  background: #2563eb;
+}
+
 .atomic-review-item-header p {
   margin: 0;
   color: #415166;
@@ -229,6 +284,43 @@
   background: #eef3f8;
   margin: 0 16px 16px;
   padding: 10px;
+}
+
+.atomic-review-change-block.has-comment-open {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  align-items: start;
+}
+
+.atomic-review-inline-comment {
+  position: sticky;
+  top: 10px;
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 10px;
+  box-shadow: 0 8px 18px rgb(31 41 55 / 10%);
+}
+
+.atomic-review-inline-comment textarea {
+  width: 100%;
+  min-height: 132px;
+  resize: vertical;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fbfcfd;
+  color: #1f2933;
+  padding: 9px 10px;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.atomic-review-inline-comment textarea:focus {
+  border-color: #64748b;
+  outline: 2px solid rgb(100 116 139 / 22%);
+  outline-offset: 0;
 }
 
 .review-diff-file {

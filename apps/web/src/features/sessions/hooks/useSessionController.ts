@@ -322,14 +322,12 @@ export function useSessionController(defaultWorkspace: string) {
     }
   }
 
-  async function submitDraft(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const trimmed = draft.trim();
+  async function submitPrompt(prompt: string, options: { restoreDraftOnFailure?: boolean } = {}) {
+    const trimmed = prompt.trim();
     const submittedSessionId = activeSession?.id ?? null;
 
     if (!trimmed || activeSessionBlocked) {
-      return;
+      return false;
     }
 
     if (submittedSessionId) {
@@ -348,7 +346,9 @@ export function useSessionController(defaultWorkspace: string) {
       setCreatingSession(true);
     }
     setError(null);
-    setDraft("");
+    if (options.restoreDraftOnFailure ?? true) {
+      setDraft("");
+    }
 
     try {
       const data = activeSession
@@ -375,6 +375,7 @@ export function useSessionController(defaultWorkspace: string) {
       expandWorkspace(data.session.workspace);
       void refreshSessions();
       streamTurn(data.session.id, data.turnId);
+      return true;
     } catch (reason) {
       if (submittedSessionId) {
         setSubmittingSession(submittedSessionId, false);
@@ -385,10 +386,19 @@ export function useSessionController(defaultWorkspace: string) {
         (submittedSessionId && activeSessionRef.current?.id === submittedSessionId) ||
         (!submittedSessionId && !activeSessionRef.current)
       ) {
-        setDraft(trimmed);
+        if (options.restoreDraftOnFailure ?? true) {
+          setDraft(trimmed);
+        }
         setError(reason instanceof Error ? reason.message : "Request failed");
       }
+      return false;
     }
+  }
+
+  async function submitDraft(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    await submitPrompt(draft, { restoreDraftOnFailure: true });
   }
 
   async function stopActiveSession() {
@@ -632,6 +642,7 @@ export function useSessionController(defaultWorkspace: string) {
     setSidebarOpen,
     setSidebarWidth,
     setTraceExpanded,
+    submitPrompt,
     setWorkspaceDraft,
     sidebarOpen,
     sidebarWidth,
