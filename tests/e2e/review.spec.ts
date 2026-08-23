@@ -140,6 +140,12 @@ test("renders atomic review output for a round diff", async ({ page }) => {
     .filter({ hasText: "Update value assertion" });
 
   await expect(atomicChange.getByText("+  return 2;")).toBeVisible();
+  await expect(
+    atomicChange.locator(".review-diff-code-highlight .hljs-keyword").filter({ hasText: "return" }),
+  ).toHaveCount(2);
+  await expect(
+    atomicChange.locator(".review-diff-code-highlight .hljs-number").filter({ hasText: "2" }),
+  ).toHaveCount(1);
   await expect(testChange).toHaveClass(/is-capability-test/);
   await expect(testChange.getByText("+  expect(value()).toBe(2);")).toBeVisible();
   await atomicChange.getByRole("button", { name: "Approve all" }).click();

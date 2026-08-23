@@ -1,13 +1,15 @@
 import { ChevronsDown, ChevronsUp } from "lucide-react";
 import { markerForKind, type DiffLine } from "../model/diffParser";
+import { HighlightedCode } from "./HighlightedCode";
 
 type DiffRowProps = {
+  filePath: string;
   line: DiffLine;
   onExpandDown?: () => void;
   onExpandUp?: () => void;
 };
 
-export function DiffRow({ line, onExpandDown, onExpandUp }: DiffRowProps) {
+export function DiffRow({ filePath, line, onExpandDown, onExpandUp }: DiffRowProps) {
   if (line.kind === "ellipsis") {
     return (
       <div className="review-diff-row review-diff-row-ellipsis">
@@ -48,7 +50,7 @@ export function DiffRow({ line, onExpandDown, onExpandUp }: DiffRowProps) {
       <span className="review-diff-line-number">{line.newLine ?? ""}</span>
       <code>
         <span className="review-diff-marker">{markerForKind(line.kind)}</span>
-        {line.content}
+        <HighlightedCode content={line.content} filePath={filePath} />
       </code>
     </div>
   );

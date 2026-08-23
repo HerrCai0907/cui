@@ -85,6 +85,7 @@ export function DiffFileList({
               <div className="review-diff-table" role="table">
                 {lines.map((line) => (
                   <DiffRow
+                    filePath={file.path}
                     line={line}
                     key={line.id}
                     onExpandDown={() => expandContextLine(file.id, line.id, "down")}
