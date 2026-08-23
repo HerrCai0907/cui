@@ -59,7 +59,7 @@ export function useSessionController(defaultWorkspace: string) {
     () => groupSessionsByWorkspace(sidebarSessionPartition.history),
     [sidebarSessionPartition.history],
   );
-  const { streamTurn } = useTurnStream({
+  const { applyRunningTurnOverlay, streamTurn } = useTurnStream({
     activeSessionRef,
     refreshSessions,
     setActiveSession,
@@ -319,20 +319,21 @@ export function useSessionController(defaultWorkspace: string) {
     options: SetCurrentActiveSessionOptions = {},
   ) {
     const previousSession = activeSessionRef.current;
+    const visibleSession = session ? applyRunningTurnOverlay(session) : null;
 
-    if (previousSession && previousSession.id !== session?.id) {
+    if (previousSession && previousSession.id !== visibleSession?.id) {
       setLastSeenRound(previousSession.id, getCurrentRound(previousSession));
     }
 
-    if (session) {
-      setLastSeenRound(session.id, getCurrentRound(session));
+    if (visibleSession) {
+      setLastSeenRound(visibleSession.id, getCurrentRound(visibleSession));
       setSessions((current) =>
         current.map((summary) =>
-          summary.id === session.id
+          summary.id === visibleSession.id
             ? {
                 ...summary,
-                currentRound: getCurrentRound(session),
-                isRunning: session.isRunning ?? Boolean(session.runningTurnId),
+                currentRound: getCurrentRound(visibleSession),
+                isRunning: visibleSession.isRunning ?? Boolean(visibleSession.runningTurnId),
                 hasUnreadRound: false,
               }
             : summary,
@@ -340,10 +341,10 @@ export function useSessionController(defaultWorkspace: string) {
       );
     }
 
-    activeSessionRef.current = session;
-    setActiveSession(session);
-    if (session && (options.persist ?? true)) {
-      writeLastActiveSessionId(session.id);
+    activeSessionRef.current = visibleSession;
+    setActiveSession(visibleSession);
+    if (visibleSession && (options.persist ?? true)) {
+      writeLastActiveSessionId(visibleSession.id);
     }
   }
 
