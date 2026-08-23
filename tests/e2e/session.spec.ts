@@ -242,6 +242,66 @@ test("shows full review separately from completed atomic review in assistant mes
   await atomicReviewPopup.close();
 });
 
+test("keeps the current scroll position while pending atomic review refreshes", async ({
+  page,
+}) => {
+  const messages = Array.from({ length: 24 }, (_, index) => ({
+    id: `message-${index}`,
+    role: index % 2 === 0 ? "user" : "assistant",
+    kind: "response",
+    content: `Message ${index}\n${"Review context line ".repeat(80)}`,
+    createdAt: "2026-08-22T00:00:00.000Z",
+  }));
+  let refreshCount = 0;
+  const session = {
+    id: "session-pending-review-scroll",
+    workspace: currentWorkspace,
+    title: "Pending review session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    currentRound: 1,
+    isRunning: false,
+    messages,
+    rounds: [
+      {
+        round: 1,
+        hasChanges: true,
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+  };
+
+  await mockSessions(page, () => {
+    refreshCount += 1;
+
+    return [
+      {
+        ...session,
+        updatedAt: `2026-08-22T00:00:0${refreshCount % 10}.000Z`,
+      },
+    ];
+  });
+
+  await page.goto("/");
+  const messageStream = page.locator(".message-stream");
+
+  await expect(page.getByText("Message 23")).toBeVisible();
+  await messageStream.evaluate((element) => {
+    element.scrollTop = Math.floor(element.scrollHeight / 3);
+    element.dispatchEvent(new Event("scroll"));
+  });
+  const scrollTopBeforeRefresh = await messageStream.evaluate((element) => element.scrollTop);
+
+  await expect
+    .poll(() => refreshCount, {
+      timeout: 5000,
+    })
+    .toBeGreaterThan(1);
+
+  const scrollTopAfterRefresh = await messageStream.evaluate((element) => element.scrollTop);
+  await expect(scrollTopAfterRefresh).toBe(scrollTopBeforeRefresh);
+});
+
 test("renders assistant markdown headings", async ({ page }) => {
   const session = {
     id: "session-1",

@@ -196,6 +196,7 @@ export function App() {
               messageStreamRef={sessionController.messageStreamRef}
               workspaceDraft={sessionController.workspaceDraft}
               onOpenReview={openReview}
+              onScroll={sessionController.handleMessageStreamScroll}
               onTraceExpandedChange={sessionController.setTraceExpanded}
               onWorkspaceDraftChange={sessionController.setWorkspaceDraft}
             />
