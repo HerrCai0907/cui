@@ -135,3 +135,32 @@ test("restores the last opened session after a browser refresh", async ({ page }
   await expect(page.getByText("First session response")).not.toBeVisible();
   await expect(page.getByRole("button", { name: /Last opened session/ })).toHaveClass(/is-active/);
 });
+
+test("renders assistant inline and fenced code blocks", async ({ page }) => {
+  const session = {
+    id: "session-1",
+    workspace: currentWorkspace,
+    title: "Code rendering session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-1",
+        role: "assistant",
+        kind: "response",
+        content: "Use `npm test` before merging.\n\n```ts\nconst ok = true;\n```",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    rounds: [],
+  };
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+
+  await page.goto("/");
+
+  await expect(page.locator(".message-inline-code")).toHaveText("npm test");
+  await expect(page.locator(".message-code-block code")).toHaveText("const ok = true;");
+  await expect(page.locator(".message-code-block code")).toHaveAttribute("data-language", "ts");
+});
