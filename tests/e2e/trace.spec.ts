@@ -94,13 +94,14 @@ test("renders updated todo list items in the execution trace", async ({ page }) 
   await page.goto("/");
   await page.getByText("Show execution trace").click();
 
-  await expect(page.getByText("updated / 0/2 done")).toBeVisible();
-  await expect(page.getByText("updated / 1/2 done")).toBeVisible();
-  await expect(page.getByText("completed / 1/2 done")).toBeVisible();
-  const finalTodoList = page.locator(".trace-event-todo").last();
+  const todoPanel = page.getByLabel("Todo list");
 
-  await expect(finalTodoList.locator("li.is-completed", { hasText: "C" })).toBeVisible();
-  await expect(finalTodoList.locator("li:not(.is-completed)", { hasText: "D" })).toBeVisible();
+  await expect(todoPanel).toBeVisible();
+  await expect(todoPanel.getByText("1/2 done")).toBeVisible();
+  await expect(todoPanel.locator("li.is-completed", { hasText: "C" })).toBeVisible();
+  await expect(todoPanel.locator("li:not(.is-completed)", { hasText: "D" })).toBeVisible();
+  await expect(page.locator(".trace-event-todo")).toHaveCount(0);
+  await expect(page.getByText("updated / 0/2 done")).toHaveCount(0);
   await expect(page.getByText("Unknown item")).toHaveCount(0);
 });
 
