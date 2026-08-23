@@ -38,6 +38,7 @@ type SetCurrentActiveSessionOptions = {
 
 const LAST_ACTIVE_SESSION_STORAGE_KEY = "cui:last-active-session-id:v1";
 const DONE_MARK_VISIBLE_DURATION_MS = 800;
+const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 48;
 
 export function useSessionController(defaultWorkspace: string) {
   const [sidebarBrowserState, setSidebarBrowserState] = useState(() =>
@@ -64,6 +65,8 @@ export function useSessionController(defaultWorkspace: string) {
   const openSessionRequestIdRef = useRef(0);
   const lastEnterKeyDownRef = useRef<number | null>(null);
   const messageStreamRef = useRef<HTMLDivElement | null>(null);
+  const lastScrolledSessionIdRef = useRef<string | null>(null);
+  const shouldStickToMessageBottomRef = useRef(true);
   const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const activeSessionRunning = activeSession ? runningSessionIds.has(activeSession.id) : false;
   const activeSessionStopping = activeSession ? stoppingSessionIds.has(activeSession.id) : false;
@@ -139,13 +142,22 @@ export function useSessionController(defaultWorkspace: string) {
 
   useLayoutEffect(() => {
     const messageStream = messageStreamRef.current;
+    const sessionChanged = lastScrolledSessionIdRef.current !== (activeSession?.id ?? null);
 
     if (!messageStream || !activeSession) {
+      lastScrolledSessionIdRef.current = activeSession?.id ?? null;
       return;
     }
 
-    messageStream.scrollTop = messageStream.scrollHeight;
-  }, [activeSession?.id, activeSession?.messages]);
+    if (sessionChanged || shouldStickToMessageBottomRef.current) {
+      messageStream.scrollTop = messageStream.scrollHeight;
+      shouldStickToMessageBottomRef.current = true;
+    } else {
+      shouldStickToMessageBottomRef.current = isScrolledNearBottom(messageStream);
+    }
+
+    lastScrolledSessionIdRef.current = activeSession.id;
+  }, [activeSession?.id, activeSession?.messages, activeSessionBlocked, error]);
 
   useLayoutEffect(() => {
     const textarea = composerTextareaRef.current;
@@ -484,6 +496,16 @@ export function useSessionController(defaultWorkspace: string) {
     });
   }
 
+  function handleMessageStreamScroll() {
+    const messageStream = messageStreamRef.current;
+
+    if (!messageStream) {
+      return;
+    }
+
+    shouldStickToMessageBottomRef.current = isScrolledNearBottom(messageStream);
+  }
+
   function setCurrentActiveSession(
     session: ApiSession | null,
     options: SetCurrentActiveSessionOptions = {},
@@ -632,6 +654,7 @@ export function useSessionController(defaultWorkspace: string) {
     expandedWorkspaces,
     lastEnterKeyDownRef,
     messageStreamRef,
+    handleMessageStreamScroll,
     refreshSessions,
     openSession,
     markSessionDone,
@@ -718,6 +741,13 @@ function isSameNumberRecord(left: Record<string, number>, right: Record<string, 
 function hasPendingAtomicReview(session: ApiSession | null): boolean {
   return Boolean(
     session?.rounds?.some((round) => round.hasChanges && round.atomicReviewStatus === undefined),
+  );
+}
+
+function isScrolledNearBottom(element: HTMLElement): boolean {
+  return (
+    element.scrollHeight - element.scrollTop - element.clientHeight <=
+    AUTO_SCROLL_BOTTOM_THRESHOLD_PX
   );
 }
 

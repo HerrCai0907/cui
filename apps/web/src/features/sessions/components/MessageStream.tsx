@@ -14,6 +14,7 @@ type MessageStreamProps = {
   messageStreamRef: RefObject<HTMLDivElement | null>;
   workspaceDraft: string;
   onOpenReview: (sessionId: string, round: number, mode: "atomic" | "full") => void;
+  onScroll: () => void;
   onTraceExpandedChange: (messageId: string, open: boolean) => void;
   onWorkspaceDraftChange: (value: string) => void;
 };
@@ -26,11 +27,18 @@ export function MessageStream({
   messageStreamRef,
   workspaceDraft,
   onOpenReview,
+  onScroll,
   onTraceExpandedChange,
   onWorkspaceDraftChange,
 }: MessageStreamProps) {
   return (
-    <div className="message-stream" ref={messageStreamRef} role="log" aria-live="polite">
+    <div
+      className="message-stream"
+      ref={messageStreamRef}
+      role="log"
+      aria-live="polite"
+      onScroll={onScroll}
+    >
       {!activeSession && (
         <div className="empty-state">
           <h2>Start a TRAEX-backed AI session</h2>
