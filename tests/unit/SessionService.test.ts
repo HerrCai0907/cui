@@ -7,10 +7,12 @@ import { SessionService } from "../../apps/api/src/domain/sessions/SessionServic
 import { JsonSessionStore } from "../../apps/api/src/infrastructure/store/JsonSessionStore.js";
 import type { AppLogger } from "../../apps/api/src/infrastructure/logging/AppLogger.js";
 import type {
+  AiAtomicDiffReviewInput,
   AiModel,
   AiResponse,
   AiRun,
   AiRunResult,
+  AtomicDiffReview,
   ConversationSummary,
 } from "../../apps/api/src/types.js";
 
@@ -83,10 +85,84 @@ test("beginContinueSession refreshes summary after user input and before turn co
   }
 });
 
+test("beginContinueSession completes without waiting for atomic review generation", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    await store.createSession({
+      id: "session-1",
+      workspace: cwd,
+      title: "Initial title",
+      summary: "",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [],
+      rounds: [],
+    });
+
+    const submitted = await service.beginContinueSession("session-1", {
+      prompt: "Change the value.",
+    });
+    const events: unknown[] = [];
+
+    service.subscribeToTurn(submitted.turnId, (event) => {
+      events.push(event);
+    });
+    aiModel.resolveSummary({
+      title: "Changed value",
+      progress: "The user asked for a value change.",
+    });
+    aiModel.resolveRun({
+      sessionId: "session-1",
+      content: "Done.",
+      gitDiff: {
+        beforeDiff: "",
+        afterDiff: [
+          "diff --git a/example.ts b/example.ts",
+          "--- a/example.ts",
+          "+++ b/example.ts",
+          "@@ -1 +1 @@",
+          "-export const value = 1;",
+          "+export const value = 2;",
+        ].join("\n"),
+      },
+      rawEvents: [],
+    });
+
+    await waitFor(() => events.some(isDoneEvent));
+
+    const doneEvent = events.find(isDoneEvent);
+
+    assert.equal(aiModel.atomicReviewInputs.length, 1);
+    assert.equal(doneEvent?.session.messages.at(-1)?.content, "Done.");
+    assert.equal((await store.getRound("session-1", 1))?.atomicReview, undefined);
+
+    aiModel.resolveAtomicReview({
+      status: "ready",
+      generatedAt: "2026-08-22T00:00:02.000Z",
+      analysisSessionId: "analysis-session-1",
+      items: [],
+      rawResponse: '{"items":[]}',
+    });
+    await waitFor(
+      async () => (await store.getRound("session-1", 1))?.atomicReview?.status === "ready",
+    );
+
+    assert.equal((await store.getRound("session-1", 1))?.atomicReview?.status, "ready");
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 class FakeAiModel implements AiModel {
   readonly summaryPrompts: string[] = [];
+  readonly atomicReviewInputs: AiAtomicDiffReviewInput[] = [];
   private readonly run = createDeferred<AiRunResult>();
   private readonly summary = createDeferred<ConversationSummary>();
+  private readonly atomicReview = createDeferred<AtomicDiffReview>();
 
   async createSession(): Promise<AiResponse> {
     throw new Error("Unexpected createSession call");
@@ -96,8 +172,10 @@ class FakeAiModel implements AiModel {
     throw new Error("Unexpected continueSession call");
   }
 
-  async createAtomicDiffReview() {
-    throw new Error("Unexpected createAtomicDiffReview call");
+  async createAtomicDiffReview(input: AiAtomicDiffReviewInput) {
+    this.atomicReviewInputs.push(input);
+
+    return this.atomicReview.promise;
   }
 
   async summarizeConversation(input: { prompt: string }) {
@@ -123,6 +201,10 @@ class FakeAiModel implements AiModel {
 
   resolveSummary(summary: ConversationSummary) {
     this.summary.resolve(summary);
+  }
+
+  resolveAtomicReview(review: AtomicDiffReview) {
+    this.atomicReview.resolve(review);
   }
 }
 
@@ -157,18 +239,18 @@ function flushPromises() {
   });
 }
 
-async function waitFor(predicate: () => boolean) {
+async function waitFor(predicate: () => boolean | Promise<boolean>) {
   const deadline = Date.now() + 1000;
 
   while (Date.now() < deadline) {
-    if (predicate()) {
+    if (await predicate()) {
       return;
     }
 
     await delay(5);
   }
 
-  assert.equal(predicate(), true);
+  assert.equal(await predicate(), true);
 }
 
 function delay(milliseconds: number) {
