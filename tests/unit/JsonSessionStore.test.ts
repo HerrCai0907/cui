@@ -117,10 +117,7 @@ test("JsonSessionStore stores done state and clears it when appending messages",
     const store = new JsonSessionStore(storePath);
 
     await store.createSession(session);
-    const doneSession = await store.updateSessionDoneAt(
-      "session-1",
-      "2026-08-22T00:00:10.000Z",
-    );
+    const doneSession = await store.updateSessionDoneAt("session-1", "2026-08-22T00:00:10.000Z");
 
     assert.equal(doneSession.doneAt, "2026-08-22T00:00:10.000Z");
     assert.equal((await store.getSession("session-1"))?.doneAt, "2026-08-22T00:00:10.000Z");

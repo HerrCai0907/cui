@@ -173,7 +173,10 @@ test("partitionActiveSessionsForSidebar keeps done sessions out of Active only",
     new Set(["session-0"]),
   );
 
-  assert.equal(partition.active.some((session) => session.id === "session-0"), false);
+  assert.equal(
+    partition.active.some((session) => session.id === "session-0"),
+    false,
+  );
   assert.deepEqual(
     partition.more.map((session) => session.id),
     ["session-0", "session-1", "session-2"],
