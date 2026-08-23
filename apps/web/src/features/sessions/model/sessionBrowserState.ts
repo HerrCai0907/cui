@@ -13,7 +13,7 @@ export type SessionSidebarBrowserState = {
   sidebarOpen: boolean;
   sidebarWidth: number;
   sessionListMode: SessionListMode;
-  expandedWorkspaces: Set<string>;
+  expandedWorkspacesByMode: Record<SessionListMode, Set<string>>;
 };
 
 export type SessionAttentionState = {
@@ -26,6 +26,8 @@ type StoredSessionSidebarBrowserState = {
   sidebarOpen?: boolean;
   sidebarWidth?: number;
   sessionListMode?: SessionListMode;
+  activeExpandedWorkspaces?: string[];
+  moreExpandedWorkspaces?: string[];
   expandedWorkspaces?: string[];
   updatedAt?: number;
 };
@@ -100,15 +102,32 @@ export function loadSessionSidebarBrowserState(
       return defaultState;
     }
 
+    const sessionListMode = parseSessionListMode(
+      parsed.sessionListMode,
+      defaultState.sessionListMode,
+    );
+    const hasLegacyExpandedWorkspaces = Array.isArray(parsed.expandedWorkspaces);
+    const legacyExpandedWorkspaces = parseStringSet(parsed.expandedWorkspaces, new Set());
+
     return {
       sidebarOpen:
         typeof parsed.sidebarOpen === "boolean" ? parsed.sidebarOpen : defaultState.sidebarOpen,
       sidebarWidth: parseSidebarWidth(parsed.sidebarWidth, defaultState.sidebarWidth),
-      sessionListMode: parseSessionListMode(parsed.sessionListMode, defaultState.sessionListMode),
-      expandedWorkspaces: parseStringSet(
-        parsed.expandedWorkspaces,
-        defaultState.expandedWorkspaces,
-      ),
+      sessionListMode,
+      expandedWorkspacesByMode: {
+        active: parseStringSet(
+          parsed.activeExpandedWorkspaces,
+          hasLegacyExpandedWorkspaces && sessionListMode === "active"
+            ? legacyExpandedWorkspaces
+            : defaultState.expandedWorkspacesByMode.active,
+        ),
+        more: parseStringSet(
+          parsed.moreExpandedWorkspaces,
+          hasLegacyExpandedWorkspaces && sessionListMode === "more"
+            ? legacyExpandedWorkspaces
+            : defaultState.expandedWorkspacesByMode.more,
+        ),
+      },
     };
   } catch {
     window.localStorage.removeItem(SIDEBAR_STATE_STORAGE_KEY);
@@ -127,7 +146,8 @@ export function saveSessionSidebarBrowserState(state: SessionSidebarBrowserState
       sidebarOpen: state.sidebarOpen,
       sidebarWidth: clampSidebarWidth(state.sidebarWidth),
       sessionListMode: state.sessionListMode,
-      expandedWorkspaces: [...state.expandedWorkspaces],
+      activeExpandedWorkspaces: [...state.expandedWorkspacesByMode.active],
+      moreExpandedWorkspaces: [...state.expandedWorkspacesByMode.more],
       updatedAt: Date.now(),
     };
 
@@ -142,7 +162,10 @@ function createDefaultSidebarBrowserState(defaultWorkspace: string): SessionSide
     sidebarOpen: true,
     sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
     sessionListMode: "active",
-    expandedWorkspaces: new Set([defaultWorkspace]),
+    expandedWorkspacesByMode: {
+      active: new Set([defaultWorkspace]),
+      more: new Set([defaultWorkspace]),
+    },
   };
 }
 

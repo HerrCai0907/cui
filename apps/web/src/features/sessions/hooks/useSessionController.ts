@@ -45,7 +45,7 @@ export function useSessionController(defaultWorkspace: string) {
   const sidebarOpen = sidebarBrowserState.sidebarOpen;
   const sidebarWidth = sidebarBrowserState.sidebarWidth;
   const sessionListMode = sidebarBrowserState.sessionListMode;
-  const expandedWorkspaces = sidebarBrowserState.expandedWorkspaces;
+  const expandedWorkspaces = sidebarBrowserState.expandedWorkspacesByMode[sessionListMode];
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [activeSession, setActiveSession] = useState<ApiSession | null>(null);
   const [draft, setDraft] = useState("");
@@ -168,7 +168,9 @@ export function useSessionController(defaultWorkspace: string) {
 
   function toggleWorkspace(workspaceId: string) {
     updateSidebarBrowserState((current) => {
-      const nextExpandedWorkspaces = new Set(current.expandedWorkspaces);
+      const nextExpandedWorkspaces = new Set(
+        current.expandedWorkspacesByMode[current.sessionListMode],
+      );
 
       if (nextExpandedWorkspaces.has(workspaceId)) {
         nextExpandedWorkspaces.delete(workspaceId);
@@ -178,7 +180,10 @@ export function useSessionController(defaultWorkspace: string) {
 
       return {
         ...current,
-        expandedWorkspaces: nextExpandedWorkspaces,
+        expandedWorkspacesByMode: {
+          ...current.expandedWorkspacesByMode,
+          [current.sessionListMode]: nextExpandedWorkspaces,
+        },
       };
     });
     recordWorkspaceAttention(workspaceId);
@@ -208,7 +213,12 @@ export function useSessionController(defaultWorkspace: string) {
   function expandWorkspace(workspaceId: string) {
     updateSidebarBrowserState((current) => ({
       ...current,
-      expandedWorkspaces: new Set(current.expandedWorkspaces).add(workspaceId),
+      expandedWorkspacesByMode: {
+        ...current.expandedWorkspacesByMode,
+        [current.sessionListMode]: new Set(
+          current.expandedWorkspacesByMode[current.sessionListMode],
+        ).add(workspaceId),
+      },
     }));
   }
 
