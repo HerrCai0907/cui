@@ -26,6 +26,7 @@ type SessionSidebarProps = {
   workspaces: Record<string, SessionSummary[]>;
   historyWorkspaces: Record<string, SessionSummary[]>;
   expandedWorkspaces: Set<string>;
+  historyOpen: boolean;
   sessionCount: number;
   historySessionCount: number;
   activeSessionId?: string;
@@ -33,6 +34,7 @@ type SessionSidebarProps = {
   reviewNavigation?: ReviewNavigation | null;
   reviewNavigationActive?: boolean;
   onOpenChange: (open: boolean) => void;
+  onHistoryOpenChange: (open: boolean) => void;
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
   onOpenSession: (sessionId: string) => void;
@@ -44,6 +46,7 @@ export function SessionSidebar({
   workspaces,
   historyWorkspaces,
   expandedWorkspaces,
+  historyOpen,
   sessionCount,
   historySessionCount,
   activeSessionId,
@@ -51,6 +54,7 @@ export function SessionSidebar({
   reviewNavigation,
   reviewNavigationActive,
   onOpenChange,
+  onHistoryOpenChange,
   onStartNewSession,
   onToggleWorkspace,
   onOpenSession,
@@ -108,8 +112,17 @@ export function SessionSidebar({
                   onToggleWorkspace={onToggleWorkspace}
                 />
                 {historySessionCount > 0 && (
-                  <details className="session-history">
-                    <summary className="session-history-summary">
+                  <details
+                    className="session-history"
+                    open={historyOpen}
+                  >
+                    <summary
+                      className="session-history-summary"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        onHistoryOpenChange(!historyOpen);
+                      }}
+                    >
                       <span>History</span>
                       <small>{historySessionCount}</small>
                     </summary>
