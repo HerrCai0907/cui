@@ -131,15 +131,6 @@ export class SessionService {
     const now = new Date().toISOString();
     const userMessage = createMessage("user", request.prompt);
     const round = this.roundService.createRound(aiResponse, 1);
-    if (round?.hasChanges) {
-      round.atomicReview = await this.atomicReviewService.createAtomicDiffReview({
-        sessionId,
-        workspace: request.workspace,
-        prompt: request.prompt,
-        aiResponse,
-        round,
-      });
-    }
     const assistantMessages = createAssistantMessages(aiResponse, round);
     const session: ChatSession = {
       id: sessionId,
@@ -165,6 +156,15 @@ export class SessionService {
     });
 
     const createdSession = await this.store.createSession(session);
+    if (round?.hasChanges) {
+      this.scheduleAtomicReview({
+        sessionId,
+        workspace: request.workspace,
+        prompt: request.prompt,
+        aiResponse,
+        round,
+      });
+    }
 
     return this.sessionSummaryService.refreshSessionSummary(createdSession);
   }
@@ -236,15 +236,9 @@ export class SessionService {
     });
     const userMessage = createMessage("user", request.prompt);
     const round = this.roundService.createNextRound(session, aiResponse);
-    if (round?.hasChanges) {
-      round.atomicReview = await this.atomicReviewService.createAtomicDiffReview({
-        sessionId,
-        workspace: session.workspace,
-        prompt: createSessionInputTranscript(session, request.prompt),
-        aiResponse,
-        round,
-      });
-    }
+    const reviewPrompt = round?.hasChanges
+      ? createSessionInputTranscript(session, request.prompt)
+      : undefined;
     const assistantMessages = createAssistantMessages(aiResponse, round);
 
     await this.logger.session(sessionId).info("session.continued", {
@@ -263,6 +257,15 @@ export class SessionService {
       userMessage,
       ...assistantMessages,
     ]);
+    if (round?.hasChanges && reviewPrompt) {
+      this.scheduleAtomicReview({
+        sessionId,
+        workspace: session.workspace,
+        prompt: reviewPrompt,
+        aiResponse,
+        round,
+      });
+    }
 
     return this.sessionSummaryService.refreshSessionSummary(updatedSession);
   }
@@ -415,6 +418,27 @@ export class SessionService {
     const latestSession = await this.store.getSession(sessionId);
 
     return latestSession ? toSessionView(latestSession) : undefined;
+  }
+
+  private scheduleAtomicReview(input: {
+    sessionId: string;
+    workspace: string;
+    prompt: string;
+    aiResponse: AiRunResult;
+    round: ChatRound;
+  }): void {
+    void this.atomicReviewService
+      .createAtomicDiffReview(input)
+      .then((atomicReview) =>
+        this.store.updateRoundAtomicReview(input.sessionId, input.round.round, atomicReview),
+      )
+      .catch((error: unknown) =>
+        this.logger.session(input.sessionId).warn("round.review.persist_failed", {
+          sessionId: input.sessionId,
+          round: input.round.round,
+          error,
+        }),
+      );
   }
 }
 

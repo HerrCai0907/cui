@@ -2,12 +2,37 @@ import type { AiModel, AiResponse, AtomicDiffReview, ChatRound } from "../../typ
 import type { AppLogger } from "../../infrastructure/logging/AppLogger.js";
 
 export class AtomicReviewService {
+  private readonly activeReviews = new Map<string, Promise<AtomicDiffReview>>();
+
   constructor(
     private readonly aiModel: AiModel,
     private readonly logger: AppLogger,
   ) {}
 
   async createAtomicDiffReview(input: {
+    sessionId: string;
+    workspace: string;
+    prompt: string;
+    aiResponse: AiResponse;
+    round: ChatRound;
+  }): Promise<AtomicDiffReview> {
+    const key = createAtomicReviewKey(input.sessionId, input.round.round);
+    const activeReview = this.activeReviews.get(key);
+
+    if (activeReview) {
+      return activeReview;
+    }
+
+    const review = this.runAtomicDiffReview(input).finally(() => {
+      this.activeReviews.delete(key);
+    });
+
+    this.activeReviews.set(key, review);
+
+    return review;
+  }
+
+  private async runAtomicDiffReview(input: {
     sessionId: string;
     workspace: string;
     prompt: string;
@@ -47,4 +72,8 @@ export class AtomicReviewService {
       };
     }
   }
+}
+
+function createAtomicReviewKey(sessionId: string, round: number): string {
+  return `${sessionId}:${round}`;
 }

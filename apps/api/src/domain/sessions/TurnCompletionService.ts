@@ -1,4 +1,4 @@
-import type { AiRunResult, ChatSession } from "../../types.js";
+import type { AiRunResult, ChatRound, ChatSession } from "../../types.js";
 import type { JsonSessionStore } from "../../infrastructure/store/JsonSessionStore.js";
 import type { AppLogger } from "../../infrastructure/logging/AppLogger.js";
 import { AtomicReviewService } from "../reviews/AtomicReviewService.js";
@@ -25,16 +25,9 @@ export class TurnCompletionService {
   }) {
     const currentSession = await this.store.getSession(input.aiResponse.sessionId);
     const round = this.roundService.createNextRound(currentSession, input.aiResponse);
-
-    if (round?.hasChanges) {
-      round.atomicReview = await this.atomicReviewService.createAtomicDiffReview({
-        sessionId: input.aiResponse.sessionId,
-        workspace: input.workspace,
-        prompt: createSessionInputTranscript(currentSession, input.prompt),
-        aiResponse: input.aiResponse,
-        round,
-      });
-    }
+    const reviewPrompt = round?.hasChanges
+      ? createSessionInputTranscript(currentSession, input.prompt)
+      : undefined;
 
     const assistantMessages = createAssistantMessages(input.aiResponse, round);
     const updatedSession = await this.store.appendRoundAndMessages(
@@ -43,9 +36,40 @@ export class TurnCompletionService {
       assistantMessages,
     );
 
+    if (round?.hasChanges && reviewPrompt) {
+      this.scheduleAtomicReview({
+        sessionId: input.aiResponse.sessionId,
+        workspace: input.workspace,
+        prompt: reviewPrompt,
+        aiResponse: input.aiResponse,
+        round,
+      });
+    }
+
     await this.logCompletedTurn(input);
 
     return toSessionView(updatedSession);
+  }
+
+  private scheduleAtomicReview(input: {
+    sessionId: string;
+    workspace: string;
+    prompt: string;
+    aiResponse: AiRunResult;
+    round: ChatRound;
+  }): void {
+    void this.atomicReviewService
+      .createAtomicDiffReview(input)
+      .then((atomicReview) =>
+        this.store.updateRoundAtomicReview(input.sessionId, input.round.round, atomicReview),
+      )
+      .catch((error: unknown) =>
+        this.logger.session(input.sessionId).warn("round.review.persist_failed", {
+          sessionId: input.sessionId,
+          round: input.round.round,
+          error,
+        }),
+      );
   }
 
   private async logCompletedTurn(input: {
