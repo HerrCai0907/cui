@@ -25,6 +25,7 @@ test("merges shared workspace path prefixes in the sidebar", async ({ page }) =>
   await mockSessions(page, [firstSession, secondSession]);
 
   await page.goto("/");
+  await page.getByRole("button", { name: "More" }).click();
 
   const sidebar = page.getByLabel("Workspace sessions");
 
@@ -39,13 +40,13 @@ test("merges shared workspace path prefixes in the sidebar", async ({ page }) =>
   ).toBeVisible();
 });
 
-test("moves older sessions into collapsed history", async ({ page }) => {
-  const sessions = Array.from({ length: 18 }, (_, index) => ({
+test("shows a focused Active list and keeps all sessions in More", async ({ page }) => {
+  const sessions = Array.from({ length: 4 }, (_, index) => ({
     id: `session-${index}`,
-    workspace: currentWorkspace,
+    workspace: index < 3 ? currentWorkspace : "/Users/bytedance/other",
     title: `Session ${index}`,
     createdAt: new Date(Date.UTC(2026, 7, 22, 0, 0, index)).toISOString(),
-    updatedAt: new Date(Date.UTC(2026, 7, 22, 0, 0, 17 - index)).toISOString(),
+    updatedAt: new Date(Date.UTC(2026, 7, 22, 0, 0, index)).toISOString(),
     messages: [
       {
         id: `message-${index}`,
@@ -61,19 +62,25 @@ test("moves older sessions into collapsed history", async ({ page }) => {
   }));
 
   await mockSessions(page, sessions);
-  await mockSession(page, sessions[17]);
+  await mockSession(page, sessions[1]);
 
   await page.goto("/");
 
-  await expect(page.getByRole("button", { name: "Session 15" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Session 16" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Session 17" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Active" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.getByRole("button", { name: "Session 2" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Session 0" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Session 1" })).toHaveCount(0);
 
-  await page.getByText("History", { exact: true }).click();
+  await page.getByRole("button", { name: "More" }).click();
 
-  await expect(page.getByRole("button", { name: "Session 16" })).toBeVisible();
-  await page.getByRole("button", { name: "Session 17" }).click();
-  await expect(page.getByRole("heading", { name: "Session 17" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Session 0" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Session 1" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Session 2" })).toBeVisible();
+  await page.getByRole("button", { name: "Session 1" }).click();
+  await expect(page.getByRole("heading", { name: "Session 1" })).toBeVisible();
 });
 
 test("resizes and restores the session sidebar width", async ({ page }) => {
@@ -104,13 +111,13 @@ test("resizes and restores the session sidebar width", async ({ page }) => {
   await page.mouse.move(handleBox!.x + handleBox!.width / 2 + 96, handleBox!.y + 40);
   await page.mouse.up();
 
-  await expect.poll(async () => (await sidebar.boundingBox())?.width).toBeGreaterThan(
-    initialBox!.width + 80,
-  );
+  await expect
+    .poll(async () => (await sidebar.boundingBox())?.width)
+    .toBeGreaterThan(initialBox!.width + 80);
   await expect(
-    page.evaluate(() => JSON.parse(localStorage.getItem("cui:session-sidebar-state:v1") ?? "null")),
+    page.evaluate(() => JSON.parse(localStorage.getItem("cui:session-sidebar-state:v2") ?? "null")),
   ).resolves.toMatchObject({
-    version: 1,
+    version: 2,
     sidebarWidth: expect.any(Number),
   });
 
@@ -152,9 +159,9 @@ test("restores session sidebar expansion state after a browser refresh", async (
     page.getByRole("button", { name: "New session in /Users/bytedance/other" }),
   ).toHaveCount(0);
 
+  await page.getByRole("button", { name: "More" }).click();
   await page.getByRole("button", { name: "/Users/bytedance/other", exact: true }).click();
   await page.getByRole("button", { name: currentWorkspace, exact: true }).click();
-  await page.getByText("History", { exact: true }).click();
   await expect(
     page.getByRole("button", {
       name: "/Users/bytedance/archive",
@@ -162,11 +169,11 @@ test("restores session sidebar expansion state after a browser refresh", async (
     }),
   ).toBeVisible();
   await expect(
-    page.evaluate(() => JSON.parse(localStorage.getItem("cui:session-sidebar-state:v1") ?? "null")),
+    page.evaluate(() => JSON.parse(localStorage.getItem("cui:session-sidebar-state:v2") ?? "null")),
   ).resolves.toMatchObject({
-    version: 1,
+    version: 2,
     sidebarOpen: true,
-    historyOpen: true,
+    sessionListMode: "more",
     expandedWorkspaces: ["/Users/bytedance/other"],
   });
 

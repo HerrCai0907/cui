@@ -143,17 +143,16 @@ export function App() {
       <SessionSidebar
         activeSessionId={sessionController.activeSession?.id}
         expandedWorkspaces={sessionController.expandedWorkspaces}
-        historyOpen={sessionController.historyOpen}
         open={sessionController.sidebarOpen}
         width={sessionController.sidebarWidth}
         runningSessionIds={sessionController.runningSessionIds}
-        historySessionCount={sessionController.historySessionCount}
-        historyWorkspaces={sessionController.historyWorkspaces}
+        sessionListMode={sessionController.sessionListMode}
         sessionCount={sessionController.sessionCount}
+        visibleSessionCount={sessionController.visibleSessionCount}
         workspaces={sessionController.workspaces}
         onOpenChange={sessionController.setSidebarOpen}
         onWidthChange={sessionController.setSidebarWidth}
-        onHistoryOpenChange={sessionController.setHistoryOpen}
+        onSessionListModeChange={sessionController.setSessionListMode}
         onOpenSession={openSession}
         onNavigateReview={reviewRoute?.mode === "atomic" ? navigateToReviewTarget : undefined}
         onStartNewSession={startNewSession}

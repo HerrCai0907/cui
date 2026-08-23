@@ -21,7 +21,10 @@ type UseTurnStreamInput = {
   activeSessionRef: MutableRefObject<ApiSession | null>;
   refreshSessions: () => void;
   setActiveSession: Dispatch<SetStateAction<ApiSession | null>>;
-  setCurrentActiveSession: (session: ApiSession | null) => void;
+  setCurrentActiveSession: (
+    session: ApiSession | null,
+    options?: { recordAttention?: boolean },
+  ) => void;
   setError: (error: string | null) => void;
   setExpandedTraceIds: Dispatch<SetStateAction<Set<string>>>;
   setRunningSession: (sessionId: string, running: boolean) => void;
@@ -214,7 +217,7 @@ export function useTurnStream({
       streamStateRefs.current.delete(sessionId);
       streamMessageIdRefs.current.delete(sessionId);
       if (activeSessionRef.current?.id === data.session.id) {
-        setCurrentActiveSession(data.session);
+        setCurrentActiveSession(data.session, { recordAttention: false });
       }
       setExpandedTraceIds((current) => {
         const next = new Set(current);

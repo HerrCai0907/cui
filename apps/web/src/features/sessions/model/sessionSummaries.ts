@@ -1,5 +1,5 @@
 import type { ApiSession, SessionSummary } from "../../../types";
-import { getLastSeenRound } from "./sessionBrowserState";
+import { getLastSeenRound, type SessionAttentionState } from "./sessionBrowserState";
 
 export type WorkspaceDisplayItem = {
   workspace: string;
@@ -13,12 +13,13 @@ export type WorkspaceDisplayGroup = {
   workspaces: WorkspaceDisplayItem[];
 };
 
-export type SidebarSessionPartition = {
-  current: SessionSummary[];
-  history: SessionSummary[];
+export type ActiveSidebarSessionPartition = {
+  active: SessionSummary[];
+  more: SessionSummary[];
 };
 
-export const SIDEBAR_CURRENT_SESSION_MINIMUM = 16;
+export const ACTIVE_RECENT_SESSION_COUNT_PER_WORKSPACE = 1;
+export const ACTIVE_RECENT_WORKSPACE_COUNT = 6;
 
 export function toSessionSummary(session: ApiSession): SessionSummary {
   const lastSeenRound = getLastSeenRound(session.id);
@@ -47,30 +48,109 @@ export function groupSessionsByWorkspace(
   }, {});
 }
 
-export function partitionSessionsForSidebar(
+export function partitionActiveSessionsForSidebar(
   sessions: SessionSummary[],
-  minimumCurrentCount = SIDEBAR_CURRENT_SESSION_MINIMUM,
-): SidebarSessionPartition {
-  const sortedSessions = [...sessions].sort(compareSessionsByUpdatedAt);
-  const currentSessionIds = new Set(
-    sortedSessions
-      .filter((session) => session.isRunning || session.hasUnreadRound)
-      .map((session) => session.id),
-  );
-  const targetCurrentCount = Math.max(minimumCurrentCount, currentSessionIds.size);
+  attentionState: SessionAttentionState,
+  highlightedSessionIds: Set<string> = new Set(),
+  highlightedWorkspaceIds: Set<string> = new Set(),
+  recentWorkspaceCount = ACTIVE_RECENT_WORKSPACE_COUNT,
+): ActiveSidebarSessionPartition {
+  const activeSidebarSessionIds = new Set<string>();
+  const sessionsByWorkspace = groupSessionsByWorkspace(sessions);
+  const activeWorkspaceIds = new Set(highlightedWorkspaceIds);
 
-  for (const session of sortedSessions) {
-    if (currentSessionIds.size >= targetCurrentCount) {
-      break;
+  Object.entries(sessionsByWorkspace).forEach(([workspace, workspaceSessions]) => {
+    if (
+      workspaceSessions.some(
+        (session) =>
+          highlightedSessionIds.has(session.id) || session.isRunning || session.hasUnreadRound,
+      )
+    ) {
+      activeWorkspaceIds.add(workspace);
+    }
+  });
+
+  Object.keys(sessionsByWorkspace)
+    .filter((workspace) => (attentionState.workspaces[workspace] ?? 0) > 0)
+    .sort((left, right) => compareWorkspacesByAttention(left, right, attentionState))
+    .slice(0, recentWorkspaceCount)
+    .forEach((workspace) => {
+      activeWorkspaceIds.add(workspace);
+    });
+
+  Object.entries(sessionsByWorkspace).forEach(([workspace, workspaceSessions]) => {
+    if (!activeWorkspaceIds.has(workspace)) {
+      return;
     }
 
-    currentSessionIds.add(session.id);
-  }
+    workspaceSessions.forEach((session) => {
+      if (highlightedSessionIds.has(session.id) || session.isRunning || session.hasUnreadRound) {
+        activeSidebarSessionIds.add(session.id);
+      }
+    });
+
+    workspaceSessions
+      .filter((session) => !activeSidebarSessionIds.has(session.id))
+      .sort((left, right) => compareSessionsByAttention(left, right, attentionState))
+      .slice(0, ACTIVE_RECENT_SESSION_COUNT_PER_WORKSPACE)
+      .forEach((session) => {
+        activeSidebarSessionIds.add(session.id);
+      });
+  });
 
   return {
-    current: sortedSessions.filter((session) => currentSessionIds.has(session.id)),
-    history: sortedSessions.filter((session) => !currentSessionIds.has(session.id)),
+    active: sortSessionsForActiveSidebar(
+      sessions.filter((session) => activeSidebarSessionIds.has(session.id)),
+      attentionState,
+      highlightedSessionIds,
+    ),
+    more: sortSessionsForAllSessions(sessions, attentionState),
   };
+}
+
+export function sortSessionsForActiveSidebar(
+  sessions: SessionSummary[],
+  attentionState: SessionAttentionState,
+  highlightedSessionIds: Set<string> = new Set(),
+): SessionSummary[] {
+  return [...sessions].sort((left, right) => {
+    const workspaceOrder = compareWorkspacesByAttention(
+      left.workspace,
+      right.workspace,
+      attentionState,
+    );
+
+    if (workspaceOrder !== 0) {
+      return workspaceOrder;
+    }
+
+    const activeStateOrder =
+      getActiveSessionRank(left, highlightedSessionIds) -
+      getActiveSessionRank(right, highlightedSessionIds);
+
+    if (activeStateOrder !== 0) {
+      return activeStateOrder;
+    }
+
+    return compareSessionsByAttention(left, right, attentionState);
+  });
+}
+
+export function sortSessionsForAllSessions(
+  sessions: SessionSummary[],
+  attentionState: SessionAttentionState,
+): SessionSummary[] {
+  return [...sessions].sort((left, right) => {
+    const leftAttention = getSessionAttention(left, attentionState);
+    const rightAttention = getSessionAttention(right, attentionState);
+    const attentionOrder = rightAttention - leftAttention;
+
+    if (attentionOrder !== 0) {
+      return attentionOrder;
+    }
+
+    return compareSessionsByUpdatedAt(left, right);
+  });
 }
 
 export function getCurrentRound(session: ApiSession): number {
@@ -102,6 +182,59 @@ function compareSessionsByUpdatedAt(left: SessionSummary, right: SessionSummary)
   const updatedAtOrder = right.updatedAt.localeCompare(left.updatedAt);
 
   return updatedAtOrder !== 0 ? updatedAtOrder : right.id.localeCompare(left.id);
+}
+
+function compareSessionsByAttention(
+  left: SessionSummary,
+  right: SessionSummary,
+  attentionState: SessionAttentionState,
+): number {
+  const attentionOrder =
+    getSessionAttention(right, attentionState) - getSessionAttention(left, attentionState);
+
+  if (attentionOrder !== 0) {
+    return attentionOrder;
+  }
+
+  return compareSessionsByUpdatedAt(left, right);
+}
+
+function getSessionAttention(
+  session: SessionSummary,
+  attentionState: SessionAttentionState,
+): number {
+  return attentionState.sessions[session.id] ?? 0;
+}
+
+function getActiveSessionRank(session: SessionSummary, highlightedSessionIds: Set<string>): number {
+  if (highlightedSessionIds.has(session.id)) {
+    return 0;
+  }
+
+  if (session.isRunning) {
+    return 1;
+  }
+
+  if (session.hasUnreadRound) {
+    return 2;
+  }
+
+  return 3;
+}
+
+function compareWorkspacesByAttention(
+  left: string,
+  right: string,
+  attentionState: SessionAttentionState,
+): number {
+  const attentionOrder =
+    (attentionState.workspaces[right] ?? 0) - (attentionState.workspaces[left] ?? 0);
+
+  if (attentionOrder !== 0) {
+    return attentionOrder;
+  }
+
+  return left.localeCompare(right);
 }
 
 export function groupWorkspacesForDisplay(
