@@ -2,6 +2,7 @@ import {
   AiModel,
   AiRunEvent,
   AiRunResult,
+  AiRunCancelledError,
   ChatRound,
   ChatSession,
   ChatSessionView,
@@ -204,7 +205,7 @@ export class SessionService {
     };
 
     const createdSession = await this.store.createSession(session);
-    runningTurn = this.turnRegistry.createRunningTurn(sessionId);
+    runningTurn = this.turnRegistry.createRunningTurn(sessionId, run.cancel);
     const summaryPromise = this.refreshSessionSummaryFromUserInput(createdSession, runningTurn);
     bufferedEvents.forEach((event) => this.turnRegistry.emitTurnEvent(runningTurn!, event));
     this.finishCreateSession(request, run.result, runningTurn, summaryPromise);
@@ -293,8 +294,8 @@ export class SessionService {
 
     const userMessage = createMessage("user", request.prompt);
     const updatedSession = await this.store.appendMessages(sessionId, [userMessage]);
-    const runningTurn = this.turnRegistry.createRunningTurn(sessionId);
-    const summaryPromise = this.refreshSessionSummaryFromUserInput(updatedSession, runningTurn);
+    const bufferedEvents: TurnStreamEvent[] = [];
+    let runningTurn: RunningTurn | undefined;
     const run = this.aiModel.continueSessionStream(
       {
         sessionId,
@@ -302,11 +303,18 @@ export class SessionService {
         prompt: request.prompt,
       },
       (event) => {
-        handleAiRunEvent(event, (streamEvent) =>
-          this.turnRegistry.emitTurnEvent(runningTurn, streamEvent),
-        );
+        handleAiRunEvent(event, (streamEvent) => {
+          if (runningTurn) {
+            this.turnRegistry.emitTurnEvent(runningTurn, streamEvent);
+          } else {
+            bufferedEvents.push(streamEvent);
+          }
+        });
       },
     );
+    runningTurn = this.turnRegistry.createRunningTurn(sessionId, run.cancel);
+    const summaryPromise = this.refreshSessionSummaryFromUserInput(updatedSession, runningTurn);
+    bufferedEvents.forEach((event) => this.turnRegistry.emitTurnEvent(runningTurn!, event));
 
     this.finishContinueSession(request, run.result, runningTurn, session.workspace, summaryPromise);
 
@@ -318,6 +326,17 @@ export class SessionService {
 
   hasRunningTurn(turnId: string): boolean {
     return this.turnRegistry.hasRunningTurn(turnId);
+  }
+
+  async cancelRunningTurn(sessionId: string): Promise<void> {
+    const turn = this.turnRegistry.getRunningTurnForSession(sessionId);
+
+    if (!turn) {
+      throw new SessionNotRunningError(sessionId);
+    }
+
+    turn.cancel();
+    await Promise.race([turn.completion, delay(5000)]);
   }
 
   subscribeToTurn(turnId: string, onEvent: (event: TurnStreamEvent) => void): () => void {
@@ -347,6 +366,14 @@ export class SessionService {
         });
       })
       .catch((error: unknown) => {
+        if (error instanceof AiRunCancelledError) {
+          void this.logger.framework.info("session.create.cancelled", {
+            sessionId: turn.sessionId,
+          });
+          this.turnRegistry.emitTurnEvent(turn, { type: "cancelled" });
+          return;
+        }
+
         void this.logger.framework.error("session.create.failed", {
           sessionId: turn.sessionId,
           error,
@@ -382,6 +409,14 @@ export class SessionService {
         });
       })
       .catch((error: unknown) => {
+        if (error instanceof AiRunCancelledError) {
+          void this.logger.framework.info("session.continue.cancelled", {
+            sessionId: turn.sessionId,
+          });
+          this.turnRegistry.emitTurnEvent(turn, { type: "cancelled" });
+          return;
+        }
+
         void this.logger.framework.error("session.continue.failed", {
           sessionId: turn.sessionId,
           error,
@@ -456,6 +491,13 @@ export class SessionBusyError extends Error {
   }
 }
 
+export class SessionNotRunningError extends Error {
+  constructor(sessionId: string) {
+    super(`Session is not running: ${sessionId}`);
+    this.name = "SessionNotRunningError";
+  }
+}
+
 function handleAiRunEvent(event: AiRunEvent, emit: (event: TurnStreamEvent) => void): void {
   if (event.type === "delta") {
     emit({ type: "delta", text: event.text });
@@ -465,4 +507,10 @@ function handleAiRunEvent(event: AiRunEvent, emit: (event: TurnStreamEvent) => v
   if (event.type === "raw") {
     emit({ type: "raw", event: event.event });
   }
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
 }

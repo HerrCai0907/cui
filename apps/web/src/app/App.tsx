@@ -192,9 +192,12 @@ export function App() {
               active={Boolean(sessionController.activeSession)}
               disabled={sessionController.activeSessionBlocked}
               draft={sessionController.draft}
+              stopping={sessionController.activeSessionRunning}
+              stopDisabled={sessionController.activeSessionStopping}
               lastEnterKeyDownRef={sessionController.lastEnterKeyDownRef}
               textareaRef={sessionController.composerTextareaRef}
               onDraftChange={sessionController.setDraft}
+              onStop={sessionController.stopActiveSession}
               onSubmit={sessionController.submitDraft}
             />
           </>

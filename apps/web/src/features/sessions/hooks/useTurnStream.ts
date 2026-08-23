@@ -242,6 +242,22 @@ export function useTurnStream({
       closeCurrentStream();
     });
 
+    eventSource.addEventListener("cancelled", () => {
+      setRunningSession(sessionId, false);
+      refreshSessions();
+      streamClosed = true;
+      closeCurrentStream();
+    });
+
+    eventSource.addEventListener("cancelled", () => {
+      streamStateRefs.current.delete(sessionId);
+      streamMessageIdRefs.current.delete(sessionId);
+      setRunningSession(sessionId, false);
+      refreshSessions();
+      streamClosed = true;
+      closeCurrentStream();
+    });
+
     eventSource.onerror = () => {
       if (streamClosed) {
         return;
@@ -271,5 +287,13 @@ export function useTurnStream({
     });
   }
 
-  return { applyRunningTurnOverlay, streamTurn };
+  function closeTurnStream(sessionId: string) {
+    eventSourceRefs.current.get(sessionId)?.close();
+    eventSourceRefs.current.delete(sessionId);
+    turnIdRefs.current.delete(sessionId);
+    streamStateRefs.current.delete(sessionId);
+    streamMessageIdRefs.current.delete(sessionId);
+  }
+
+  return { applyRunningTurnOverlay, closeTurnStream, streamTurn };
 }

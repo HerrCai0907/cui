@@ -86,5 +86,14 @@ export function createSessionRouter(sessionService: SessionService): Router {
     }
   });
 
+  router.post("/api/sessions/:sessionId/stop", async (request, response, next) => {
+    try {
+      await sessionService.cancelRunningTurn(request.params.sessionId);
+      response.status(202).json({ status: "ok" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return router;
 }

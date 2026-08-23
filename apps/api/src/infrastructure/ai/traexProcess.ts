@@ -1,9 +1,10 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GitDiffService, type DiffSnapshot } from "../diff/GitDiffService.js";
 import { parseJsonLine } from "./traexEvents.js";
+import { AiRunCancelledError } from "../../types.js";
 
 type RunProcessInput = {
   command: string;
@@ -23,7 +24,12 @@ type RunProcessResult = {
   rawEvents: unknown[];
 };
 
-export async function runTraexProcess({
+export type TraexProcessRun = {
+  promise: Promise<RunProcessResult>;
+  cancel: () => void;
+};
+
+export function runTraexProcess({
   command,
   args,
   cwd,
@@ -32,132 +38,225 @@ export async function runTraexProcess({
   captureDiff,
   diffService,
   onRawEvent,
-}: RunProcessInput): Promise<RunProcessResult> {
-  const beforeSnapshot = captureDiff
-    ? await diffService.captureWorkspaceSnapshot(cwd)
-    : { gitCommit: "", diff: "" };
+}: RunProcessInput): TraexProcessRun {
+  let child: ChildProcessWithoutNullStreams | undefined;
+  let outputDir: string | undefined;
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  let forcedKillTimer: ReturnType<typeof setTimeout> | undefined;
+  let settled = false;
+  let cancelRequested = false;
 
-  return new Promise((resolve, reject) => {
-    const events: unknown[] = [];
-    let outputPath: string | undefined;
-    let outputDir: string | undefined;
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
+  const promise = (async () => {
+    const beforeSnapshot = captureDiff
+      ? await diffService.captureWorkspaceSnapshot(cwd)
+      : { gitCommit: "", diff: "" };
 
-    mkdtemp(join(tmpdir(), "cui-traex-"))
-      .then((createdOutputDir) => {
-        outputDir = createdOutputDir;
-        outputPath = join(createdOutputDir, "last-message.txt");
-        const childArgs = [...args.slice(0, -1), "--output-last-message", outputPath, args.at(-1)!];
+    if (cancelRequested) {
+      throw new AiRunCancelledError();
+    }
 
-        const child = spawn(command, childArgs, {
-          cwd,
-          stdio: ["pipe", "pipe", "pipe"],
-          env: {
-            ...process.env,
-            NO_COLOR: "1",
-          },
-        });
+    return new Promise<RunProcessResult>((resolve, reject) => {
+      const events: unknown[] = [];
+      let outputPath: string | undefined;
+      let stdout = "";
+      let stderr = "";
 
-        let idleTimer: ReturnType<typeof setTimeout>;
-        const resetIdleTimer = () => {
+      const rejectWithCancellation = () => {
+        if (settled) {
+          return;
+        }
+
+        cancelRequested = true;
+        settled = true;
+        if (idleTimer) {
           clearTimeout(idleTimer);
-          idleTimer = setTimeout(() => {
+        }
+        if (forcedKillTimer) {
+          clearTimeout(forcedKillTimer);
+        }
+        killChildProcess(child);
+        reject(new AiRunCancelledError());
+        void cleanupOutputDir(outputDir);
+      };
+
+      mkdtemp(join(tmpdir(), "cui-traex-"))
+        .then((createdOutputDir) => {
+          outputDir = createdOutputDir;
+          outputPath = join(createdOutputDir, "last-message.txt");
+          const childArgs = [
+            ...args.slice(0, -1),
+            "--output-last-message",
+            outputPath,
+            args.at(-1)!,
+          ];
+
+          if (cancelRequested) {
+            rejectWithCancellation();
+            return;
+          }
+
+          child = spawn(command, childArgs, {
+            cwd,
+            detached: process.platform !== "win32",
+            stdio: ["pipe", "pipe", "pipe"],
+            env: {
+              ...process.env,
+              NO_COLOR: "1",
+            },
+          });
+
+          const resetIdleTimer = () => {
+            if (idleTimer) {
+              clearTimeout(idleTimer);
+            }
+            idleTimer = setTimeout(() => {
+              if (!settled) {
+                settled = true;
+                killChildProcess(child);
+                reject(new Error(`TraeX command produced no output for ${timeoutMs}ms`));
+                void cleanupOutputDir(outputDir);
+              }
+            }, timeoutMs);
+          };
+
+          resetIdleTimer();
+
+          child.stdout.setEncoding("utf8");
+          child.stderr.setEncoding("utf8");
+
+          child.stdout.on("data", (chunk: string) => {
+            resetIdleTimer();
+            stdout += chunk;
+            const lines = stdout.split("\n");
+            stdout = lines.pop() ?? "";
+
+            for (const line of lines) {
+              const event = parseJsonLine(line);
+
+              if (event) {
+                events.push(event);
+                onRawEvent(event);
+              }
+            }
+          });
+
+          child.stderr.on("data", (chunk: string) => {
+            resetIdleTimer();
+            stderr += chunk;
+          });
+
+          child.on("error", (error) => {
             if (!settled) {
               settled = true;
-              child.kill("SIGTERM");
-              reject(new Error(`TraeX command produced no output for ${timeoutMs}ms`));
+              if (idleTimer) {
+                clearTimeout(idleTimer);
+              }
+              if (forcedKillTimer) {
+                clearTimeout(forcedKillTimer);
+              }
+              reject(cancelRequested ? new AiRunCancelledError() : error);
               void cleanupOutputDir(outputDir);
             }
-          }, timeoutMs);
-        };
+          });
 
-        resetIdleTimer();
-
-        child.stdout.setEncoding("utf8");
-        child.stderr.setEncoding("utf8");
-
-        child.stdout.on("data", (chunk: string) => {
-          resetIdleTimer();
-          stdout += chunk;
-          const lines = stdout.split("\n");
-          stdout = lines.pop() ?? "";
-
-          for (const line of lines) {
-            const event = parseJsonLine(line);
-
-            if (event) {
-              events.push(event);
-              onRawEvent(event);
+          child.on("close", (code) => {
+            if (settled) {
+              return;
             }
-          }
-        });
 
-        child.stderr.on("data", (chunk: string) => {
-          resetIdleTimer();
-          stderr += chunk;
-        });
-
-        child.on("error", (error) => {
-          if (!settled) {
             settled = true;
-            clearTimeout(idleTimer);
-            reject(error);
-            void cleanupOutputDir(outputDir);
-          }
-        });
+            if (idleTimer) {
+              clearTimeout(idleTimer);
+            }
+            if (forcedKillTimer) {
+              clearTimeout(forcedKillTimer);
+            }
 
-        child.on("close", (code) => {
-          if (settled) {
-            return;
-          }
-
-          settled = true;
-          clearTimeout(idleTimer);
-
-          const trailingEvent = parseJsonLine(stdout);
-
-          if (trailingEvent) {
-            events.push(trailingEvent);
-            onRawEvent(trailingEvent);
-          }
-
-          if (code !== 0) {
-            reject(new Error(`TraeX command exited with ${code}: ${stderr.trim()}`));
-            void cleanupOutputDir(outputDir);
-            return;
-          }
-
-          readFile(outputPath!, "utf8")
-            .catch(() => "")
-            .then(async (content) => {
-              const afterDiff = captureDiff
-                ? await diffService.captureWorkspaceDiff(cwd, beforeSnapshot.gitCommit)
-                : "";
-              const afterSnapshot = {
-                gitCommit: beforeSnapshot.gitCommit,
-                diff: afterDiff,
-              };
-
-              resolve({
-                content,
-                beforeSnapshot,
-                afterSnapshot,
-                rawEvents: events,
-              });
-            })
-            .finally(() => {
+            if (cancelRequested) {
+              reject(new AiRunCancelledError());
               void cleanupOutputDir(outputDir);
-            });
-        });
+              return;
+            }
 
-        child.stdin.end(input);
-      })
-      .catch((error: unknown) => {
-        reject(error);
-      });
-  });
+            const trailingEvent = parseJsonLine(stdout);
+
+            if (trailingEvent) {
+              events.push(trailingEvent);
+              onRawEvent(trailingEvent);
+            }
+
+            if (code !== 0) {
+              reject(new Error(`TraeX command exited with ${code}: ${stderr.trim()}`));
+              void cleanupOutputDir(outputDir);
+              return;
+            }
+
+            readFile(outputPath!, "utf8")
+              .catch(() => "")
+              .then(async (content) => {
+                const afterDiff = captureDiff
+                  ? await diffService.captureWorkspaceDiff(cwd, beforeSnapshot.gitCommit)
+                  : "";
+                const afterSnapshot = {
+                  gitCommit: beforeSnapshot.gitCommit,
+                  diff: afterDiff,
+                };
+
+                resolve({
+                  content,
+                  beforeSnapshot,
+                  afterSnapshot,
+                  rawEvents: events,
+                });
+              })
+              .finally(() => {
+                void cleanupOutputDir(outputDir);
+              });
+          });
+
+          child.stdin.end(input);
+        })
+        .catch((error: unknown) => {
+          if (cancelRequested) {
+            rejectWithCancellation();
+          } else {
+            reject(error);
+          }
+        });
+    });
+  })();
+
+  return {
+    promise,
+    cancel: () => {
+      cancelRequested = true;
+      killChildProcess(child);
+      forcedKillTimer = setTimeout(() => {
+        killChildProcess(child, "SIGKILL");
+      }, 3000);
+      forcedKillTimer.unref();
+    },
+  };
+}
+
+function killChildProcess(
+  child: ChildProcessWithoutNullStreams | undefined,
+  signal: NodeJS.Signals = "SIGTERM",
+): void {
+  if (!child?.pid) {
+    return;
+  }
+
+  try {
+    if (process.platform !== "win32") {
+      process.kill(-child.pid, signal);
+      return;
+    }
+  } catch {
+    // Fall back to the direct child if process-group termination is unavailable.
+  }
+
+  child.kill(signal);
 }
 
 async function cleanupOutputDir(outputDir: string | undefined): Promise<void> {

@@ -1,6 +1,10 @@
 import type express from "express";
 import type { AppLogger } from "../../infrastructure/logging/AppLogger.js";
-import { SessionBusyError, SessionNotFoundError } from "../../domain/sessions/SessionService.js";
+import {
+  SessionBusyError,
+  SessionNotFoundError,
+  SessionNotRunningError,
+} from "../../domain/sessions/SessionService.js";
 
 export function createErrorHandler(logger: AppLogger): express.ErrorRequestHandler {
   return (error, request, response, _next) => {
@@ -18,6 +22,11 @@ export function createErrorHandler(logger: AppLogger): express.ErrorRequestHandl
 
     if (error instanceof SessionBusyError) {
       response.status(409).json({ error: "Session already has a running turn" });
+      return;
+    }
+
+    if (error instanceof SessionNotRunningError) {
+      response.status(409).json({ error: "Session does not have a running turn" });
       return;
     }
 
