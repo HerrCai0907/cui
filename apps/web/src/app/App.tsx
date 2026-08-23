@@ -57,7 +57,7 @@ export function App() {
 
     setReviewLoading(true);
     setReviewError(null);
-    getRoundReview(reviewRoute.sessionId, reviewRoute.round)
+    getRoundReview(reviewRoute.sessionId, reviewRoute.round, reviewRoute.mode)
       .then((loadedReview) => {
         if (!cancelled) {
           setReview(loadedReview);
@@ -110,8 +110,8 @@ export function App() {
     void sessionController.openSession(sessionId);
   }
 
-  function openReview(sessionId: string, round: number) {
-    window.open(createReviewPath(sessionId, round, "atomic"), "_blank", "noopener,noreferrer");
+  function openReview(sessionId: string, round: number, mode: ReviewRoute["mode"]) {
+    window.open(createReviewPath(sessionId, round, mode), "_blank", "noopener,noreferrer");
   }
 
   function openFullReview() {

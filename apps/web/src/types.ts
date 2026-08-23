@@ -18,7 +18,9 @@ export type ApiRound = {
   atomicReview?: ApiAtomicDiffReview;
 };
 
-export type ApiRoundSummary = Pick<ApiRound, "round" | "hasChanges" | "createdAt">;
+export type ApiRoundSummary = Pick<ApiRound, "round" | "hasChanges" | "createdAt"> & {
+  atomicReviewStatus?: ApiAtomicDiffReview["status"];
+};
 
 export type ApiSession = {
   id: string;

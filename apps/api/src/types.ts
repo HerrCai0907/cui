@@ -20,7 +20,9 @@ export type ChatRound = {
   atomicReview?: AtomicDiffReview;
 };
 
-export type ChatRoundSummary = Pick<ChatRound, "round" | "hasChanges" | "createdAt">;
+export type ChatRoundSummary = Pick<ChatRound, "round" | "hasChanges" | "createdAt"> & {
+  atomicReviewStatus?: AtomicDiffReview["status"];
+};
 
 export type ChatSession = {
   id: string;

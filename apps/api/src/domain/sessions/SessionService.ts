@@ -83,7 +83,11 @@ export class SessionService {
       : undefined;
   }
 
-  async getRoundReview(sessionId: string, round: number): Promise<ChatRound | undefined> {
+  async getRoundReview(
+    sessionId: string,
+    round: number,
+    options: { includeAtomicReview?: boolean } = {},
+  ): Promise<ChatRound | undefined> {
     const session = await this.store.getSession(sessionId);
 
     if (!session) {
@@ -98,7 +102,7 @@ export class SessionService {
 
     review = this.roundService.refreshRoundDiff(review);
 
-    if (review.hasChanges && !review.atomicReview) {
+    if ((options.includeAtomicReview ?? true) && review.hasChanges && !review.atomicReview) {
       const atomicReview = await this.atomicReviewService.createAtomicDiffReview({
         sessionId,
         workspace: session.workspace,
