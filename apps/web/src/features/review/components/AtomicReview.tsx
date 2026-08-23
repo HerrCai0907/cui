@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, MessageSquare, Send, X } from "lucide-react";
 import type { ApiAtomicDiffReview, ApiAtomicDiffReviewItem } from "../../../types";
 import { shortId } from "../../../shared/lib/ids";
 import { DiffFileList } from "./DiffFileList";
@@ -16,18 +16,26 @@ import {
 type AtomicReviewProps = {
   review?: ApiAtomicDiffReview;
   itemStates: Record<string, AtomicReviewItemState>;
+  commentCount: number;
+  commentsDisabled: boolean;
+  sendingComments: boolean;
   onUpdateItemState: (
     itemId: string,
     updater: (current: AtomicReviewItemState) => AtomicReviewItemState,
   ) => void;
   onOpenFullReview?: () => void;
+  onSubmitComments: () => void | Promise<void>;
 };
 
 export function AtomicReview({
   review,
   itemStates,
+  commentCount,
+  commentsDisabled,
+  sendingComments,
   onUpdateItemState,
   onOpenFullReview,
+  onSubmitComments,
 }: AtomicReviewProps) {
   if (!review) {
     return (
@@ -74,6 +82,21 @@ export function AtomicReview({
           />
         ))}
       </div>
+      <button
+        className="send-button atomic-review-send-comments"
+        type="button"
+        aria-label={
+          commentCount === 1
+            ? "Send 1 atomic review comment"
+            : `Send ${commentCount} atomic review comments`
+        }
+        disabled={commentsDisabled || sendingComments || commentCount === 0}
+        onClick={onSubmitComments}
+      >
+        <Send size={18} />
+        <span>{sendingComments ? "Sending..." : "Comment"}</span>
+        {commentCount > 0 && <span className="atomic-review-comment-count">{commentCount}</span>}
+      </button>
     </section>
   );
 }
@@ -116,6 +139,9 @@ function AtomicReviewItem({
   ) => void;
 }) {
   const collapsed = Boolean(itemState.collapsed);
+  const commentOpen = Boolean(itemState.commentOpen);
+  const commentDraft = itemState.commentDraft ?? "";
+  const hasComment = Boolean(commentDraft.trim());
   const files = parseDiff(item.diff);
   const approvedFileIds = new Set(itemState.approvedFileIds);
   const allFilesApproved = files.length > 0 && files.every((file) => approvedFileIds.has(file.id));
@@ -147,9 +173,24 @@ function AtomicReviewItem({
     }));
   }
 
+  function toggleCommentOpen() {
+    onUpdateItemState(item.id, (current) => ({
+      ...current,
+      commentOpen: !Boolean(current.commentOpen),
+    }));
+  }
+
+  function updateCommentDraft(commentDraft: string) {
+    onUpdateItemState(item.id, (current) => ({
+      ...current,
+      commentDraft,
+      commentOpen: true,
+    }));
+  }
+
   return (
     <section
-      className={`atomic-review-item ${capabilityToneClass(item.capabilityType)}`}
+      className={`atomic-review-item ${commentOpen ? "has-comment-open" : ""} ${hasComment ? "has-comment-draft" : ""} ${capabilityToneClass(item.capabilityType)}`}
       id={createAtomicReviewSectionId(item.id)}
     >
       <header className="atomic-review-item-header">
@@ -174,17 +215,39 @@ function AtomicReviewItem({
             {allFilesApproved ? "Unapprove all" : "Approve all"}
           </button>
           <h2>{item.title}</h2>
+          <button
+            className="atomic-review-comment-toggle"
+            type="button"
+            aria-expanded={commentOpen}
+            aria-label={`${commentOpen ? "Close" : "Comment on"} atomic change ${item.order}`}
+            title={commentOpen ? "Close comment" : "Comment"}
+            onClick={toggleCommentOpen}
+          >
+            {commentOpen ? <X size={16} /> : <MessageSquare size={16} />}
+            {hasComment && <span className="atomic-review-comment-dot" />}
+          </button>
         </div>
         <p>{item.intent}</p>
       </header>
       {!collapsed && (
-        <div className="atomic-review-change-block">
+        <div className={`atomic-review-change-block ${commentOpen ? "has-comment-open" : ""}`}>
           <DiffFileList
             files={files}
             approvedFileIds={approvedFileIds}
             getFileSectionId={(file) => createAtomicReviewFileSectionId(item.id, file.id)}
             onToggleFile={toggleFile}
           />
+          {commentOpen && (
+            <label className="atomic-review-inline-comment">
+              <span className="section-label">Comment</span>
+              <textarea
+                value={commentDraft}
+                placeholder="Comment on this atomic change..."
+                rows={7}
+                onChange={(event) => updateCommentDraft(event.target.value)}
+              />
+            </label>
+          )}
         </div>
       )}
     </section>

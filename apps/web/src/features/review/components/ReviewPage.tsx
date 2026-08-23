@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatMessageTime } from "../../../shared/lib/dates";
-import type { ApiRound } from "../../../types";
+import type { ApiAtomicDiffReviewItem, ApiRound } from "../../../types";
+import { createAtomicReviewCommentPrompt } from "../model/atomicReviewCommentPrompt";
 import type { ReviewNavigation, ReviewNavigationTarget } from "../model/reviewNavigation";
 import { createAtomicReviewNavigation } from "../model/reviewNavigation";
 import {
@@ -18,7 +19,13 @@ type ReviewPageProps = {
   review: ApiRound | null;
   reviewRoute: ReviewRoute;
   navigationTarget: ReviewNavigationTarget | null;
+  sessionBlocked: boolean;
+  onSubmitPrompt: (
+    prompt: string,
+    options?: { restoreDraftOnFailure?: boolean },
+  ) => Promise<boolean>;
   onOpenFullReview: () => void;
+  onCloseReview: () => void;
   onReviewNavigationChange: (navigation: ReviewNavigation | null) => void;
 };
 
@@ -28,7 +35,10 @@ export function ReviewPage({
   review,
   reviewRoute,
   navigationTarget,
+  sessionBlocked,
+  onSubmitPrompt,
   onOpenFullReview,
+  onCloseReview,
   onReviewNavigationChange,
 }: ReviewPageProps) {
   const stateKey = reviewBrowserStateKey(reviewRoute);
@@ -36,6 +46,7 @@ export function ReviewPage({
   const [reviewState, setReviewState] = useState<ReviewBrowserState>(() =>
     loadReviewBrowserState(stateKey),
   );
+  const [sendingComments, setSendingComments] = useState(false);
 
   useEffect(() => {
     setReviewState(loadReviewBrowserState(stateKey));
@@ -44,6 +55,10 @@ export function ReviewPage({
 
   const reviewNavigation = useMemo(
     () => createAtomicReviewNavigation(review?.atomicReview, reviewState),
+    [review?.atomicReview, reviewState],
+  );
+  const atomicComments = useMemo(
+    () => collectAtomicComments(review?.atomicReview, reviewState),
     [review?.atomicReview, reviewState],
   );
 
@@ -135,6 +150,49 @@ export function ReviewPage({
     });
   }
 
+  async function submitAtomicComments() {
+    if (sessionBlocked || sendingComments || atomicComments.length === 0) {
+      return;
+    }
+
+    setSendingComments(true);
+
+    try {
+      const submitted = await onSubmitPrompt(
+        createAtomicReviewCommentPrompt({
+          sessionId: reviewRoute.sessionId,
+          round: reviewRoute.round,
+          comments: atomicComments,
+        }),
+        { restoreDraftOnFailure: false },
+      );
+
+      if (!submitted) {
+        return;
+      }
+
+      const submittedItemIds = new Set(atomicComments.map(({ item }) => item.id));
+      updateReviewState((current) => ({
+        ...current,
+        atomicItems: Object.fromEntries(
+          Object.entries(current.atomicItems).map(([itemId, itemState]) => [
+            itemId,
+            submittedItemIds.has(itemId)
+              ? {
+                  ...itemState,
+                  commentDraft: "",
+                  commentOpen: false,
+                }
+              : itemState,
+          ]),
+        ),
+      }));
+      onCloseReview();
+    } finally {
+      setSendingComments(false);
+    }
+  }
+
   return (
     <div className="review-page">
       {loading && <p className="loading-line">Loading review analysis...</p>}
@@ -156,8 +214,12 @@ export function ReviewPage({
             atomicReview={review.atomicReview}
             mode={reviewRoute.mode}
             reviewState={reviewState}
+            commentCount={atomicComments.length}
+            commentsDisabled={sessionBlocked}
+            sendingComments={sendingComments}
             onUpdateReviewState={updateReviewState}
             onOpenFullReview={onOpenFullReview}
+            onSubmitAtomicComments={submitAtomicComments}
           />
         </>
       )}
@@ -166,5 +228,31 @@ export function ReviewPage({
       )}
       {error && <p className="error-line">{error}</p>}
     </div>
+  );
+}
+
+function collectAtomicComments(
+  atomicReview: ApiRound["atomicReview"] | undefined,
+  reviewState: ReviewBrowserState,
+): Array<{ item: ApiAtomicDiffReviewItem; comment: string }> {
+  if (atomicReview?.status !== "ready") {
+    return [];
+  }
+
+  return [...atomicReview.items].sort(compareAtomicReviewItems).flatMap((item) => {
+    const comment = reviewState.atomicItems[item.id]?.commentDraft?.trim();
+
+    return comment ? [{ item, comment }] : [];
+  });
+}
+
+function compareAtomicReviewItems(
+  left: ApiAtomicDiffReviewItem,
+  right: ApiAtomicDiffReviewItem,
+): number {
+  return (
+    left.order - right.order ||
+    left.title.localeCompare(right.title) ||
+    left.id.localeCompare(right.id)
   );
 }

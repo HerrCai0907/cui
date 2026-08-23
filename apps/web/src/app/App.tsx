@@ -177,7 +177,13 @@ export function App() {
             navigationTarget={reviewNavigationTarget}
             review={review}
             reviewRoute={reviewRoute}
+            sessionBlocked={
+              sessionController.activeSessionBlocked ||
+              sessionController.activeSession?.id !== reviewRoute.sessionId
+            }
+            onSubmitPrompt={sessionController.submitPrompt}
             onOpenFullReview={openFullReview}
+            onCloseReview={closeReview}
             onReviewNavigationChange={setReviewNavigation}
           />
         ) : (
