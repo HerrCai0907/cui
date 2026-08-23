@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "api-types:generate": "openapi-typescript ../../openapi.json -o src/shared/api/generated/schema.ts",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --noEmit"
@@ -20,6 +21,7 @@
   "devDependencies": {
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
+    "openapi-typescript": "^7.13.0",
     "typescript": "^5.9.2"
   }
 }

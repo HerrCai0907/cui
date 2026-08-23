@@ -1,62 +1,50 @@
-import type { CreateSessionRequest } from "../../domain/sessions/SessionService.js";
-import type { UpdateSessionRequest } from "../../domain/sessions/SessionService.js";
+import type { z } from "zod";
+import {
+  ContinueSessionRequestSchema,
+  CreateSessionRequestSchema,
+  RoundReviewParamsSchema,
+  RoundReviewQuerySchema,
+  UpdateSessionRequestSchema,
+} from "../../contracts/apiSchemas.js";
 
 export type ParsedBody<T> = { ok: true; value: T } | { ok: false; error: string };
 
-export function parseCreateSessionBody(body: unknown): ParsedBody<CreateSessionRequest> {
-  if (!body || typeof body !== "object") {
-    return { ok: false, error: "body must be an object" };
-  }
-
-  const workspace = "workspace" in body ? body.workspace : undefined;
-  const prompt = "prompt" in body ? body.prompt : undefined;
-
-  if (typeof workspace !== "string" || !workspace.trim()) {
-    return { ok: false, error: "workspace must be a non-empty string" };
-  }
-
-  if (typeof prompt !== "string" || !prompt.trim()) {
-    return { ok: false, error: "prompt must be a non-empty string" };
-  }
-
-  return {
-    ok: true,
-    value: {
-      workspace: workspace.trim(),
-      prompt: prompt.trim(),
-    },
-  };
+export function parseCreateSessionBody(
+  body: unknown,
+): ParsedBody<z.infer<typeof CreateSessionRequestSchema>> {
+  return parseWithSchema(CreateSessionRequestSchema, body);
 }
 
 export function parsePrompt(body: unknown): string | undefined {
-  if (!body || typeof body !== "object") {
-    return undefined;
-  }
+  const parsed = parseWithSchema(ContinueSessionRequestSchema, body);
 
-  const prompt = "prompt" in body ? body.prompt : undefined;
-
-  if (typeof prompt !== "string" || !prompt.trim()) {
-    return undefined;
-  }
-
-  return prompt.trim();
+  return parsed.ok ? parsed.value.prompt : undefined;
 }
 
-export function parseUpdateSessionBody(body: unknown): ParsedBody<UpdateSessionRequest> {
-  if (!body || typeof body !== "object") {
-    return { ok: false, error: "body must be an object" };
+export function parseUpdateSessionBody(
+  body: unknown,
+): ParsedBody<z.infer<typeof UpdateSessionRequestSchema>> {
+  return parseWithSchema(UpdateSessionRequestSchema, body);
+}
+
+export function parseRoundReviewParams(
+  params: unknown,
+): ParsedBody<z.infer<typeof RoundReviewParamsSchema>> {
+  return parseWithSchema(RoundReviewParamsSchema, params);
+}
+
+export function parseRoundReviewQuery(
+  query: unknown,
+): ParsedBody<z.infer<typeof RoundReviewQuerySchema>> {
+  return parseWithSchema(RoundReviewQuerySchema, query);
+}
+
+function parseWithSchema<T extends z.ZodType>(schema: T, input: unknown): ParsedBody<z.infer<T>> {
+  const parsed = schema.safeParse(input);
+
+  if (parsed.success) {
+    return { ok: true, value: parsed.data };
   }
 
-  const done = "done" in body ? body.done : undefined;
-
-  if (typeof done !== "boolean") {
-    return { ok: false, error: "done must be a boolean" };
-  }
-
-  return {
-    ok: true,
-    value: {
-      done,
-    },
-  };
+  return { ok: false, error: parsed.error.issues[0]?.message ?? "invalid request" };
 }

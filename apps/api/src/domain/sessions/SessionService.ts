@@ -24,21 +24,19 @@ import { RoundService } from "../reviews/RoundService.js";
 import { AtomicReviewService } from "../reviews/AtomicReviewService.js";
 import { SessionSummaryService } from "./SessionSummaryService.js";
 import { TurnCompletionService } from "./TurnCompletionService.js";
+import type {
+  ContinueSessionRequestContract,
+  CreateSessionRequestContract,
+  UpdateSessionRequestContract,
+} from "../../contracts/apiSchemas.js";
 
 export type { TurnStreamEvent } from "../turns/turnEvents.js";
 
-export type CreateSessionRequest = {
-  workspace: string;
-  prompt: string;
-};
+export type CreateSessionRequest = CreateSessionRequestContract;
 
-export type ContinueSessionRequest = {
-  prompt: string;
-};
+export type ContinueSessionRequest = ContinueSessionRequestContract;
 
-export type UpdateSessionRequest = {
-  done: boolean;
-};
+export type UpdateSessionRequest = UpdateSessionRequestContract;
 
 export type SubmittedTurn = {
   session: ChatSessionView;

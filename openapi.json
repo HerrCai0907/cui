@@ -1,0 +1,2379 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "CUI API",
+    "version": "0.1.0"
+  },
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": ["error"]
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["ok"]
+          },
+          "service": {
+            "type": "string",
+            "enum": ["@cui/api"]
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["status", "service", "time"]
+      },
+      "ChatMessage": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["assistant", "user"]
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["response", "trace"]
+          },
+          "round": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "content": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "role", "content", "createdAt"]
+      },
+      "ChatRoundSummary": {
+        "type": "object",
+        "properties": {
+          "round": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "hasChanges": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "atomicReviewStatus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["ready"]
+              },
+              {
+                "type": "string",
+                "enum": ["failed"]
+              }
+            ]
+          }
+        },
+        "required": ["round", "hasChanges", "createdAt"]
+      },
+      "ChatRound": {
+        "type": "object",
+        "properties": {
+          "round": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "baseCommit": {
+            "type": "string"
+          },
+          "beforeDiff": {
+            "type": "string"
+          },
+          "afterDiff": {
+            "type": "string"
+          },
+          "diff": {
+            "type": "string"
+          },
+          "hasChanges": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "atomicReview": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["ready"]
+                  },
+                  "generatedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "analysisSessionId": {
+                    "type": "string"
+                  },
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "order": {
+                          "type": "integer"
+                        },
+                        "capabilityType": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [0]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [1]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [2]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [3]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [5]
+                            }
+                          ]
+                        },
+                        "capabilityLabel": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "intent": {
+                          "type": "string"
+                        },
+                        "files": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "diff": {
+                          "type": "string"
+                        },
+                        "outputJson": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "order",
+                        "capabilityType",
+                        "capabilityLabel",
+                        "title",
+                        "intent",
+                        "files",
+                        "diff",
+                        "outputJson"
+                      ]
+                    }
+                  },
+                  "rawResponse": {
+                    "type": "string"
+                  }
+                },
+                "required": ["status", "generatedAt", "analysisSessionId", "items", "rawResponse"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["failed"]
+                  },
+                  "generatedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "error": {
+                    "type": "string"
+                  },
+                  "rawResponse": {
+                    "type": "string"
+                  }
+                },
+                "required": ["status", "generatedAt", "error"]
+              }
+            ]
+          }
+        },
+        "required": ["round", "beforeDiff", "afterDiff", "diff", "hasChanges", "createdAt"]
+      },
+      "ChatSessionView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspace": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "doneAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": ["assistant", "user"]
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": ["response", "trace"]
+                },
+                "round": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                "content": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": ["id", "role", "content", "createdAt"]
+            }
+          },
+          "rounds": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "round": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                "hasChanges": {
+                  "type": "boolean"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "atomicReviewStatus": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": ["ready"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["failed"]
+                    }
+                  ]
+                }
+              },
+              "required": ["round", "hasChanges", "createdAt"]
+            }
+          },
+          "currentRound": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "isRunning": {
+            "type": "boolean"
+          },
+          "runningTurnId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workspace",
+          "title",
+          "createdAt",
+          "updatedAt",
+          "messages",
+          "currentRound",
+          "isRunning"
+        ]
+      },
+      "CreateSessionRequest": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "minLength": 1
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["workspace", "prompt"]
+      },
+      "ContinueSessionRequest": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["prompt"]
+      },
+      "UpdateSessionRequest": {
+        "type": "object",
+        "properties": {
+          "done": {
+            "type": "boolean"
+          }
+        },
+        "required": ["done"]
+      },
+      "SubmittedTurnResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["ok"]
+          },
+          "session": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "workspace": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              },
+              "doneAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": ["assistant", "user"]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["response", "trace"]
+                    },
+                    "round": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": ["id", "role", "content", "createdAt"]
+                }
+              },
+              "rounds": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "round": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "hasChanges": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "atomicReviewStatus": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": ["ready"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["failed"]
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["round", "hasChanges", "createdAt"]
+                }
+              },
+              "currentRound": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "isRunning": {
+                "type": "boolean"
+              },
+              "runningTurnId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "workspace",
+              "title",
+              "createdAt",
+              "updatedAt",
+              "messages",
+              "currentRound",
+              "isRunning"
+            ]
+          },
+          "turnId": {
+            "type": "string"
+          }
+        },
+        "required": ["status", "session", "turnId"]
+      },
+      "OkResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["ok"]
+          }
+        },
+        "required": ["status"]
+      },
+      "TurnStreamEvent": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["delta"]
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": ["type", "text"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["raw"]
+              },
+              "event": {}
+            },
+            "required": ["type"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["session.updated"]
+              },
+              "session": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "workspace": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "summary": {
+                    "type": "string"
+                  },
+                  "doneAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": ["assistant", "user"]
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": ["response", "trace"]
+                        },
+                        "round": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "content": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": ["id", "role", "content", "createdAt"]
+                    }
+                  },
+                  "rounds": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "round": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "hasChanges": {
+                          "type": "boolean"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "atomicReviewStatus": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": ["ready"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["failed"]
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["round", "hasChanges", "createdAt"]
+                    }
+                  },
+                  "currentRound": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "isRunning": {
+                    "type": "boolean"
+                  },
+                  "runningTurnId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "workspace",
+                  "title",
+                  "createdAt",
+                  "updatedAt",
+                  "messages",
+                  "currentRound",
+                  "isRunning"
+                ]
+              }
+            },
+            "required": ["type", "session"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["done"]
+              },
+              "session": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "workspace": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "summary": {
+                    "type": "string"
+                  },
+                  "doneAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": ["assistant", "user"]
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": ["response", "trace"]
+                        },
+                        "round": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "content": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": ["id", "role", "content", "createdAt"]
+                    }
+                  },
+                  "rounds": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "round": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "hasChanges": {
+                          "type": "boolean"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "atomicReviewStatus": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": ["ready"]
+                            },
+                            {
+                              "type": "string",
+                              "enum": ["failed"]
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["round", "hasChanges", "createdAt"]
+                    }
+                  },
+                  "currentRound": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "isRunning": {
+                    "type": "boolean"
+                  },
+                  "runningTurnId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "workspace",
+                  "title",
+                  "createdAt",
+                  "updatedAt",
+                  "messages",
+                  "currentRound",
+                  "isRunning"
+                ]
+              }
+            },
+            "required": ["type", "session"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["failed"]
+              },
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": ["type", "error"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["cancelled"]
+              }
+            },
+            "required": ["type"]
+          }
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "summary": "Get API health",
+        "responses": {
+          "200": {
+            "description": "API health status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["ok"]
+                    },
+                    "service": {
+                      "type": "string",
+                      "enum": ["@cui/api"]
+                    },
+                    "time": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": ["status", "service", "time"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions": {
+      "get": {
+        "summary": "List sessions",
+        "responses": {
+          "200": {
+            "description": "List of session summaries with current running state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "workspace": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "summary": {
+                            "type": "string"
+                          },
+                          "doneAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "messages": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "role": {
+                                  "type": "string",
+                                  "enum": ["assistant", "user"]
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": ["response", "trace"]
+                                },
+                                "round": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0
+                                },
+                                "content": {
+                                  "type": "string"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                }
+                              },
+                              "required": ["id", "role", "content", "createdAt"]
+                            }
+                          },
+                          "rounds": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "round": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0
+                                },
+                                "hasChanges": {
+                                  "type": "boolean"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "atomicReviewStatus": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": ["ready"]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["failed"]
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": ["round", "hasChanges", "createdAt"]
+                            }
+                          },
+                          "currentRound": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "isRunning": {
+                            "type": "boolean"
+                          },
+                          "runningTurnId": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "workspace",
+                          "title",
+                          "createdAt",
+                          "updatedAt",
+                          "messages",
+                          "currentRound",
+                          "isRunning"
+                        ]
+                      }
+                    }
+                  },
+                  "required": ["sessions"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a session and start its first turn",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "workspace": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["workspace", "prompt"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The turn was accepted and started.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["ok"]
+                    },
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "workspace": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "doneAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "messages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "role": {
+                                "type": "string",
+                                "enum": ["assistant", "user"]
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": ["response", "trace"]
+                              },
+                              "round": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "content": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": ["id", "role", "content", "createdAt"]
+                          }
+                        },
+                        "rounds": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "round": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "hasChanges": {
+                                "type": "boolean"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "atomicReviewStatus": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": ["ready"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["failed"]
+                                  }
+                                ]
+                              }
+                            },
+                            "required": ["round", "hasChanges", "createdAt"]
+                          }
+                        },
+                        "currentRound": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "isRunning": {
+                          "type": "boolean"
+                        },
+                        "runningTurnId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "workspace",
+                        "title",
+                        "createdAt",
+                        "updatedAt",
+                        "messages",
+                        "currentRound",
+                        "isRunning"
+                      ]
+                    },
+                    "turnId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["status", "session", "turnId"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}": {
+      "get": {
+        "summary": "Get a session",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "workspace": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "doneAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "messages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "role": {
+                                "type": "string",
+                                "enum": ["assistant", "user"]
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": ["response", "trace"]
+                              },
+                              "round": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "content": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": ["id", "role", "content", "createdAt"]
+                          }
+                        },
+                        "rounds": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "round": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "hasChanges": {
+                                "type": "boolean"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "atomicReviewStatus": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": ["ready"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["failed"]
+                                  }
+                                ]
+                              }
+                            },
+                            "required": ["round", "hasChanges", "createdAt"]
+                          }
+                        },
+                        "currentRound": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "isRunning": {
+                          "type": "boolean"
+                        },
+                        "runningTurnId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "workspace",
+                        "title",
+                        "createdAt",
+                        "updatedAt",
+                        "messages",
+                        "currentRound",
+                        "isRunning"
+                      ]
+                    }
+                  },
+                  "required": ["session"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update session metadata",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "done": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["done"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "workspace": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "doneAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "messages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "role": {
+                                "type": "string",
+                                "enum": ["assistant", "user"]
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": ["response", "trace"]
+                              },
+                              "round": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "content": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": ["id", "role", "content", "createdAt"]
+                          }
+                        },
+                        "rounds": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "round": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "hasChanges": {
+                                "type": "boolean"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "atomicReviewStatus": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": ["ready"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["failed"]
+                                  }
+                                ]
+                              }
+                            },
+                            "required": ["round", "hasChanges", "createdAt"]
+                          }
+                        },
+                        "currentRound": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "isRunning": {
+                          "type": "boolean"
+                        },
+                        "runningTurnId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "workspace",
+                        "title",
+                        "createdAt",
+                        "updatedAt",
+                        "messages",
+                        "currentRound",
+                        "isRunning"
+                      ]
+                    }
+                  },
+                  "required": ["session"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/rounds/{round}/review": {
+      "get": {
+        "summary": "Get a round review",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "sessionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "required": true,
+            "name": "round",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["atomic", "full"]
+            },
+            "required": false,
+            "name": "mode",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested round review.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "review": {
+                      "type": "object",
+                      "properties": {
+                        "round": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "baseCommit": {
+                          "type": "string"
+                        },
+                        "beforeDiff": {
+                          "type": "string"
+                        },
+                        "afterDiff": {
+                          "type": "string"
+                        },
+                        "diff": {
+                          "type": "string"
+                        },
+                        "hasChanges": {
+                          "type": "boolean"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "atomicReview": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "status": {
+                                  "type": "string",
+                                  "enum": ["ready"]
+                                },
+                                "generatedAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "analysisSessionId": {
+                                  "type": "string"
+                                },
+                                "items": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "order": {
+                                        "type": "integer"
+                                      },
+                                      "capabilityType": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number",
+                                            "enum": [0]
+                                          },
+                                          {
+                                            "type": "number",
+                                            "enum": [1]
+                                          },
+                                          {
+                                            "type": "number",
+                                            "enum": [2]
+                                          },
+                                          {
+                                            "type": "number",
+                                            "enum": [3]
+                                          },
+                                          {
+                                            "type": "number",
+                                            "enum": [5]
+                                          }
+                                        ]
+                                      },
+                                      "capabilityLabel": {
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "intent": {
+                                        "type": "string"
+                                      },
+                                      "files": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "diff": {
+                                        "type": "string"
+                                      },
+                                      "outputJson": {
+                                        "type": "object",
+                                        "additionalProperties": {}
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "order",
+                                      "capabilityType",
+                                      "capabilityLabel",
+                                      "title",
+                                      "intent",
+                                      "files",
+                                      "diff",
+                                      "outputJson"
+                                    ]
+                                  }
+                                },
+                                "rawResponse": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "status",
+                                "generatedAt",
+                                "analysisSessionId",
+                                "items",
+                                "rawResponse"
+                              ]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "status": {
+                                  "type": "string",
+                                  "enum": ["failed"]
+                                },
+                                "generatedAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "error": {
+                                  "type": "string"
+                                },
+                                "rawResponse": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["status", "generatedAt", "error"]
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "round",
+                        "beforeDiff",
+                        "afterDiff",
+                        "diff",
+                        "hasChanges",
+                        "createdAt"
+                      ]
+                    }
+                  },
+                  "required": ["review"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/messages": {
+      "post": {
+        "summary": "Continue a session with a user prompt",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["prompt"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The continuation turn was accepted and started.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["ok"]
+                    },
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "workspace": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "doneAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "messages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "role": {
+                                "type": "string",
+                                "enum": ["assistant", "user"]
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": ["response", "trace"]
+                              },
+                              "round": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "content": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": ["id", "role", "content", "createdAt"]
+                          }
+                        },
+                        "rounds": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "round": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "hasChanges": {
+                                "type": "boolean"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "atomicReviewStatus": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": ["ready"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["failed"]
+                                  }
+                                ]
+                              }
+                            },
+                            "required": ["round", "hasChanges", "createdAt"]
+                          }
+                        },
+                        "currentRound": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "isRunning": {
+                          "type": "boolean"
+                        },
+                        "runningTurnId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "workspace",
+                        "title",
+                        "createdAt",
+                        "updatedAt",
+                        "messages",
+                        "currentRound",
+                        "isRunning"
+                      ]
+                    },
+                    "turnId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["status", "session", "turnId"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/stop": {
+      "post": {
+        "summary": "Stop the running turn for a session",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The running turn was cancelled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["ok"]
+                    }
+                  },
+                  "required": ["status"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/turns/{turnId}/events": {
+      "get": {
+        "summary": "Stream turn events",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "turnId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Server-sent event stream. Each event payload matches TurnStreamEvent.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": ["delta"]
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["type", "text"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": ["raw"]
+                        },
+                        "event": {}
+                      },
+                      "required": ["type"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": ["session.updated"]
+                        },
+                        "session": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "workspace": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            },
+                            "summary": {
+                              "type": "string"
+                            },
+                            "doneAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "updatedAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "messages": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "role": {
+                                    "type": "string",
+                                    "enum": ["assistant", "user"]
+                                  },
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": ["response", "trace"]
+                                  },
+                                  "round": {
+                                    "type": "integer",
+                                    "exclusiveMinimum": 0
+                                  },
+                                  "content": {
+                                    "type": "string"
+                                  },
+                                  "createdAt": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  }
+                                },
+                                "required": ["id", "role", "content", "createdAt"]
+                              }
+                            },
+                            "rounds": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "round": {
+                                    "type": "integer",
+                                    "exclusiveMinimum": 0
+                                  },
+                                  "hasChanges": {
+                                    "type": "boolean"
+                                  },
+                                  "createdAt": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  "atomicReviewStatus": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": ["ready"]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": ["failed"]
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": ["round", "hasChanges", "createdAt"]
+                              }
+                            },
+                            "currentRound": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "isRunning": {
+                              "type": "boolean"
+                            },
+                            "runningTurnId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "workspace",
+                            "title",
+                            "createdAt",
+                            "updatedAt",
+                            "messages",
+                            "currentRound",
+                            "isRunning"
+                          ]
+                        }
+                      },
+                      "required": ["type", "session"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": ["done"]
+                        },
+                        "session": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "workspace": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            },
+                            "summary": {
+                              "type": "string"
+                            },
+                            "doneAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "updatedAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "messages": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "role": {
+                                    "type": "string",
+                                    "enum": ["assistant", "user"]
+                                  },
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": ["response", "trace"]
+                                  },
+                                  "round": {
+                                    "type": "integer",
+                                    "exclusiveMinimum": 0
+                                  },
+                                  "content": {
+                                    "type": "string"
+                                  },
+                                  "createdAt": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  }
+                                },
+                                "required": ["id", "role", "content", "createdAt"]
+                              }
+                            },
+                            "rounds": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "round": {
+                                    "type": "integer",
+                                    "exclusiveMinimum": 0
+                                  },
+                                  "hasChanges": {
+                                    "type": "boolean"
+                                  },
+                                  "createdAt": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  "atomicReviewStatus": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": ["ready"]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": ["failed"]
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": ["round", "hasChanges", "createdAt"]
+                              }
+                            },
+                            "currentRound": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "isRunning": {
+                              "type": "boolean"
+                            },
+                            "runningTurnId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "workspace",
+                            "title",
+                            "createdAt",
+                            "updatedAt",
+                            "messages",
+                            "currentRound",
+                            "isRunning"
+                          ]
+                        }
+                      },
+                      "required": ["type", "session"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": ["failed"]
+                        },
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["type", "error"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": ["cancelled"]
+                        }
+                      },
+                      "required": ["type"]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

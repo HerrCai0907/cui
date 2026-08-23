@@ -13,6 +13,7 @@
     "build": "npm run build --workspaces",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "openapi:generate": "npm run openapi:generate -w @cui/api && npm run api-types:generate -w @cui/web",
     "prepare": "husky",
     "test:unit": "tsx --test tests/unit/**/*.test.ts",
     "test:e2e": "playwright test",

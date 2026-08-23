@@ -1,6 +1,7 @@
 import cors from "cors";
 import express from "express";
 import type { AppLogger } from "../infrastructure/logging/AppLogger.js";
+import { createOpenApiDocument } from "../contracts/openapi.js";
 import type { SessionService } from "../domain/sessions/SessionService.js";
 import { createErrorHandler } from "../http/middleware/errorHandler.js";
 import { createRequestLogger } from "../http/middleware/requestLogger.js";
@@ -17,6 +18,9 @@ export function createApp(input: {
   app.use(cors());
   app.use(express.json());
   app.use(createRequestLogger(input.logger));
+  app.get("/openapi.json", (_request, response) => {
+    response.json(createOpenApiDocument());
+  });
   app.use(createHealthRouter());
   app.use(createSessionRouter(input.sessionService));
   app.use(createTurnRouter(input.sessionService));

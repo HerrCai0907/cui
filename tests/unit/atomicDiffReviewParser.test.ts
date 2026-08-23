@@ -24,10 +24,7 @@ test("parseAtomicDiffReviewItems rejects hunk headers without line ranges", () =
     ],
   });
 
-  assert.throws(
-    () => parseAtomicDiffReviewItems(response),
-    /invalid hunk header "@@"/,
-  );
+  assert.throws(() => parseAtomicDiffReviewItems(response), /invalid hunk header "@@"/);
 });
 
 test("parseAtomicDiffReviewItems accepts standard unified diff hunks", () => {

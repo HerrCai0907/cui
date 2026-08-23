@@ -3,6 +3,8 @@ import type { SessionService } from "../../domain/sessions/SessionService.js";
 import {
   parseCreateSessionBody,
   parsePrompt,
+  parseRoundReviewParams,
+  parseRoundReviewQuery,
   parseUpdateSessionBody,
 } from "../validation/requestParsers.js";
 
@@ -34,17 +36,28 @@ export function createSessionRouter(sessionService: SessionService): Router {
 
   router.get("/api/sessions/:sessionId/rounds/:round/review", async (request, response, next) => {
     try {
-      const round = Number(request.params.round);
+      const parsedParams = parseRoundReviewParams(request.params);
 
-      if (!Number.isInteger(round) || round < 1) {
-        response.status(400).json({ error: "round must be a positive integer" });
+      if (!parsedParams.ok) {
+        response.status(400).json({ error: parsedParams.error });
         return;
       }
 
-      const includeAtomicReview = request.query.mode !== "full";
-      const review = await sessionService.getRoundReview(request.params.sessionId, round, {
-        includeAtomicReview,
-      });
+      const parsedQuery = parseRoundReviewQuery(request.query);
+
+      if (!parsedQuery.ok) {
+        response.status(400).json({ error: parsedQuery.error });
+        return;
+      }
+
+      const includeAtomicReview = parsedQuery.value.mode !== "full";
+      const review = await sessionService.getRoundReview(
+        parsedParams.value.sessionId,
+        parsedParams.value.round,
+        {
+          includeAtomicReview,
+        },
+      );
 
       if (!review) {
         response.status(404).json({ error: "Round review not found" });

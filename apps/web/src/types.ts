@@ -1,70 +1,21 @@
-export type ApiMessage = {
-  id: string;
-  role: "assistant" | "user";
-  kind?: "response" | "trace";
-  round?: number;
-  content: string;
-  createdAt: string;
-};
+import type { components } from "./shared/api/generated/schema";
 
-export type ApiRound = {
-  round: number;
-  baseCommit?: string;
-  beforeDiff: string;
-  afterDiff: string;
-  diff: string;
-  hasChanges: boolean;
-  createdAt: string;
-  atomicReview?: ApiAtomicDiffReview;
-};
-
-export type ApiRoundSummary = Pick<ApiRound, "round" | "hasChanges" | "createdAt"> & {
-  atomicReviewStatus?: ApiAtomicDiffReview["status"];
-};
-
-export type ApiSession = {
-  id: string;
-  workspace: string;
-  title: string;
-  summary?: string;
-  doneAt?: string;
-  createdAt: string;
-  updatedAt: string;
-  messages: ApiMessage[];
-  rounds?: ApiRoundSummary[];
-  currentRound: number;
-  isRunning: boolean;
-  runningTurnId?: string;
-};
-
-export type ApiAtomicCapabilityType = 0 | 1 | 2 | 3 | 5;
-
-export type ApiAtomicDiffReviewItem = {
-  id: string;
-  order: number;
-  capabilityType: ApiAtomicCapabilityType;
-  capabilityLabel: string;
-  title: string;
-  intent: string;
-  files: string[];
-  diff: string;
-  outputJson: Record<string, unknown>;
-};
-
-export type ApiAtomicDiffReview =
-  | {
-      status: "ready";
-      generatedAt: string;
-      analysisSessionId: string;
-      items: ApiAtomicDiffReviewItem[];
-      rawResponse: string;
-    }
-  | {
-      status: "failed";
-      generatedAt: string;
-      error: string;
-      rawResponse?: string;
-    };
+export type ApiMessage = components["schemas"]["ChatMessage"];
+export type ApiRound = components["schemas"]["ChatRound"];
+export type ApiRoundSummary = components["schemas"]["ChatRoundSummary"];
+export type ApiSession = components["schemas"]["ChatSessionView"];
+export type ApiAtomicCapabilityType = components["schemas"]["ChatRound"]["atomicReview"] extends {
+  items: Array<infer Item>;
+}
+  ? Item extends { capabilityType: infer CapabilityType }
+    ? CapabilityType
+    : never
+  : never;
+export type ApiAtomicDiffReview = NonNullable<components["schemas"]["ChatRound"]["atomicReview"]>;
+export type ApiAtomicDiffReviewItem = Extract<
+  ApiAtomicDiffReview,
+  { status: "ready" }
+>["items"][number];
 
 export type SessionSummary = {
   id: string;
@@ -79,36 +30,8 @@ export type SessionSummary = {
   hasUnreadRound: boolean;
 };
 
-export type SubmittedTurn = {
-  status: "ok";
-  session: ApiSession;
-  turnId: string;
-};
-
-export type TurnStreamEvent =
-  | {
-      type: "delta";
-      text: string;
-    }
-  | {
-      type: "raw";
-      event: unknown;
-    }
-  | {
-      type: "session.updated";
-      session: ApiSession;
-    }
-  | {
-      type: "done";
-      session: ApiSession;
-    }
-  | {
-      type: "failed";
-      error: string;
-    }
-  | {
-      type: "cancelled";
-    };
+export type SubmittedTurn = components["schemas"]["SubmittedTurnResponse"];
+export type TurnStreamEvent = components["schemas"]["TurnStreamEvent"];
 
 export type ExecutionTraceEvent =
   | ThreadStartedTraceEvent
