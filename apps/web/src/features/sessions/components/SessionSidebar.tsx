@@ -13,6 +13,7 @@ import {
 import { formatRelativeTime } from "../../../shared/lib/dates";
 import type { SessionSummary } from "../../../types";
 import type { ReviewNavigation, ReviewNavigationTarget } from "../../review/model/reviewNavigation";
+import type { SessionListMode } from "../model/sessionBrowserState";
 import {
   groupWorkspacesForDisplay,
   type WorkspaceDisplayGroup,
@@ -28,18 +29,17 @@ type SessionSidebarProps = {
   open: boolean;
   width: number;
   workspaces: Record<string, SessionSummary[]>;
-  historyWorkspaces: Record<string, SessionSummary[]>;
   expandedWorkspaces: Set<string>;
-  historyOpen: boolean;
+  sessionListMode: SessionListMode;
   sessionCount: number;
-  historySessionCount: number;
+  visibleSessionCount: number;
   activeSessionId?: string;
   runningSessionIds: Set<string>;
   reviewNavigation?: ReviewNavigation | null;
   reviewNavigationActive?: boolean;
   onOpenChange: (open: boolean) => void;
   onWidthChange: (width: number) => void;
-  onHistoryOpenChange: (open: boolean) => void;
+  onSessionListModeChange: (mode: SessionListMode) => void;
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
   onOpenSession: (sessionId: string) => void;
@@ -50,25 +50,23 @@ export function SessionSidebar({
   open,
   width,
   workspaces,
-  historyWorkspaces,
   expandedWorkspaces,
-  historyOpen,
+  sessionListMode,
   sessionCount,
-  historySessionCount,
+  visibleSessionCount,
   activeSessionId,
   runningSessionIds,
   reviewNavigation,
   reviewNavigationActive,
   onOpenChange,
   onWidthChange,
-  onHistoryOpenChange,
+  onSessionListModeChange,
   onStartNewSession,
   onToggleWorkspace,
   onOpenSession,
   onNavigateReview,
 }: SessionSidebarProps) {
   const workspaceGroups = groupWorkspacesForDisplay(workspaces);
-  const historyWorkspaceGroups = groupWorkspacesForDisplay(historyWorkspaces);
   const resizeHandleRef = useRef<HTMLDivElement | null>(null);
   const resizeStartRef = useRef({ pointerId: 0, startX: 0, startWidth: width });
   const [resizing, setResizing] = useState(false);
@@ -161,6 +159,25 @@ export function SessionSidebar({
                 New session
               </button>
 
+              <div className="session-mode-switch" role="group" aria-label="Session list mode">
+                <button
+                  className={sessionListMode === "active" ? "is-selected" : ""}
+                  type="button"
+                  aria-pressed={sessionListMode === "active"}
+                  onClick={() => onSessionListModeChange("active")}
+                >
+                  Active
+                </button>
+                <button
+                  className={sessionListMode === "more" ? "is-selected" : ""}
+                  type="button"
+                  aria-pressed={sessionListMode === "more"}
+                  onClick={() => onSessionListModeChange("more")}
+                >
+                  More
+                </button>
+              </div>
+
               <nav className="workspace-list">
                 <WorkspaceGroupList
                   activeSessionId={activeSessionId}
@@ -171,32 +188,10 @@ export function SessionSidebar({
                   onStartNewSession={onStartNewSession}
                   onToggleWorkspace={onToggleWorkspace}
                 />
-                {historySessionCount > 0 && (
-                  <details className="session-history" open={historyOpen}>
-                    <summary
-                      className="session-history-summary"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        onHistoryOpenChange(!historyOpen);
-                      }}
-                    >
-                      <span>History</span>
-                      <small>{historySessionCount}</small>
-                    </summary>
-                    <div className="session-history-body">
-                      <WorkspaceGroupList
-                        activeSessionId={activeSessionId}
-                        expandedWorkspaces={expandedWorkspaces}
-                        groups={historyWorkspaceGroups}
-                        runningSessionIds={runningSessionIds}
-                        onOpenSession={onOpenSession}
-                        onStartNewSession={onStartNewSession}
-                        onToggleWorkspace={onToggleWorkspace}
-                      />
-                    </div>
-                  </details>
-                )}
                 {sessionCount === 0 && <p className="empty-sidebar">No sessions yet</p>}
+                {sessionCount > 0 && visibleSessionCount === 0 && (
+                  <p className="empty-sidebar">No active sessions</p>
+                )}
               </nav>
             </>
           )}

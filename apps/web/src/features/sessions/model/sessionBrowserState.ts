@@ -1,23 +1,39 @@
 const LAST_SEEN_ROUND_PREFIX = "cui:session-last-seen-round:v1:";
-const SIDEBAR_STATE_STORAGE_KEY = "cui:session-sidebar-state:v1";
-const SIDEBAR_STATE_VERSION = 1;
+const SIDEBAR_STATE_STORAGE_KEY = "cui:session-sidebar-state:v2";
+const SESSION_ATTENTION_STORAGE_KEY = "cui:session-attention:v1";
+const SIDEBAR_STATE_VERSION = 2;
+
 export const SIDEBAR_DEFAULT_WIDTH = 292;
 export const SIDEBAR_MIN_WIDTH = 220;
 export const SIDEBAR_MAX_WIDTH = 520;
 
+export type SessionListMode = "active" | "more";
+
 export type SessionSidebarBrowserState = {
   sidebarOpen: boolean;
   sidebarWidth: number;
-  historyOpen: boolean;
+  sessionListMode: SessionListMode;
   expandedWorkspaces: Set<string>;
+};
+
+export type SessionAttentionState = {
+  sessions: Record<string, number>;
+  workspaces: Record<string, number>;
 };
 
 type StoredSessionSidebarBrowserState = {
   version: typeof SIDEBAR_STATE_VERSION;
   sidebarOpen?: boolean;
   sidebarWidth?: number;
-  historyOpen?: boolean;
+  sessionListMode?: SessionListMode;
   expandedWorkspaces?: string[];
+  updatedAt?: number;
+};
+
+type StoredSessionAttentionState = {
+  version: 1;
+  sessions?: Record<string, number>;
+  workspaces?: Record<string, number>;
   updatedAt?: number;
 };
 
@@ -88,8 +104,7 @@ export function loadSessionSidebarBrowserState(
       sidebarOpen:
         typeof parsed.sidebarOpen === "boolean" ? parsed.sidebarOpen : defaultState.sidebarOpen,
       sidebarWidth: parseSidebarWidth(parsed.sidebarWidth, defaultState.sidebarWidth),
-      historyOpen:
-        typeof parsed.historyOpen === "boolean" ? parsed.historyOpen : defaultState.historyOpen,
+      sessionListMode: parseSessionListMode(parsed.sessionListMode, defaultState.sessionListMode),
       expandedWorkspaces: parseStringSet(
         parsed.expandedWorkspaces,
         defaultState.expandedWorkspaces,
@@ -111,7 +126,7 @@ export function saveSessionSidebarBrowserState(state: SessionSidebarBrowserState
       version: SIDEBAR_STATE_VERSION,
       sidebarOpen: state.sidebarOpen,
       sidebarWidth: clampSidebarWidth(state.sidebarWidth),
-      historyOpen: state.historyOpen,
+      sessionListMode: state.sessionListMode,
       expandedWorkspaces: [...state.expandedWorkspaces],
       updatedAt: Date.now(),
     };
@@ -126,7 +141,7 @@ function createDefaultSidebarBrowserState(defaultWorkspace: string): SessionSide
   return {
     sidebarOpen: true,
     sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
-    historyOpen: false,
+    sessionListMode: "active",
     expandedWorkspaces: new Set([defaultWorkspace]),
   };
 }
@@ -136,9 +151,62 @@ export function clampSidebarWidth(width: number): number {
 }
 
 function parseSidebarWidth(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value)
-    ? clampSidebarWidth(value)
-    : fallback;
+  return typeof value === "number" && Number.isFinite(value) ? clampSidebarWidth(value) : fallback;
+}
+
+export function createEmptySessionAttentionState(): SessionAttentionState {
+  return {
+    sessions: {},
+    workspaces: {},
+  };
+}
+
+export function loadSessionAttentionState(): SessionAttentionState {
+  if (typeof window === "undefined") {
+    return createEmptySessionAttentionState();
+  }
+
+  try {
+    const rawState = window.localStorage.getItem(SESSION_ATTENTION_STORAGE_KEY);
+
+    if (!rawState) {
+      return createEmptySessionAttentionState();
+    }
+
+    const parsed = JSON.parse(rawState) as Partial<StoredSessionAttentionState>;
+
+    if (parsed.version !== 1) {
+      window.localStorage.removeItem(SESSION_ATTENTION_STORAGE_KEY);
+      return createEmptySessionAttentionState();
+    }
+
+    return {
+      sessions: parseNumberRecord(parsed.sessions),
+      workspaces: parseNumberRecord(parsed.workspaces),
+    };
+  } catch {
+    window.localStorage.removeItem(SESSION_ATTENTION_STORAGE_KEY);
+    return createEmptySessionAttentionState();
+  }
+}
+
+export function saveSessionAttentionState(state: SessionAttentionState): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    const storedState: StoredSessionAttentionState = {
+      version: 1,
+      sessions: state.sessions,
+      workspaces: state.workspaces,
+      updatedAt: Date.now(),
+    };
+
+    window.localStorage.setItem(SESSION_ATTENTION_STORAGE_KEY, JSON.stringify(storedState));
+  } catch {
+    // Sidebar attention persistence is a convenience only.
+  }
 }
 
 function parseStringSet(value: unknown, fallback: Set<string>): Set<string> {
@@ -147,4 +215,22 @@ function parseStringSet(value: unknown, fallback: Set<string>): Set<string> {
   }
 
   return new Set(value.filter((item): item is string => typeof item === "string"));
+}
+
+function parseSessionListMode(value: unknown, fallback: SessionListMode): SessionListMode {
+  return value === "active" || value === "more" ? value : fallback;
+}
+
+function parseNumberRecord(value: unknown): Record<string, number> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.entries(value).reduce<Record<string, number>>((record, [key, rawValue]) => {
+    if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
+      record[key] = rawValue;
+    }
+
+    return record;
+  }, {});
 }

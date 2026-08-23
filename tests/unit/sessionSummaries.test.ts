@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   groupWorkspacesForDisplay,
-  partitionSessionsForSidebar,
+  partitionActiveSessionsForSidebar,
   type WorkspaceDisplayGroup,
 } from "../../apps/web/src/features/sessions/model/sessionSummaries.js";
 import type { SessionSummary } from "../../apps/web/src/types.js";
@@ -71,71 +71,85 @@ test("groupWorkspacesForDisplay leaves unrelated single workspace labels complet
   );
 });
 
-test("partitionSessionsForSidebar keeps every session when there are at most 16", () => {
-  const sessions = createSessions(16);
-
-  const partition = partitionSessionsForSidebar(sessions);
-
-  assert.deepEqual(
-    partition.current.map((session) => session.id),
-    sessions.map((session) => session.id),
-  );
-  assert.deepEqual(partition.history, []);
-});
-
-test("partitionSessionsForSidebar keeps the newest 16 sessions globally", () => {
-  const sessions = createSessions(18).reverse();
-
-  const partition = partitionSessionsForSidebar(sessions);
-
-  assert.deepEqual(
-    partition.current.map((session) => session.id),
-    createSessions(16).map((session) => session.id),
-  );
-  assert.deepEqual(
-    partition.history.map((session) => session.id),
-    ["session-16", "session-17"],
-  );
-});
-
-test("partitionSessionsForSidebar keeps running and unread sessions out of history", () => {
-  const sessions = createSessions(18);
-
-  sessions[16] = {
-    ...sessions[16],
+test("partitionActiveSessionsForSidebar keeps active sessions and one recent session per active workspace", () => {
+  const sessions = createSessions(6);
+  sessions[2] = {
+    ...sessions[2],
     isRunning: true,
   };
-  sessions[17] = {
-    ...sessions[17],
+  sessions[5] = {
+    ...sessions[5],
     hasUnreadRound: true,
   };
 
-  const partition = partitionSessionsForSidebar(sessions);
+  const partition = partitionActiveSessionsForSidebar(
+    sessions,
+    {
+      sessions: {
+        "session-1": 200,
+        "session-4": 100,
+      },
+      workspaces: {
+        "/workspace/a": 20,
+        "/workspace/b": 10,
+      },
+    },
+    new Set(["session-0"]),
+  );
 
   assert.deepEqual(
-    partition.current.map((session) => session.id),
-    [
-      "session-0",
-      "session-1",
-      "session-2",
-      "session-3",
-      "session-4",
-      "session-5",
-      "session-6",
-      "session-7",
-      "session-8",
-      "session-9",
-      "session-10",
-      "session-11",
-      "session-12",
-      "session-13",
-      "session-16",
-      "session-17",
-    ],
+    partition.active.map((session) => session.id),
+    ["session-0", "session-2", "session-4", "session-5", "session-1"],
   );
   assert.deepEqual(
-    partition.history.map((session) => session.id),
-    ["session-14", "session-15"],
+    partition.more.map((session) => session.id),
+    ["session-1", "session-4", "session-0", "session-2", "session-3", "session-5"],
+  );
+});
+
+test("partitionActiveSessionsForSidebar excludes workspaces without attention from Active", () => {
+  const sessions = createSessions(4);
+
+  const partition = partitionActiveSessionsForSidebar(sessions, {
+    sessions: {},
+    workspaces: {},
+  });
+
+  assert.deepEqual(partition.active, []);
+  assert.deepEqual(
+    partition.more.map((session) => session.id),
+    ["session-0", "session-1", "session-2", "session-3"],
+  );
+});
+
+test("partitionActiveSessionsForSidebar limits recent workspaces but always keeps running workspaces", () => {
+  const sessions = createSessions(8).map((session, index) => ({
+    ...session,
+    workspace: `/workspace/${index}`,
+  }));
+  sessions[7] = {
+    ...sessions[7],
+    isRunning: true,
+  };
+
+  const partition = partitionActiveSessionsForSidebar(
+    sessions,
+    {
+      sessions: {},
+      workspaces: {
+        "/workspace/0": 100,
+        "/workspace/1": 90,
+        "/workspace/2": 80,
+      },
+    },
+    new Set(),
+    new Set(),
+    2,
+  );
+
+  assert.deepEqual(
+    partition.active.map((session) => session.id),
+    ["session-0", "session-1", "session-7"],
   );
 });
 

@@ -9,14 +9,18 @@ import {
 import {
   getCurrentRound,
   groupSessionsByWorkspace,
-  partitionSessionsForSidebar,
+  partitionActiveSessionsForSidebar,
   toSessionSummary,
 } from "../model/sessionSummaries";
 import {
   clampSidebarWidth,
+  loadSessionAttentionState,
   loadSessionSidebarBrowserState,
+  saveSessionAttentionState,
   saveSessionSidebarBrowserState,
   setLastSeenRound,
+  type SessionAttentionState,
+  type SessionListMode,
   type SessionSidebarBrowserState,
 } from "../model/sessionBrowserState";
 import { useTurnStream } from "./useTurnStream";
@@ -28,6 +32,7 @@ type OpenSessionOptions = {
 
 type SetCurrentActiveSessionOptions = {
   persist?: boolean;
+  recordAttention?: boolean;
 };
 
 const LAST_ACTIVE_SESSION_STORAGE_KEY = "cui:last-active-session-id:v1";
@@ -36,9 +41,10 @@ export function useSessionController(defaultWorkspace: string) {
   const [sidebarBrowserState, setSidebarBrowserState] = useState(() =>
     loadSessionSidebarBrowserState(defaultWorkspace),
   );
+  const [sessionAttentionState, setSessionAttentionState] = useState(loadSessionAttentionState);
   const sidebarOpen = sidebarBrowserState.sidebarOpen;
   const sidebarWidth = sidebarBrowserState.sidebarWidth;
-  const historyOpen = sidebarBrowserState.historyOpen;
+  const sessionListMode = sidebarBrowserState.sessionListMode;
   const expandedWorkspaces = sidebarBrowserState.expandedWorkspaces;
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [activeSession, setActiveSession] = useState<ApiSession | null>(null);
@@ -60,15 +66,43 @@ export function useSessionController(defaultWorkspace: string) {
   const activeSessionBlocked = activeSession
     ? runningSessionIds.has(activeSession.id) || submittingSessionIds.has(activeSession.id)
     : creatingSession;
-  const sidebarSessionPartition = useMemo(() => partitionSessionsForSidebar(sessions), [sessions]);
+  const highlightedSessionIds = useMemo(() => {
+    const ids = new Set([...runningSessionIds, ...submittingSessionIds]);
+
+    if (activeSession) {
+      ids.add(activeSession.id);
+    }
+
+    return ids;
+  }, [activeSession?.id, runningSessionIds, submittingSessionIds]);
+  const highlightedWorkspaceIds = useMemo(
+    () =>
+      new Set(
+        [activeSession?.workspace, workspaceDraft.trim() || defaultWorkspace].filter(
+          (workspace): workspace is string => Boolean(workspace),
+        ),
+      ),
+    [activeSession?.workspace, defaultWorkspace, workspaceDraft],
+  );
+  const sidebarSessionPartition = useMemo(
+    () =>
+      partitionActiveSessionsForSidebar(
+        sessions,
+        sessionAttentionState,
+        highlightedSessionIds,
+        highlightedWorkspaceIds,
+      ),
+    [highlightedSessionIds, highlightedWorkspaceIds, sessionAttentionState, sessions],
+  );
 
   const workspaces = useMemo(
-    () => groupSessionsByWorkspace(sidebarSessionPartition.current),
-    [sidebarSessionPartition.current],
-  );
-  const historyWorkspaces = useMemo(
-    () => groupSessionsByWorkspace(sidebarSessionPartition.history),
-    [sidebarSessionPartition.history],
+    () =>
+      groupSessionsByWorkspace(
+        sessionListMode === "active"
+          ? sidebarSessionPartition.active
+          : sidebarSessionPartition.more,
+      ),
+    [sessionListMode, sidebarSessionPartition.active, sidebarSessionPartition.more],
   );
   const { applyRunningTurnOverlay, closeTurnStream, streamTurn } = useTurnStream({
     activeSessionRef,
@@ -133,6 +167,7 @@ export function useSessionController(defaultWorkspace: string) {
         expandedWorkspaces: nextExpandedWorkspaces,
       };
     });
+    recordWorkspaceAttention(workspaceId);
   }
 
   function setSidebarOpen(open: boolean) {
@@ -149,10 +184,10 @@ export function useSessionController(defaultWorkspace: string) {
     }));
   }
 
-  function setHistoryOpen(open: boolean) {
+  function setSessionListMode(mode: SessionListMode) {
     updateSidebarBrowserState((current) => ({
       ...current,
-      historyOpen: open,
+      sessionListMode: mode,
     }));
   }
 
@@ -178,8 +213,10 @@ export function useSessionController(defaultWorkspace: string) {
   async function refreshSessions() {
     try {
       const loadedSessions = await listSessions();
+      const sessionSummaries = loadedSessions.map(toSessionSummary);
 
-      setSessions(loadedSessions.map(toSessionSummary));
+      setSessions(sessionSummaries);
+      pruneSessionAttention(sessionSummaries);
       setRunningSessionIds(
         new Set(
           loadedSessions
@@ -207,6 +244,7 @@ export function useSessionController(defaultWorkspace: string) {
         if (fallbackSession) {
           setCurrentActiveSession(fallbackSession, {
             persist: Boolean(restoredSession),
+            recordAttention: false,
           });
           if (fallbackSession.runningTurnId) {
             streamTurn(fallbackSession.id, fallbackSession.runningTurnId);
@@ -262,6 +300,9 @@ export function useSessionController(defaultWorkspace: string) {
 
     if (submittedSessionId) {
       setSubmittingSession(submittedSessionId, true);
+      if (activeSession) {
+        recordSessionAttention(activeSession);
+      }
     } else {
       setCreatingSession(true);
     }
@@ -277,6 +318,7 @@ export function useSessionController(defaultWorkspace: string) {
           });
 
       setRunningSession(data.session.id, true);
+      recordSessionAttention(data.session);
       if (submittedSessionId) {
         setSubmittingSession(submittedSessionId, false);
       }
@@ -337,6 +379,7 @@ export function useSessionController(defaultWorkspace: string) {
     setDraft("");
     if (workspace) {
       setWorkspaceDraft(workspace);
+      recordWorkspaceAttention(workspace);
       expandWorkspace(workspace);
     }
     setError(null);
@@ -369,6 +412,9 @@ export function useSessionController(defaultWorkspace: string) {
 
     if (visibleSession) {
       setLastSeenRound(visibleSession.id, getCurrentRound(visibleSession));
+      if (options.recordAttention ?? true) {
+        recordSessionAttention(visibleSession);
+      }
       setSessions((current) =>
         current.map((summary) =>
           summary.id === visibleSession.id
@@ -437,6 +483,57 @@ export function useSessionController(defaultWorkspace: string) {
     });
   }
 
+  function recordSessionAttention(session: Pick<ApiSession, "id" | "workspace">) {
+    updateSessionAttentionState((current) => ({
+      sessions: {
+        ...current.sessions,
+        [session.id]: Date.now(),
+      },
+      workspaces: {
+        ...current.workspaces,
+        [session.workspace]: Date.now(),
+      },
+    }));
+  }
+
+  function recordWorkspaceAttention(workspace: string) {
+    updateSessionAttentionState((current) => ({
+      ...current,
+      workspaces: {
+        ...current.workspaces,
+        [workspace]: Date.now(),
+      },
+    }));
+  }
+
+  function pruneSessionAttention(sessionSummaries: SessionSummary[]) {
+    const sessionIds = new Set(sessionSummaries.map((session) => session.id));
+    const workspaceIds = new Set(sessionSummaries.map((session) => session.workspace));
+
+    updateSessionAttentionState((current) => {
+      const next = {
+        sessions: filterKnownKeys(current.sessions, sessionIds),
+        workspaces: filterKnownKeys(current.workspaces, workspaceIds),
+      };
+
+      return isSameAttentionState(current, next) ? current : next;
+    });
+  }
+
+  function updateSessionAttentionState(
+    updater: (current: SessionAttentionState) => SessionAttentionState,
+  ) {
+    setSessionAttentionState((current) => {
+      const next = updater(current);
+
+      if (next !== current) {
+        saveSessionAttentionState(next);
+      }
+
+      return next;
+    });
+  }
+
   return {
     activeSession,
     activeSessionBlocked,
@@ -447,28 +544,30 @@ export function useSessionController(defaultWorkspace: string) {
     error,
     expandedTraceIds,
     expandedWorkspaces,
-    historyOpen,
     lastEnterKeyDownRef,
     messageStreamRef,
     refreshSessions,
     openSession,
     runningSessionIds,
     setDraft,
-    setHistoryOpen,
+    setSessionListMode,
     setSidebarOpen,
     setSidebarWidth,
     setTraceExpanded,
     setWorkspaceDraft,
     sidebarOpen,
     sidebarWidth,
+    sessionListMode,
     startNewSession,
     stopActiveSession,
     submitDraft,
     toggleWorkspace,
     workspaceDraft,
-    historySessionCount: sidebarSessionPartition.history.length,
-    historyWorkspaces,
     workspaces,
+    visibleSessionCount:
+      sessionListMode === "active"
+        ? sidebarSessionPartition.active.length
+        : sidebarSessionPartition.more.length,
     sessionCount: sessions.length,
   };
 }
@@ -495,4 +594,34 @@ function clearLastActiveSessionId() {
   } catch {
     // Ignore storage failures so private browsing or quota errors do not block chat.
   }
+}
+
+function filterKnownKeys(
+  values: Record<string, number>,
+  knownKeys: Set<string>,
+): Record<string, number> {
+  return Object.entries(values).reduce<Record<string, number>>((filtered, [key, value]) => {
+    if (knownKeys.has(key)) {
+      filtered[key] = value;
+    }
+
+    return filtered;
+  }, {});
+}
+
+function isSameAttentionState(left: SessionAttentionState, right: SessionAttentionState): boolean {
+  return (
+    isSameNumberRecord(left.sessions, right.sessions) &&
+    isSameNumberRecord(left.workspaces, right.workspaces)
+  );
+}
+
+function isSameNumberRecord(left: Record<string, number>, right: Record<string, number>): boolean {
+  const leftEntries = Object.entries(left);
+  const rightEntries = Object.entries(right);
+
+  return (
+    leftEntries.length === rightEntries.length &&
+    leftEntries.every(([key, value]) => right[key] === value)
+  );
 }
