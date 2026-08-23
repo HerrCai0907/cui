@@ -1,9 +1,13 @@
 const LAST_SEEN_ROUND_PREFIX = "cui:session-last-seen-round:v1:";
 const SIDEBAR_STATE_STORAGE_KEY = "cui:session-sidebar-state:v1";
 const SIDEBAR_STATE_VERSION = 1;
+export const SIDEBAR_DEFAULT_WIDTH = 292;
+export const SIDEBAR_MIN_WIDTH = 220;
+export const SIDEBAR_MAX_WIDTH = 520;
 
 export type SessionSidebarBrowserState = {
   sidebarOpen: boolean;
+  sidebarWidth: number;
   historyOpen: boolean;
   expandedWorkspaces: Set<string>;
 };
@@ -11,6 +15,7 @@ export type SessionSidebarBrowserState = {
 type StoredSessionSidebarBrowserState = {
   version: typeof SIDEBAR_STATE_VERSION;
   sidebarOpen?: boolean;
+  sidebarWidth?: number;
   historyOpen?: boolean;
   expandedWorkspaces?: string[];
   updatedAt?: number;
@@ -82,6 +87,7 @@ export function loadSessionSidebarBrowserState(
     return {
       sidebarOpen:
         typeof parsed.sidebarOpen === "boolean" ? parsed.sidebarOpen : defaultState.sidebarOpen,
+      sidebarWidth: parseSidebarWidth(parsed.sidebarWidth, defaultState.sidebarWidth),
       historyOpen:
         typeof parsed.historyOpen === "boolean" ? parsed.historyOpen : defaultState.historyOpen,
       expandedWorkspaces: parseStringSet(
@@ -104,6 +110,7 @@ export function saveSessionSidebarBrowserState(state: SessionSidebarBrowserState
     const storedState: StoredSessionSidebarBrowserState = {
       version: SIDEBAR_STATE_VERSION,
       sidebarOpen: state.sidebarOpen,
+      sidebarWidth: clampSidebarWidth(state.sidebarWidth),
       historyOpen: state.historyOpen,
       expandedWorkspaces: [...state.expandedWorkspaces],
       updatedAt: Date.now(),
@@ -118,9 +125,20 @@ export function saveSessionSidebarBrowserState(state: SessionSidebarBrowserState
 function createDefaultSidebarBrowserState(defaultWorkspace: string): SessionSidebarBrowserState {
   return {
     sidebarOpen: true,
+    sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
     historyOpen: false,
     expandedWorkspaces: new Set([defaultWorkspace]),
   };
+}
+
+export function clampSidebarWidth(width: number): number {
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)));
+}
+
+function parseSidebarWidth(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? clampSidebarWidth(value)
+    : fallback;
 }
 
 function parseStringSet(value: unknown, fallback: Set<string>): Set<string> {

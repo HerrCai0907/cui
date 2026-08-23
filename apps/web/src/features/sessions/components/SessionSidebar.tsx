@@ -1,3 +1,4 @@
+import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -17,9 +18,15 @@ import {
   type WorkspaceDisplayGroup,
   type WorkspaceDisplayItem,
 } from "../model/sessionSummaries";
+import {
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_MIN_WIDTH,
+  clampSidebarWidth,
+} from "../model/sessionBrowserState";
 
 type SessionSidebarProps = {
   open: boolean;
+  width: number;
   workspaces: Record<string, SessionSummary[]>;
   historyWorkspaces: Record<string, SessionSummary[]>;
   expandedWorkspaces: Set<string>;
@@ -31,6 +38,7 @@ type SessionSidebarProps = {
   reviewNavigation?: ReviewNavigation | null;
   reviewNavigationActive?: boolean;
   onOpenChange: (open: boolean) => void;
+  onWidthChange: (width: number) => void;
   onHistoryOpenChange: (open: boolean) => void;
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
@@ -40,6 +48,7 @@ type SessionSidebarProps = {
 
 export function SessionSidebar({
   open,
+  width,
   workspaces,
   historyWorkspaces,
   expandedWorkspaces,
@@ -51,6 +60,7 @@ export function SessionSidebar({
   reviewNavigation,
   reviewNavigationActive,
   onOpenChange,
+  onWidthChange,
   onHistoryOpenChange,
   onStartNewSession,
   onToggleWorkspace,
@@ -59,9 +69,66 @@ export function SessionSidebar({
 }: SessionSidebarProps) {
   const workspaceGroups = groupWorkspacesForDisplay(workspaces);
   const historyWorkspaceGroups = groupWorkspacesForDisplay(historyWorkspaces);
+  const resizeHandleRef = useRef<HTMLDivElement | null>(null);
+  const resizeStartRef = useRef({ pointerId: 0, startX: 0, startWidth: width });
+  const [resizing, setResizing] = useState(false);
+
+  function startResize(event: PointerEvent<HTMLDivElement>) {
+    if (!open || event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    resizeStartRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: width,
+    };
+    resizeHandleRef.current?.setPointerCapture(event.pointerId);
+    setResizing(true);
+  }
+
+  function resize(event: PointerEvent<HTMLDivElement>) {
+    if (!resizing || event.pointerId !== resizeStartRef.current.pointerId) {
+      return;
+    }
+
+    const delta = event.clientX - resizeStartRef.current.startX;
+
+    onWidthChange(resizeStartRef.current.startWidth + delta);
+  }
+
+  function stopResize(event: PointerEvent<HTMLDivElement>) {
+    if (!resizing || event.pointerId !== resizeStartRef.current.pointerId) {
+      return;
+    }
+
+    if (resizeHandleRef.current?.hasPointerCapture(event.pointerId)) {
+      resizeHandleRef.current.releasePointerCapture(event.pointerId);
+    }
+    setResizing(false);
+  }
+
+  function resizeWithKeyboard(event: KeyboardEvent<HTMLDivElement>) {
+    const step = event.shiftKey ? 48 : 16;
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      onWidthChange(width - step);
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      onWidthChange(width + step);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      onWidthChange(SIDEBAR_MIN_WIDTH);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      onWidthChange(SIDEBAR_MAX_WIDTH);
+    }
+  }
 
   return (
-    <aside className="sidebar" aria-label="Workspace sessions">
+    <aside className={`sidebar ${resizing ? "is-resizing" : ""}`} aria-label="Workspace sessions">
       <div className="sidebar-header">
         {open && (
           <div>
@@ -134,6 +201,25 @@ export function SessionSidebar({
             </>
           )}
         </>
+      )}
+      {open && (
+        <div
+          className="sidebar-resize-handle"
+          ref={resizeHandleRef}
+          role="separator"
+          tabIndex={0}
+          aria-label="Resize sidebar"
+          aria-orientation="vertical"
+          aria-valuemin={SIDEBAR_MIN_WIDTH}
+          aria-valuemax={SIDEBAR_MAX_WIDTH}
+          aria-valuenow={clampSidebarWidth(width)}
+          title="Resize sidebar"
+          onKeyDown={resizeWithKeyboard}
+          onPointerCancel={stopResize}
+          onPointerDown={startResize}
+          onPointerMove={resize}
+          onPointerUp={stopResize}
+        />
       )}
     </aside>
   );

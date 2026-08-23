@@ -11,6 +11,10 @@
     border-bottom: 1px solid #d7dde5;
   }
 
+  .sidebar-resize-handle {
+    display: none;
+  }
+
   .app-shell.is-collapsed .sidebar {
     min-height: auto;
   }

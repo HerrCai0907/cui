@@ -1,6 +1,6 @@
 .app-shell {
   display: grid;
-  grid-template-columns: 292px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width, 292px) minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
   background: #eef2f6;
@@ -11,6 +11,7 @@
 }
 
 .sidebar {
+  position: relative;
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -20,6 +21,42 @@
   border-right: 1px solid #d7dde5;
   background: #f8fafc;
   padding: 16px 12px;
+}
+
+.sidebar.is-resizing {
+  user-select: none;
+}
+
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  width: 10px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.sidebar-resize-handle::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 2px;
+  background: transparent;
+  content: "";
+}
+
+.sidebar-resize-handle:hover::after,
+.sidebar-resize-handle:focus-visible::after,
+.sidebar.is-resizing .sidebar-resize-handle::after {
+  background: #94a3b8;
+}
+
+.sidebar-resize-handle:focus-visible {
+  outline: 2px solid #64748b;
+  outline-offset: -2px;
 }
 
 .sidebar-header {
