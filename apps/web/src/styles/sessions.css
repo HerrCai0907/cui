@@ -154,6 +154,13 @@
   padding-left: 24px;
 }
 
+.session-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 4px;
+}
+
 .session-button {
   display: grid;
   width: 100%;
@@ -249,6 +256,41 @@
 .session-button.is-active small {
   color: #8a93a1;
   white-space: normal;
+}
+
+.session-done-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #94a3b8;
+  padding: 0;
+}
+
+.session-done-button span {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+}
+
+.session-done-button:hover {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.session-done-button.is-done {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.session-done-button.is-done:hover {
+  background: #15803d;
+  color: #ffffff;
 }
 
 .review-navigation {

@@ -1,6 +1,10 @@
 import { Router } from "express";
 import type { SessionService } from "../../domain/sessions/SessionService.js";
-import { parseCreateSessionBody, parsePrompt } from "../validation/requestParsers.js";
+import {
+  parseCreateSessionBody,
+  parsePrompt,
+  parseUpdateSessionBody,
+} from "../validation/requestParsers.js";
 
 export function createSessionRouter(sessionService: SessionService): Router {
   const router = Router();
@@ -48,6 +52,23 @@ export function createSessionRouter(sessionService: SessionService): Router {
       }
 
       response.json({ review });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/sessions/:sessionId", async (request, response, next) => {
+    try {
+      const parsed = parseUpdateSessionBody(request.body);
+
+      if (!parsed.ok) {
+        response.status(400).json({ error: parsed.error });
+        return;
+      }
+
+      const session = await sessionService.updateSession(request.params.sessionId, parsed.value);
+
+      response.json({ session });
     } catch (error) {
       next(error);
     }

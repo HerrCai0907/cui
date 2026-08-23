@@ -29,6 +29,7 @@ export type ChatSession = {
   workspace: string;
   title: string;
   summary?: string;
+  doneAt?: string;
   createdAt: string;
   updatedAt: string;
   messages: ChatMessage[];

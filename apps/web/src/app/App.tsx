@@ -144,6 +144,7 @@ export function App() {
         activeSessionId={sessionController.activeSession?.id}
         expandedWorkspaces={sessionController.expandedWorkspaces}
         open={sessionController.sidebarOpen}
+        pendingDoneSessionIds={sessionController.pendingDoneSessionIds}
         width={sessionController.sidebarWidth}
         runningSessionIds={sessionController.runningSessionIds}
         sessionListMode={sessionController.sessionListMode}
@@ -154,6 +155,7 @@ export function App() {
         onWidthChange={sessionController.setSidebarWidth}
         onSessionListModeChange={sessionController.setSessionListMode}
         onOpenSession={openSession}
+        onMarkSessionDone={sessionController.markSessionDone}
         onNavigateReview={reviewRoute?.mode === "atomic" ? navigateToReviewTarget : undefined}
         onStartNewSession={startNewSession}
         onToggleWorkspace={sessionController.toggleWorkspace}

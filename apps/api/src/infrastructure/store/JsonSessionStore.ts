@@ -66,6 +66,7 @@ export class JsonSessionStore {
         updatedSession = {
           ...hydrateSession(data, session),
           updatedAt: new Date().toISOString(),
+          doneAt: undefined,
           messages: [...(data.messagesBySessionId[sessionId] ?? []), ...messages],
         };
 
@@ -112,6 +113,7 @@ export class JsonSessionStore {
         updatedSession = {
           ...hydrateSession(data, session),
           updatedAt: new Date().toISOString(),
+          doneAt: undefined,
           messages: [...(data.messagesBySessionId[sessionId] ?? []), ...messages],
           ...(nextRounds.length > 0 ? { rounds: nextRounds } : {}),
         };
@@ -205,6 +207,33 @@ export class JsonSessionStore {
           ...hydrateSession(data, session),
           title: summary.title,
           summary: summary.summary,
+        };
+
+        return toStoredSession(updatedSession);
+      });
+
+      return { ...data, sessions };
+    });
+
+    if (!updatedSession) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    return updatedSession;
+  }
+
+  async updateSessionDoneAt(sessionId: string, doneAt: string | undefined): Promise<ChatSession> {
+    let updatedSession: ChatSession | undefined;
+
+    await this.updateData((data) => {
+      const sessions = data.sessions.map((session) => {
+        if (session.id !== sessionId) {
+          return session;
+        }
+
+        updatedSession = {
+          ...hydrateSession(data, session),
+          doneAt,
         };
 
         return toStoredSession(updatedSession);
@@ -333,6 +362,7 @@ function toStoredSession(session: ChatSession | StoredSession): StoredSession {
     workspace: session.workspace,
     title: session.title,
     summary: session.summary,
+    ...(session.doneAt ? { doneAt: session.doneAt } : {}),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
   };

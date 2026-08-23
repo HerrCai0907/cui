@@ -151,6 +151,35 @@ test("partitionActiveSessionsForSidebar excludes workspaces without attention fr
   );
 });
 
+test("partitionActiveSessionsForSidebar keeps done sessions out of Active only", () => {
+  const sessions = createSessions(3);
+  sessions[0] = {
+    ...sessions[0],
+    doneAt: "2026-08-22T00:00:00.000Z",
+  };
+
+  const partition = partitionActiveSessionsForSidebar(
+    sessions,
+    {
+      sessions: {
+        "session-0": 300,
+        "session-1": 200,
+      },
+      workspaces: {
+        "/workspace/a": 100,
+        "/workspace/b": 90,
+      },
+    },
+    new Set(["session-0"]),
+  );
+
+  assert.equal(partition.active.some((session) => session.id === "session-0"), false);
+  assert.deepEqual(
+    partition.more.map((session) => session.id),
+    ["session-0", "session-1", "session-2"],
+  );
+});
+
 test("partitionActiveSessionsForSidebar limits recent workspaces but always keeps running workspaces", () => {
   const sessions = createSessions(8).map((session, index) => ({
     ...session,

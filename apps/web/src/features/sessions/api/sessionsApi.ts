@@ -39,6 +39,21 @@ export async function continueSession(
   });
 }
 
+export async function updateSession(
+  sessionId: string,
+  input: { done: boolean },
+): Promise<ApiSession> {
+  const data = await fetchJson<{ session: ApiSession }>(`/api/sessions/${sessionId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  });
+
+  return data.session;
+}
+
 export async function stopSession(sessionId: string): Promise<void> {
   await fetchJson<{ status: "ok" }>(`/api/sessions/${sessionId}/stop`, {
     method: "POST",

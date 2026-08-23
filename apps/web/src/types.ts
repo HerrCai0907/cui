@@ -27,6 +27,7 @@ export type ApiSession = {
   workspace: string;
   title: string;
   summary?: string;
+  doneAt?: string;
   createdAt: string;
   updatedAt: string;
   messages: ApiMessage[];
@@ -70,6 +71,7 @@ export type SessionSummary = {
   workspace: string;
   title: string;
   summary?: string;
+  doneAt?: string;
   createdAt: string;
   updatedAt: string;
   currentRound: number;
