@@ -39,6 +39,46 @@
   gap: 4px;
 }
 
+.session-history {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid #e1e7ef;
+  margin-top: 4px;
+  padding-top: 8px;
+}
+
+.session-history-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  border-radius: 8px;
+  color: #4b5563;
+  cursor: pointer;
+  list-style-position: inside;
+  padding: 0 8px;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.session-history-summary:hover {
+  background: #edf1f5;
+  color: #111827;
+}
+
+.session-history-summary small {
+  flex: 0 0 auto;
+  color: #8a94a3;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.session-history-body {
+  display: grid;
+  gap: 4px;
+}
+
 .workspace-prefix {
   min-width: 0;
   overflow: hidden;

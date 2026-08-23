@@ -17,14 +17,17 @@ import type {
 } from '../../review/model/reviewNavigation';
 import {
   groupWorkspacesForDisplay,
+  type WorkspaceDisplayGroup,
   type WorkspaceDisplayItem,
 } from '../model/sessionSummaries';
 
 type SessionSidebarProps = {
   open: boolean;
   workspaces: Record<string, SessionSummary[]>;
+  historyWorkspaces: Record<string, SessionSummary[]>;
   expandedWorkspaces: Set<string>;
   sessionCount: number;
+  historySessionCount: number;
   activeSessionId?: string;
   runningSessionIds: Set<string>;
   reviewNavigation?: ReviewNavigation | null;
@@ -39,8 +42,10 @@ type SessionSidebarProps = {
 export function SessionSidebar({
   open,
   workspaces,
+  historyWorkspaces,
   expandedWorkspaces,
   sessionCount,
+  historySessionCount,
   activeSessionId,
   runningSessionIds,
   reviewNavigation,
@@ -52,6 +57,7 @@ export function SessionSidebar({
   onNavigateReview,
 }: SessionSidebarProps) {
   const workspaceGroups = groupWorkspacesForDisplay(workspaces);
+  const historyWorkspaceGroups = groupWorkspacesForDisplay(historyWorkspaces);
 
   return (
     <aside className="sidebar" aria-label="Workspace sessions">
@@ -92,33 +98,34 @@ export function SessionSidebar({
               </button>
 
               <nav className="workspace-list">
-                {workspaceGroups.map((workspaceGroup) => (
-                  <section
-                    className="workspace-display-group"
-                    key={workspaceGroup.id}
-                  >
-                    {workspaceGroup.prefix && (
-                      <div
-                        className="workspace-prefix"
-                        title={workspaceGroup.prefix}
-                      >
-                        {workspaceGroup.prefix}
-                      </div>
-                    )}
-                    {workspaceGroup.workspaces.map((workspace) => (
-                      <WorkspaceGroup
+                <WorkspaceGroupList
+                  activeSessionId={activeSessionId}
+                  expandedWorkspaces={expandedWorkspaces}
+                  groups={workspaceGroups}
+                  runningSessionIds={runningSessionIds}
+                  onOpenSession={onOpenSession}
+                  onStartNewSession={onStartNewSession}
+                  onToggleWorkspace={onToggleWorkspace}
+                />
+                {historySessionCount > 0 && (
+                  <details className="session-history">
+                    <summary className="session-history-summary">
+                      <span>History</span>
+                      <small>{historySessionCount}</small>
+                    </summary>
+                    <div className="session-history-body">
+                      <WorkspaceGroupList
                         activeSessionId={activeSessionId}
-                        expanded={expandedWorkspaces.has(workspace.workspace)}
-                        key={workspace.workspace}
+                        expandedWorkspaces={expandedWorkspaces}
+                        groups={historyWorkspaceGroups}
                         runningSessionIds={runningSessionIds}
-                        workspace={workspace}
                         onOpenSession={onOpenSession}
                         onStartNewSession={onStartNewSession}
                         onToggleWorkspace={onToggleWorkspace}
                       />
-                    ))}
-                  </section>
-                ))}
+                    </div>
+                  </details>
+                )}
                 {sessionCount === 0 && (
                   <p className="empty-sidebar">No sessions yet</p>
                 )}
@@ -128,6 +135,56 @@ export function SessionSidebar({
         </>
       )}
     </aside>
+  );
+}
+
+function WorkspaceGroupList({
+  activeSessionId,
+  expandedWorkspaces,
+  groups,
+  runningSessionIds,
+  onOpenSession,
+  onStartNewSession,
+  onToggleWorkspace,
+}: {
+  activeSessionId?: string;
+  expandedWorkspaces: Set<string>;
+  groups: WorkspaceDisplayGroup[];
+  runningSessionIds: Set<string>;
+  onOpenSession: (sessionId: string) => void;
+  onStartNewSession: (workspace?: string) => void;
+  onToggleWorkspace: (workspace: string) => void;
+}) {
+  return (
+    <>
+      {groups.map((workspaceGroup) => (
+        <section
+          className="workspace-display-group"
+          key={workspaceGroup.id}
+        >
+          {workspaceGroup.prefix && (
+            <div
+              className="workspace-prefix"
+              title={workspaceGroup.prefix}
+            >
+              {workspaceGroup.prefix}
+            </div>
+          )}
+          {workspaceGroup.workspaces.map((workspace) => (
+            <WorkspaceGroup
+              activeSessionId={activeSessionId}
+              expanded={expandedWorkspaces.has(workspace.workspace)}
+              key={workspace.workspace}
+              runningSessionIds={runningSessionIds}
+              workspace={workspace}
+              onOpenSession={onOpenSession}
+              onStartNewSession={onStartNewSession}
+              onToggleWorkspace={onToggleWorkspace}
+            />
+          ))}
+        </section>
+      ))}
+    </>
   );
 }
 

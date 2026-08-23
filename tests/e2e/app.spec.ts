@@ -168,6 +168,58 @@ test('merges shared workspace path prefixes in the sidebar', async ({ page }) =>
   ).toBeVisible();
 });
 
+test('moves older sessions into collapsed history', async ({ page }) => {
+  const sessions = Array.from({ length: 18 }, (_, index) => ({
+    id: `session-${index}`,
+    workspace: '/Users/bytedance/cui',
+    title: `Session ${index}`,
+    createdAt: new Date(Date.UTC(2026, 7, 22, 0, 0, index)).toISOString(),
+    updatedAt: new Date(Date.UTC(2026, 7, 22, 0, 0, 17 - index)).toISOString(),
+    messages: [
+      {
+        id: `message-${index}`,
+        role: 'assistant',
+        kind: 'response',
+        content: `Session ${index} response`,
+        createdAt: new Date(Date.UTC(2026, 7, 22, 0, 0, index)).toISOString(),
+      },
+    ],
+    rounds: [],
+    currentRound: 1,
+    isRunning: false,
+  }));
+
+  await page.route('**/api/sessions', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ sessions }),
+      });
+      return;
+    }
+
+    await route.fallback();
+  });
+  await page.route('**/api/sessions/session-17', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ session: sessions[17] }),
+    });
+  });
+
+  await page.goto('/');
+
+  await expect(page.getByRole('button', { name: 'Session 15' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Session 16' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Session 17' })).toHaveCount(0);
+
+  await page.getByText('History', { exact: true }).click();
+
+  await expect(page.getByRole('button', { name: 'Session 16' })).toBeVisible();
+  await page.getByRole('button', { name: 'Session 17' }).click();
+  await expect(page.getByRole('heading', { name: 'Session 17' })).toBeVisible();
+});
+
 test('restores the last opened session after a browser refresh', async ({
   page,
 }) => {
