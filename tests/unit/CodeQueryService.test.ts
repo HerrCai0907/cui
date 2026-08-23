@@ -1,0 +1,147 @@
+import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import {
+  CodeFileNotFoundError,
+  CodePathNotFileError,
+  CodeQueryService,
+} from "../../apps/api/src/domain/code/CodeQueryService.js";
+import { parseCodeRangeQuery } from "../../apps/api/src/http/validation/requestParsers.js";
+
+test("getCodeRange returns the requested inclusive line range", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-code-query-"));
+  const filePath = join(cwd, "example.ts");
+  const service = new CodeQueryService();
+
+  try {
+    await writeFile(
+      filePath,
+      ["const first = 1;", "const second = 2;", "const third = 3;"].join("\n"),
+    );
+
+    const result = await service.getCodeRange({
+      filePath,
+      startLine: 2,
+      endLine: 3,
+    });
+
+    assert.deepEqual(result, {
+      filePath,
+      startLine: 2,
+      endLine: 3,
+      code: ["const second = 2;", "const third = 3;"].join("\n"),
+      lines: [
+        { lineNumber: 2, content: "const second = 2;" },
+        { lineNumber: 3, content: "const third = 3;" },
+      ],
+    });
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("getCodeRange returns the full file when no range is provided", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-code-query-"));
+  const filePath = join(cwd, "example.ts");
+  const service = new CodeQueryService();
+
+  try {
+    await writeFile(filePath, ["const first = 1;", "const second = 2;"].join("\n"));
+
+    const result = await service.getCodeRange({
+      filePath,
+    });
+
+    assert.equal(result.startLine, 1);
+    assert.equal(result.endLine, 2);
+    assert.equal(result.code, ["const first = 1;", "const second = 2;"].join("\n"));
+    assert.deepEqual(result.lines, [
+      { lineNumber: 1, content: "const first = 1;" },
+      { lineNumber: 2, content: "const second = 2;" },
+    ]);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("getCodeRange reports missing files and directories", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-code-query-"));
+  const service = new CodeQueryService();
+
+  try {
+    await assert.rejects(
+      service.getCodeRange({
+        filePath: join(cwd, "missing.ts"),
+        startLine: 1,
+        endLine: 1,
+      }),
+      CodeFileNotFoundError,
+    );
+
+    await assert.rejects(
+      service.getCodeRange({
+        filePath: cwd,
+        startLine: 1,
+        endLine: 1,
+      }),
+      CodePathNotFileError,
+    );
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("parseCodeRangeQuery validates file path and line range", () => {
+  assert.deepEqual(
+    parseCodeRangeQuery({
+      filePath: "/tmp/example.ts",
+    }),
+    {
+      ok: true,
+      value: {
+        filePath: "/tmp/example.ts",
+      },
+    },
+  );
+
+  assert.deepEqual(
+    parseCodeRangeQuery({
+      filePath: "/tmp/example.ts",
+      startLine: "1",
+      endLine: "3",
+    }),
+    {
+      ok: true,
+      value: {
+        filePath: "/tmp/example.ts",
+        startLine: 1,
+        endLine: 3,
+      },
+    },
+  );
+
+  assert.deepEqual(parseCodeRangeQuery({ filePath: "", startLine: "1", endLine: "3" }), {
+    ok: false,
+    error: "filePath must be a non-empty string",
+  });
+  assert.deepEqual(parseCodeRangeQuery({ filePath: "/tmp/example.ts", startLine: "1" }), {
+    ok: false,
+    error: "startLine and endLine must be provided together",
+  });
+  assert.deepEqual(
+    parseCodeRangeQuery({ filePath: "/tmp/example.ts", startLine: "0", endLine: "3" }),
+    {
+      ok: false,
+      error: "startLine must be a positive integer",
+    },
+  );
+  assert.deepEqual(
+    parseCodeRangeQuery({ filePath: "/tmp/example.ts", startLine: "3", endLine: "1" }),
+    {
+      ok: false,
+      error: "startLine must be less than or equal to endLine",
+    },
+  );
+});

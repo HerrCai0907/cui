@@ -1,4 +1,7 @@
-import type { ReactNode } from "react";
+import { FileCode, Loader2, X } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { HighlightedCode } from "../../review/components/HighlightedCode";
+import { getCodeRange, type CodeRangeResult } from "../api/codeApi";
 
 type MessagePart =
   | {
@@ -24,9 +27,47 @@ type InlinePart =
   | {
       type: "inlineCode";
       code: string;
+    }
+  | {
+      type: "workspaceLink";
+      label: string;
+      target: CodeLinkTarget;
+    }
+  | {
+      type: "link";
+      label: string;
+      href: string;
     };
 
-export function AssistantMessageContent({ content }: { content: string }) {
+type CodeLinkTarget = {
+  filePath: string;
+  startLine?: number;
+  endLine?: number;
+};
+
+type CodePreviewState =
+  | {
+      status: "idle";
+    }
+  | {
+      status: "loading";
+    }
+  | {
+      status: "ready";
+      result: CodeRangeResult;
+    }
+  | {
+      status: "error";
+      message: string;
+    };
+
+export function AssistantMessageContent({
+  content,
+  workspace,
+}: {
+  content: string;
+  workspace: string;
+}) {
   const parts = parseMessageContent(content);
 
   return (
@@ -38,11 +79,11 @@ export function AssistantMessageContent({ content }: { content: string }) {
           </pre>
         ) : part.type === "heading" ? (
           <MessageHeading key={index} level={part.level}>
-            {renderInlineCode(part.text, index)}
+            {renderInlineContent(part.text, workspace, index)}
           </MessageHeading>
         ) : (
           <span className="message-text" key={index}>
-            {renderInlineCode(part.text, index)}
+            {renderInlineContent(part.text, workspace, index)}
           </span>
         ),
       )}
@@ -119,43 +160,72 @@ function parseCodeBlock(rawCode: string): MessagePart {
   };
 }
 
-function renderInlineCode(text: string, blockIndex: number): ReactNode[] {
-  return parseInlineCode(text).map((part, index) =>
+function renderInlineContent(text: string, workspace: string, blockIndex: number): ReactNode[] {
+  return parseInlineContent(text, workspace).map((part, index) =>
     part.type === "inlineCode" ? (
       <code className="message-inline-code" key={`${blockIndex}-${index}`}>
         {part.code}
       </code>
+    ) : part.type === "workspaceLink" ? (
+      <CodePreviewButton key={`${blockIndex}-${index}`} label={part.label} target={part.target} />
+    ) : part.type === "link" ? (
+      <a
+        className="message-link"
+        href={part.href}
+        key={`${blockIndex}-${index}`}
+        rel="noreferrer"
+        target={isExternalHref(part.href) ? "_blank" : undefined}
+      >
+        {part.label}
+      </a>
     ) : (
       <span key={`${blockIndex}-${index}`}>{part.text}</span>
     ),
   );
 }
 
-function parseInlineCode(text: string): InlinePart[] {
+export function parseInlineContent(text: string, workspace: string): InlinePart[] {
   const parts: InlinePart[] = [];
   let cursor = 0;
 
   while (cursor < text.length) {
     const codeStart = findSingleBacktick(text, cursor);
+    const linkStart = text.indexOf("[", cursor);
+    const nextStart = findNextInlineToken(codeStart, linkStart);
 
-    if (codeStart === -1) {
+    if (nextStart === -1) {
       pushInlineTextPart(parts, text.slice(cursor));
       break;
     }
 
-    const codeEnd = findSingleBacktick(text, codeStart + 1);
+    if (nextStart === codeStart) {
+      const codeEnd = findSingleBacktick(text, codeStart + 1);
 
-    if (codeEnd === -1) {
-      pushInlineTextPart(parts, text.slice(cursor));
-      break;
+      if (codeEnd === -1) {
+        pushInlineTextPart(parts, text.slice(cursor));
+        break;
+      }
+
+      pushInlineTextPart(parts, text.slice(cursor, codeStart));
+      parts.push({
+        type: "inlineCode",
+        code: text.slice(codeStart + 1, codeEnd),
+      });
+      cursor = codeEnd + 1;
+      continue;
     }
 
-    pushInlineTextPart(parts, text.slice(cursor, codeStart));
-    parts.push({
-      type: "inlineCode",
-      code: text.slice(codeStart + 1, codeEnd),
-    });
-    cursor = codeEnd + 1;
+    const parsedLink = parseMarkdownLinkAt(text, linkStart, workspace);
+
+    if (!parsedLink) {
+      pushInlineTextPart(parts, text.slice(cursor, linkStart + 1));
+      cursor = linkStart + 1;
+      continue;
+    }
+
+    pushInlineTextPart(parts, text.slice(cursor, linkStart));
+    parts.push(parsedLink.part);
+    cursor = parsedLink.endIndex;
   }
 
   return parts;
@@ -227,6 +297,189 @@ function pushInlineTextPart(parts: InlinePart[], text: string) {
     type: "text",
     text,
   });
+}
+
+function findNextInlineToken(codeStart: number, linkStart: number): number {
+  if (codeStart === -1) {
+    return linkStart;
+  }
+
+  if (linkStart === -1) {
+    return codeStart;
+  }
+
+  return Math.min(codeStart, linkStart);
+}
+
+function parseMarkdownLinkAt(
+  text: string,
+  startIndex: number,
+  workspace: string,
+): { part: InlinePart; endIndex: number } | undefined {
+  const labelEnd = text.indexOf("]", startIndex + 1);
+
+  if (labelEnd === -1 || text[labelEnd + 1] !== "(") {
+    return undefined;
+  }
+
+  const hrefEnd = text.indexOf(")", labelEnd + 2);
+
+  if (hrefEnd === -1) {
+    return undefined;
+  }
+
+  const label = text.slice(startIndex + 1, labelEnd);
+  const href = normalizeMarkdownHref(text.slice(labelEnd + 2, hrefEnd));
+  const target = parseWorkspaceCodeLink(href, workspace);
+
+  return {
+    part: target
+      ? {
+          type: "workspaceLink",
+          label: label || target.filePath,
+          target,
+        }
+      : {
+          type: "link",
+          label: label || href,
+          href,
+        },
+    endIndex: hrefEnd + 1,
+  };
+}
+
+function parseWorkspaceCodeLink(href: string, workspace: string): CodeLinkTarget | undefined {
+  const decodedHref = decodeMarkdownHref(href);
+  const rangeMatch = /^(.+):(\d+)(?:-(\d+))?$/.exec(decodedHref);
+  const filePath = rangeMatch ? rangeMatch[1] : decodedHref;
+  const startLine = rangeMatch ? Number(rangeMatch[2]) : undefined;
+  const endLine = rangeMatch ? Number(rangeMatch[3] ?? rangeMatch[2]) : undefined;
+
+  if (!isWorkspaceFilePath(filePath, workspace)) {
+    return undefined;
+  }
+
+  return {
+    filePath,
+    ...(startLine && endLine ? { startLine, endLine } : {}),
+  };
+}
+
+function decodeMarkdownHref(href: string): string {
+  try {
+    return decodeURIComponent(href);
+  } catch {
+    return href;
+  }
+}
+
+function normalizeMarkdownHref(href: string): string {
+  const trimmed = href.trim();
+
+  if (trimmed.startsWith("<") && trimmed.endsWith(">")) {
+    return trimmed.slice(1, -1);
+  }
+
+  return trimmed;
+}
+
+function isExternalHref(href: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:/i.test(href);
+}
+
+function isWorkspaceFilePath(filePath: string, workspace: string): boolean {
+  const normalizedFilePath = trimTrailingSlashes(filePath);
+  const normalizedWorkspace = trimTrailingSlashes(workspace);
+
+  return (
+    normalizedFilePath === normalizedWorkspace ||
+    normalizedFilePath.startsWith(`${normalizedWorkspace}/`)
+  );
+}
+
+function trimTrailingSlashes(value: string): string {
+  return value.replace(/\/+$/, "");
+}
+
+function CodePreviewButton({ label, target }: { label: string; target: CodeLinkTarget }) {
+  const [open, setOpen] = useState(false);
+  const [preview, setPreview] = useState<CodePreviewState>({ status: "idle" });
+
+  async function openPreview() {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+
+    setOpen(true);
+
+    if (preview.status === "ready" || preview.status === "loading") {
+      return;
+    }
+
+    setPreview({ status: "loading" });
+
+    try {
+      const result = await getCodeRange(target);
+      setPreview({ status: "ready", result });
+    } catch (error) {
+      setPreview({
+        status: "error",
+        message: error instanceof Error ? error.message : "Failed to load code",
+      });
+    }
+  }
+
+  return (
+    <span className="message-code-preview">
+      <button
+        className="message-code-link"
+        type="button"
+        aria-expanded={open}
+        onClick={openPreview}
+        title={target.filePath}
+      >
+        <FileCode size={14} />
+        {label}
+      </button>
+      {open && (
+        <span className="message-code-card" role="dialog" aria-label="Code preview">
+          <span className="message-code-card-header">
+            <span className="message-code-card-title">
+              {target.filePath}
+              {target.startLine && target.endLine
+                ? `:${target.startLine}${target.startLine === target.endLine ? "" : `-${target.endLine}`}`
+                : ""}
+            </span>
+            <button
+              className="message-code-card-close"
+              type="button"
+              aria-label="Close code preview"
+              onClick={() => setOpen(false)}
+            >
+              <X size={14} />
+            </button>
+          </span>
+          {preview.status === "loading" && (
+            <span className="message-code-card-status">
+              <Loader2 size={14} />
+              Loading
+            </span>
+          )}
+          {preview.status === "error" && (
+            <span className="message-code-card-error">{preview.message}</span>
+          )}
+          {preview.status === "ready" && (
+            <span className="message-code-card-block">
+              <code>
+                <HighlightedCode content={preview.result.code} filePath={preview.result.filePath} />
+              </code>
+            </span>
+          )}
+        </span>
+      )}
+    </span>
+  );
 }
 
 function isLanguageMarker(value: string): boolean {
