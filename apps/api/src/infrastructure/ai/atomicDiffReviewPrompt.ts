@@ -68,3 +68,30 @@ export function createAtomicDiffReviewPrompt(input: AiAtomicDiffReviewInput): st
     "</DIFF>",
   ].join("\n");
 }
+
+export function createAtomicDiffReviewFormatCorrectionPrompt(input: {
+  validationError: string;
+  previousResponse: string;
+}): string {
+  return [
+    "上一次 atomic diff review 输出没有通过后端 diff 格式校验。",
+    "",
+    "请基于你上一次的输出，返回修正后的完整 JSON。不要输出 Markdown、代码围栏或额外解释。",
+    "必须保留原来的原子能力拆分意图；只修正每个 item.diff 的 unified diff 格式。",
+    "",
+    "diff 格式要求：",
+    "1. 每个 item.diff 必须包含至少一个文件块，文件块 header 必须从行首开始：diff --git a/path b/path",
+    "2. 每个文件块必须包含 --- 和 +++ 文件头。",
+    "3. 每个变更块必须包含标准 hunk header，例如：@@ -10,7 +10,8 @@，不能只写 @@。",
+    "4. hunk 内必须包含至少一行以 + 或 - 开头的实际增删行。",
+    "5. 不要在 diff 字符串里加入 Markdown 代码围栏、解释文字或缩进。",
+    "",
+    "<VALIDATION_ERROR>",
+    input.validationError,
+    "</VALIDATION_ERROR>",
+    "",
+    "<PREVIOUS_RESPONSE>",
+    input.previousResponse,
+    "</PREVIOUS_RESPONSE>",
+  ].join("\n");
+}
