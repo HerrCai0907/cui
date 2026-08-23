@@ -70,6 +70,7 @@ export type SessionSummary = {
   workspace: string;
   title: string;
   summary?: string;
+  createdAt: string;
   updatedAt: string;
   currentRound: number;
   isRunning: boolean;

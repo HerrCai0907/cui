@@ -130,8 +130,7 @@ export function SessionSidebar({
       <div className="sidebar-header">
         {open && (
           <div>
-            <strong>CUI</strong>
-            <span>Workspaces</span>
+            <strong>Coding Assistant</strong>
           </div>
         )}
         <button

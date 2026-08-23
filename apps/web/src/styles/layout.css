@@ -69,8 +69,12 @@
 
 .sidebar-header strong {
   display: block;
+  min-width: 0;
+  overflow: hidden;
   color: #111827;
   font-size: 0.98rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-header span {

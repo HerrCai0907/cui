@@ -99,11 +99,40 @@ test("partitionActiveSessionsForSidebar keeps active sessions and one recent ses
 
   assert.deepEqual(
     partition.active.map((session) => session.id),
-    ["session-0", "session-2", "session-4", "session-5", "session-1"],
+    ["session-4", "session-2", "session-0", "session-5", "session-1"],
   );
   assert.deepEqual(
     partition.more.map((session) => session.id),
     ["session-1", "session-4", "session-0", "session-2", "session-3", "session-5"],
+  );
+});
+
+test("partitionActiveSessionsForSidebar sorts Active by immutable workspace and session keys", () => {
+  const sessions = createSessions(6).map((session, index) => ({
+    ...session,
+    updatedAt: new Date(Date.UTC(2026, 0, 1, 1, index)).toISOString(),
+  }));
+
+  const partition = partitionActiveSessionsForSidebar(
+    sessions,
+    {
+      sessions: {
+        "session-5": 300,
+        "session-1": 200,
+        "session-3": 100,
+      },
+      workspaces: {
+        "/workspace/b": 20,
+        "/workspace/a": 10,
+      },
+    },
+    new Set(sessions.map((session) => session.id)),
+    new Set(["/workspace/a", "/workspace/b"]),
+  );
+
+  assert.deepEqual(
+    partition.active.map((session) => session.id),
+    ["session-4", "session-2", "session-0", "session-5", "session-3", "session-1"],
   );
 });
 
@@ -169,6 +198,7 @@ function createSessions(count: number): SessionSummary[] {
     id: `session-${index}`,
     workspace: index % 2 === 0 ? "/workspace/a" : "/workspace/b",
     title: `Session ${index}`,
+    createdAt: new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString(),
     updatedAt: new Date(Date.UTC(2026, 0, 1, 0, count - index)).toISOString(),
     currentRound: 1,
     isRunning: false,

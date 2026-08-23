@@ -30,6 +30,7 @@ export function toSessionSummary(session: ApiSession): SessionSummary {
     workspace: session.workspace,
     title: session.title,
     summary: session.summary,
+    createdAt: session.createdAt,
     updatedAt: session.updatedAt,
     currentRound,
     isRunning: session.isRunning ?? Boolean(session.runningTurnId),
@@ -101,38 +102,22 @@ export function partitionActiveSessionsForSidebar(
   return {
     active: sortSessionsForActiveSidebar(
       sessions.filter((session) => activeSidebarSessionIds.has(session.id)),
-      attentionState,
-      highlightedSessionIds,
     ),
     more: sortSessionsForAllSessions(sessions, attentionState),
   };
 }
 
-export function sortSessionsForActiveSidebar(
-  sessions: SessionSummary[],
-  attentionState: SessionAttentionState,
-  highlightedSessionIds: Set<string> = new Set(),
-): SessionSummary[] {
+export function sortSessionsForActiveSidebar(sessions: SessionSummary[]): SessionSummary[] {
   return [...sessions].sort((left, right) => {
-    const workspaceOrder = compareWorkspacesByAttention(
-      left.workspace,
-      right.workspace,
-      attentionState,
-    );
+    const workspaceOrder = left.workspace.localeCompare(right.workspace);
 
     if (workspaceOrder !== 0) {
       return workspaceOrder;
     }
 
-    const activeStateOrder =
-      getActiveSessionRank(left, highlightedSessionIds) -
-      getActiveSessionRank(right, highlightedSessionIds);
+    const createdAtOrder = right.createdAt.localeCompare(left.createdAt);
 
-    if (activeStateOrder !== 0) {
-      return activeStateOrder;
-    }
-
-    return compareSessionsByAttention(left, right, attentionState);
+    return createdAtOrder !== 0 ? createdAtOrder : right.id.localeCompare(left.id);
   });
 }
 
@@ -204,22 +189,6 @@ function getSessionAttention(
   attentionState: SessionAttentionState,
 ): number {
   return attentionState.sessions[session.id] ?? 0;
-}
-
-function getActiveSessionRank(session: SessionSummary, highlightedSessionIds: Set<string>): number {
-  if (highlightedSessionIds.has(session.id)) {
-    return 0;
-  }
-
-  if (session.isRunning) {
-    return 1;
-  }
-
-  if (session.hasUnreadRound) {
-    return 2;
-  }
-
-  return 3;
 }
 
 function compareWorkspacesByAttention(
