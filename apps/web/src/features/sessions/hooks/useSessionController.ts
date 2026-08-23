@@ -15,6 +15,7 @@ import {
 import {
   getCurrentRound,
   groupSessionsByWorkspace,
+  partitionSessionsForSidebar,
   toSessionSummary,
 } from '../model/sessionSummaries';
 import { setLastSeenRound } from '../model/sessionBrowserState';
@@ -60,10 +61,18 @@ export function useSessionController(defaultWorkspace: string) {
     ? runningSessionIds.has(activeSession.id) ||
       submittingSessionIds.has(activeSession.id)
     : creatingSession;
+  const sidebarSessionPartition = useMemo(
+    () => partitionSessionsForSidebar(sessions),
+    [sessions],
+  );
 
   const workspaces = useMemo(
-    () => groupSessionsByWorkspace(sessions),
-    [sessions],
+    () => groupSessionsByWorkspace(sidebarSessionPartition.current),
+    [sidebarSessionPartition.current],
+  );
+  const historyWorkspaces = useMemo(
+    () => groupSessionsByWorkspace(sidebarSessionPartition.history),
+    [sidebarSessionPartition.history],
   );
   const { streamTurn } = useTurnStream({
     activeSessionRef,
@@ -385,6 +394,8 @@ export function useSessionController(defaultWorkspace: string) {
     submitDraft,
     toggleWorkspace,
     workspaceDraft,
+    historySessionCount: sidebarSessionPartition.history.length,
+    historyWorkspaces,
     workspaces,
     sessionCount: sessions.length,
   };

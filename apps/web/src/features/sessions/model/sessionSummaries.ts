@@ -13,6 +13,13 @@ export type WorkspaceDisplayGroup = {
   workspaces: WorkspaceDisplayItem[];
 };
 
+export type SidebarSessionPartition = {
+  current: SessionSummary[];
+  history: SessionSummary[];
+};
+
+export const SIDEBAR_CURRENT_SESSION_MINIMUM = 16;
+
 export function toSessionSummary(session: ApiSession): SessionSummary {
   const lastSeenRound = getLastSeenRound(session.id);
   const currentRound = getCurrentRound(session);
@@ -39,6 +46,39 @@ export function groupSessionsByWorkspace(
 
     return groups;
   }, {});
+}
+
+export function partitionSessionsForSidebar(
+  sessions: SessionSummary[],
+  minimumCurrentCount = SIDEBAR_CURRENT_SESSION_MINIMUM,
+): SidebarSessionPartition {
+  const sortedSessions = [...sessions].sort(compareSessionsByUpdatedAt);
+  const currentSessionIds = new Set(
+    sortedSessions
+      .filter((session) => session.isRunning || session.hasUnreadRound)
+      .map((session) => session.id),
+  );
+  const targetCurrentCount = Math.max(
+    minimumCurrentCount,
+    currentSessionIds.size,
+  );
+
+  for (const session of sortedSessions) {
+    if (currentSessionIds.size >= targetCurrentCount) {
+      break;
+    }
+
+    currentSessionIds.add(session.id);
+  }
+
+  return {
+    current: sortedSessions.filter((session) =>
+      currentSessionIds.has(session.id),
+    ),
+    history: sortedSessions.filter(
+      (session) => !currentSessionIds.has(session.id),
+    ),
+  };
 }
 
 export function getCurrentRound(session: ApiSession): number {
@@ -71,6 +111,15 @@ function countAssistantMessages(
   return session.messages.filter(
     (message) => message.role === 'assistant' && message.kind === kind,
   ).length;
+}
+
+function compareSessionsByUpdatedAt(
+  left: SessionSummary,
+  right: SessionSummary,
+): number {
+  const updatedAtOrder = right.updatedAt.localeCompare(left.updatedAt);
+
+  return updatedAtOrder !== 0 ? updatedAtOrder : right.id.localeCompare(left.id);
 }
 
 export function groupWorkspacesForDisplay(
