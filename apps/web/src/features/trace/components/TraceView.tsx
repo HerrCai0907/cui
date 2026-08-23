@@ -204,9 +204,9 @@ function describeTraceItem(item: ExecutionTraceItem): {
       item.exit_code === undefined ? undefined : `exit ${item.exit_code ?? "pending"}`;
 
     return {
-      title: item.command ? `Command: ${item.command}` : "Command execution",
+      title: item.command || "Command execution",
       meta: [status, exitCode].filter(Boolean).join(" / "),
-      content: formatPreformattedContent(item.aggregated_output?.trim()),
+      content: formatCommandOutput(item.aggregated_output?.trim()),
       tone:
         status === "completed" && item.exit_code === 0
           ? "trace-event-success"
@@ -229,7 +229,7 @@ function describeTraceItem(item: ExecutionTraceItem): {
   if (item.type === "reasoning") {
     return {
       title: "Reasoning",
-      content: formatPreformattedContent(item.text),
+      content: formatCollapsiblePreformattedContent("Details", item.text),
       tone: "trace-event-reasoning",
       startedIcon: <TextSearch size={14} />,
       completedIcon: <TextSearch size={14} />,
@@ -247,6 +247,18 @@ function describeTraceItem(item: ExecutionTraceItem): {
       tone: "trace-event-todo",
       startedIcon: <ListChecks size={14} />,
       completedIcon: <ListChecks size={14} />,
+    };
+  }
+
+  const fileChangePaths = getFileChangePaths(item);
+
+  if (isFileChangeItem(item.originalType) && fileChangePaths.length > 0) {
+    return {
+      title: fileChangePaths.join(", "),
+      meta: shortId(item.id),
+      tone: "trace-event-neutral",
+      startedIcon: <TextSearch size={14} />,
+      completedIcon: <CheckCircle2 size={14} />,
     };
   }
 
@@ -275,6 +287,46 @@ function TodoList({ items }: { items: TodoListTraceItemEntry[] }) {
       ))}
     </ul>
   );
+}
+
+function formatCommandOutput(output: string | undefined): ReactNode {
+  return formatCollapsiblePreformattedContent("Output", output);
+}
+
+function formatCollapsiblePreformattedContent(
+  label: string,
+  content: string | undefined,
+): ReactNode {
+  if (!content) {
+    return undefined;
+  }
+
+  return (
+    <details className="trace-collapsible-content">
+      <summary>{label}</summary>
+      <pre>{content}</pre>
+    </details>
+  );
+}
+
+function getFileChangePaths(item: ExecutionTraceItem): string[] {
+  if (item.type !== "unknown") {
+    return [];
+  }
+
+  const paths = [
+    stringValue(item.path),
+    stringValue(item.file_path),
+    stringValue(item.filePath),
+    ...stringArrayValue(item.files),
+    ...Object.keys(isRecord(item.changes) ? item.changes : {}),
+  ].filter((path): path is string => Boolean(path));
+
+  return [...new Set(paths)];
+}
+
+function isFileChangeItem(type: string | undefined): boolean {
+  return Boolean(type && /^file[._-]?change$/i.test(type));
 }
 
 function formatTraceItemEventStatus(
@@ -335,6 +387,16 @@ function formatEventName(value: string): string {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function stringArrayValue(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 function numberValue(value: unknown): number | undefined {

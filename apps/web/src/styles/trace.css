@@ -131,6 +131,40 @@
   white-space: pre-wrap;
 }
 
+.trace-collapsible-content {
+  margin-top: 8px;
+}
+
+.trace-collapsible-content summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #4d5d72;
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.4;
+  list-style: none;
+}
+
+.trace-collapsible-content summary::-webkit-details-marker {
+  display: none;
+}
+
+.trace-collapsible-content summary::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid #667085;
+  transition: transform 120ms ease;
+}
+
+.trace-collapsible-content[open] summary::before {
+  transform: rotate(90deg);
+}
+
 .trace-todo-list {
   display: grid;
   gap: 6px;
