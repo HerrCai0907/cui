@@ -58,14 +58,21 @@
   line-height: 1.55;
 }
 
+.trace-expanded-content {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  border-top: 1px solid #e2e9e2;
+  padding-top: 10px;
+}
+
 .trace-list {
   display: grid;
   max-height: 420px;
   gap: 8px;
   overflow: auto;
-  margin: 10px 0 0;
-  border-top: 1px solid #e2e9e2;
-  padding: 10px 0 0;
+  margin: 0;
+  padding: 0;
   list-style: none;
 }
 
@@ -206,6 +213,48 @@
   text-decoration: line-through;
   text-decoration-thickness: 1px;
   text-decoration-color: #9aa7b6;
+}
+
+.trace-todo-panel {
+  min-width: 0;
+  border: 1px solid #cddfd6;
+  border-radius: 8px;
+  background: #fbfdfb;
+  padding: 10px 12px;
+}
+
+.trace-todo-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.trace-todo-panel-header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #26313f;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.trace-todo-panel-header svg {
+  flex: 0 0 auto;
+  color: #37644b;
+}
+
+.trace-todo-panel-header small {
+  flex: 0 0 auto;
+  color: #617084;
+  font-size: 0.72rem;
+}
+
+.trace-todo-empty {
+  margin: 8px 0 0;
+  color: #718096;
+  font-size: 0.8rem;
 }
 
 .trace-event-success .trace-event-icon {

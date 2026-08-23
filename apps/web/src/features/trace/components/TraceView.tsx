@@ -25,6 +25,8 @@ type TraceViewProps = {
 
 export function TraceView({ content, expanded, onExpandedChange }: TraceViewProps) {
   const events = parseExecutionTrace(content);
+  const detailEvents = events.filter((event) => !isTodoListTraceEvent(event));
+  const latestTodoList = findLatestTodoList(events);
   const traceListRef = useRef<HTMLOListElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
 
@@ -60,11 +62,14 @@ export function TraceView({ content, expanded, onExpandedChange }: TraceViewProp
         <span>{expanded ? "Hide execution trace" : "Show execution trace"}</span>
         <small>{formatExecutionTraceSummary(events)}</small>
       </summary>
-      <ol className="trace-list" onScroll={updateAutoScroll} ref={traceListRef}>
-        {events.map((event, index) => (
-          <TraceEventRow event={event} key={index} />
-        ))}
-      </ol>
+      <div className="trace-expanded-content">
+        {latestTodoList && <TodoListPanel item={latestTodoList} />}
+        <ol className="trace-list" onScroll={updateAutoScroll} ref={traceListRef}>
+          {detailEvents.map((event, index) => (
+            <TraceEventRow event={event} key={index} />
+          ))}
+        </ol>
+      </div>
     </details>
   );
 }
@@ -327,6 +332,58 @@ function getFileChangePaths(item: ExecutionTraceItem): string[] {
 
 function isFileChangeItem(type: string | undefined): boolean {
   return Boolean(type && /^file[._-]?change$/i.test(type));
+}
+
+function TodoListPanel({ item }: { item: Extract<ExecutionTraceItem, { type: "todo_list" }> }) {
+  const completedCount = item.items.filter((todo) => todo.completed).length;
+  const totalCount = item.items.length;
+
+  return (
+    <section className="trace-todo-panel" aria-label="Todo list">
+      <div className="trace-todo-panel-header">
+        <span>
+          <ListChecks size={15} />
+          Todo list
+        </span>
+        <small>
+          {completedCount}/{totalCount} done
+        </small>
+      </div>
+      {item.items.length > 0 ? (
+        <TodoList items={item.items} />
+      ) : (
+        <p className="trace-todo-empty">No todo items</p>
+      )}
+    </section>
+  );
+}
+
+function isTodoListTraceEvent(event: ExecutionTraceEvent): boolean {
+  return (
+    (event.type === "item.started" ||
+      event.type === "item.updated" ||
+      event.type === "item.completed") &&
+    event.item.type === "todo_list"
+  );
+}
+
+function findLatestTodoList(
+  events: ExecutionTraceEvent[],
+): Extract<ExecutionTraceItem, { type: "todo_list" }> | undefined {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+
+    if (
+      (event.type === "item.started" ||
+        event.type === "item.updated" ||
+        event.type === "item.completed") &&
+      event.item.type === "todo_list"
+    ) {
+      return event.item;
+    }
+  }
+
+  return undefined;
 }
 
 function formatTraceItemEventStatus(
