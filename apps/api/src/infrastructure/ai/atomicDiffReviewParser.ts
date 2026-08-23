@@ -15,7 +15,96 @@ export function parseAtomicDiffReviewItems(content: string): AtomicDiffReviewIte
     throw new Error("Atomic diff review JSON must include items array");
   }
 
-  return rawItems.map((item, index) => parseAtomicDiffReviewItem(item, index));
+  const items = rawItems.map((item, index) => parseAtomicDiffReviewItem(item, index));
+  const validationErrors = validateAtomicDiffReviewItems(items);
+
+  if (validationErrors.length > 0) {
+    throw new Error(`Atomic diff review had invalid diff format:\n${validationErrors.join("\n")}`);
+  }
+
+  return items;
+}
+
+export function validateAtomicDiffReviewItems(items: AtomicDiffReviewItem[]): string[] {
+  return items.flatMap((item, index) =>
+    validateAtomicDiffReviewItemDiff(item.diff).map(
+      (error) => `item ${index + 1} (${item.id}): ${error}`,
+    ),
+  );
+}
+
+function validateAtomicDiffReviewItemDiff(diff: string): string[] {
+  const errors: string[] = [];
+  const lines = diff.replace(/\r\n?/g, "\n").split("\n");
+  const fileHeaderIndexes = lines.reduce<number[]>((indexes, line, index) => {
+    if (line.startsWith("diff --git ")) {
+      indexes.push(index);
+    }
+
+    return indexes;
+  }, []);
+
+  if (fileHeaderIndexes.length === 0) {
+    return ["diff must include at least one file block starting with `diff --git `"];
+  }
+
+  fileHeaderIndexes.forEach((fileHeaderIndex, blockIndex) => {
+    const nextFileHeaderIndex = fileHeaderIndexes[blockIndex + 1] ?? lines.length;
+    const blockLines = lines.slice(fileHeaderIndex, nextFileHeaderIndex);
+    const header = blockLines[0];
+
+    if (!/^diff --git a\/.+ b\/.+$/.test(header)) {
+      errors.push(`file block ${blockIndex + 1} has invalid header ${JSON.stringify(header)}`);
+    }
+
+    if (!blockLines.some((line) => line.startsWith("--- "))) {
+      errors.push(`file block ${blockIndex + 1} is missing a --- file header`);
+    }
+
+    if (!blockLines.some((line) => line.startsWith("+++ "))) {
+      errors.push(`file block ${blockIndex + 1} is missing a +++ file header`);
+    }
+
+    const hunkHeaderIndexes = blockLines.reduce<number[]>((indexes, line, index) => {
+      if (line.startsWith("@@")) {
+        indexes.push(index);
+      }
+
+      return indexes;
+    }, []);
+
+    if (hunkHeaderIndexes.length === 0) {
+      errors.push(`file block ${blockIndex + 1} is missing a hunk header`);
+      return;
+    }
+
+    hunkHeaderIndexes.forEach((hunkHeaderIndex, hunkIndex) => {
+      const hunkHeader = blockLines[hunkHeaderIndex];
+
+      if (!/^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/.test(hunkHeader)) {
+        errors.push(
+          `file block ${blockIndex + 1} hunk ${hunkIndex + 1} has invalid hunk header ${JSON.stringify(hunkHeader)}`,
+        );
+        return;
+      }
+
+      const nextHunkHeaderIndex = hunkHeaderIndexes[hunkIndex + 1] ?? blockLines.length;
+      const hunkLines = blockLines.slice(hunkHeaderIndex + 1, nextHunkHeaderIndex);
+      const hasChangedLine = hunkLines.some(
+        (line) =>
+          (line.startsWith("+") && !line.startsWith("+++ ")) ||
+          (line.startsWith("-") && !line.startsWith("--- ")),
+      );
+
+      if (!hasChangedLine) {
+        errors.push(
+          `file block ${blockIndex + 1} hunk ${hunkIndex + 1} has no added or removed lines`,
+        );
+      }
+    });
+  });
+
+  return errors;
 }
 
 function parseAtomicDiffReviewItem(item: unknown, index: number): AtomicDiffReviewItem {

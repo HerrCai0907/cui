@@ -10,16 +10,22 @@ import {
   AtomicDiffReview,
   ConversationSummary,
 } from "../../types.js";
-import { createAtomicDiffReviewPrompt } from "./atomicDiffReviewPrompt.js";
+import {
+  createAtomicDiffReviewFormatCorrectionPrompt,
+  createAtomicDiffReviewPrompt,
+} from "./atomicDiffReviewPrompt.js";
 import { parseAtomicDiffReviewItems } from "./atomicDiffReviewParser.js";
 import { parseConversationSummary } from "./conversationSummaryParser.js";
 import { extractResponseDeltas, extractThreadId, formatRawEvents } from "./traexEvents.js";
-import { runTraexProcess } from "./traexProcess.js";
+import { runTraexProcess, type TraexProcessRun } from "./traexProcess.js";
+
+type TraexProcessRunner = (input: Parameters<typeof runTraexProcess>[0]) => TraexProcessRun;
 
 type TraexModelOptions = {
   binary?: string;
   diffService?: GitDiffService;
   permissionMode?: string;
+  processRunner?: TraexProcessRunner;
   timeoutMs?: number;
 };
 
@@ -27,6 +33,7 @@ export class TraexModel implements AiModel {
   private readonly binary: string;
   private readonly diffService: GitDiffService;
   private readonly permissionMode: string;
+  private readonly processRunner: TraexProcessRunner;
   private readonly timeoutMs: number;
 
   constructor(options: TraexModelOptions = {}) {
@@ -34,6 +41,7 @@ export class TraexModel implements AiModel {
     this.diffService = options.diffService ?? new GitDiffService();
     this.permissionMode =
       options.permissionMode ?? process.env.TRAEX_PERMISSION_MODE ?? "bypass_permissions";
+    this.processRunner = options.processRunner ?? runTraexProcess;
     this.timeoutMs = Number(options.timeoutMs ?? process.env.TRAEX_TIMEOUT_MS ?? 10 * 60 * 1000);
   }
 
@@ -99,7 +107,7 @@ export class TraexModel implements AiModel {
   }
 
   async createAtomicDiffReview(input: AiAtomicDiffReviewInput): Promise<AtomicDiffReview> {
-    const args = [
+    const createArgs = [
       "exec",
       "-C",
       input.workspace,
@@ -114,25 +122,62 @@ export class TraexModel implements AiModel {
     try {
       response = await this.run(
         undefined,
-        args,
+        createArgs,
         createAtomicDiffReviewPrompt(input),
         input.workspace,
         false,
       );
+      const parsedItems = parseAtomicDiffReviewItems(response.content);
 
       return {
         status: "ready",
         generatedAt: new Date().toISOString(),
         analysisSessionId: response.sessionId,
-        items: parseAtomicDiffReviewItems(response.content),
+        items: parsedItems,
         rawResponse: response.content,
       };
     } catch (error) {
+      if (response) {
+        let correctionResponse: AiResponse | undefined;
+
+        try {
+          correctionResponse = await this.run(
+            response.sessionId,
+            this.createResumeArgs(response.sessionId),
+            createAtomicDiffReviewFormatCorrectionPrompt({
+              validationError:
+                error instanceof Error ? error.message : "Atomic diff review format was invalid",
+              previousResponse: response.content,
+            }),
+            input.workspace,
+            false,
+          );
+          const parsedItems = parseAtomicDiffReviewItems(correctionResponse.content);
+
+          return {
+            status: "ready",
+            generatedAt: new Date().toISOString(),
+            analysisSessionId: correctionResponse.sessionId,
+            items: parsedItems,
+            rawResponse: correctionResponse.content,
+          };
+        } catch (correctionError) {
+          return {
+            status: "failed",
+            generatedAt: new Date().toISOString(),
+            error:
+              correctionError instanceof Error
+                ? correctionError.message
+                : "Failed to create atomic diff review",
+            rawResponse: correctionResponse?.content ?? response.content,
+          };
+        }
+      }
+
       return {
         status: "failed",
         generatedAt: new Date().toISOString(),
         error: error instanceof Error ? error.message : "Failed to create atomic diff review",
-        ...(response ? { rawResponse: response.content } : {}),
       };
     }
   }
@@ -166,6 +211,19 @@ export class TraexModel implements AiModel {
       .result;
   }
 
+  private createResumeArgs(sessionId: string): string[] {
+    return [
+      "exec",
+      "resume",
+      sessionId,
+      "--permission-mode",
+      this.permissionMode,
+      "--skip-git-repo-check",
+      "--json",
+      "-",
+    ];
+  }
+
   private startRun(
     expectedSessionId: string | undefined,
     args: string[],
@@ -182,7 +240,7 @@ export class TraexModel implements AiModel {
       onEvent({ type: "session", sessionId: expectedSessionId });
     }
 
-    const processRun = runTraexProcess({
+    const processRun = this.processRunner({
       command: this.binary,
       args,
       cwd: workspace,
