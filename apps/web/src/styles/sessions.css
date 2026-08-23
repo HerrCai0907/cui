@@ -93,7 +93,12 @@
   gap: 4px;
 }
 
-.workspace-button {
+.workspace-row.has-workspace-toggle {
+  grid-template-columns: minmax(0, 1fr) 28px 28px;
+}
+
+.workspace-button,
+.workspace-label {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -113,6 +118,7 @@
   background: #edf1f5;
 }
 
+.workspace-toggle,
 .workspace-new-session {
   display: inline-flex;
   align-items: center;
@@ -126,13 +132,15 @@
   padding: 0;
 }
 
+.workspace-toggle:hover,
 .workspace-new-session:hover {
   border-color: #cbd5e1;
   background: #ffffff;
   color: #1f2937;
 }
 
-.workspace-button span {
+.workspace-button span,
+.workspace-label span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

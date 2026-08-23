@@ -182,6 +182,7 @@ export function SessionSidebar({
                   activeSessionId={activeSessionId}
                   expandedWorkspaces={expandedWorkspaces}
                   groups={workspaceGroups}
+                  sessionListMode={sessionListMode}
                   runningSessionIds={runningSessionIds}
                   onOpenSession={onOpenSession}
                   onStartNewSession={onStartNewSession}
@@ -223,6 +224,7 @@ function WorkspaceGroupList({
   activeSessionId,
   expandedWorkspaces,
   groups,
+  sessionListMode,
   runningSessionIds,
   onOpenSession,
   onStartNewSession,
@@ -231,6 +233,7 @@ function WorkspaceGroupList({
   activeSessionId?: string;
   expandedWorkspaces: Set<string>;
   groups: WorkspaceDisplayGroup[];
+  sessionListMode: SessionListMode;
   runningSessionIds: Set<string>;
   onOpenSession: (sessionId: string) => void;
   onStartNewSession: (workspace?: string) => void;
@@ -251,6 +254,7 @@ function WorkspaceGroupList({
               expanded={expandedWorkspaces.has(workspace.workspace)}
               key={workspace.workspace}
               runningSessionIds={runningSessionIds}
+              sessionListMode={sessionListMode}
               workspace={workspace}
               onOpenSession={onOpenSession}
               onStartNewSession={onStartNewSession}
@@ -325,6 +329,7 @@ function WorkspaceGroup({
   activeSessionId,
   expanded,
   runningSessionIds,
+  sessionListMode,
   workspace,
   onOpenSession,
   onStartNewSession,
@@ -333,25 +338,50 @@ function WorkspaceGroup({
   activeSessionId?: string;
   expanded: boolean;
   runningSessionIds: Set<string>;
+  sessionListMode: SessionListMode;
   workspace: WorkspaceDisplayItem;
   onOpenSession: (sessionId: string) => void;
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
 }) {
+  const useSeparateToggle = sessionListMode === "active";
+
   return (
     <section className="workspace-group">
-      <div className="workspace-row">
-        <button
-          className="workspace-button"
-          type="button"
-          aria-expanded={expanded}
-          aria-label={workspace.workspace}
-          title={workspace.workspace}
-          onClick={() => onToggleWorkspace(workspace.workspace)}
-        >
-          {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          <span>{workspace.label}</span>
-        </button>
+      <div className={`workspace-row ${useSeparateToggle ? "has-workspace-toggle" : ""}`}>
+        {useSeparateToggle ? (
+          <>
+            <div
+              className="workspace-label"
+              aria-label={workspace.workspace}
+              title={workspace.workspace}
+            >
+              <span>{workspace.label}</span>
+            </div>
+            <button
+              className="workspace-toggle"
+              type="button"
+              aria-expanded={expanded}
+              aria-label={`${expanded ? "Collapse" : "Expand"} ${workspace.workspace}`}
+              title={expanded ? "Collapse workspace" : "Expand workspace"}
+              onClick={() => onToggleWorkspace(workspace.workspace)}
+            >
+              {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+            </button>
+          </>
+        ) : (
+          <button
+            className="workspace-button"
+            type="button"
+            aria-expanded={expanded}
+            aria-label={workspace.workspace}
+            title={workspace.workspace}
+            onClick={() => onToggleWorkspace(workspace.workspace)}
+          >
+            {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            <span>{workspace.label}</span>
+          </button>
+        )}
         <button
           className="workspace-new-session"
           type="button"

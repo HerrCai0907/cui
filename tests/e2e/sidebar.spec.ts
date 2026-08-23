@@ -83,6 +83,45 @@ test("shows a focused Active list and keeps all sessions in More", async ({ page
   await expect(page.getByRole("heading", { name: "Session 1" })).toBeVisible();
 });
 
+test("uses a separate workspace toggle in Active mode only", async ({ page }) => {
+  const sessions = [
+    {
+      id: "session-1",
+      workspace: currentWorkspace,
+      title: "Active session",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [],
+      rounds: [],
+      isRunning: true,
+    },
+  ];
+
+  await mockSessions(page, sessions);
+  await page.goto("/");
+
+  const workspaceToggle = page.getByRole("button", {
+    name: `Collapse ${currentWorkspace}`,
+    exact: true,
+  });
+
+  await expect(workspaceToggle).toBeVisible();
+  await expect(page.getByText(currentWorkspace, { exact: true })).toBeVisible();
+  await page.getByText(currentWorkspace, { exact: true }).click();
+  await expect(page.getByRole("button", { name: "Active session" })).toBeVisible();
+
+  await workspaceToggle.click();
+  await expect(page.getByRole("button", { name: "Active session" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "More" }).click();
+  await expect(
+    page.getByRole("button", { name: `Expand ${currentWorkspace}`, exact: true }),
+  ).toHaveCount(0);
+
+  await page.getByRole("button", { name: currentWorkspace, exact: true }).click();
+  await expect(page.getByRole("button", { name: "Active session" })).toBeVisible();
+});
+
 test("resizes and restores the session sidebar width", async ({ page }) => {
   const session = {
     id: "session-1",
