@@ -4,16 +4,16 @@ import {
   type SetStateAction,
   useEffect,
   useRef,
-} from 'react';
-import type { ApiSession } from '../../../types';
+} from "react";
+import type { ApiSession } from "../../../types";
 import {
   appendResponseDelta,
   appendTraceEvent,
   createStreamMessageState,
-} from '../model/streamMessages';
-import { toSessionSummary } from '../model/sessionSummaries';
-import { parseTurnStreamEvent } from '../model/turnStream';
-import type { SessionSummary } from '../../../types';
+} from "../model/streamMessages";
+import { toSessionSummary } from "../model/sessionSummaries";
+import { parseTurnStreamEvent } from "../model/turnStream";
+import type { SessionSummary } from "../../../types";
 
 type UseTurnStreamInput = {
   activeSessionRef: MutableRefObject<ApiSession | null>;
@@ -50,10 +50,7 @@ export function useTurnStream({
   }, []);
 
   function streamTurn(sessionId: string, turnId: string) {
-    if (
-      turnIdRefs.current.get(sessionId) === turnId &&
-      eventSourceRefs.current.has(sessionId)
-    ) {
+    if (turnIdRefs.current.get(sessionId) === turnId && eventSourceRefs.current.has(sessionId)) {
       return;
     }
 
@@ -116,9 +113,7 @@ export function useTurnStream({
         }
 
         activeSessionRef.current = nextSession;
-        setExpandedTraceIds((current) =>
-          new Set(current).add(streamingTraceMessageId),
-        );
+        setExpandedTraceIds((current) => new Set(current).add(streamingTraceMessageId));
         return nextSession;
       });
     };
@@ -148,43 +143,41 @@ export function useTurnStream({
         const nextSummary = toSessionSummary(updatedSession);
 
         return current.some((session) => session.id === updatedSession.id)
-          ? current.map((session) =>
-              session.id === updatedSession.id ? nextSummary : session,
-            )
+          ? current.map((session) => (session.id === updatedSession.id ? nextSummary : session))
           : [nextSummary, ...current];
       });
     };
 
-    eventSource.addEventListener('delta', (event) => {
+    eventSource.addEventListener("delta", (event) => {
       const data = parseTurnStreamEvent(event);
 
-      if (data?.type === 'delta') {
+      if (data?.type === "delta") {
         updateResponseMessage(data.text);
       }
     });
 
-    eventSource.addEventListener('raw', (event) => {
+    eventSource.addEventListener("raw", (event) => {
       const data = parseTurnStreamEvent(event);
 
-      if (data?.type === 'raw') {
+      if (data?.type === "raw") {
         updateTraceMessage(data.event);
       }
     });
 
-    eventSource.addEventListener('session.updated', (event) => {
+    eventSource.addEventListener("session.updated", (event) => {
       const data = parseTurnStreamEvent(event);
 
-      if (data?.type !== 'session.updated') {
+      if (data?.type !== "session.updated") {
         return;
       }
 
       updateSessionMetadata(data.session);
     });
 
-    eventSource.addEventListener('done', (event) => {
+    eventSource.addEventListener("done", (event) => {
       const data = parseTurnStreamEvent(event);
 
-      if (data?.type !== 'done') {
+      if (data?.type !== "done") {
         return;
       }
 
@@ -204,11 +197,11 @@ export function useTurnStream({
       closeCurrentStream();
     });
 
-    eventSource.addEventListener('failed', (event) => {
+    eventSource.addEventListener("failed", (event) => {
       const data = parseTurnStreamEvent(event);
 
       if (activeSessionRef.current?.id === sessionId) {
-        setError(data?.type === 'failed' ? data.error : 'Request failed');
+        setError(data?.type === "failed" ? data.error : "Request failed");
       }
       setRunningSession(sessionId, false);
       streamClosed = true;
@@ -221,7 +214,7 @@ export function useTurnStream({
       }
 
       if (activeSessionRef.current?.id === sessionId) {
-        setError('Stream connection failed');
+        setError("Stream connection failed");
       }
       setRunningSession(sessionId, false);
       closeCurrentStream();

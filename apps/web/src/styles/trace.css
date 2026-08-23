@@ -19,7 +19,7 @@
 }
 
 .trace-details summary::before {
-  content: '';
+  content: "";
   width: 0;
   height: 0;
   flex: 0 0 auto;
@@ -53,7 +53,7 @@
   border-top: 1px solid #e2e9e2;
   padding-top: 10px;
   color: #465668;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.82rem;
   line-height: 1.55;
 }
@@ -125,7 +125,7 @@
   background: #f6f8fa;
   color: #344054;
   padding: 8px;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.78rem;
   line-height: 1.5;
   white-space: pre-wrap;

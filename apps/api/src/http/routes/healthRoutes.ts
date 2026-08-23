@@ -1,12 +1,12 @@
-import { Router } from 'express';
+import { Router } from "express";
 
 export function createHealthRouter(): Router {
   const router = Router();
 
-  router.get('/api/health', (_request, response) => {
+  router.get("/api/health", (_request, response) => {
     response.json({
-      status: 'ok',
-      service: '@cui/api',
+      status: "ok",
+      service: "@cui/api",
       time: new Date().toISOString(),
     });
   });

@@ -1,22 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { formatMessageTime } from '../../../shared/lib/dates';
-import type { ApiRound } from '../../../types';
-import type {
-  ReviewNavigation,
-  ReviewNavigationTarget,
-} from '../model/reviewNavigation';
-import { createAtomicReviewNavigation } from '../model/reviewNavigation';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { formatMessageTime } from "../../../shared/lib/dates";
+import type { ApiRound } from "../../../types";
+import type { ReviewNavigation, ReviewNavigationTarget } from "../model/reviewNavigation";
+import { createAtomicReviewNavigation } from "../model/reviewNavigation";
 import {
   createEmptyAtomicItemState,
   loadReviewBrowserState,
   saveReviewBrowserState,
   type ReviewBrowserState,
-} from '../model/reviewBrowserState';
-import {
-  reviewBrowserStateKey,
-  type ReviewRoute,
-} from '../model/reviewRoutes';
-import { ReviewDiff } from './ReviewDiff';
+} from "../model/reviewBrowserState";
+import { reviewBrowserStateKey, type ReviewRoute } from "../model/reviewRoutes";
+import { ReviewDiff } from "./ReviewDiff";
 
 type ReviewPageProps = {
   error: string | null;
@@ -54,7 +48,7 @@ export function ReviewPage({
   );
 
   useEffect(() => {
-    onReviewNavigationChange(reviewRoute.mode === 'atomic' ? reviewNavigation : null);
+    onReviewNavigationChange(reviewRoute.mode === "atomic" ? reviewNavigation : null);
   }, [onReviewNavigationChange, reviewNavigation, reviewRoute.mode]);
 
   useEffect(() => {
@@ -71,9 +65,7 @@ export function ReviewPage({
     scrollPendingTarget();
   }, [reviewState]);
 
-  function updateReviewState(
-    updater: (current: ReviewBrowserState) => ReviewBrowserState,
-  ) {
+  function updateReviewState(updater: (current: ReviewBrowserState) => ReviewBrowserState) {
     setReviewState((current) => {
       const next = updater(current);
 
@@ -83,7 +75,7 @@ export function ReviewPage({
   }
 
   useEffect(() => {
-    if (!navigationTarget || reviewRoute.mode !== 'atomic') {
+    if (!navigationTarget || reviewRoute.mode !== "atomic") {
       return;
     }
 
@@ -94,8 +86,7 @@ export function ReviewPage({
     if (itemId) {
       pendingScrollTargetRef.current = targetId;
       updateReviewState((current) => {
-        const currentItem =
-          current.atomicItems[itemId] ?? createEmptyAtomicItemState();
+        const currentItem = current.atomicItems[itemId] ?? createEmptyAtomicItemState();
 
         if (!currentItem.collapsed) {
           return current;
@@ -117,8 +108,8 @@ export function ReviewPage({
     }
 
     document.getElementById(targetId)?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
+      behavior: "smooth",
+      block: "start",
     });
   }
 
@@ -137,8 +128,8 @@ export function ReviewPage({
       }
 
       target.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
+        behavior: "smooth",
+        block: "start",
       });
       pendingScrollTargetRef.current = null;
     });

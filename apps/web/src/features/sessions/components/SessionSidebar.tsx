@@ -8,18 +8,15 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
-} from 'lucide-react';
-import { formatRelativeTime } from '../../../shared/lib/dates';
-import type { SessionSummary } from '../../../types';
-import type {
-  ReviewNavigation,
-  ReviewNavigationTarget,
-} from '../../review/model/reviewNavigation';
+} from "lucide-react";
+import { formatRelativeTime } from "../../../shared/lib/dates";
+import type { SessionSummary } from "../../../types";
+import type { ReviewNavigation, ReviewNavigationTarget } from "../../review/model/reviewNavigation";
 import {
   groupWorkspacesForDisplay,
   type WorkspaceDisplayGroup,
   type WorkspaceDisplayItem,
-} from '../model/sessionSummaries';
+} from "../model/sessionSummaries";
 
 type SessionSidebarProps = {
   open: boolean;
@@ -75,8 +72,8 @@ export function SessionSidebar({
         <button
           className="icon-button"
           type="button"
-          aria-label={open ? 'Collapse sidebar' : 'Expand sidebar'}
-          title={open ? 'Collapse sidebar' : 'Expand sidebar'}
+          aria-label={open ? "Collapse sidebar" : "Expand sidebar"}
+          title={open ? "Collapse sidebar" : "Expand sidebar"}
           onClick={() => onOpenChange(!open)}
         >
           {open ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
@@ -92,11 +89,7 @@ export function SessionSidebar({
             />
           ) : (
             <>
-              <button
-                className="new-session"
-                type="button"
-                onClick={() => onStartNewSession()}
-              >
+              <button className="new-session" type="button" onClick={() => onStartNewSession()}>
                 <Plus size={16} />
                 New session
               </button>
@@ -112,10 +105,7 @@ export function SessionSidebar({
                   onToggleWorkspace={onToggleWorkspace}
                 />
                 {historySessionCount > 0 && (
-                  <details
-                    className="session-history"
-                    open={historyOpen}
-                  >
+                  <details className="session-history" open={historyOpen}>
                     <summary
                       className="session-history-summary"
                       onClick={(event) => {
@@ -139,9 +129,7 @@ export function SessionSidebar({
                     </div>
                   </details>
                 )}
-                {sessionCount === 0 && (
-                  <p className="empty-sidebar">No sessions yet</p>
-                )}
+                {sessionCount === 0 && <p className="empty-sidebar">No sessions yet</p>}
               </nav>
             </>
           )}
@@ -171,15 +159,9 @@ function WorkspaceGroupList({
   return (
     <>
       {groups.map((workspaceGroup) => (
-        <section
-          className="workspace-display-group"
-          key={workspaceGroup.id}
-        >
+        <section className="workspace-display-group" key={workspaceGroup.id}>
           {workspaceGroup.prefix && (
-            <div
-              className="workspace-prefix"
-              title={workspaceGroup.prefix}
-            >
+            <div className="workspace-prefix" title={workspaceGroup.prefix}>
               {workspaceGroup.prefix}
             </div>
           )}
@@ -214,9 +196,7 @@ function ReviewNavigationTree({
         <span>Atomic Review</span>
         <small>{navigation?.items.length ?? 0}</small>
       </div>
-      {!navigation && (
-        <p className="empty-sidebar">No sections yet.</p>
-      )}
+      {!navigation && <p className="empty-sidebar">No sections yet.</p>}
       <div className="review-navigation-list">
         {navigation?.items.map((item) => (
           <section className="review-navigation-item" key={item.itemId}>
@@ -231,7 +211,9 @@ function ReviewNavigationTree({
               }
             >
               <Hash size={14} />
-              <span>{item.order}. {item.title}</span>
+              <span>
+                {item.order}. {item.title}
+              </span>
             </button>
             <div className="review-navigation-files">
               {item.files.map((file) => (
@@ -307,17 +289,16 @@ function WorkspaceGroup({
         <div className="session-list">
           {workspace.sessions.map((session) => {
             const active = activeSessionId === session.id;
-            const isRunning =
-              runningSessionIds.has(session.id) || session.isRunning;
+            const isRunning = runningSessionIds.has(session.id) || session.isRunning;
             const hasUnreadRound = !isRunning && session.hasUnreadRound;
             const className = [
-              'session-button',
-              active ? 'is-active' : '',
-              isRunning ? 'is-running-session' : '',
-              hasUnreadRound ? 'is-unread-session' : '',
+              "session-button",
+              active ? "is-active" : "",
+              isRunning ? "is-running-session" : "",
+              hasUnreadRound ? "is-unread-session" : "",
             ]
               .filter(Boolean)
-              .join(' ');
+              .join(" ");
 
             return (
               <button
@@ -329,11 +310,7 @@ function WorkspaceGroup({
                 <span className="session-title-row">
                   <span className="session-title">{session.title}</span>
                   {isRunning && (
-                    <LoaderCircle
-                      className="session-running-icon"
-                      size={13}
-                      aria-hidden="true"
-                    />
+                    <LoaderCircle className="session-running-icon" size={13} aria-hidden="true" />
                   )}
                   {hasUnreadRound && (
                     <Circle

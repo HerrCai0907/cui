@@ -6,16 +6,16 @@ import {
   Play,
   Terminal,
   TextSearch,
-} from 'lucide-react';
-import { useLayoutEffect, useRef, type ReactNode } from 'react';
+} from "lucide-react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import type {
   ExecutionTraceEvent,
   ExecutionTraceItem,
   TodoListTraceItemEntry,
   TokenUsage,
-} from '../../../types';
-import { shortId } from '../../../shared/lib/ids';
-import { formatExecutionTraceSummary, parseExecutionTrace } from '../model/parseExecutionTrace';
+} from "../../../types";
+import { shortId } from "../../../shared/lib/ids";
+import { formatExecutionTraceSummary, parseExecutionTrace } from "../model/parseExecutionTrace";
 
 type TraceViewProps = {
   content: string;
@@ -45,7 +45,8 @@ export function TraceView({ content, expanded, onExpandedChange }: TraceViewProp
       return;
     }
 
-    const distanceFromBottom = traceList.scrollHeight - traceList.scrollTop - traceList.clientHeight;
+    const distanceFromBottom =
+      traceList.scrollHeight - traceList.scrollTop - traceList.clientHeight;
     shouldAutoScrollRef.current = distanceFromBottom <= 8;
   };
 
@@ -56,7 +57,7 @@ export function TraceView({ content, expanded, onExpandedChange }: TraceViewProp
       onToggle={(event) => onExpandedChange(event.currentTarget.open)}
     >
       <summary>
-        <span>{expanded ? 'Hide execution trace' : 'Show execution trace'}</span>
+        <span>{expanded ? "Hide execution trace" : "Show execution trace"}</span>
         <small>{formatExecutionTraceSummary(events)}</small>
       </summary>
       <ol className="trace-list" onScroll={updateAutoScroll} ref={traceListRef}>
@@ -92,99 +93,99 @@ function describeTraceEvent(event: ExecutionTraceEvent): {
   tone: string;
   icon: ReactNode;
 } {
-  if (event.type === 'thread.started') {
+  if (event.type === "thread.started") {
     return {
-      title: 'Thread started',
+      title: "Thread started",
       meta: shortId(event.thread_id),
-      tone: 'trace-event-neutral',
+      tone: "trace-event-neutral",
       icon: <Play size={14} />,
     };
   }
 
-  if (event.type === 'turn.started') {
+  if (event.type === "turn.started") {
     return {
-      title: 'Turn started',
-      tone: 'trace-event-neutral',
+      title: "Turn started",
+      tone: "trace-event-neutral",
       icon: <Play size={14} />,
     };
   }
 
-  if (event.type === 'turn.completed') {
+  if (event.type === "turn.completed") {
     return {
-      title: 'Turn completed',
+      title: "Turn completed",
       meta: event.usage ? formatUsage(event.usage) : undefined,
-      tone: 'trace-event-success',
+      tone: "trace-event-success",
       icon: <CheckCircle2 size={14} />,
     };
   }
 
   if (
-    event.type === 'item.started' ||
-    event.type === 'item.updated' ||
-    event.type === 'item.completed'
+    event.type === "item.started" ||
+    event.type === "item.updated" ||
+    event.type === "item.completed"
   ) {
     const item = describeTraceItem(event.item);
     const status = formatTraceItemEventStatus(event.type);
 
     return {
       title: item.title,
-      meta: [status, item.meta].filter(Boolean).join(' / '),
+      meta: [status, item.meta].filter(Boolean).join(" / "),
       content: item.content,
       tone: item.tone,
-      icon: event.type === 'item.started' ? item.startedIcon : item.completedIcon,
+      icon: event.type === "item.started" ? item.startedIcon : item.completedIcon,
     };
   }
 
-  if (event.type === 'event_msg') {
+  if (event.type === "event_msg") {
     return {
-      title: formatEventName(event.payload.type ?? 'event message'),
+      title: formatEventName(event.payload.type ?? "event message"),
       content: formatPreformattedContent(formatLegacyMessage(event.payload)),
-      tone: 'trace-event-neutral',
+      tone: "trace-event-neutral",
       icon: <Circle size={12} />,
     };
   }
 
-  if (event.type === 'session_meta') {
+  if (event.type === "session_meta") {
     return {
-      title: 'Session metadata',
+      title: "Session metadata",
       meta: shortId(stringValue(event.payload.id)),
       content: formatPreformattedContent(formatJson(event.payload)),
-      tone: 'trace-event-neutral',
+      tone: "trace-event-neutral",
       icon: <TextSearch size={14} />,
     };
   }
 
-  if (event.type === 'response_item') {
+  if (event.type === "response_item") {
     return {
-      title: `Response item${event.payload.type ? `: ${formatEventName(String(event.payload.type))}` : ''}`,
+      title: `Response item${event.payload.type ? `: ${formatEventName(String(event.payload.type))}` : ""}`,
       content: formatPreformattedContent(formatJson(event.payload)),
-      tone: 'trace-event-neutral',
+      tone: "trace-event-neutral",
       icon: <TextSearch size={14} />,
     };
   }
 
-  if (event.type === 'text_delta') {
+  if (event.type === "text_delta") {
     return {
-      title: 'Text delta',
+      title: "Text delta",
       content: formatPreformattedContent(event.text ?? event.delta),
-      tone: 'trace-event-message',
+      tone: "trace-event-message",
       icon: <MessageSquare size={14} />,
     };
   }
 
-  if (event.type === 'stdout') {
+  if (event.type === "stdout") {
     return {
-      title: 'Stdout',
+      title: "Stdout",
       content: formatPreformattedContent(event.text),
-      tone: 'trace-event-command',
+      tone: "trace-event-command",
       icon: <Terminal size={14} />,
     };
   }
 
   return {
-    title: 'Unknown event',
+    title: "Unknown event",
     content: formatPreformattedContent(formatJson(event.raw)),
-    tone: 'trace-event-neutral',
+    tone: "trace-event-neutral",
     icon: <TextSearch size={14} />,
   };
 }
@@ -197,59 +198,63 @@ function describeTraceItem(item: ExecutionTraceItem): {
   startedIcon: ReactNode;
   completedIcon: ReactNode;
 } {
-  if (item.type === 'command_execution') {
-    const status = item.status ?? 'unknown';
-    const exitCode = item.exit_code === undefined ? undefined : `exit ${item.exit_code ?? 'pending'}`;
+  if (item.type === "command_execution") {
+    const status = item.status ?? "unknown";
+    const exitCode =
+      item.exit_code === undefined ? undefined : `exit ${item.exit_code ?? "pending"}`;
 
     return {
-      title: item.command ? `Command: ${item.command}` : 'Command execution',
-      meta: [status, exitCode].filter(Boolean).join(' / '),
+      title: item.command ? `Command: ${item.command}` : "Command execution",
+      meta: [status, exitCode].filter(Boolean).join(" / "),
       content: formatPreformattedContent(item.aggregated_output?.trim()),
-      tone: status === 'completed' && item.exit_code === 0 ? 'trace-event-success' : 'trace-event-command',
+      tone:
+        status === "completed" && item.exit_code === 0
+          ? "trace-event-success"
+          : "trace-event-command",
       startedIcon: <Terminal size={14} />,
       completedIcon: <Terminal size={14} />,
     };
   }
 
-  if (item.type === 'agent_message') {
+  if (item.type === "agent_message") {
     return {
-      title: 'Assistant message',
+      title: "Assistant message",
       content: formatPreformattedContent(item.text),
-      tone: 'trace-event-message',
+      tone: "trace-event-message",
       startedIcon: <MessageSquare size={14} />,
       completedIcon: <MessageSquare size={14} />,
     };
   }
 
-  if (item.type === 'reasoning') {
+  if (item.type === "reasoning") {
     return {
-      title: 'Reasoning',
+      title: "Reasoning",
       content: formatPreformattedContent(item.text),
-      tone: 'trace-event-reasoning',
+      tone: "trace-event-reasoning",
       startedIcon: <TextSearch size={14} />,
       completedIcon: <TextSearch size={14} />,
     };
   }
 
-  if (item.type === 'todo_list') {
+  if (item.type === "todo_list") {
     const completedCount = item.items.filter((todo) => todo.completed).length;
     const totalCount = item.items.length;
 
     return {
-      title: 'Todo list',
+      title: "Todo list",
       meta: `${completedCount}/${totalCount} done`,
       content: <TodoList items={item.items} />,
-      tone: 'trace-event-todo',
+      tone: "trace-event-todo",
       startedIcon: <ListChecks size={14} />,
       completedIcon: <ListChecks size={14} />,
     };
   }
 
   return {
-    title: item.originalType ? formatEventName(item.originalType) : 'Unknown item',
+    title: item.originalType ? formatEventName(item.originalType) : "Unknown item",
     meta: shortId(item.id),
     content: formatPreformattedContent(formatJson(item)),
-    tone: 'trace-event-neutral',
+    tone: "trace-event-neutral",
     startedIcon: <Circle size={12} />,
     completedIcon: <CheckCircle2 size={14} />,
   };
@@ -263,7 +268,7 @@ function TodoList({ items }: { items: TodoListTraceItemEntry[] }) {
   return (
     <ul className="trace-todo-list">
       {items.map((item, index) => (
-        <li className={item.completed ? 'is-completed' : ''} key={`${item.text}-${index}`}>
+        <li className={item.completed ? "is-completed" : ""} key={`${item.text}-${index}`}>
           {item.completed ? <CheckCircle2 size={14} /> : <Circle size={14} />}
           <span>{item.text}</span>
         </li>
@@ -272,16 +277,18 @@ function TodoList({ items }: { items: TodoListTraceItemEntry[] }) {
   );
 }
 
-function formatTraceItemEventStatus(eventType: 'item.started' | 'item.updated' | 'item.completed'): string {
-  if (eventType === 'item.started') {
-    return 'started';
+function formatTraceItemEventStatus(
+  eventType: "item.started" | "item.updated" | "item.completed",
+): string {
+  if (eventType === "item.started") {
+    return "started";
   }
 
-  if (eventType === 'item.updated') {
-    return 'updated';
+  if (eventType === "item.updated") {
+    return "updated";
   }
 
-  return 'completed';
+  return "completed";
 }
 
 function formatPreformattedContent(content: string | undefined): ReactNode {
@@ -300,11 +307,12 @@ function formatUsage(usage: TokenUsage): string {
     reasoning === undefined ? undefined : `${reasoning} reasoning`,
   ].filter(Boolean);
 
-  return parts.join(' / ');
+  return parts.join(" / ");
 }
 
 function formatLegacyMessage(payload: Record<string, unknown>): string | undefined {
-  const text = stringValue(payload.message) ?? stringValue(payload.text) ?? stringValue(payload.delta);
+  const text =
+    stringValue(payload.message) ?? stringValue(payload.text) ?? stringValue(payload.delta);
 
   if (text) {
     return text;
@@ -322,15 +330,13 @@ function formatJson(value: unknown): string | undefined {
 }
 
 function formatEventName(value: string): string {
-  return value
-    .replace(/[._-]+/g, ' ')
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return value.replace(/[._-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function stringValue(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined;
+  return typeof value === "string" ? value : undefined;
 }
 
 function numberValue(value: unknown): number | undefined {
-  return typeof value === 'number' ? value : undefined;
+  return typeof value === "number" ? value : undefined;
 }

@@ -4,11 +4,11 @@ import type {
   LegacyEventMessage,
   TodoListTraceItemEntry,
   TokenUsage,
-} from '../../../types';
+} from "../../../types";
 
 export function parseExecutionTrace(content: string): ExecutionTraceEvent[] {
   return content
-    .split('\n')
+    .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
     .map(parseTraceLine);
@@ -24,27 +24,27 @@ export function encodeExecutionTraceEvent(event: unknown): string | undefined {
 
 export function formatExecutionTraceSummary(events: ExecutionTraceEvent[]): string {
   if (events.length === 0) {
-    return 'No trace output';
+    return "No trace output";
   }
 
   const commandCount = events.filter(
-    (event) => event.type === 'item.completed' && event.item.type === 'command_execution',
+    (event) => event.type === "item.completed" && event.item.type === "command_execution",
   ).length;
   const messageCount = events.filter(
-    (event) => event.type === 'item.completed' && event.item.type === 'agent_message',
+    (event) => event.type === "item.completed" && event.item.type === "agent_message",
   ).length;
 
-  const parts = [`${events.length} ${events.length === 1 ? 'event' : 'events'}`];
+  const parts = [`${events.length} ${events.length === 1 ? "event" : "events"}`];
 
   if (commandCount > 0) {
-    parts.push(`${commandCount} ${commandCount === 1 ? 'command' : 'commands'}`);
+    parts.push(`${commandCount} ${commandCount === 1 ? "command" : "commands"}`);
   }
 
   if (messageCount > 0) {
-    parts.push(`${messageCount} ${messageCount === 1 ? 'message' : 'messages'}`);
+    parts.push(`${messageCount} ${messageCount === 1 ? "message" : "messages"}`);
   }
 
-  return parts.join(' / ');
+  return parts.join(" / ");
 }
 
 function parseTraceLine(line: string): ExecutionTraceEvent {
@@ -52,7 +52,7 @@ function parseTraceLine(line: string): ExecutionTraceEvent {
     return normalizeTraceEvent(JSON.parse(line));
   } catch {
     return {
-      type: 'stdout',
+      type: "stdout",
       text: line,
     };
   }
@@ -60,23 +60,23 @@ function parseTraceLine(line: string): ExecutionTraceEvent {
 
 function normalizeTraceEvent(raw: unknown): ExecutionTraceEvent {
   if (!isRecord(raw)) {
-    return { type: 'unknown', raw };
+    return { type: "unknown", raw };
   }
 
-  const type = getString(raw, 'type');
+  const type = getString(raw, "type");
 
-  if (type === 'thread.started') {
+  if (type === "thread.started") {
     return {
       type,
-      thread_id: getString(raw, 'thread_id') ?? '',
+      thread_id: getString(raw, "thread_id") ?? "",
     };
   }
 
-  if (type === 'turn.started') {
+  if (type === "turn.started") {
     return { type };
   }
 
-  if (type === 'turn.completed') {
+  if (type === "turn.completed") {
     const usage = raw.usage;
 
     return {
@@ -85,18 +85,14 @@ function normalizeTraceEvent(raw: unknown): ExecutionTraceEvent {
     };
   }
 
-  if (
-    type === 'item.started' ||
-    type === 'item.updated' ||
-    type === 'item.completed'
-  ) {
+  if (type === "item.started" || type === "item.updated" || type === "item.completed") {
     return {
       type,
       item: normalizeTraceItem(raw.item),
     };
   }
 
-  if (type === 'session_meta' || type === 'response_item') {
+  if (type === "session_meta" || type === "response_item") {
     const payload = raw.payload;
 
     return {
@@ -105,7 +101,7 @@ function normalizeTraceEvent(raw: unknown): ExecutionTraceEvent {
     };
   }
 
-  if (type === 'event_msg') {
+  if (type === "event_msg") {
     const payload = raw.payload;
 
     return {
@@ -114,64 +110,64 @@ function normalizeTraceEvent(raw: unknown): ExecutionTraceEvent {
     };
   }
 
-  if (type === 'text_delta') {
+  if (type === "text_delta") {
     return {
       type,
-      text: getString(raw, 'text'),
-      delta: getString(raw, 'delta'),
+      text: getString(raw, "text"),
+      delta: getString(raw, "delta"),
     };
   }
 
-  if (type === 'stdout') {
+  if (type === "stdout") {
     return {
       type,
-      text: getString(raw, 'text') ?? '',
+      text: getString(raw, "text") ?? "",
     };
   }
 
-  return { type: 'unknown', raw };
+  return { type: "unknown", raw };
 }
 
 function normalizeTraceItem(raw: unknown): ExecutionTraceItem {
   if (!isRecord(raw)) {
     return {
-      id: '',
-      type: 'unknown',
+      id: "",
+      type: "unknown",
       raw,
     };
   }
 
-  const type = getString(raw, 'type') ?? 'unknown';
-  const id = getString(raw, 'id') ?? '';
+  const type = getString(raw, "type") ?? "unknown";
+  const id = getString(raw, "id") ?? "";
 
-  if (type === 'reasoning') {
+  if (type === "reasoning") {
     return {
       id,
       type,
-      text: getString(raw, 'text'),
+      text: getString(raw, "text"),
     };
   }
 
-  if (type === 'agent_message') {
+  if (type === "agent_message") {
     return {
       id,
       type,
-      text: getString(raw, 'text'),
+      text: getString(raw, "text"),
     };
   }
 
-  if (type === 'command_execution') {
+  if (type === "command_execution") {
     return {
       id,
       type,
-      command: getString(raw, 'command'),
-      aggregated_output: getString(raw, 'aggregated_output'),
-      exit_code: getNumberOrNull(raw, 'exit_code'),
-      status: getString(raw, 'status'),
+      command: getString(raw, "command"),
+      aggregated_output: getString(raw, "aggregated_output"),
+      exit_code: getNumberOrNull(raw, "exit_code"),
+      status: getString(raw, "status"),
     };
   }
 
-  if (type === 'todo_list') {
+  if (type === "todo_list") {
     return {
       id,
       type,
@@ -182,13 +178,13 @@ function normalizeTraceItem(raw: unknown): ExecutionTraceItem {
   return {
     ...raw,
     id,
-    type: 'unknown',
+    type: "unknown",
     originalType: type,
   };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function normalizeTodoListItems(value: unknown): TodoListTraceItemEntry[] {
@@ -199,8 +195,8 @@ function normalizeTodoListItems(value: unknown): TodoListTraceItemEntry[] {
   return value
     .filter(isRecord)
     .map((item) => ({
-      text: getString(item, 'text') ?? '',
-      completed: getBoolean(item, 'completed') ?? false,
+      text: getString(item, "text") ?? "",
+      completed: getBoolean(item, "completed") ?? false,
     }))
     .filter((item) => item.text);
 }
@@ -208,13 +204,13 @@ function normalizeTodoListItems(value: unknown): TodoListTraceItemEntry[] {
 function getString(value: Record<string, unknown>, key: string): string | undefined {
   const property = value[key];
 
-  return typeof property === 'string' ? property : undefined;
+  return typeof property === "string" ? property : undefined;
 }
 
 function getBoolean(value: Record<string, unknown>, key: string): boolean | undefined {
   const property = value[key];
 
-  return typeof property === 'boolean' ? property : undefined;
+  return typeof property === "boolean" ? property : undefined;
 }
 
 function getNumberOrNull(value: Record<string, unknown>, key: string): number | null | undefined {
@@ -224,5 +220,5 @@ function getNumberOrNull(value: Record<string, unknown>, key: string): number | 
     return null;
   }
 
-  return typeof property === 'number' ? property : undefined;
+  return typeof property === "number" ? property : undefined;
 }

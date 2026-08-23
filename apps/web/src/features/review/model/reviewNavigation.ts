@@ -1,12 +1,6 @@
-import type {
-  ApiAtomicDiffReview,
-  ApiAtomicDiffReviewItem,
-} from '../../../types';
-import { parseDiff, type DiffFile } from './diffParser';
-import {
-  createEmptyAtomicItemState,
-  type ReviewBrowserState,
-} from './reviewBrowserState';
+import type { ApiAtomicDiffReview, ApiAtomicDiffReviewItem } from "../../../types";
+import { parseDiff, type DiffFile } from "./diffParser";
+import { createEmptyAtomicItemState, type ReviewBrowserState } from "./reviewBrowserState";
 
 export type ReviewNavigationFile = {
   id: string;
@@ -38,7 +32,7 @@ export function createAtomicReviewNavigation(
   review: ApiAtomicDiffReview | undefined,
   reviewState: ReviewBrowserState,
 ): ReviewNavigation | null {
-  if (!review || review.status !== 'ready') {
+  if (!review || review.status !== "ready") {
     return null;
   }
 
@@ -59,8 +53,7 @@ export function createAtomicReviewNavigation(
 
   return {
     items: sortedItems.map((item) => {
-      const itemState =
-        reviewState.atomicItems[item.id] ?? createEmptyAtomicItemState();
+      const itemState = reviewState.atomicItems[item.id] ?? createEmptyAtomicItemState();
       const approvedFileIds = new Set(itemState.approvedFileIds);
       const files = filesByItem.get(item.id) ?? [];
       const pendingFiles = files
@@ -79,14 +72,11 @@ export function createAtomicReviewNavigation(
 }
 
 export function createAtomicReviewSectionId(itemId: string): string {
-  return createReviewAnchorId('atomic-review', itemId);
+  return createReviewAnchorId("atomic-review", itemId);
 }
 
-export function createAtomicReviewFileSectionId(
-  itemId: string,
-  fileId: string,
-): string {
-  return createReviewAnchorId('atomic-review-file', itemId, fileId);
+export function createAtomicReviewFileSectionId(itemId: string, fileId: string): string {
+  return createReviewAnchorId("atomic-review-file", itemId, fileId);
 }
 
 function createNavigationFile(
@@ -99,8 +89,7 @@ function createNavigationFile(
   return {
     id: file.id,
     path: file.path,
-    label:
-      (basenameCounts.get(basename) ?? 0) > 1 ? file.path : basename,
+    label: (basenameCounts.get(basename) ?? 0) > 1 ? file.path : basename,
     targetId: createAtomicReviewFileSectionId(item.id, file.id),
     additions: file.additions,
     deletions: file.deletions,
@@ -123,11 +112,11 @@ function compareDiffFiles(left: DiffFile, right: DiffFile): number {
 }
 
 function createReviewAnchorId(prefix: string, ...parts: string[]): string {
-  return [prefix, ...parts.map(encodeAnchorPart)].join('-');
+  return [prefix, ...parts.map(encodeAnchorPart)].join("-");
 }
 
 function encodeAnchorPart(value: string): string {
-  return encodeURIComponent(value).replace(/%/g, '_');
+  return encodeURIComponent(value).replace(/%/g, "_");
 }
 
 function getFileBasename(path: string): string {

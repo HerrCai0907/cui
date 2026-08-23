@@ -1,23 +1,23 @@
-import { useEffect, useState } from 'react';
-import { ReviewPage } from '../features/review/components/ReviewPage';
-import { getRoundReview } from '../features/review/api/reviewApi';
+import { useEffect, useState } from "react";
+import { ReviewPage } from "../features/review/components/ReviewPage";
+import { getRoundReview } from "../features/review/api/reviewApi";
 import type {
   ReviewNavigation,
   ReviewNavigationTarget,
-} from '../features/review/model/reviewNavigation';
+} from "../features/review/model/reviewNavigation";
 import {
   createReviewPath,
   parseReviewRoute,
   type ReviewRoute,
-} from '../features/review/model/reviewRoutes';
-import { ChatHeader } from '../features/sessions/components/ChatHeader';
-import { Composer } from '../features/sessions/components/Composer';
-import { MessageStream } from '../features/sessions/components/MessageStream';
-import { SessionSidebar } from '../features/sessions/components/SessionSidebar';
-import { useSessionController } from '../features/sessions/hooks/useSessionController';
-import type { ApiRound } from '../types';
+} from "../features/review/model/reviewRoutes";
+import { ChatHeader } from "../features/sessions/components/ChatHeader";
+import { Composer } from "../features/sessions/components/Composer";
+import { MessageStream } from "../features/sessions/components/MessageStream";
+import { SessionSidebar } from "../features/sessions/components/SessionSidebar";
+import { useSessionController } from "../features/sessions/hooks/useSessionController";
+import type { ApiRound } from "../types";
 
-const DEFAULT_WORKSPACE = '/Users/bytedance/cui';
+const DEFAULT_WORKSPACE = "/Users/bytedance/cui";
 
 export function App() {
   const [reviewRoute, setReviewRoute] = useState<ReviewRoute | null>(() =>
@@ -26,8 +26,7 @@ export function App() {
   const [review, setReview] = useState<ApiRound | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
-  const [reviewNavigation, setReviewNavigation] =
-    useState<ReviewNavigation | null>(null);
+  const [reviewNavigation, setReviewNavigation] = useState<ReviewNavigation | null>(null);
   const [reviewNavigationTarget, setReviewNavigationTarget] =
     useState<ReviewNavigationTarget | null>(null);
   const sessionController = useSessionController(DEFAULT_WORKSPACE);
@@ -37,10 +36,10 @@ export function App() {
       setReviewRoute(parseReviewRoute(location.pathname));
     };
 
-    window.addEventListener('popstate', handlePopState);
+    window.addEventListener("popstate", handlePopState);
 
     return () => {
-      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener("popstate", handlePopState);
     };
   }, []);
 
@@ -67,9 +66,7 @@ export function App() {
       .catch((reason) => {
         if (!cancelled) {
           setReview(null);
-          setReviewError(
-            reason instanceof Error ? reason.message : 'Failed to load review',
-          );
+          setReviewError(reason instanceof Error ? reason.message : "Failed to load review");
         }
       })
       .finally(() => {
@@ -94,8 +91,8 @@ export function App() {
     setReview(null);
     setReviewNavigation(null);
     setReviewNavigationTarget(null);
-    if (location.pathname !== '/') {
-      history.pushState({}, '', '/');
+    if (location.pathname !== "/") {
+      history.pushState({}, "", "/");
     }
     setReviewError(null);
     sessionController.startNewSession(workspace);
@@ -107,18 +104,14 @@ export function App() {
     setReviewNavigation(null);
     setReviewNavigationTarget(null);
     setReviewError(null);
-    if (location.pathname !== '/') {
-      history.pushState({}, '', '/');
+    if (location.pathname !== "/") {
+      history.pushState({}, "", "/");
     }
     void sessionController.openSession(sessionId);
   }
 
   function openReview(sessionId: string, round: number) {
-    window.open(
-      createReviewPath(sessionId, round, 'atomic'),
-      '_blank',
-      'noopener,noreferrer',
-    );
+    window.open(createReviewPath(sessionId, round, "atomic"), "_blank", "noopener,noreferrer");
   }
 
   function openFullReview() {
@@ -126,13 +119,11 @@ export function App() {
       return;
     }
 
-    window.location.assign(
-      createReviewPath(reviewRoute.sessionId, reviewRoute.round, 'full'),
-    );
+    window.location.assign(createReviewPath(reviewRoute.sessionId, reviewRoute.round, "full"));
   }
 
   function closeReview() {
-    history.pushState({}, '', '/');
+    history.pushState({}, "", "/");
     setReviewRoute(null);
     setReview(null);
     setReviewNavigation(null);
@@ -145,7 +136,7 @@ export function App() {
   }
 
   return (
-    <main className={`app-shell ${sessionController.sidebarOpen ? '' : 'is-collapsed'}`}>
+    <main className={`app-shell ${sessionController.sidebarOpen ? "" : "is-collapsed"}`}>
       <SessionSidebar
         activeSessionId={sessionController.activeSession?.id}
         expandedWorkspaces={sessionController.expandedWorkspaces}
@@ -159,21 +150,14 @@ export function App() {
         onOpenChange={sessionController.setSidebarOpen}
         onHistoryOpenChange={sessionController.setHistoryOpen}
         onOpenSession={openSession}
-        onNavigateReview={
-          reviewRoute?.mode === 'atomic' ? navigateToReviewTarget : undefined
-        }
+        onNavigateReview={reviewRoute?.mode === "atomic" ? navigateToReviewTarget : undefined}
         onStartNewSession={startNewSession}
         onToggleWorkspace={sessionController.toggleWorkspace}
-        reviewNavigationActive={reviewRoute?.mode === 'atomic'}
-        reviewNavigation={
-          reviewRoute?.mode === 'atomic' ? reviewNavigation : null
-        }
+        reviewNavigationActive={reviewRoute?.mode === "atomic"}
+        reviewNavigation={reviewRoute?.mode === "atomic" ? reviewNavigation : null}
       />
 
-      <section
-        className="chat-area"
-        aria-label={reviewRoute ? 'Round review' : 'AI conversation'}
-      >
+      <section className="chat-area" aria-label={reviewRoute ? "Round review" : "AI conversation"}>
         <ChatHeader
           activeSession={sessionController.activeSession}
           reviewRoute={reviewRoute}

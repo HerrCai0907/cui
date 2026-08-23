@@ -1,22 +1,20 @@
-import type { ApiAtomicDiffReview } from '../../../types';
-import { AtomicReview } from './AtomicReview';
-import { DiffFileList } from './DiffFileList';
-import { parseDiff } from '../model/diffParser';
+import type { ApiAtomicDiffReview } from "../../../types";
+import { AtomicReview } from "./AtomicReview";
+import { DiffFileList } from "./DiffFileList";
+import { parseDiff } from "../model/diffParser";
 import {
   createEmptyAtomicItemState,
   toggleString,
   type AtomicReviewItemState,
   type ReviewBrowserState,
-} from '../model/reviewBrowserState';
+} from "../model/reviewBrowserState";
 
 type ReviewDiffProps = {
   diff: string;
   atomicReview?: ApiAtomicDiffReview;
-  mode: 'atomic' | 'full';
+  mode: "atomic" | "full";
   reviewState: ReviewBrowserState;
-  onUpdateReviewState: (
-    updater: (current: ReviewBrowserState) => ReviewBrowserState,
-  ) => void;
+  onUpdateReviewState: (updater: (current: ReviewBrowserState) => ReviewBrowserState) => void;
   onOpenFullReview?: () => void;
 };
 
@@ -58,7 +56,7 @@ export function ReviewDiff({
     });
   }
 
-  if (mode === 'full') {
+  if (mode === "full") {
     return (
       <div className="review-diff" aria-label="Full review diff">
         <section className="review-diff-section" aria-label="Full round diff">

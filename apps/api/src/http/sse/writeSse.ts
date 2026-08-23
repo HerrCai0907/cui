@@ -1,5 +1,5 @@
-import type express from 'express';
-import type { TurnStreamEvent } from '../../domain/sessions/SessionService.js';
+import type express from "express";
+import type { TurnStreamEvent } from "../../domain/sessions/SessionService.js";
 
 export function writeSse(
   response: express.Response,

@@ -1,7 +1,7 @@
 export type ApiMessage = {
   id: string;
-  role: 'assistant' | 'user';
-  kind?: 'response' | 'trace';
+  role: "assistant" | "user";
+  kind?: "response" | "trace";
   round?: number;
   content: string;
   createdAt: string;
@@ -18,10 +18,7 @@ export type ApiRound = {
   atomicReview?: ApiAtomicDiffReview;
 };
 
-export type ApiRoundSummary = Pick<
-  ApiRound,
-  'round' | 'hasChanges' | 'createdAt'
->;
+export type ApiRoundSummary = Pick<ApiRound, "round" | "hasChanges" | "createdAt">;
 
 export type ApiSession = {
   id: string;
@@ -53,14 +50,14 @@ export type ApiAtomicDiffReviewItem = {
 
 export type ApiAtomicDiffReview =
   | {
-      status: 'ready';
+      status: "ready";
       generatedAt: string;
       analysisSessionId: string;
       items: ApiAtomicDiffReviewItem[];
       rawResponse: string;
     }
   | {
-      status: 'failed';
+      status: "failed";
       generatedAt: string;
       error: string;
       rawResponse?: string;
@@ -78,30 +75,30 @@ export type SessionSummary = {
 };
 
 export type SubmittedTurn = {
-  status: 'ok';
+  status: "ok";
   session: ApiSession;
   turnId: string;
 };
 
 export type TurnStreamEvent =
   | {
-      type: 'delta';
+      type: "delta";
       text: string;
     }
   | {
-      type: 'raw';
+      type: "raw";
       event: unknown;
     }
   | {
-      type: 'session.updated';
+      type: "session.updated";
       session: ApiSession;
     }
   | {
-      type: 'done';
+      type: "done";
       session: ApiSession;
     }
   | {
-      type: 'failed';
+      type: "failed";
       error: string;
     };
 
@@ -116,59 +113,59 @@ export type ExecutionTraceEvent =
   | UnknownTraceEvent;
 
 export type ThreadStartedTraceEvent = {
-  type: 'thread.started';
+  type: "thread.started";
   thread_id: string;
 };
 
 export type TurnStartedTraceEvent = {
-  type: 'turn.started';
+  type: "turn.started";
 };
 
 export type TurnCompletedTraceEvent = {
-  type: 'turn.completed';
+  type: "turn.completed";
   usage?: TokenUsage;
 };
 
 export type ItemStartedTraceEvent = {
-  type: 'item.started';
+  type: "item.started";
   item: ExecutionTraceItem;
 };
 
 export type ItemUpdatedTraceEvent = {
-  type: 'item.updated';
+  type: "item.updated";
   item: ExecutionTraceItem;
 };
 
 export type ItemCompletedTraceEvent = {
-  type: 'item.completed';
+  type: "item.completed";
   item: ExecutionTraceItem;
 };
 
 export type LegacyTraceEvent =
   | {
-      type: 'session_meta';
+      type: "session_meta";
       payload: Record<string, unknown>;
     }
   | {
-      type: 'event_msg';
+      type: "event_msg";
       payload: LegacyEventMessage;
     }
   | {
-      type: 'response_item';
+      type: "response_item";
       payload: Record<string, unknown>;
     }
   | {
-      type: 'text_delta';
+      type: "text_delta";
       text?: string;
       delta?: string;
     }
   | {
-      type: 'stdout';
+      type: "stdout";
       text: string;
     };
 
 export type UnknownTraceEvent = {
-  type: 'unknown';
+  type: "unknown";
   raw: unknown;
 };
 
@@ -181,28 +178,28 @@ export type ExecutionTraceItem =
 
 export type ReasoningTraceItem = {
   id: string;
-  type: 'reasoning';
+  type: "reasoning";
   text?: string;
 };
 
 export type AgentMessageTraceItem = {
   id: string;
-  type: 'agent_message';
+  type: "agent_message";
   text?: string;
 };
 
 export type CommandExecutionTraceItem = {
   id: string;
-  type: 'command_execution';
+  type: "command_execution";
   command?: string;
   aggregated_output?: string;
   exit_code?: number | null;
-  status?: 'in_progress' | 'completed' | 'failed' | 'cancelled' | string;
+  status?: "in_progress" | "completed" | "failed" | "cancelled" | string;
 };
 
 export type TodoListTraceItem = {
   id: string;
-  type: 'todo_list';
+  type: "todo_list";
   items: TodoListTraceItemEntry[];
 };
 
@@ -213,7 +210,7 @@ export type TodoListTraceItemEntry = {
 
 export type GenericTraceItem = {
   id: string;
-  type: 'unknown';
+  type: "unknown";
   originalType?: string;
   [key: string]: unknown;
 };

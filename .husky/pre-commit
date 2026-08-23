@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+set -eu
+
+staged_files="$(git diff --cached --name-only --diff-filter=ACMR)"
+
+npm run format
+
+if [ -n "$staged_files" ]; then
+  printf '%s\n' "$staged_files" | while IFS= read -r file; do
+    if [ -e "$file" ]; then
+      git add "$file"
+    fi
+  done
+fi

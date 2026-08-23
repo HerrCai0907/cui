@@ -66,7 +66,7 @@
 .atomic-review-header small {
   flex: 0 0 auto;
   color: #687586;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.76rem;
 }
 
@@ -203,7 +203,7 @@
   background: #eef3f8;
 }
 
-.atomic-review-approve-all[aria-pressed='true'] {
+.atomic-review-approve-all[aria-pressed="true"] {
   border-color: #8fb49c;
   background: #dcfce7;
   color: #166534;
@@ -255,7 +255,7 @@
   flex: 1;
   overflow: hidden;
   color: #202b38;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.82rem;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -293,7 +293,7 @@
   flex: 0 0 auto;
   gap: 8px;
   color: #596675;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.78rem;
   font-weight: 700;
 }
@@ -309,7 +309,7 @@
 .review-diff-table {
   overflow: auto;
   background: #ffffff;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.78rem;
   line-height: 1.48;
 }
@@ -417,7 +417,7 @@
   background: #ffffff;
   color: #465668;
   padding: 12px;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.78rem;
   line-height: 1.5;
   white-space: pre;

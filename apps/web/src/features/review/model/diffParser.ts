@@ -1,7 +1,7 @@
 export const DEFAULT_CONTEXT_LINE_COUNT = 3;
 export const CONTEXT_EXPAND_LINE_COUNT = 10;
 
-export type DiffLineKind = 'add' | 'remove' | 'context' | 'meta' | 'ellipsis';
+export type DiffLineKind = "add" | "remove" | "context" | "meta" | "ellipsis";
 
 export type DiffLine = {
   id: string;
@@ -23,10 +23,7 @@ export type DiffFile = {
   metadata: string[];
 };
 
-type ParsedHunkLine = Omit<
-  DiffLine,
-  'id' | 'hiddenLines' | 'canExpandUp' | 'canExpandDown'
->;
+type ParsedHunkLine = Omit<DiffLine, "id" | "hiddenLines" | "canExpandUp" | "canExpandDown">;
 
 type ParsedDiffLine = ParsedHunkLine & {
   hiddenLines?: ParsedHunkLine[];
@@ -43,10 +40,7 @@ type ParsedFileBlock = {
   lines: string[];
 };
 
-export function parseDiff(
-  diff: string,
-  contextLineCount = DEFAULT_CONTEXT_LINE_COUNT,
-): DiffFile[] {
+export function parseDiff(diff: string, contextLineCount = DEFAULT_CONTEXT_LINE_COUNT): DiffFile[] {
   return splitFileBlocks(diff).map((block, fileIndex) => {
     const parsed = parseFileBlock(block, contextLineCount, fileIndex);
 
@@ -58,23 +52,23 @@ export function parseDiff(
 }
 
 export function markerForKind(kind: DiffLineKind): string {
-  if (kind === 'add') {
-    return '+';
+  if (kind === "add") {
+    return "+";
   }
 
-  if (kind === 'remove') {
-    return '-';
+  if (kind === "remove") {
+    return "-";
   }
 
-  return ' ';
+  return " ";
 }
 
 function splitFileBlocks(diff: string): ParsedFileBlock[] {
   const blocks: ParsedFileBlock[] = [];
   let current: ParsedFileBlock | undefined;
 
-  for (const line of diff.replace(/\r\n?/g, '\n').split('\n')) {
-    if (line.startsWith('diff --git ')) {
+  for (const line of diff.replace(/\r\n?/g, "\n").split("\n")) {
+    if (line.startsWith("diff --git ")) {
       current = { header: line, lines: [] };
       blocks.push(current);
       continue;
@@ -82,7 +76,7 @@ function splitFileBlocks(diff: string): ParsedFileBlock[] {
 
     if (!current) {
       if (line.trim()) {
-        current = { header: 'Diff', lines: [line] };
+        current = { header: "Diff", lines: [line] };
         blocks.push(current);
       }
       continue;
@@ -92,8 +86,7 @@ function splitFileBlocks(diff: string): ParsedFileBlock[] {
   }
 
   return blocks.filter(
-    (block) =>
-      block.header !== 'Diff' || block.lines.some((line) => line.trim()),
+    (block) => block.header !== "Diff" || block.lines.some((line) => line.trim()),
   );
 }
 
@@ -101,7 +94,7 @@ function parseFileBlock(
   block: ParsedFileBlock,
   contextLineCount: number,
   fileIndex: number,
-): Omit<DiffFile, 'id'> {
+): Omit<DiffFile, "id"> {
   const metadata: string[] = [block.header];
   const hunks: ParsedHunk[] = [];
   let additions = 0;
@@ -111,7 +104,7 @@ function parseFileBlock(
   while (index < block.lines.length) {
     const line = block.lines[index];
 
-    if (!line.startsWith('@@ ')) {
+    if (!line.startsWith("@@ ")) {
       if (line.trim()) {
         metadata.push(line);
       }
@@ -158,37 +151,37 @@ function parseHunk(
   let deletions = 0;
   let index = hunkStartIndex + 1;
 
-  while (index < lines.length && !lines[index].startsWith('@@ ')) {
+  while (index < lines.length && !lines[index].startsWith("@@ ")) {
     const rawLine = lines[index];
 
-    if (rawLine.startsWith('+')) {
+    if (rawLine.startsWith("+")) {
       hunkLines.push({
-        kind: 'add',
+        kind: "add",
         newLine,
         content: rawLine.slice(1),
       });
       newLine = incrementLine(newLine);
       additions += 1;
-    } else if (rawLine.startsWith('-')) {
+    } else if (rawLine.startsWith("-")) {
       hunkLines.push({
-        kind: 'remove',
+        kind: "remove",
         oldLine,
         content: rawLine.slice(1),
       });
       oldLine = incrementLine(oldLine);
       deletions += 1;
-    } else if (rawLine.startsWith(' ')) {
+    } else if (rawLine.startsWith(" ")) {
       hunkLines.push({
-        kind: 'context',
+        kind: "context",
         oldLine,
         newLine,
         content: rawLine.slice(1),
       });
       oldLine = incrementLine(oldLine);
       newLine = incrementLine(newLine);
-    } else if (rawLine.startsWith('\\')) {
+    } else if (rawLine.startsWith("\\")) {
       hunkLines.push({
-        kind: 'meta',
+        kind: "meta",
         content: rawLine,
       });
     }
@@ -204,17 +197,12 @@ function parseHunk(
   };
 }
 
-function clipHunks(
-  hunks: ParsedHunk[],
-  contextLineCount: number,
-): ParsedDiffLine[] {
+function clipHunks(hunks: ParsedHunk[], contextLineCount: number): ParsedDiffLine[] {
   const lines: ParsedDiffLine[] = [];
 
   hunks.forEach((hunk, hunkIndex) => {
     const changedIndexes = hunk.lines
-      .map((line, index) =>
-        line.kind === 'add' || line.kind === 'remove' ? index : -1,
-      )
+      .map((line, index) => (line.kind === "add" || line.kind === "remove" ? index : -1))
       .filter((index) => index >= 0);
 
     if (changedIndexes.length === 0) {
@@ -229,7 +217,7 @@ function clipHunks(
     );
 
     if (lines.length > 0 && hunkIndex > 0) {
-      lines.push({ kind: 'ellipsis', content: '...' });
+      lines.push({ kind: "ellipsis", content: "..." });
     }
 
     let nextLineIndex = 0;
@@ -266,8 +254,8 @@ function appendHiddenGap(
   }
 
   lines.push({
-    kind: 'ellipsis',
-    content: '...',
+    kind: "ellipsis",
+    content: "...",
     hiddenLines,
     canExpandDown: options.canExpandDown,
     canExpandUp: options.canExpandUp,
@@ -281,9 +269,7 @@ function addDiffLineId(
 ): DiffLine {
   const lineIndex = getNextLineIndex();
   const diffLine: DiffLine = {
-    id: `${fileIndex}:${lineIndex}:${line.kind}:${line.oldLine ?? ''}:${
-      line.newLine ?? ''
-    }`,
+    id: `${fileIndex}:${lineIndex}:${line.kind}:${line.oldLine ?? ""}:${line.newLine ?? ""}`,
     kind: line.kind,
     oldLine: line.oldLine,
     newLine: line.newLine,
@@ -302,25 +288,22 @@ function addDiffLineId(
 }
 
 function mergeRanges(ranges: Array<{ start: number; end: number }>) {
-  return ranges.reduce<Array<{ start: number; end: number }>>(
-    (merged, range) => {
-      const previous = merged[merged.length - 1];
+  return ranges.reduce<Array<{ start: number; end: number }>>((merged, range) => {
+    const previous = merged[merged.length - 1];
 
-      if (!previous || range.start > previous.end + 1) {
-        merged.push({ ...range });
-      } else {
-        previous.end = Math.max(previous.end, range.end);
-      }
+    if (!previous || range.start > previous.end + 1) {
+      merged.push({ ...range });
+    } else {
+      previous.end = Math.max(previous.end, range.end);
+    }
 
-      return merged;
-    },
-    [],
-  );
+    return merged;
+  }, []);
 }
 
 function getFilePath(header: string, metadata: string[]): string {
-  const newPath = metadata.find((line) => line.startsWith('+++ '))?.slice(4);
-  const oldPath = metadata.find((line) => line.startsWith('--- '))?.slice(4);
+  const newPath = metadata.find((line) => line.startsWith("+++ "))?.slice(4);
+  const oldPath = metadata.find((line) => line.startsWith("--- "))?.slice(4);
   const path = cleanDiffPath(newPath) ?? cleanDiffPath(oldPath);
 
   if (path) {
@@ -333,11 +316,11 @@ function getFilePath(header: string, metadata: string[]): string {
 }
 
 function cleanDiffPath(path: string | undefined): string | undefined {
-  if (!path || path === '/dev/null') {
+  if (!path || path === "/dev/null") {
     return undefined;
   }
 
-  return path.replace(/^[ab]\//, '');
+  return path.replace(/^[ab]\//, "");
 }
 
 function incrementLine(line: number | undefined): number | undefined {

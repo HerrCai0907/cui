@@ -1,5 +1,5 @@
-import type { ApiSession, SessionSummary } from '../../../types';
-import { getLastSeenRound } from './sessionBrowserState';
+import type { ApiSession, SessionSummary } from "../../../types";
+import { getLastSeenRound } from "./sessionBrowserState";
 
 export type WorkspaceDisplayItem = {
   workspace: string;
@@ -32,8 +32,7 @@ export function toSessionSummary(session: ApiSession): SessionSummary {
     updatedAt: session.updatedAt,
     currentRound,
     isRunning: session.isRunning ?? Boolean(session.runningTurnId),
-    hasUnreadRound:
-      lastSeenRound !== null && lastSeenRound !== currentRound,
+    hasUnreadRound: lastSeenRound !== null && lastSeenRound !== currentRound,
   };
 }
 
@@ -58,10 +57,7 @@ export function partitionSessionsForSidebar(
       .filter((session) => session.isRunning || session.hasUnreadRound)
       .map((session) => session.id),
   );
-  const targetCurrentCount = Math.max(
-    minimumCurrentCount,
-    currentSessionIds.size,
-  );
+  const targetCurrentCount = Math.max(minimumCurrentCount, currentSessionIds.size);
 
   for (const session of sortedSessions) {
     if (currentSessionIds.size >= targetCurrentCount) {
@@ -72,12 +68,8 @@ export function partitionSessionsForSidebar(
   }
 
   return {
-    current: sortedSessions.filter((session) =>
-      currentSessionIds.has(session.id),
-    ),
-    history: sortedSessions.filter(
-      (session) => !currentSessionIds.has(session.id),
-    ),
+    current: sortedSessions.filter((session) => currentSessionIds.has(session.id)),
+    history: sortedSessions.filter((session) => !currentSessionIds.has(session.id)),
   };
 }
 
@@ -86,10 +78,7 @@ export function getCurrentRound(session: ApiSession): number {
     return session.currentRound;
   }
 
-  const storedRound = Math.max(
-    0,
-    ...(session.rounds?.map(({ round }) => round) ?? []),
-  );
+  const storedRound = Math.max(0, ...(session.rounds?.map(({ round }) => round) ?? []));
   const messageRound = Math.max(
     0,
     ...session.messages
@@ -97,26 +86,19 @@ export function getCurrentRound(session: ApiSession): number {
       .filter((round) => Number.isInteger(round) && round > 0),
   );
   const completedTurnCount = Math.max(
-    countAssistantMessages(session, 'trace'),
-    countAssistantMessages(session, 'response'),
+    countAssistantMessages(session, "trace"),
+    countAssistantMessages(session, "response"),
   );
 
   return Math.max(storedRound, messageRound, completedTurnCount);
 }
 
-function countAssistantMessages(
-  session: ApiSession,
-  kind: 'response' | 'trace',
-): number {
-  return session.messages.filter(
-    (message) => message.role === 'assistant' && message.kind === kind,
-  ).length;
+function countAssistantMessages(session: ApiSession, kind: "response" | "trace"): number {
+  return session.messages.filter((message) => message.role === "assistant" && message.kind === kind)
+    .length;
 }
 
-function compareSessionsByUpdatedAt(
-  left: SessionSummary,
-  right: SessionSummary,
-): number {
+function compareSessionsByUpdatedAt(left: SessionSummary, right: SessionSummary): number {
   const updatedAtOrder = right.updatedAt.localeCompare(left.updatedAt);
 
   return updatedAtOrder !== 0 ? updatedAtOrder : right.id.localeCompare(left.id);
@@ -187,11 +169,7 @@ function getOrCreateChild(
   return child;
 }
 
-function insertWorkspacePath(
-  node: WorkspacePathNode,
-  segments: string[],
-  item: WorkspacePathItem,
-) {
+function insertWorkspacePath(node: WorkspacePathNode, segments: string[], item: WorkspacePathItem) {
   let current = node;
 
   segments.forEach((segment) => {
@@ -237,13 +215,9 @@ function collectDisplayGroups(
   ) {
     return [
       {
-        id: `prefix:${root}:${displayPrefixSegments.join('/')}`,
+        id: `prefix:${root}:${displayPrefixSegments.join("/")}`,
         prefix,
-        workspaces: collectWorkspaceItems(
-          displayNode,
-          root,
-          displayPrefixSegments,
-        ),
+        workspaces: collectWorkspaceItems(displayNode, root, displayPrefixSegments),
       },
     ];
   }
@@ -257,14 +231,10 @@ function collectDisplayGroups(
   ];
 }
 
-function collectSingleWorkspaceGroups(
-  node: WorkspacePathNode,
-): WorkspaceDisplayGroup[] {
+function collectSingleWorkspaceGroups(node: WorkspacePathNode): WorkspaceDisplayGroup[] {
   return [
     ...node.entries.map((item) => toSingleWorkspaceGroup(item)),
-    ...Array.from(node.children.values()).flatMap((child) =>
-      collectSingleWorkspaceGroups(child),
-    ),
+    ...Array.from(node.children.values()).flatMap((child) => collectSingleWorkspaceGroups(child)),
   ];
 }
 
@@ -300,11 +270,8 @@ function collectWorkspaceItems(
 
 function parseWorkspacePath(workspace: string): ParsedWorkspacePath {
   const trimmed = workspace.trim();
-  const withoutTrailingSeparators =
-    trimmed.replace(/[\\/]+$/g, '') || trimmed;
-  const windowsMatch = /^([A-Za-z]:)[\\/]*(.*)$/.exec(
-    withoutTrailingSeparators,
-  );
+  const withoutTrailingSeparators = trimmed.replace(/[\\/]+$/g, "") || trimmed;
+  const windowsMatch = /^([A-Za-z]:)[\\/]*(.*)$/.exec(withoutTrailingSeparators);
 
   if (windowsMatch) {
     return {
@@ -313,15 +280,15 @@ function parseWorkspacePath(workspace: string): ParsedWorkspacePath {
     };
   }
 
-  if (withoutTrailingSeparators.startsWith('/')) {
+  if (withoutTrailingSeparators.startsWith("/")) {
     return {
-      root: '/',
+      root: "/",
       segments: splitPathSegments(withoutTrailingSeparators.slice(1)),
     };
   }
 
   return {
-    root: '',
+    root: "",
     segments: splitPathSegments(withoutTrailingSeparators),
   };
 }
@@ -331,11 +298,11 @@ function splitPathSegments(path: string): string[] {
 }
 
 function formatWorkspacePath(root: string, segments: string[]): string {
-  if (root === '/') {
-    return segments.length > 0 ? `/${segments.join('/')}` : root;
+  if (root === "/") {
+    return segments.length > 0 ? `/${segments.join("/")}` : root;
   }
 
-  return `${root}${segments.join('/')}`;
+  return `${root}${segments.join("/")}`;
 }
 
 function formatWorkspaceSuffix(
@@ -349,5 +316,5 @@ function formatWorkspaceSuffix(
 
   const suffixSegments = path.segments.slice(prefixSegments.length);
 
-  return suffixSegments.length > 0 ? suffixSegments.join('/') : '.';
+  return suffixSegments.length > 0 ? suffixSegments.join("/") : ".";
 }

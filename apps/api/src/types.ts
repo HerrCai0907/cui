@@ -1,9 +1,9 @@
-export type ChatRole = 'assistant' | 'user';
+export type ChatRole = "assistant" | "user";
 
 export type ChatMessage = {
   id: string;
   role: ChatRole;
-  kind?: 'response' | 'trace';
+  kind?: "response" | "trace";
   round?: number;
   content: string;
   createdAt: string;
@@ -20,10 +20,7 @@ export type ChatRound = {
   atomicReview?: AtomicDiffReview;
 };
 
-export type ChatRoundSummary = Pick<
-  ChatRound,
-  'round' | 'hasChanges' | 'createdAt'
->;
+export type ChatRoundSummary = Pick<ChatRound, "round" | "hasChanges" | "createdAt">;
 
 export type ChatSession = {
   id: string;
@@ -36,7 +33,7 @@ export type ChatSession = {
   rounds?: ChatRound[];
 };
 
-export type ChatSessionView = Omit<ChatSession, 'rounds'> & {
+export type ChatSessionView = Omit<ChatSession, "rounds"> & {
   rounds?: ChatRoundSummary[];
   currentRound: number;
   isRunning: boolean;
@@ -70,14 +67,14 @@ export type AtomicDiffReviewItem = {
 
 export type AtomicDiffReview =
   | {
-      status: 'ready';
+      status: "ready";
       generatedAt: string;
       analysisSessionId: string;
       items: AtomicDiffReviewItem[];
       rawResponse: string;
     }
   | {
-      status: 'failed';
+      status: "failed";
       generatedAt: string;
       error: string;
       rawResponse?: string;
@@ -107,7 +104,7 @@ export type AiResponse = {
 
 export type AiRunResult = Pick<
   AiResponse,
-  'sessionId' | 'content' | 'trace' | 'gitDiff' | 'rawEvents'
+  "sessionId" | "content" | "trace" | "gitDiff" | "rawEvents"
 >;
 
 export type ConversationSummary = {
@@ -117,15 +114,15 @@ export type ConversationSummary = {
 
 export type AiRunEvent =
   | {
-      type: 'session';
+      type: "session";
       sessionId: string;
     }
   | {
-      type: 'delta';
+      type: "delta";
       text: string;
     }
   | {
-      type: 'raw';
+      type: "raw";
       event: unknown;
     };
 
@@ -137,18 +134,8 @@ export type AiRun = {
 export interface AiModel {
   createSession(input: AiCreateSessionInput): Promise<AiResponse>;
   continueSession(input: AiContinueSessionInput): Promise<AiResponse>;
-  createAtomicDiffReview(
-    input: AiAtomicDiffReviewInput,
-  ): Promise<AtomicDiffReview>;
-  summarizeConversation(
-    input: AiCreateSessionInput,
-  ): Promise<ConversationSummary>;
-  createSessionStream(
-    input: AiCreateSessionInput,
-    onEvent: (event: AiRunEvent) => void,
-  ): AiRun;
-  continueSessionStream(
-    input: AiContinueSessionInput,
-    onEvent: (event: AiRunEvent) => void,
-  ): AiRun;
+  createAtomicDiffReview(input: AiAtomicDiffReviewInput): Promise<AtomicDiffReview>;
+  summarizeConversation(input: AiCreateSessionInput): Promise<ConversationSummary>;
+  createSessionStream(input: AiCreateSessionInput, onEvent: (event: AiRunEvent) => void): AiRun;
+  continueSessionStream(input: AiContinueSessionInput, onEvent: (event: AiRunEvent) => void): AiRun;
 }

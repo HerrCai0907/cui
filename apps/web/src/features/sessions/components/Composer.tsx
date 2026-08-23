@@ -1,5 +1,5 @@
-import { Send } from 'lucide-react';
-import type { FormEvent, KeyboardEvent, RefObject } from 'react';
+import { Send } from "lucide-react";
+import type { FormEvent, KeyboardEvent, RefObject } from "react";
 
 type ComposerProps = {
   active: boolean;
@@ -21,13 +21,7 @@ export function Composer({
   onSubmit,
 }: ComposerProps) {
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (
-      event.key !== 'Enter' ||
-      event.shiftKey ||
-      event.ctrlKey ||
-      event.metaKey ||
-      event.altKey
-    ) {
+    if (event.key !== "Enter" || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) {
       lastEnterKeyDownRef.current = null;
       return;
     }
@@ -57,9 +51,7 @@ export function Composer({
         id="message-input"
         ref={textareaRef}
         value={draft}
-        placeholder={
-          active ? 'Continue this session...' : 'Start with an initial prompt...'
-        }
+        placeholder={active ? "Continue this session..." : "Start with an initial prompt..."}
         rows={1}
         onChange={(event) => onDraftChange(event.target.value)}
         onKeyDown={handleKeyDown}

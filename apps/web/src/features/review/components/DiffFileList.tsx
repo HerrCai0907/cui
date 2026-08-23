@@ -1,10 +1,6 @@
-import { useState } from 'react';
-import {
-  CONTEXT_EXPAND_LINE_COUNT,
-  type DiffFile,
-  type DiffLine,
-} from '../model/diffParser';
-import { DiffRow } from './DiffRow';
+import { useState } from "react";
+import { CONTEXT_EXPAND_LINE_COUNT, type DiffFile, type DiffLine } from "../model/diffParser";
+import { DiffRow } from "./DiffRow";
 
 type DiffFileListProps = {
   files: DiffFile[];
@@ -19,12 +15,10 @@ export function DiffFileList({
   getFileSectionId,
   onToggleFile,
 }: DiffFileListProps) {
-  const [localApprovedFileIds, setLocalApprovedFileIds] = useState<
-    Set<string>
-  >(() => new Set());
-  const [expandedLinesByFileId, setExpandedLinesByFileId] = useState<
-    Record<string, DiffLine[]>
-  >(() => ({}));
+  const [localApprovedFileIds, setLocalApprovedFileIds] = useState<Set<string>>(() => new Set());
+  const [expandedLinesByFileId, setExpandedLinesByFileId] = useState<Record<string, DiffLine[]>>(
+    () => ({}),
+  );
   const activeApprovedFileIds = approvedFileIds ?? localApprovedFileIds;
 
   if (files.length === 0) {
@@ -50,11 +44,7 @@ export function DiffFileList({
     });
   }
 
-  function expandContextLine(
-    fileId: string,
-    lineId: string,
-    direction: 'down' | 'up',
-  ) {
+  function expandContextLine(fileId: string, lineId: string, direction: "down" | "up") {
     const file = files.find((currentFile) => currentFile.id === fileId);
 
     if (!file) {
@@ -63,11 +53,7 @@ export function DiffFileList({
 
     setExpandedLinesByFileId((current) => ({
       ...current,
-      [fileId]: expandDiffLines(
-        current[fileId] ?? file.lines,
-        lineId,
-        direction,
-      ),
+      [fileId]: expandDiffLines(current[fileId] ?? file.lines, lineId, direction),
     }));
   }
 
@@ -78,20 +64,14 @@ export function DiffFileList({
         const lines = expandedLinesByFileId[file.id] ?? file.lines;
 
         return (
-          <section
-            className="review-diff-file"
-            id={getFileSectionId?.(file)}
-            key={file.id}
-          >
+          <section className="review-diff-file" id={getFileSectionId?.(file)} key={file.id}>
             <header className="review-diff-file-header">
               <label className="review-diff-collapse-control">
                 <input
                   type="checkbox"
                   checked={approved}
                   aria-label={`Approve ${file.path}`}
-                  onChange={(event) =>
-                    toggleFile(file.id, event.currentTarget.checked)
-                  }
+                  onChange={(event) => toggleFile(file.id, event.currentTarget.checked)}
                 />
                 <span>Approve</span>
               </label>
@@ -107,16 +87,14 @@ export function DiffFileList({
                   <DiffRow
                     line={line}
                     key={line.id}
-                    onExpandDown={() =>
-                      expandContextLine(file.id, line.id, 'down')
-                    }
-                    onExpandUp={() => expandContextLine(file.id, line.id, 'up')}
+                    onExpandDown={() => expandContextLine(file.id, line.id, "down")}
+                    onExpandUp={() => expandContextLine(file.id, line.id, "up")}
                   />
                 ))}
               </div>
             ) : !approved ? (
               <pre className="review-diff-metadata">
-                {file.metadata.join('\n') || 'No textual diff available.'}
+                {file.metadata.join("\n") || "No textual diff available."}
               </pre>
             ) : null}
           </section>
@@ -129,7 +107,7 @@ export function DiffFileList({
 function expandDiffLines(
   lines: DiffLine[],
   targetLineId: string,
-  direction: 'down' | 'up',
+  direction: "down" | "up",
 ): DiffLine[] {
   return lines.flatMap((line) => {
     if (line.id !== targetLineId || !line.hiddenLines?.length) {
@@ -138,7 +116,7 @@ function expandDiffLines(
 
     const { nextLine, expandedLines } = expandHiddenLines(line, direction);
 
-    if (direction === 'up') {
+    if (direction === "up") {
       return nextLine ? [nextLine, ...expandedLines] : expandedLines;
     }
 
@@ -148,14 +126,14 @@ function expandDiffLines(
 
 function expandHiddenLines(
   line: DiffLine,
-  direction: 'down' | 'up',
+  direction: "down" | "up",
 ): {
   nextLine?: DiffLine;
   expandedLines: DiffLine[];
 } {
   const hiddenLines = line.hiddenLines ?? [];
 
-  if (direction === 'up') {
+  if (direction === "up") {
     const splitIndex = Math.max(0, hiddenLines.length - CONTEXT_EXPAND_LINE_COUNT);
     const nextHiddenLines = hiddenLines.slice(0, splitIndex);
 

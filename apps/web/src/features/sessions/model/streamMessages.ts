@@ -1,5 +1,5 @@
-import { encodeExecutionTraceEvent } from '../../trace/model/parseExecutionTrace';
-import type { ApiMessage, ApiSession } from '../../../types';
+import { encodeExecutionTraceEvent } from "../../trace/model/parseExecutionTrace";
+import type { ApiMessage, ApiSession } from "../../../types";
 
 export type StreamMessageState = {
   streamedTrace: string;
@@ -8,8 +8,8 @@ export type StreamMessageState = {
 
 export function createStreamMessageState(): StreamMessageState {
   return {
-    streamedTrace: '',
-    streamedResponse: '',
+    streamedTrace: "",
+    streamedResponse: "",
   };
 }
 
@@ -45,8 +45,8 @@ export function appendResponseDelta(
 
   const streamMessage: ApiMessage = {
     id: input.responseMessageId,
-    role: 'assistant',
-    kind: 'response',
+    role: "assistant",
+    kind: "response",
     content: input.state.streamedResponse,
     createdAt: new Date().toISOString(),
   };
@@ -81,9 +81,7 @@ export function appendTraceEvent(
     ? `${input.state.streamedTrace}\n${json}`
     : json;
 
-  const existingMessage = session.messages.find(
-    (message) => message.id === input.traceMessageId,
-  );
+  const existingMessage = session.messages.find((message) => message.id === input.traceMessageId);
 
   if (existingMessage) {
     return {
@@ -98,8 +96,8 @@ export function appendTraceEvent(
 
   const streamMessage: ApiMessage = {
     id: input.traceMessageId,
-    role: 'assistant',
-    kind: 'trace',
+    role: "assistant",
+    kind: "trace",
     content: input.state.streamedTrace,
     createdAt: new Date().toISOString(),
   };

@@ -1,4 +1,4 @@
-import type { TurnStreamEvent } from '../../../types';
+import type { TurnStreamEvent } from "../../../types";
 
 export function parseTurnStreamEvent(event: Event): TurnStreamEvent | undefined {
   if (!(event instanceof MessageEvent)) {

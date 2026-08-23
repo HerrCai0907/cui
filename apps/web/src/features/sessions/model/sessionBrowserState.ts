@@ -1,5 +1,5 @@
-const LAST_SEEN_ROUND_PREFIX = 'cui:session-last-seen-round:v1:';
-const SIDEBAR_STATE_STORAGE_KEY = 'cui:session-sidebar-state:v1';
+const LAST_SEEN_ROUND_PREFIX = "cui:session-last-seen-round:v1:";
+const SIDEBAR_STATE_STORAGE_KEY = "cui:session-sidebar-state:v1";
 const SIDEBAR_STATE_VERSION = 1;
 
 export type SessionSidebarBrowserState = {
@@ -17,7 +17,7 @@ type StoredSessionSidebarBrowserState = {
 };
 
 export function getLastSeenRound(sessionId: string): number | null {
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return null;
   }
 
@@ -37,7 +37,7 @@ export function getLastSeenRound(sessionId: string): number | null {
 }
 
 export function setLastSeenRound(sessionId: string, round: number): void {
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return;
   }
 
@@ -61,7 +61,7 @@ export function loadSessionSidebarBrowserState(
 ): SessionSidebarBrowserState {
   const defaultState = createDefaultSidebarBrowserState(defaultWorkspace);
 
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return defaultState;
   }
 
@@ -72,9 +72,7 @@ export function loadSessionSidebarBrowserState(
       return defaultState;
     }
 
-    const parsed = JSON.parse(
-      rawState,
-    ) as Partial<StoredSessionSidebarBrowserState>;
+    const parsed = JSON.parse(rawState) as Partial<StoredSessionSidebarBrowserState>;
 
     if (parsed.version !== SIDEBAR_STATE_VERSION) {
       window.localStorage.removeItem(SIDEBAR_STATE_STORAGE_KEY);
@@ -83,13 +81,9 @@ export function loadSessionSidebarBrowserState(
 
     return {
       sidebarOpen:
-        typeof parsed.sidebarOpen === 'boolean'
-          ? parsed.sidebarOpen
-          : defaultState.sidebarOpen,
+        typeof parsed.sidebarOpen === "boolean" ? parsed.sidebarOpen : defaultState.sidebarOpen,
       historyOpen:
-        typeof parsed.historyOpen === 'boolean'
-          ? parsed.historyOpen
-          : defaultState.historyOpen,
+        typeof parsed.historyOpen === "boolean" ? parsed.historyOpen : defaultState.historyOpen,
       expandedWorkspaces: parseStringSet(
         parsed.expandedWorkspaces,
         defaultState.expandedWorkspaces,
@@ -101,10 +95,8 @@ export function loadSessionSidebarBrowserState(
   }
 }
 
-export function saveSessionSidebarBrowserState(
-  state: SessionSidebarBrowserState,
-): void {
-  if (typeof window === 'undefined') {
+export function saveSessionSidebarBrowserState(state: SessionSidebarBrowserState): void {
+  if (typeof window === "undefined") {
     return;
   }
 
@@ -117,18 +109,13 @@ export function saveSessionSidebarBrowserState(
       updatedAt: Date.now(),
     };
 
-    window.localStorage.setItem(
-      SIDEBAR_STATE_STORAGE_KEY,
-      JSON.stringify(storedState),
-    );
+    window.localStorage.setItem(SIDEBAR_STATE_STORAGE_KEY, JSON.stringify(storedState));
   } catch {
     // Sidebar persistence is a convenience only; keep the session UI usable.
   }
 }
 
-function createDefaultSidebarBrowserState(
-  defaultWorkspace: string,
-): SessionSidebarBrowserState {
+function createDefaultSidebarBrowserState(defaultWorkspace: string): SessionSidebarBrowserState {
   return {
     sidebarOpen: true,
     historyOpen: false,
@@ -141,7 +128,5 @@ function parseStringSet(value: unknown, fallback: Set<string>): Set<string> {
     return new Set(fallback);
   }
 
-  return new Set(
-    value.filter((item): item is string => typeof item === 'string'),
-  );
+  return new Set(value.filter((item): item is string => typeof item === "string"));
 }

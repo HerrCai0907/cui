@@ -1,23 +1,23 @@
-import type { ChatSessionView } from '../../types.js';
+import type { ChatSessionView } from "../../types.js";
 
 export type TurnStreamEvent =
   | {
-      type: 'delta';
+      type: "delta";
       text: string;
     }
   | {
-      type: 'raw';
+      type: "raw";
       event: unknown;
     }
   | {
-      type: 'session.updated';
+      type: "session.updated";
       session: ChatSessionView;
     }
   | {
-      type: 'done';
+      type: "done";
       session: ChatSessionView;
     }
   | {
-      type: 'failed';
+      type: "failed";
       error: string;
     };

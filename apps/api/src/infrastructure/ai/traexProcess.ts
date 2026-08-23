@@ -1,12 +1,9 @@
-import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import {
-  GitDiffService,
-  type DiffSnapshot,
-} from '../diff/GitDiffService.js';
-import { parseJsonLine } from './traexEvents.js';
+import { spawn } from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { GitDiffService, type DiffSnapshot } from "../diff/GitDiffService.js";
+import { parseJsonLine } from "./traexEvents.js";
 
 type RunProcessInput = {
   command: string;
@@ -38,33 +35,28 @@ export async function runTraexProcess({
 }: RunProcessInput): Promise<RunProcessResult> {
   const beforeSnapshot = captureDiff
     ? await diffService.captureWorkspaceSnapshot(cwd)
-    : { gitCommit: '', diff: '' };
+    : { gitCommit: "", diff: "" };
 
   return new Promise((resolve, reject) => {
     const events: unknown[] = [];
     let outputPath: string | undefined;
     let outputDir: string | undefined;
-    let stdout = '';
-    let stderr = '';
+    let stdout = "";
+    let stderr = "";
     let settled = false;
 
-    mkdtemp(join(tmpdir(), 'cui-traex-'))
+    mkdtemp(join(tmpdir(), "cui-traex-"))
       .then((createdOutputDir) => {
         outputDir = createdOutputDir;
-        outputPath = join(createdOutputDir, 'last-message.txt');
-        const childArgs = [
-          ...args.slice(0, -1),
-          '--output-last-message',
-          outputPath,
-          args.at(-1)!,
-        ];
+        outputPath = join(createdOutputDir, "last-message.txt");
+        const childArgs = [...args.slice(0, -1), "--output-last-message", outputPath, args.at(-1)!];
 
         const child = spawn(command, childArgs, {
           cwd,
-          stdio: ['pipe', 'pipe', 'pipe'],
+          stdio: ["pipe", "pipe", "pipe"],
           env: {
             ...process.env,
-            NO_COLOR: '1',
+            NO_COLOR: "1",
           },
         });
 
@@ -74,12 +66,8 @@ export async function runTraexProcess({
           idleTimer = setTimeout(() => {
             if (!settled) {
               settled = true;
-              child.kill('SIGTERM');
-              reject(
-                new Error(
-                  `TraeX command produced no output for ${timeoutMs}ms`,
-                ),
-              );
+              child.kill("SIGTERM");
+              reject(new Error(`TraeX command produced no output for ${timeoutMs}ms`));
               void cleanupOutputDir(outputDir);
             }
           }, timeoutMs);
@@ -87,14 +75,14 @@ export async function runTraexProcess({
 
         resetIdleTimer();
 
-        child.stdout.setEncoding('utf8');
-        child.stderr.setEncoding('utf8');
+        child.stdout.setEncoding("utf8");
+        child.stderr.setEncoding("utf8");
 
-        child.stdout.on('data', (chunk: string) => {
+        child.stdout.on("data", (chunk: string) => {
           resetIdleTimer();
           stdout += chunk;
-          const lines = stdout.split('\n');
-          stdout = lines.pop() ?? '';
+          const lines = stdout.split("\n");
+          stdout = lines.pop() ?? "";
 
           for (const line of lines) {
             const event = parseJsonLine(line);
@@ -106,12 +94,12 @@ export async function runTraexProcess({
           }
         });
 
-        child.stderr.on('data', (chunk: string) => {
+        child.stderr.on("data", (chunk: string) => {
           resetIdleTimer();
           stderr += chunk;
         });
 
-        child.on('error', (error) => {
+        child.on("error", (error) => {
           if (!settled) {
             settled = true;
             clearTimeout(idleTimer);
@@ -120,7 +108,7 @@ export async function runTraexProcess({
           }
         });
 
-        child.on('close', (code) => {
+        child.on("close", (code) => {
           if (settled) {
             return;
           }
@@ -136,22 +124,17 @@ export async function runTraexProcess({
           }
 
           if (code !== 0) {
-            reject(
-              new Error(`TraeX command exited with ${code}: ${stderr.trim()}`),
-            );
+            reject(new Error(`TraeX command exited with ${code}: ${stderr.trim()}`));
             void cleanupOutputDir(outputDir);
             return;
           }
 
-          readFile(outputPath!, 'utf8')
-            .catch(() => '')
+          readFile(outputPath!, "utf8")
+            .catch(() => "")
             .then(async (content) => {
               const afterDiff = captureDiff
-                ? await diffService.captureWorkspaceDiff(
-                    cwd,
-                    beforeSnapshot.gitCommit,
-                  )
-                : '';
+                ? await diffService.captureWorkspaceDiff(cwd, beforeSnapshot.gitCommit)
+                : "";
               const afterSnapshot = {
                 gitCommit: beforeSnapshot.gitCommit,
                 diff: afterDiff,

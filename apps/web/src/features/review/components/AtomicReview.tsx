@@ -1,17 +1,17 @@
-import { ChevronDown, ChevronRight } from 'lucide-react';
-import type { ApiAtomicDiffReview, ApiAtomicDiffReviewItem } from '../../../types';
-import { shortId } from '../../../shared/lib/ids';
-import { DiffFileList } from './DiffFileList';
-import { parseDiff } from '../model/diffParser';
+import { ChevronDown, ChevronRight } from "lucide-react";
+import type { ApiAtomicDiffReview, ApiAtomicDiffReviewItem } from "../../../types";
+import { shortId } from "../../../shared/lib/ids";
+import { DiffFileList } from "./DiffFileList";
+import { parseDiff } from "../model/diffParser";
 import {
   createEmptyAtomicItemState,
   toggleString,
   type AtomicReviewItemState,
-} from '../model/reviewBrowserState';
+} from "../model/reviewBrowserState";
 import {
   createAtomicReviewFileSectionId,
   createAtomicReviewSectionId,
-} from '../model/reviewNavigation';
+} from "../model/reviewNavigation";
 
 type AtomicReviewProps = {
   review?: ApiAtomicDiffReview;
@@ -38,7 +38,7 @@ export function AtomicReview({
     );
   }
 
-  if (review.status === 'failed') {
+  if (review.status === "failed") {
     return (
       <section className="atomic-review-panel is-error">
         <AtomicReviewTopline onOpenFullReview={onOpenFullReview} />
@@ -56,11 +56,7 @@ export function AtomicReview({
           <strong>{review.items.length} atomic changes</strong>
         </div>
         <div className="atomic-review-actions">
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={onOpenFullReview}
-          >
+          <button className="secondary-button" type="button" onClick={onOpenFullReview}>
             Full review
           </button>
           <small title={review.analysisSessionId}>
@@ -93,22 +89,14 @@ function compareAtomicReviewItems(
   );
 }
 
-function AtomicReviewTopline({
-  onOpenFullReview,
-}: {
-  onOpenFullReview?: () => void;
-}) {
+function AtomicReviewTopline({ onOpenFullReview }: { onOpenFullReview?: () => void }) {
   return (
     <header className="atomic-review-header">
       <div>
         <span className="section-label">Atomic Review</span>
         <strong>Atomic changes</strong>
       </div>
-      <button
-        className="secondary-button"
-        type="button"
-        onClick={onOpenFullReview}
-      >
+      <button className="secondary-button" type="button" onClick={onOpenFullReview}>
         Full review
       </button>
     </header>
@@ -130,8 +118,7 @@ function AtomicReviewItem({
   const collapsed = Boolean(itemState.collapsed);
   const files = parseDiff(item.diff);
   const approvedFileIds = new Set(itemState.approvedFileIds);
-  const allFilesApproved =
-    files.length > 0 && files.every((file) => approvedFileIds.has(file.id));
+  const allFilesApproved = files.length > 0 && files.every((file) => approvedFileIds.has(file.id));
 
   function toggleCollapsed() {
     onUpdateItemState(item.id, (current) => ({
@@ -162,9 +149,7 @@ function AtomicReviewItem({
 
   return (
     <section
-      className={`atomic-review-item ${capabilityToneClass(
-        item.capabilityType,
-      )}`}
+      className={`atomic-review-item ${capabilityToneClass(item.capabilityType)}`}
       id={createAtomicReviewSectionId(item.id)}
     >
       <header className="atomic-review-item-header">
@@ -173,10 +158,8 @@ function AtomicReviewItem({
             className="atomic-review-toggle"
             type="button"
             aria-expanded={!collapsed}
-            aria-label={`${
-              collapsed ? 'Expand' : 'Collapse'
-            } atomic change ${item.order}`}
-            title={collapsed ? 'Expand atomic change' : 'Collapse atomic change'}
+            aria-label={`${collapsed ? "Expand" : "Collapse"} atomic change ${item.order}`}
+            title={collapsed ? "Expand atomic change" : "Collapse atomic change"}
             onClick={toggleCollapsed}
           >
             {collapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
@@ -188,7 +171,7 @@ function AtomicReviewItem({
             disabled={files.length === 0}
             onClick={approveAllFiles}
           >
-            {allFilesApproved ? 'Unapprove all' : 'Approve all'}
+            {allFilesApproved ? "Unapprove all" : "Approve all"}
           </button>
           <h2>{item.title}</h2>
         </div>
@@ -199,9 +182,7 @@ function AtomicReviewItem({
           <DiffFileList
             files={files}
             approvedFileIds={approvedFileIds}
-            getFileSectionId={(file) =>
-              createAtomicReviewFileSectionId(item.id, file.id)
-            }
+            getFileSectionId={(file) => createAtomicReviewFileSectionId(item.id, file.id)}
             onToggleFile={toggleFile}
           />
         </div>
@@ -210,20 +191,18 @@ function AtomicReviewItem({
   );
 }
 
-function capabilityToneClass(
-  capabilityType: ApiAtomicDiffReviewItem['capabilityType'],
-): string {
+function capabilityToneClass(capabilityType: ApiAtomicDiffReviewItem["capabilityType"]): string {
   if (capabilityType === 0 || capabilityType === 1) {
-    return 'is-capability-low-risk';
+    return "is-capability-low-risk";
   }
 
   if (capabilityType === 2) {
-    return 'is-capability-feature';
+    return "is-capability-feature";
   }
 
   if (capabilityType === 5) {
-    return 'is-capability-test';
+    return "is-capability-test";
   }
 
-  return 'is-capability-change';
+  return "is-capability-change";
 }

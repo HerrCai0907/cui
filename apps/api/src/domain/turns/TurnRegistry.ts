@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto';
-import type { TurnStreamEvent } from './turnEvents.js';
+import { randomUUID } from "node:crypto";
+import type { TurnStreamEvent } from "./turnEvents.js";
 
 type StoredTurnStreamEvent = {
   id: number;
@@ -63,7 +63,7 @@ export class TurnRegistry {
     turn.events.push(storedEvent);
     turn.subscribers.forEach((subscriber) => subscriber(storedEvent));
 
-    if (event.type === 'done' || event.type === 'failed') {
+    if (event.type === "done" || event.type === "failed") {
       turn.completed = true;
       this.activeSessionIds.delete(turn.sessionId);
       setTimeout(
@@ -75,18 +75,14 @@ export class TurnRegistry {
     }
   }
 
-  subscribeToTurn(
-    turnId: string,
-    onEvent: (event: TurnStreamEvent) => void,
-  ): () => void {
+  subscribeToTurn(turnId: string, onEvent: (event: TurnStreamEvent) => void): () => void {
     const turn = this.runningTurns.get(turnId);
 
     if (!turn) {
       return () => undefined;
     }
 
-    const subscriber = (storedEvent: StoredTurnStreamEvent) =>
-      onEvent(storedEvent.event);
+    const subscriber = (storedEvent: StoredTurnStreamEvent) => onEvent(storedEvent.event);
 
     turn.events.forEach(subscriber);
 

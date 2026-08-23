@@ -1,7 +1,7 @@
-import type { AiModel, ChatSession } from '../../types.js';
-import type { AppLogger } from '../../infrastructure/logging/AppLogger.js';
-import type { JsonSessionStore } from '../../infrastructure/store/JsonSessionStore.js';
-import { createSummaryPrompt } from './transcripts.js';
+import type { AiModel, ChatSession } from "../../types.js";
+import type { AppLogger } from "../../infrastructure/logging/AppLogger.js";
+import type { JsonSessionStore } from "../../infrastructure/store/JsonSessionStore.js";
+import { createSummaryPrompt } from "./transcripts.js";
 
 export class SessionSummaryService {
   constructor(
@@ -22,7 +22,7 @@ export class SessionSummaryService {
         summary: summary.progress,
       });
     } catch (error) {
-      void this.logger.session(session.id).warn('session.summary.failed', {
+      void this.logger.session(session.id).warn("session.summary.failed", {
         sessionId: session.id,
         error,
       });

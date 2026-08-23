@@ -1,4 +1,4 @@
-import { GitDiffService } from '../diff/GitDiffService.js';
+import { GitDiffService } from "../diff/GitDiffService.js";
 import {
   AiAtomicDiffReviewInput,
   AiContinueSessionInput,
@@ -9,16 +9,12 @@ import {
   AiRunEvent,
   AtomicDiffReview,
   ConversationSummary,
-} from '../../types.js';
-import { createAtomicDiffReviewPrompt } from './atomicDiffReviewPrompt.js';
-import { parseAtomicDiffReviewItems } from './atomicDiffReviewParser.js';
-import { parseConversationSummary } from './conversationSummaryParser.js';
-import {
-  extractResponseDeltas,
-  extractThreadId,
-  formatRawEvents,
-} from './traexEvents.js';
-import { runTraexProcess } from './traexProcess.js';
+} from "../../types.js";
+import { createAtomicDiffReviewPrompt } from "./atomicDiffReviewPrompt.js";
+import { parseAtomicDiffReviewItems } from "./atomicDiffReviewParser.js";
+import { parseConversationSummary } from "./conversationSummaryParser.js";
+import { extractResponseDeltas, extractThreadId, formatRawEvents } from "./traexEvents.js";
+import { runTraexProcess } from "./traexProcess.js";
 
 type TraexModelOptions = {
   binary?: string;
@@ -34,108 +30,84 @@ export class TraexModel implements AiModel {
   private readonly timeoutMs: number;
 
   constructor(options: TraexModelOptions = {}) {
-    this.binary = options.binary ?? process.env.TRAEX_BIN ?? 'traecli';
+    this.binary = options.binary ?? process.env.TRAEX_BIN ?? "traecli";
     this.diffService = options.diffService ?? new GitDiffService();
     this.permissionMode =
-      options.permissionMode ??
-      process.env.TRAEX_PERMISSION_MODE ??
-      'bypass_permissions';
-    this.timeoutMs = Number(
-      options.timeoutMs ?? process.env.TRAEX_TIMEOUT_MS ?? 10 * 60 * 1000,
-    );
+      options.permissionMode ?? process.env.TRAEX_PERMISSION_MODE ?? "bypass_permissions";
+    this.timeoutMs = Number(options.timeoutMs ?? process.env.TRAEX_TIMEOUT_MS ?? 10 * 60 * 1000);
   }
 
   async createSession(input: AiCreateSessionInput): Promise<AiResponse> {
     const args = [
-      'exec',
-      '-C',
+      "exec",
+      "-C",
       input.workspace,
-      '--permission-mode',
+      "--permission-mode",
       this.permissionMode,
-      '--skip-git-repo-check',
-      '--json',
-      '-',
+      "--skip-git-repo-check",
+      "--json",
+      "-",
     ];
 
     return this.run(undefined, args, input.prompt, input.workspace);
   }
 
-  createSessionStream(
-    input: AiCreateSessionInput,
-    onEvent: (event: AiRunEvent) => void,
-  ): AiRun {
+  createSessionStream(input: AiCreateSessionInput, onEvent: (event: AiRunEvent) => void): AiRun {
     const args = [
-      'exec',
-      '-C',
+      "exec",
+      "-C",
       input.workspace,
-      '--permission-mode',
+      "--permission-mode",
       this.permissionMode,
-      '--skip-git-repo-check',
-      '--json',
-      '-',
+      "--skip-git-repo-check",
+      "--json",
+      "-",
     ];
 
-    return this.startRun(
-      undefined,
-      args,
-      input.prompt,
-      input.workspace,
-      true,
-      onEvent,
-    );
+    return this.startRun(undefined, args, input.prompt, input.workspace, true, onEvent);
   }
 
   async continueSession(input: AiContinueSessionInput): Promise<AiResponse> {
     const args = [
-      'exec',
-      'resume',
+      "exec",
+      "resume",
       input.sessionId,
-      '--permission-mode',
+      "--permission-mode",
       this.permissionMode,
-      '--skip-git-repo-check',
-      '--json',
-      '-',
+      "--skip-git-repo-check",
+      "--json",
+      "-",
     ];
 
     return this.run(input.sessionId, args, input.prompt, input.workspace);
   }
 
-  async summarizeConversation(
-    input: AiCreateSessionInput,
-  ): Promise<ConversationSummary> {
+  async summarizeConversation(input: AiCreateSessionInput): Promise<ConversationSummary> {
     const args = [
-      'exec',
-      '-C',
+      "exec",
+      "-C",
       input.workspace,
-      '--permission-mode',
+      "--permission-mode",
       this.permissionMode,
-      '--skip-git-repo-check',
-      '--json',
-      '-',
+      "--skip-git-repo-check",
+      "--json",
+      "-",
     ];
-    const response = await this.run(
-      undefined,
-      args,
-      input.prompt,
-      input.workspace,
-      false,
-    );
+    const response = await this.run(undefined, args, input.prompt, input.workspace, false);
 
     return parseConversationSummary(response.content);
   }
 
-  async createAtomicDiffReview(
-    input: AiAtomicDiffReviewInput,
-  ): Promise<AtomicDiffReview> {
+  async createAtomicDiffReview(input: AiAtomicDiffReviewInput): Promise<AtomicDiffReview> {
     const args = [
-      'exec',
-      '-C',
+      "exec",
+      "-C",
       input.workspace,
-      '--permission-mode',
+      "--permission-mode",
       this.permissionMode,
-      '--skip-git-repo-check',
-      '--json',
-      '-',
+      "--skip-git-repo-check",
+      "--json",
+      "-",
     ];
     let response: AiResponse | undefined;
 
@@ -149,7 +121,7 @@ export class TraexModel implements AiModel {
       );
 
       return {
-        status: 'ready',
+        status: "ready",
         generatedAt: new Date().toISOString(),
         analysisSessionId: response.sessionId,
         items: parseAtomicDiffReviewItems(response.content),
@@ -157,12 +129,9 @@ export class TraexModel implements AiModel {
       };
     } catch (error) {
       return {
-        status: 'failed',
+        status: "failed",
         generatedAt: new Date().toISOString(),
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Failed to create atomic diff review',
+        error: error instanceof Error ? error.message : "Failed to create atomic diff review",
         ...(response ? { rawResponse: response.content } : {}),
       };
     }
@@ -173,24 +142,17 @@ export class TraexModel implements AiModel {
     onEvent: (event: AiRunEvent) => void,
   ): AiRun {
     const args = [
-      'exec',
-      'resume',
+      "exec",
+      "resume",
       input.sessionId,
-      '--permission-mode',
+      "--permission-mode",
       this.permissionMode,
-      '--skip-git-repo-check',
-      '--json',
-      '-',
+      "--skip-git-repo-check",
+      "--json",
+      "-",
     ];
 
-    return this.startRun(
-      input.sessionId,
-      args,
-      input.prompt,
-      input.workspace,
-      true,
-      onEvent,
-    );
+    return this.startRun(input.sessionId, args, input.prompt, input.workspace, true, onEvent);
   }
 
   private async run(
@@ -200,14 +162,8 @@ export class TraexModel implements AiModel {
     workspace: string,
     captureDiff = true,
   ): Promise<AiResponse> {
-    return this.startRun(
-      expectedSessionId,
-      args,
-      prompt,
-      workspace,
-      captureDiff,
-      () => undefined,
-    ).result;
+    return this.startRun(expectedSessionId, args, prompt, workspace, captureDiff, () => undefined)
+      .result;
   }
 
   private startRun(
@@ -223,7 +179,7 @@ export class TraexModel implements AiModel {
 
     if (expectedSessionId) {
       sessionIdSignal.resolve(expectedSessionId);
-      onEvent({ type: 'session', sessionId: expectedSessionId });
+      onEvent({ type: "session", sessionId: expectedSessionId });
     }
 
     const result = runTraexProcess({
@@ -240,21 +196,20 @@ export class TraexModel implements AiModel {
         if (sessionId && !observedSessionId) {
           observedSessionId = sessionId;
           sessionIdSignal.resolve(sessionId);
-          onEvent({ type: 'session', sessionId });
+          onEvent({ type: "session", sessionId });
         }
 
         for (const text of extractResponseDeltas(event)) {
-          onEvent({ type: 'delta', text });
+          onEvent({ type: "delta", text });
         }
 
-        onEvent({ type: 'raw', event });
+        onEvent({ type: "raw", event });
       },
     }).then(async ({ content, beforeSnapshot, afterSnapshot, rawEvents }) => {
-      const sessionId =
-        expectedSessionId ?? observedSessionId ?? extractThreadId(rawEvents);
+      const sessionId = expectedSessionId ?? observedSessionId ?? extractThreadId(rawEvents);
 
       if (!sessionId) {
-        throw new Error('TraeX did not return a thread id');
+        throw new Error("TraeX did not return a thread id");
       }
 
       sessionIdSignal.resolve(sessionId);

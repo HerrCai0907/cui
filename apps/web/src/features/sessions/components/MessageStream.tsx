@@ -1,9 +1,9 @@
-import { ClipboardList, FileDiff } from 'lucide-react';
-import type { RefObject } from 'react';
-import { TraceView } from '../../trace/components/TraceView';
-import { formatMessageTime } from '../../../shared/lib/dates';
-import type { ApiMessage, ApiSession } from '../../../types';
-import { getMessageTitle } from '../model/messages';
+import { ClipboardList, FileDiff } from "lucide-react";
+import type { RefObject } from "react";
+import { TraceView } from "../../trace/components/TraceView";
+import { formatMessageTime } from "../../../shared/lib/dates";
+import type { ApiMessage, ApiSession } from "../../../types";
+import { getMessageTitle } from "../model/messages";
 
 type MessageStreamProps = {
   activeSession: ApiSession | null;
@@ -29,18 +29,13 @@ export function MessageStream({
   onWorkspaceDraftChange,
 }: MessageStreamProps) {
   return (
-    <div
-      className="message-stream"
-      ref={messageStreamRef}
-      role="log"
-      aria-live="polite"
-    >
+    <div className="message-stream" ref={messageStreamRef} role="log" aria-live="polite">
       {!activeSession && (
         <div className="empty-state">
           <h2>Start a TRAEX-backed AI session</h2>
           <p>
-            Pick a workspace path, type the initial prompt, and the backend will
-            create a persistent session.
+            Pick a workspace path, type the initial prompt, and the backend will create a persistent
+            session.
           </p>
           <input
             value={workspaceDraft}
@@ -80,26 +75,19 @@ function MessageItem({
   onOpenReview: (sessionId: string, round: number) => void;
   onTraceExpandedChange: (messageId: string, open: boolean) => void;
 }) {
-  const isTrace = message.kind === 'trace';
+  const isTrace = message.kind === "trace";
   const hasReviewDiff =
-    message.role === 'assistant' &&
-    message.kind === 'response' &&
+    message.role === "assistant" &&
+    message.kind === "response" &&
     Boolean(
       message.round &&
-        activeSession.rounds?.find((round) => round.round === message.round)
-          ?.hasChanges,
+      activeSession.rounds?.find((round) => round.round === message.round)?.hasChanges,
     );
 
   return (
-    <article className={`message ${message.role} ${isTrace ? 'trace' : ''}`}>
+    <article className={`message ${message.role} ${isTrace ? "trace" : ""}`}>
       <div className="message-avatar">
-        {isTrace ? (
-          <ClipboardList size={17} />
-        ) : message.role === 'assistant' ? (
-          'AI'
-        ) : (
-          'You'
-        )}
+        {isTrace ? <ClipboardList size={17} /> : message.role === "assistant" ? "AI" : "You"}
       </div>
       <div className="message-body">
         <div className="message-meta">

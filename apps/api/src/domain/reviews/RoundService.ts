@@ -1,23 +1,17 @@
-import type { AiResponse, ChatRound, ChatSession } from '../../types.js';
-import { GitDiffService } from '../../infrastructure/diff/GitDiffService.js';
+import type { AiResponse, ChatRound, ChatSession } from "../../types.js";
+import { GitDiffService } from "../../infrastructure/diff/GitDiffService.js";
 
 export class RoundService {
   constructor(private readonly diffService = new GitDiffService()) {}
 
-  createNextRound(
-    session: ChatSession | undefined,
-    aiResponse: AiResponse,
-  ): ChatRound | undefined {
+  createNextRound(session: ChatSession | undefined, aiResponse: AiResponse): ChatRound | undefined {
     const lastRound = session?.rounds?.at(-1);
     const nextRoundNumber = (lastRound?.round ?? 0) + 1;
 
     return this.createRound(aiResponse, nextRoundNumber);
   }
 
-  createRound(
-    aiResponse: AiResponse,
-    roundNumber: number,
-  ): ChatRound | undefined {
+  createRound(aiResponse: AiResponse, roundNumber: number): ChatRound | undefined {
     if (!aiResponse.gitDiff) {
       return undefined;
     }
@@ -28,9 +22,7 @@ export class RoundService {
 
     return {
       round: roundNumber,
-      ...(aiResponse.gitDiff.baseCommit
-        ? { baseCommit: aiResponse.gitDiff.baseCommit }
-        : {}),
+      ...(aiResponse.gitDiff.baseCommit ? { baseCommit: aiResponse.gitDiff.baseCommit } : {}),
       beforeDiff,
       afterDiff,
       diff,
@@ -40,10 +32,7 @@ export class RoundService {
   }
 
   refreshRoundDiff(round: ChatRound): ChatRound {
-    const diff = this.diffService.createRoundDiff(
-      round.beforeDiff,
-      round.afterDiff,
-    );
+    const diff = this.diffService.createRoundDiff(round.beforeDiff, round.afterDiff);
 
     return {
       ...round,

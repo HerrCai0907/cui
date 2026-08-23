@@ -17,7 +17,7 @@ export function parseSummaryJson(content: string): unknown {
 }
 
 export function limitCharacters(value: string, maxLength: number): string {
-  const compact = value.replace(/\s+/g, ' ').trim();
+  const compact = value.replace(/\s+/g, " ").trim();
 
-  return Array.from(compact).slice(0, maxLength).join('');
+  return Array.from(compact).slice(0, maxLength).join("");
 }

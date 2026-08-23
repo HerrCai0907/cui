@@ -5,32 +5,26 @@ import {
   ChatRound,
   ChatSession,
   ChatSessionView,
-} from '../../types.js';
-import { JsonSessionStore } from '../../infrastructure/store/JsonSessionStore.js';
-import { AppLogger } from '../../infrastructure/logging/AppLogger.js';
-import {
-  createAssistantMessages,
-  createMessage,
-} from './sessionMessages.js';
-import { createTitle } from './sessionTitles.js';
-import { toSessionView } from './sessionViews.js';
+} from "../../types.js";
+import { JsonSessionStore } from "../../infrastructure/store/JsonSessionStore.js";
+import { AppLogger } from "../../infrastructure/logging/AppLogger.js";
+import { createAssistantMessages, createMessage } from "./sessionMessages.js";
+import { createTitle } from "./sessionTitles.js";
+import { toSessionView } from "./sessionViews.js";
 import {
   createRoundInputTranscript,
   createSessionInputTranscript,
   getRoundAssistantOutput,
   getRoundExecutionTrace,
-} from './transcripts.js';
-import {
-  TurnRegistry,
-  type RunningTurn,
-} from '../turns/TurnRegistry.js';
-import type { TurnStreamEvent } from '../turns/turnEvents.js';
-import { RoundService } from '../reviews/RoundService.js';
-import { AtomicReviewService } from '../reviews/AtomicReviewService.js';
-import { SessionSummaryService } from './SessionSummaryService.js';
-import { TurnCompletionService } from './TurnCompletionService.js';
+} from "./transcripts.js";
+import { TurnRegistry, type RunningTurn } from "../turns/TurnRegistry.js";
+import type { TurnStreamEvent } from "../turns/turnEvents.js";
+import { RoundService } from "../reviews/RoundService.js";
+import { AtomicReviewService } from "../reviews/AtomicReviewService.js";
+import { SessionSummaryService } from "./SessionSummaryService.js";
+import { TurnCompletionService } from "./TurnCompletionService.js";
 
-export type { TurnStreamEvent } from '../turns/turnEvents.js';
+export type { TurnStreamEvent } from "../turns/turnEvents.js";
 
 export type CreateSessionRequest = {
   workspace: string;
@@ -54,15 +48,8 @@ export class SessionService {
     private readonly store: JsonSessionStore,
     private readonly logger = new AppLogger(),
     private readonly roundService = new RoundService(),
-    private readonly atomicReviewService = new AtomicReviewService(
-      aiModel,
-      logger,
-    ),
-    private readonly sessionSummaryService = new SessionSummaryService(
-      aiModel,
-      store,
-      logger,
-    ),
+    private readonly atomicReviewService = new AtomicReviewService(aiModel, logger),
+    private readonly sessionSummaryService = new SessionSummaryService(aiModel, store, logger),
     private readonly turnCompletionService = new TurnCompletionService(
       store,
       logger,
@@ -79,10 +66,7 @@ export class SessionService {
     const sessions = await this.store.listSessions();
 
     return sessions.map((session) =>
-      toSessionView(
-        session,
-        this.turnRegistry.getRunningTurnIdForSession(session.id),
-      ),
+      toSessionView(session, this.turnRegistry.getRunningTurnIdForSession(session.id)),
     );
   }
 
@@ -90,23 +74,15 @@ export class SessionService {
     return this.store.getSession(sessionId);
   }
 
-  async getSessionView(
-    sessionId: string,
-  ): Promise<ChatSessionView | undefined> {
+  async getSessionView(sessionId: string): Promise<ChatSessionView | undefined> {
     const session = await this.store.getSession(sessionId);
 
     return session
-      ? toSessionView(
-          session,
-          this.turnRegistry.getRunningTurnIdForSession(session.id),
-        )
+      ? toSessionView(session, this.turnRegistry.getRunningTurnIdForSession(session.id))
       : undefined;
   }
 
-  async getRoundReview(
-    sessionId: string,
-    round: number,
-  ): Promise<ChatRound | undefined> {
+  async getRoundReview(sessionId: string, round: number): Promise<ChatRound | undefined> {
     const session = await this.store.getSession(sessionId);
 
     if (!session) {
@@ -122,25 +98,20 @@ export class SessionService {
     review = this.roundService.refreshRoundDiff(review);
 
     if (review.hasChanges && !review.atomicReview) {
-      const atomicReview =
-        await this.atomicReviewService.createAtomicDiffReview({
-          sessionId,
-          workspace: session.workspace,
-          prompt: createRoundInputTranscript(session, round),
-          aiResponse: {
-            sessionId,
-            content: getRoundAssistantOutput(session, round),
-            trace: getRoundExecutionTrace(session, round),
-            rawEvents: [],
-          },
-          round: review,
-        });
-
-      review = await this.store.updateRoundAtomicReview(
+      const atomicReview = await this.atomicReviewService.createAtomicDiffReview({
         sessionId,
-        round,
-        atomicReview,
-      );
+        workspace: session.workspace,
+        prompt: createRoundInputTranscript(session, round),
+        aiResponse: {
+          sessionId,
+          content: getRoundAssistantOutput(session, round),
+          trace: getRoundExecutionTrace(session, round),
+          rawEvents: [],
+        },
+        round: review,
+      });
+
+      review = await this.store.updateRoundAtomicReview(sessionId, round, atomicReview);
       review = this.roundService.refreshRoundDiff(review);
     }
 
@@ -148,7 +119,7 @@ export class SessionService {
   }
 
   async createSession(request: CreateSessionRequest): Promise<ChatSession> {
-    await this.logger.framework.info('session.create.started', {
+    await this.logger.framework.info("session.create.started", {
       workspace: request.workspace,
       promptLength: request.prompt.length,
     });
@@ -158,38 +129,37 @@ export class SessionService {
     });
     const sessionId = aiResponse.sessionId;
     const now = new Date().toISOString();
-    const userMessage = createMessage('user', request.prompt);
+    const userMessage = createMessage("user", request.prompt);
     const round = this.roundService.createRound(aiResponse, 1);
     if (round?.hasChanges) {
-      round.atomicReview =
-        await this.atomicReviewService.createAtomicDiffReview({
-          sessionId,
-          workspace: request.workspace,
-          prompt: request.prompt,
-          aiResponse,
-          round,
-        });
+      round.atomicReview = await this.atomicReviewService.createAtomicDiffReview({
+        sessionId,
+        workspace: request.workspace,
+        prompt: request.prompt,
+        aiResponse,
+        round,
+      });
     }
     const assistantMessages = createAssistantMessages(aiResponse, round);
     const session: ChatSession = {
       id: sessionId,
       workspace: request.workspace,
       title: createTitle(request.prompt),
-      summary: '',
+      summary: "",
       createdAt: now,
       updatedAt: now,
       messages: [userMessage, ...assistantMessages],
       ...(round ? { rounds: [round] } : {}),
     };
 
-    await this.logger.session(sessionId).info('session.created', {
+    await this.logger.session(sessionId).info("session.created", {
       sessionId,
       workspace: request.workspace,
       prompt: request.prompt,
       response: aiResponse.content,
       rawEvents: aiResponse.rawEvents,
     });
-    await this.logger.framework.info('session.create.completed', {
+    await this.logger.framework.info("session.create.completed", {
       sessionId,
       workspace: request.workspace,
     });
@@ -199,10 +169,8 @@ export class SessionService {
     return this.sessionSummaryService.refreshSessionSummary(createdSession);
   }
 
-  async beginCreateSession(
-    request: CreateSessionRequest,
-  ): Promise<SubmittedTurn> {
-    await this.logger.framework.info('session.create.started', {
+  async beginCreateSession(request: CreateSessionRequest): Promise<SubmittedTurn> {
+    await this.logger.framework.info("session.create.started", {
       workspace: request.workspace,
       promptLength: request.prompt.length,
     });
@@ -224,12 +192,12 @@ export class SessionService {
     }
 
     const now = new Date().toISOString();
-    const userMessage = createMessage('user', request.prompt);
+    const userMessage = createMessage("user", request.prompt);
     const session: ChatSession = {
       id: sessionId,
       workspace: request.workspace,
       title: createTitle(request.prompt),
-      summary: '',
+      summary: "",
       createdAt: now,
       updatedAt: now,
       messages: [userMessage],
@@ -237,13 +205,8 @@ export class SessionService {
 
     const createdSession = await this.store.createSession(session);
     runningTurn = this.turnRegistry.createRunningTurn(sessionId);
-    const summaryPromise = this.refreshSessionSummaryFromUserInput(
-      createdSession,
-      runningTurn,
-    );
-    bufferedEvents.forEach((event) =>
-      this.turnRegistry.emitTurnEvent(runningTurn!, event),
-    );
+    const summaryPromise = this.refreshSessionSummaryFromUserInput(createdSession, runningTurn);
+    bufferedEvents.forEach((event) => this.turnRegistry.emitTurnEvent(runningTurn!, event));
     this.finishCreateSession(request, run.result, runningTurn, summaryPromise);
 
     return {
@@ -252,18 +215,15 @@ export class SessionService {
     };
   }
 
-  async continueSession(
-    sessionId: string,
-    request: ContinueSessionRequest,
-  ): Promise<ChatSession> {
-    await this.logger.framework.info('session.continue.started', {
+  async continueSession(sessionId: string, request: ContinueSessionRequest): Promise<ChatSession> {
+    await this.logger.framework.info("session.continue.started", {
       sessionId,
       promptLength: request.prompt.length,
     });
     const session = await this.store.getSession(sessionId);
 
     if (!session) {
-      await this.logger.framework.warn('session.continue.not_found', {
+      await this.logger.framework.warn("session.continue.not_found", {
         sessionId,
       });
       throw new SessionNotFoundError(sessionId);
@@ -274,37 +234,35 @@ export class SessionService {
       workspace: session.workspace,
       prompt: request.prompt,
     });
-    const userMessage = createMessage('user', request.prompt);
+    const userMessage = createMessage("user", request.prompt);
     const round = this.roundService.createNextRound(session, aiResponse);
     if (round?.hasChanges) {
-      round.atomicReview =
-        await this.atomicReviewService.createAtomicDiffReview({
-          sessionId,
-          workspace: session.workspace,
-          prompt: createSessionInputTranscript(session, request.prompt),
-          aiResponse,
-          round,
-        });
+      round.atomicReview = await this.atomicReviewService.createAtomicDiffReview({
+        sessionId,
+        workspace: session.workspace,
+        prompt: createSessionInputTranscript(session, request.prompt),
+        aiResponse,
+        round,
+      });
     }
     const assistantMessages = createAssistantMessages(aiResponse, round);
 
-    await this.logger.session(sessionId).info('session.continued', {
+    await this.logger.session(sessionId).info("session.continued", {
       sessionId,
       workspace: session.workspace,
       prompt: request.prompt,
       response: aiResponse.content,
       rawEvents: aiResponse.rawEvents,
     });
-    await this.logger.framework.info('session.continue.completed', {
+    await this.logger.framework.info("session.continue.completed", {
       sessionId,
       workspace: session.workspace,
     });
 
-    const updatedSession = await this.store.appendRoundAndMessages(
-      sessionId,
-      round,
-      [userMessage, ...assistantMessages],
-    );
+    const updatedSession = await this.store.appendRoundAndMessages(sessionId, round, [
+      userMessage,
+      ...assistantMessages,
+    ]);
 
     return this.sessionSummaryService.refreshSessionSummary(updatedSession);
   }
@@ -313,14 +271,14 @@ export class SessionService {
     sessionId: string,
     request: ContinueSessionRequest,
   ): Promise<SubmittedTurn> {
-    await this.logger.framework.info('session.continue.started', {
+    await this.logger.framework.info("session.continue.started", {
       sessionId,
       promptLength: request.prompt.length,
     });
     const session = await this.store.getSession(sessionId);
 
     if (!session) {
-      await this.logger.framework.warn('session.continue.not_found', {
+      await this.logger.framework.warn("session.continue.not_found", {
         sessionId,
       });
       throw new SessionNotFoundError(sessionId);
@@ -330,15 +288,10 @@ export class SessionService {
       throw new SessionBusyError(sessionId);
     }
 
-    const userMessage = createMessage('user', request.prompt);
-    const updatedSession = await this.store.appendMessages(sessionId, [
-      userMessage,
-    ]);
+    const userMessage = createMessage("user", request.prompt);
+    const updatedSession = await this.store.appendMessages(sessionId, [userMessage]);
     const runningTurn = this.turnRegistry.createRunningTurn(sessionId);
-    const summaryPromise = this.refreshSessionSummaryFromUserInput(
-      updatedSession,
-      runningTurn,
-    );
+    const summaryPromise = this.refreshSessionSummaryFromUserInput(updatedSession, runningTurn);
     const run = this.aiModel.continueSessionStream(
       {
         sessionId,
@@ -352,13 +305,7 @@ export class SessionService {
       },
     );
 
-    this.finishContinueSession(
-      request,
-      run.result,
-      runningTurn,
-      session.workspace,
-      summaryPromise,
-    );
+    this.finishContinueSession(request, run.result, runningTurn, session.workspace, summaryPromise);
 
     return {
       session: toSessionView(updatedSession, runningTurn.id),
@@ -370,10 +317,7 @@ export class SessionService {
     return this.turnRegistry.hasRunningTurn(turnId);
   }
 
-  subscribeToTurn(
-    turnId: string,
-    onEvent: (event: TurnStreamEvent) => void,
-  ): () => void {
+  subscribeToTurn(turnId: string, onEvent: (event: TurnStreamEvent) => void): () => void {
     return this.turnRegistry.subscribeToTurn(turnId, onEvent);
   }
 
@@ -386,29 +330,27 @@ export class SessionService {
     result
       .then(async (aiResponse) => {
         const session = await this.turnCompletionService.completeTurn({
-          kind: 'create',
+          kind: "create",
           workspace: request.workspace,
           prompt: request.prompt,
           aiResponse,
         });
         const latestSession =
-          (await this.waitForInputSummary(summaryPromise, turn.sessionId)) ??
-          session;
+          (await this.waitForInputSummary(summaryPromise, turn.sessionId)) ?? session;
 
         this.turnRegistry.emitTurnEvent(turn, {
-          type: 'done',
+          type: "done",
           session: latestSession,
         });
       })
       .catch((error: unknown) => {
-        void this.logger.framework.error('session.create.failed', {
+        void this.logger.framework.error("session.create.failed", {
           sessionId: turn.sessionId,
           error,
         });
         this.turnRegistry.emitTurnEvent(turn, {
-          type: 'failed',
-          error:
-            error instanceof Error ? error.message : 'Session creation failed',
+          type: "failed",
+          error: error instanceof Error ? error.message : "Session creation failed",
         });
       });
   }
@@ -423,31 +365,27 @@ export class SessionService {
     result
       .then(async (aiResponse) => {
         const session = await this.turnCompletionService.completeTurn({
-          kind: 'continue',
+          kind: "continue",
           workspace,
           prompt: request.prompt,
           aiResponse,
         });
         const latestSession =
-          (await this.waitForInputSummary(summaryPromise, turn.sessionId)) ??
-          session;
+          (await this.waitForInputSummary(summaryPromise, turn.sessionId)) ?? session;
 
         this.turnRegistry.emitTurnEvent(turn, {
-          type: 'done',
+          type: "done",
           session: latestSession,
         });
       })
       .catch((error: unknown) => {
-        void this.logger.framework.error('session.continue.failed', {
+        void this.logger.framework.error("session.continue.failed", {
           sessionId: turn.sessionId,
           error,
         });
         this.turnRegistry.emitTurnEvent(turn, {
-          type: 'failed',
-          error:
-            error instanceof Error
-              ? error.message
-              : 'Session continuation failed',
+          type: "failed",
+          error: error instanceof Error ? error.message : "Session continuation failed",
         });
       });
   }
@@ -456,18 +394,16 @@ export class SessionService {
     session: ChatSession,
     turn?: RunningTurn,
   ): Promise<ChatSession> {
-    return this.sessionSummaryService
-      .refreshSessionSummary(session)
-      .then((updatedSession) => {
-        if (turn && !turn.completed && updatedSession !== session) {
-          this.turnRegistry.emitTurnEvent(turn, {
-            type: 'session.updated',
-            session: toSessionView(updatedSession, turn.id),
-          });
-        }
+    return this.sessionSummaryService.refreshSessionSummary(session).then((updatedSession) => {
+      if (turn && !turn.completed && updatedSession !== session) {
+        this.turnRegistry.emitTurnEvent(turn, {
+          type: "session.updated",
+          session: toSessionView(updatedSession, turn.id),
+        });
+      }
 
-        return updatedSession;
-      });
+      return updatedSession;
+    });
   }
 
   private async waitForInputSummary(
@@ -480,33 +416,29 @@ export class SessionService {
 
     return latestSession ? toSessionView(latestSession) : undefined;
   }
-
 }
 
 export class SessionNotFoundError extends Error {
   constructor(sessionId: string) {
     super(`Session not found: ${sessionId}`);
-    this.name = 'SessionNotFoundError';
+    this.name = "SessionNotFoundError";
   }
 }
 
 export class SessionBusyError extends Error {
   constructor(sessionId: string) {
     super(`Session is already running: ${sessionId}`);
-    this.name = 'SessionBusyError';
+    this.name = "SessionBusyError";
   }
 }
 
-function handleAiRunEvent(
-  event: AiRunEvent,
-  emit: (event: TurnStreamEvent) => void,
-): void {
-  if (event.type === 'delta') {
-    emit({ type: 'delta', text: event.text });
+function handleAiRunEvent(event: AiRunEvent, emit: (event: TurnStreamEvent) => void): void {
+  if (event.type === "delta") {
+    emit({ type: "delta", text: event.text });
     return;
   }
 
-  if (event.type === 'raw') {
-    emit({ type: 'raw', event: event.event });
+  if (event.type === "raw") {
+    emit({ type: "raw", event: event.event });
   }
 }

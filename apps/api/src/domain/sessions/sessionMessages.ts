@@ -1,10 +1,10 @@
-import { randomUUID } from 'node:crypto';
-import type { AiResponse, ChatMessage, ChatRound } from '../../types.js';
+import { randomUUID } from "node:crypto";
+import type { AiResponse, ChatMessage, ChatRound } from "../../types.js";
 
 export function createMessage(
-  role: ChatMessage['role'],
+  role: ChatMessage["role"],
   content: string,
-  kind?: ChatMessage['kind'],
+  kind?: ChatMessage["kind"],
   round?: number,
 ): ChatMessage {
   return {
@@ -18,19 +18,17 @@ export function createMessage(
 }
 
 export function createAssistantMessages(
-  aiResponse: Pick<AiResponse, 'content' | 'trace'>,
+  aiResponse: Pick<AiResponse, "content" | "trace">,
   round?: ChatRound,
 ): ChatMessage[] {
   const messages: ChatMessage[] = [];
-  const trace = aiResponse.trace?.trim() || 'TRAEX run completed.';
+  const trace = aiResponse.trace?.trim() || "TRAEX run completed.";
   const content = aiResponse.content.trim();
 
-  messages.push(createMessage('assistant', trace, 'trace'));
+  messages.push(createMessage("assistant", trace, "trace"));
 
   if (content) {
-    messages.push(
-      createMessage('assistant', content, 'response', round?.round),
-    );
+    messages.push(createMessage("assistant", content, "response", round?.round));
   }
 
   return messages;

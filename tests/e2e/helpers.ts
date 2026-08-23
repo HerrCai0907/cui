@@ -1,6 +1,6 @@
-import type { Page, Route } from '@playwright/test';
+import type { Page, Route } from "@playwright/test";
 
-export const currentWorkspace = '/Users/bytedance/cui';
+export const currentWorkspace = "/Users/bytedance/cui";
 
 export type MockSession = {
   id: string;
@@ -11,16 +11,16 @@ type SessionSource = MockSession[] | (() => MockSession[]);
 
 export async function fulfillJson(route: Route, body: unknown) {
   await route.fulfill({
-    contentType: 'application/json',
+    contentType: "application/json",
     body: JSON.stringify(body),
   });
 }
 
 export async function mockSessions(page: Page, sessions: SessionSource) {
-  await page.route('**/api/sessions', async (route) => {
-    if (route.request().method() === 'GET') {
+  await page.route("**/api/sessions", async (route) => {
+    if (route.request().method() === "GET") {
       await fulfillJson(route, {
-        sessions: typeof sessions === 'function' ? sessions() : sessions,
+        sessions: typeof sessions === "function" ? sessions() : sessions,
       });
       return;
     }
@@ -42,7 +42,7 @@ export async function mockSessionById(
 ) {
   await page.route(`**/api/sessions/${sessionId}`, async (route) => {
     await fulfillJson(route, {
-      session: typeof session === 'function' ? session() : session,
+      session: typeof session === "function" ? session() : session,
     });
   });
 }
@@ -53,10 +53,7 @@ export async function mockRoundReview(
   round: number,
   review: unknown,
 ) {
-  await page.route(
-    `**/api/sessions/${sessionId}/rounds/${round}/review`,
-    async (route) => {
-      await fulfillJson(route, { review });
-    },
-  );
+  await page.route(`**/api/sessions/${sessionId}/rounds/${round}/review`, async (route) => {
+    await fulfillJson(route, { review });
+  });
 }

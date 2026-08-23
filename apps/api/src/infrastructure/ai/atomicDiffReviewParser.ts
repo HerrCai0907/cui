@@ -1,51 +1,37 @@
-import type {
-  AtomicCapabilityType,
-  AtomicDiffReviewItem,
-} from '../../types.js';
-import {
-  getNumberProperty,
-  getStringArrayProperty,
-  getStringProperty,
-} from './jsonFields.js';
-import { parseSummaryJson } from './summaryJson.js';
+import type { AtomicCapabilityType, AtomicDiffReviewItem } from "../../types.js";
+import { getNumberProperty, getStringArrayProperty, getStringProperty } from "./jsonFields.js";
+import { parseSummaryJson } from "./summaryJson.js";
 
-export function parseAtomicDiffReviewItems(
-  content: string,
-): AtomicDiffReviewItem[] {
+export function parseAtomicDiffReviewItems(content: string): AtomicDiffReviewItem[] {
   const parsed = parseSummaryJson(content);
 
-  if (!parsed || typeof parsed !== 'object') {
-    throw new Error('Atomic diff review was not valid JSON');
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Atomic diff review was not valid JSON");
   }
 
-  const rawItems = 'items' in parsed ? parsed.items : undefined;
+  const rawItems = "items" in parsed ? parsed.items : undefined;
 
   if (!Array.isArray(rawItems)) {
-    throw new Error('Atomic diff review JSON must include items array');
+    throw new Error("Atomic diff review JSON must include items array");
   }
 
   return rawItems.map((item, index) => parseAtomicDiffReviewItem(item, index));
 }
 
-function parseAtomicDiffReviewItem(
-  item: unknown,
-  index: number,
-): AtomicDiffReviewItem {
-  if (!item || typeof item !== 'object') {
+function parseAtomicDiffReviewItem(item: unknown, index: number): AtomicDiffReviewItem {
+  if (!item || typeof item !== "object") {
     throw new Error(`Atomic diff review item ${index + 1} must be an object`);
   }
 
-  const order = getNumberProperty(item, 'order') ?? index + 1;
+  const order = getNumberProperty(item, "order") ?? index + 1;
   const capabilityType = parseCapabilityType(
-    getNumberProperty(item, 'capabilityType') ??
-      getNumberProperty(item, 'capability_type'),
+    getNumberProperty(item, "capabilityType") ?? getNumberProperty(item, "capability_type"),
   );
-  const title = requiredStringProperty(item, 'title', index);
-  const intent = requiredStringProperty(item, 'intent', index);
-  const diff = requiredStringProperty(item, 'diff', index);
-  const id =
-    getStringProperty(item, 'id')?.trim() || `atomic-${String(order)}`;
-  const files = getStringArrayProperty(item, 'files');
+  const title = requiredStringProperty(item, "title", index);
+  const intent = requiredStringProperty(item, "intent", index);
+  const diff = requiredStringProperty(item, "diff", index);
+  const id = getStringProperty(item, "id")?.trim() || `atomic-${String(order)}`;
+  const files = getStringArrayProperty(item, "files");
   const capabilityLabel = capabilityLabelForType(capabilityType);
   const outputJson = normalizeOutputJson(item, {
     id,
@@ -72,15 +58,11 @@ function parseAtomicDiffReviewItem(
 
 function normalizeOutputJson(
   item: object,
-  fallback: Omit<AtomicDiffReviewItem, 'diff' | 'outputJson'>,
+  fallback: Omit<AtomicDiffReviewItem, "diff" | "outputJson">,
 ): Record<string, unknown> {
-  const outputJson = 'outputJson' in item ? item.outputJson : undefined;
+  const outputJson = "outputJson" in item ? item.outputJson : undefined;
 
-  if (
-    outputJson &&
-    typeof outputJson === 'object' &&
-    !Array.isArray(outputJson)
-  ) {
+  if (outputJson && typeof outputJson === "object" && !Array.isArray(outputJson)) {
     return {
       ...(outputJson as Record<string, unknown>),
       capability_type: fallback.capabilityType,
@@ -100,41 +82,29 @@ function normalizeOutputJson(
 }
 
 function parseCapabilityType(value: number | undefined): AtomicCapabilityType {
-  if (
-    value === 0 ||
-    value === 1 ||
-    value === 2 ||
-    value === 3 ||
-    value === 5
-  ) {
+  if (value === 0 || value === 1 || value === 2 || value === 3 || value === 5) {
     return value;
   }
 
-  throw new Error(
-    'Atomic diff review capabilityType must be 0, 1, 2, 3, or 5',
-  );
+  throw new Error("Atomic diff review capabilityType must be 0, 1, 2, 3, or 5");
 }
 
 function capabilityLabelForType(value: AtomicCapabilityType): string {
   switch (value) {
     case 0:
-      return '格式调整';
+      return "格式调整";
     case 1:
-      return '重构';
+      return "重构";
     case 2:
-      return '新功能';
+      return "新功能";
     case 3:
-      return '局部修复';
+      return "局部修复";
     case 5:
-      return '测试修改';
+      return "测试修改";
   }
 }
 
-function requiredStringProperty(
-  value: object,
-  key: string,
-  index: number,
-): string {
+function requiredStringProperty(value: object, key: string, index: number): string {
   const property = getStringProperty(value, key)?.trim();
 
   if (!property) {

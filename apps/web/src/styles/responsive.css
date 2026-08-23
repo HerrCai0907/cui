@@ -51,5 +51,4 @@
     grid-template-columns: 30px minmax(104px, auto) minmax(0, 1fr);
     gap: 8px;
   }
-
 }

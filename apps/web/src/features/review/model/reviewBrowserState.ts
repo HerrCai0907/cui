@@ -44,7 +44,7 @@ export function loadReviewBrowserState(stateKey: string): ReviewBrowserState {
 
     if (
       parsed.version !== REVIEW_STATE_VERSION ||
-      typeof parsed.expiresAt !== 'number' ||
+      typeof parsed.expiresAt !== "number" ||
       parsed.expiresAt <= Date.now()
     ) {
       window.localStorage.removeItem(stateKey);
@@ -61,10 +61,7 @@ export function loadReviewBrowserState(stateKey: string): ReviewBrowserState {
   }
 }
 
-export function saveReviewBrowserState(
-  stateKey: string,
-  state: ReviewBrowserState,
-) {
+export function saveReviewBrowserState(stateKey: string, state: ReviewBrowserState) {
   try {
     const now = Date.now();
     const storedState: StoredReviewBrowserState = {
@@ -80,11 +77,7 @@ export function saveReviewBrowserState(
   }
 }
 
-export function toggleString(
-  values: string[],
-  value: string,
-  included: boolean,
-): string[] {
+export function toggleString(values: string[], value: string, included: boolean): string[] {
   const next = new Set(values);
 
   if (included) {
@@ -96,30 +89,21 @@ export function toggleString(
   return [...next];
 }
 
-function parseAtomicItemStates(
-  value: unknown,
-): Record<string, AtomicReviewItemState> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+function parseAtomicItemStates(value: unknown): Record<string, AtomicReviewItemState> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
   }
 
   return Object.entries(value).reduce<Record<string, AtomicReviewItemState>>(
     (states, [itemId, itemState]) => {
-      if (
-        !itemState ||
-        typeof itemState !== 'object' ||
-        Array.isArray(itemState)
-      ) {
+      if (!itemState || typeof itemState !== "object" || Array.isArray(itemState)) {
         return states;
       }
 
       const candidate = itemState as Partial<AtomicReviewItemState>;
 
       states[itemId] = {
-        collapsed:
-          typeof candidate.collapsed === 'boolean'
-            ? candidate.collapsed
-            : undefined,
+        collapsed: typeof candidate.collapsed === "boolean" ? candidate.collapsed : undefined,
         approvedFileIds: parseStringList(candidate.approvedFileIds),
       };
 
@@ -134,5 +118,5 @@ function parseStringList(value: unknown): string[] {
     return [];
   }
 
-  return value.filter((item): item is string => typeof item === 'string');
+  return value.filter((item): item is string => typeof item === "string");
 }

@@ -1,11 +1,6 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
-import {
-  AtomicDiffReview,
-  ChatMessage,
-  ChatRound,
-  ChatSession,
-} from '../../types.js';
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { AtomicDiffReview, ChatMessage, ChatRound, ChatSession } from "../../types.js";
 
 type SessionStoreData = {
   sessions: ChatSession[];
@@ -15,7 +10,7 @@ export class JsonSessionStore {
   private readonly filePath: string;
   private writeQueue: Promise<void> = Promise.resolve();
 
-  constructor(filePath = process.env.CUI_STORE_PATH ?? 'data/sessions.json') {
+  constructor(filePath = process.env.CUI_STORE_PATH ?? "data/sessions.json") {
     this.filePath = resolve(process.cwd(), filePath);
   }
 
@@ -33,19 +28,13 @@ export class JsonSessionStore {
 
   async createSession(session: ChatSession): Promise<ChatSession> {
     await this.updateData((data) => ({
-      sessions: [
-        session,
-        ...data.sessions.filter((current) => current.id !== session.id),
-      ],
+      sessions: [session, ...data.sessions.filter((current) => current.id !== session.id)],
     }));
 
     return session;
   }
 
-  async appendMessages(
-    sessionId: string,
-    messages: ChatMessage[],
-  ): Promise<ChatSession> {
+  async appendMessages(sessionId: string, messages: ChatMessage[]): Promise<ChatSession> {
     let updatedSession: ChatSession | undefined;
 
     await this.updateData((data) => {
@@ -106,10 +95,7 @@ export class JsonSessionStore {
     return updatedSession;
   }
 
-  async getRound(
-    sessionId: string,
-    roundNumber: number,
-  ): Promise<ChatRound | undefined> {
+  async getRound(sessionId: string, roundNumber: number): Promise<ChatRound | undefined> {
     const session = await this.getSession(sessionId);
 
     return session?.rounds?.find((round) => round.round === roundNumber);
@@ -159,7 +145,7 @@ export class JsonSessionStore {
 
   async updateSessionSummary(
     sessionId: string,
-    summary: Pick<ChatSession, 'title' | 'summary'>,
+    summary: Pick<ChatSession, "title" | "summary">,
   ): Promise<ChatSession> {
     let updatedSession: ChatSession | undefined;
 
@@ -190,14 +176,14 @@ export class JsonSessionStore {
 
   private async readData(): Promise<SessionStoreData> {
     try {
-      const raw = await readFile(this.filePath, 'utf8');
+      const raw = await readFile(this.filePath, "utf8");
       const data = JSON.parse(raw) as SessionStoreData;
 
       return {
         sessions: Array.isArray(data.sessions) ? data.sessions : [],
       };
     } catch (error) {
-      if (isNodeError(error) && error.code === 'ENOENT') {
+      if (isNodeError(error) && error.code === "ENOENT") {
         return { sessions: [] };
       }
 
@@ -205,19 +191,13 @@ export class JsonSessionStore {
     }
   }
 
-  private async updateData(
-    updater: (data: SessionStoreData) => SessionStoreData,
-  ): Promise<void> {
+  private async updateData(updater: (data: SessionStoreData) => SessionStoreData): Promise<void> {
     this.writeQueue = this.writeQueue.then(async () => {
       const current = await this.readData();
       const next = updater(current);
 
       await mkdir(dirname(this.filePath), { recursive: true });
-      await writeFile(
-        this.filePath,
-        `${JSON.stringify(next, null, 2)}\n`,
-        'utf8',
-      );
+      await writeFile(this.filePath, `${JSON.stringify(next, null, 2)}\n`, "utf8");
     });
 
     return this.writeQueue;
@@ -225,5 +205,5 @@ export class JsonSessionStore {
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error && 'code' in error;
+  return error instanceof Error && "code" in error;
 }

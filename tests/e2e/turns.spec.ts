@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from "@playwright/test";
 
 import {
   currentWorkspace,
@@ -6,33 +6,31 @@ import {
   mockSession,
   mockSessionById,
   mockSessions,
-} from './helpers';
+} from "./helpers";
 
-test('keeps only the running session blocked while another turn is active', async ({
-  page,
-}) => {
+test("keeps only the running session blocked while another turn is active", async ({ page }) => {
   const sessionOne = {
-    id: 'session-1',
+    id: "session-1",
     workspace: currentWorkspace,
-    title: 'Running session',
-    createdAt: '2026-08-22T00:00:00.000Z',
-    updatedAt: '2026-08-22T00:00:00.000Z',
+    title: "Running session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
     messages: [],
     rounds: [],
   };
   const sessionTwo = {
-    id: 'session-2',
+    id: "session-2",
     workspace: currentWorkspace,
-    title: 'Other session',
-    createdAt: '2026-08-22T00:00:00.000Z',
-    updatedAt: '2026-08-22T00:00:00.000Z',
+    title: "Other session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
     messages: [
       {
-        id: 'message-2',
-        role: 'assistant',
-        kind: 'response',
-        content: 'Available session',
-        createdAt: '2026-08-22T00:00:00.000Z',
+        id: "message-2",
+        role: "assistant",
+        kind: "response",
+        content: "Available session",
+        createdAt: "2026-08-22T00:00:00.000Z",
       },
     ],
     rounds: [],
@@ -41,96 +39,91 @@ test('keeps only the running session blocked while another turn is active', asyn
     ...sessionOne,
     messages: [
       {
-        id: 'message-1',
-        role: 'user',
-        content: 'Run a long task',
-        createdAt: '2026-08-22T00:00:00.000Z',
+        id: "message-1",
+        role: "user",
+        content: "Run a long task",
+        createdAt: "2026-08-22T00:00:00.000Z",
       },
     ],
     currentRound: 0,
     isRunning: true,
-    runningTurnId: 'turn-1',
+    runningTurnId: "turn-1",
   };
   let sessionStarted = false;
 
-  await mockSessions(page, () => [
-    sessionStarted ? startedSessionOne : sessionOne,
-    sessionTwo,
-  ]);
-  await mockSessionById(page, 'session-1', () =>
-    sessionStarted ? startedSessionOne : sessionOne,
-  );
+  await mockSessions(page, () => [sessionStarted ? startedSessionOne : sessionOne, sessionTwo]);
+  await mockSessionById(page, "session-1", () => (sessionStarted ? startedSessionOne : sessionOne));
   await mockSession(page, sessionTwo);
-  await page.route('**/api/sessions/session-1/messages', async (route) => {
+  await page.route("**/api/sessions/session-1/messages", async (route) => {
     sessionStarted = true;
     await fulfillJson(route, {
-      status: 'ok',
+      status: "ok",
       session: startedSessionOne,
-      turnId: 'turn-1',
+      turnId: "turn-1",
     });
   });
-  await page.route('**/api/turns/turn-1/events', async () => {
+  await page.route("**/api/turns/turn-1/events", async () => {
     // Keep the stream open so session-1 remains blocked.
   });
 
-  await page.goto('/');
-  await page.getByPlaceholder('Continue this session...').fill('Run a long task');
-  await page.getByRole('button', { name: 'Send message' }).click();
+  await page.goto("/");
+  await page.getByPlaceholder("Continue this session...").fill("Run a long task");
+  await page.getByRole("button", { name: "Send message" }).click();
 
-  await expect(page.getByText('Waiting for TRAEX...')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Send message' })).toBeDisabled();
+  await expect(page.getByText("Waiting for TRAEX...")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send message" })).toBeDisabled();
 
-  await page.getByRole('button', { name: 'Other session' }).click();
+  await page.getByRole("button", { name: "Other session" }).click();
 
-  await expect(page.getByRole('heading', { name: 'Other session' })).toBeVisible();
-  await expect(page.getByText('Available session')).toBeVisible();
-  await expect(page.getByText('Waiting for TRAEX...')).not.toBeVisible();
-  await expect(page.getByRole('button', { name: 'Send message' })).toBeEnabled();
+  await expect(page.getByRole("heading", { name: "Other session" })).toBeVisible();
+  await expect(page.getByText("Available session")).toBeVisible();
+  await expect(page.getByText("Waiting for TRAEX...")).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
 
-  await page.getByRole('button', { name: 'New session', exact: true }).click();
+  await page.getByRole("button", { name: "New session", exact: true }).click();
 
-  await expect(page.getByRole('heading', { name: 'New session' })).toBeVisible();
-  await expect(page.getByPlaceholder('Start with an initial prompt...')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Send message' })).toBeEnabled();
+  await expect(page.getByRole("heading", { name: "New session" })).toBeVisible();
+  await expect(page.getByPlaceholder("Start with an initial prompt...")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
 
-  await page.getByRole('button', { name: 'Running session' }).click();
+  await page.getByRole("button", { name: "Running session" }).click();
 
-  await expect(page.getByRole('heading', { name: 'Running session' })).toBeVisible();
-  await expect(page.getByText('Waiting for TRAEX...')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Send message' })).toBeDisabled();
+  await expect(page.getByRole("heading", { name: "Running session" })).toBeVisible();
+  await expect(page.getByText("Waiting for TRAEX...")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send message" })).toBeDisabled();
 });
 
-test('highlights running and unread sidebar sessions', async ({ page }) => {
+test("highlights running and unread sidebar sessions", async ({ page }) => {
   const runningSession = {
-    id: 'session-1',
+    id: "session-1",
     workspace: currentWorkspace,
-    title: 'Running session',
-    createdAt: '2026-08-22T00:00:00.000Z',
-    updatedAt: '2026-08-22T00:00:00.000Z',
+    title: "Running session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
     messages: [
       {
-        id: 'message-1',
-        role: 'user',
-        content: 'Run a long task',
-        createdAt: '2026-08-22T00:00:00.000Z',
+        id: "message-1",
+        role: "user",
+        content: "Run a long task",
+        createdAt: "2026-08-22T00:00:00.000Z",
       },
     ],
     rounds: [],
     currentRound: 0,
     isRunning: true,
-    runningTurnId: 'turn-1',
+    runningTurnId: "turn-1",
   };
   const completedSession = {
     ...runningSession,
-    updatedAt: '2026-08-22T00:00:01.000Z',
+    updatedAt: "2026-08-22T00:00:01.000Z",
     messages: [
       ...runningSession.messages,
       {
-        id: 'message-2',
-        role: 'assistant',
-        kind: 'response',
-        content: 'Finished while hidden.',
-        createdAt: '2026-08-22T00:00:01.000Z',
+        id: "message-2",
+        role: "assistant",
+        kind: "response",
+        content: "Finished while hidden.",
+        createdAt: "2026-08-22T00:00:01.000Z",
       },
     ],
     currentRound: 1,
@@ -138,18 +131,18 @@ test('highlights running and unread sidebar sessions', async ({ page }) => {
     runningTurnId: undefined,
   };
   const otherSession = {
-    id: 'session-2',
+    id: "session-2",
     workspace: currentWorkspace,
-    title: 'Other session',
-    createdAt: '2026-08-22T00:00:00.000Z',
-    updatedAt: '2026-08-22T00:00:00.000Z',
+    title: "Other session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
     messages: [
       {
-        id: 'message-3',
-        role: 'assistant',
-        kind: 'response',
-        content: 'Other session response.',
-        createdAt: '2026-08-22T00:00:00.000Z',
+        id: "message-3",
+        role: "assistant",
+        kind: "response",
+        content: "Other session response.",
+        createdAt: "2026-08-22T00:00:00.000Z",
       },
     ],
     rounds: [],
@@ -190,30 +183,30 @@ test('highlights running and unread sidebar sessions', async ({ page }) => {
             __completeTurn?: () => void;
           }
         ).__completeTurn = () => {
-          this.dispatchEvent(new Event('open'));
+          this.dispatchEvent(new Event("open"));
           this.dispatchEvent(
-            new MessageEvent('done', {
+            new MessageEvent("done", {
               data: JSON.stringify({
-                type: 'done',
+                type: "done",
                 session: {
-                  id: 'session-1',
-                  workspace: '/Users/bytedance/cui',
-                  title: 'Running session',
-                  createdAt: '2026-08-22T00:00:00.000Z',
-                  updatedAt: '2026-08-22T00:00:01.000Z',
+                  id: "session-1",
+                  workspace: "/Users/bytedance/cui",
+                  title: "Running session",
+                  createdAt: "2026-08-22T00:00:00.000Z",
+                  updatedAt: "2026-08-22T00:00:01.000Z",
                   messages: [
                     {
-                      id: 'message-1',
-                      role: 'user',
-                      content: 'Run a long task',
-                      createdAt: '2026-08-22T00:00:00.000Z',
+                      id: "message-1",
+                      role: "user",
+                      content: "Run a long task",
+                      createdAt: "2026-08-22T00:00:00.000Z",
                     },
                     {
-                      id: 'message-2',
-                      role: 'assistant',
-                      kind: 'response',
-                      content: 'Finished while hidden.',
-                      createdAt: '2026-08-22T00:00:01.000Z',
+                      id: "message-2",
+                      role: "assistant",
+                      kind: "response",
+                      content: "Finished while hidden.",
+                      createdAt: "2026-08-22T00:00:01.000Z",
                     },
                   ],
                   rounds: [],
@@ -241,9 +234,9 @@ test('highlights running and unread sidebar sessions', async ({ page }) => {
   await mockSession(page, completedSession);
   await mockSession(page, otherSession);
 
-  await page.goto('/');
-  const runningButton = page.getByRole('button', { name: 'Running session' });
-  const otherButton = page.getByRole('button', { name: 'Other session' });
+  await page.goto("/");
+  const runningButton = page.getByRole("button", { name: "Running session" });
+  const otherButton = page.getByRole("button", { name: "Other session" });
 
   await expect(runningButton).toHaveClass(/is-running-session/);
   await expect(runningButton).not.toHaveClass(/is-unread-session/);
@@ -252,11 +245,9 @@ test('highlights running and unread sidebar sessions', async ({ page }) => {
   await expect(runningButton).not.toHaveClass(/is-unread-session/);
   await expect
     .poll(() =>
-      page.evaluate(() =>
-        localStorage.getItem('cui:session-last-seen-round:v1:session-1'),
-      ),
+      page.evaluate(() => localStorage.getItem("cui:session-last-seen-round:v1:session-1")),
     )
-    .toBe('0');
+    .toBe("0");
   turnCompleted = true;
   await page.evaluate(() =>
     (
@@ -273,30 +264,28 @@ test('highlights running and unread sidebar sessions', async ({ page }) => {
   await expect(runningButton).not.toHaveClass(/is-unread-session/);
   await expect
     .poll(() =>
-      page.evaluate(() =>
-        localStorage.getItem('cui:session-last-seen-round:v1:session-1'),
-      ),
+      page.evaluate(() => localStorage.getItem("cui:session-last-seen-round:v1:session-1")),
     )
-    .toBe('1');
+    .toBe("1");
 });
 
-test('reconnects to a running turn after page reload', async ({ page }) => {
+test("reconnects to a running turn after page reload", async ({ page }) => {
   const runningSession = {
-    id: 'session-1',
+    id: "session-1",
     workspace: currentWorkspace,
-    title: 'Running session',
-    createdAt: '2026-08-22T00:00:00.000Z',
-    updatedAt: '2026-08-22T00:00:00.000Z',
+    title: "Running session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
     messages: [
       {
-        id: 'message-1',
-        role: 'user',
-        content: 'Run a long task',
-        createdAt: '2026-08-22T00:00:00.000Z',
+        id: "message-1",
+        role: "user",
+        content: "Run a long task",
+        createdAt: "2026-08-22T00:00:00.000Z",
       },
     ],
     rounds: [],
-    runningTurnId: 'turn-1',
+    runningTurnId: "turn-1",
   };
   const completedSession = {
     ...runningSession,
@@ -304,11 +293,11 @@ test('reconnects to a running turn after page reload', async ({ page }) => {
     messages: [
       ...runningSession.messages,
       {
-        id: 'message-2',
-        role: 'assistant',
-        kind: 'response',
-        content: 'Finished after reconnect.',
-        createdAt: '2026-08-22T00:00:01.000Z',
+        id: "message-2",
+        role: "assistant",
+        kind: "response",
+        content: "Finished after reconnect.",
+        createdAt: "2026-08-22T00:00:01.000Z",
       },
     ],
   };
@@ -344,38 +333,38 @@ test('reconnects to a running turn after page reload', async ({ page }) => {
 
         window.setTimeout(() => {
           this.readyState = MockEventSource.OPEN;
-          this.dispatchEvent(new Event('open'));
+          this.dispatchEvent(new Event("open"));
           this.dispatchEvent(
-            new MessageEvent('delta', {
+            new MessageEvent("delta", {
               data: JSON.stringify({
-                type: 'delta',
-                text: 'Recovered response',
+                type: "delta",
+                text: "Recovered response",
               }),
             }),
           );
           this.dispatchEvent(
-            new MessageEvent('done', {
+            new MessageEvent("done", {
               data: JSON.stringify({
-                type: 'done',
+                type: "done",
                 session: {
-                  id: 'session-1',
-                  workspace: '/Users/bytedance/cui',
-                  title: 'Running session',
-                  createdAt: '2026-08-22T00:00:00.000Z',
-                  updatedAt: '2026-08-22T00:00:00.000Z',
+                  id: "session-1",
+                  workspace: "/Users/bytedance/cui",
+                  title: "Running session",
+                  createdAt: "2026-08-22T00:00:00.000Z",
+                  updatedAt: "2026-08-22T00:00:00.000Z",
                   messages: [
                     {
-                      id: 'message-1',
-                      role: 'user',
-                      content: 'Run a long task',
-                      createdAt: '2026-08-22T00:00:00.000Z',
+                      id: "message-1",
+                      role: "user",
+                      content: "Run a long task",
+                      createdAt: "2026-08-22T00:00:00.000Z",
                     },
                     {
-                      id: 'message-2',
-                      role: 'assistant',
-                      kind: 'response',
-                      content: 'Finished after reconnect.',
-                      createdAt: '2026-08-22T00:00:01.000Z',
+                      id: "message-2",
+                      role: "assistant",
+                      kind: "response",
+                      content: "Finished after reconnect.",
+                      createdAt: "2026-08-22T00:00:01.000Z",
                     },
                   ],
                   rounds: [],
@@ -400,11 +389,11 @@ test('reconnects to a running turn after page reload', async ({ page }) => {
   });
   await mockSession(page, runningSession);
 
-  await page.goto('/');
+  await page.goto("/");
 
-  await expect(page.getByRole('heading', { name: 'Running session' })).toBeVisible();
-  await expect(page.getByText('Finished after reconnect.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Send message' })).toBeEnabled();
+  await expect(page.getByRole("heading", { name: "Running session" })).toBeVisible();
+  await expect(page.getByText("Finished after reconnect.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
   await expect
     .poll(() =>
       page.evaluate(
@@ -416,26 +405,24 @@ test('reconnects to a running turn after page reload', async ({ page }) => {
           ).__eventSourceUrls ?? [],
       ),
     )
-    .toEqual(['/api/turns/turn-1/events']);
+    .toEqual(["/api/turns/turn-1/events"]);
 });
 
-test('applies summary updates without replacing streamed messages', async ({
-  page,
-}) => {
+test("applies summary updates without replacing streamed messages", async ({ page }) => {
   const initialSession = {
-    id: 'session-1',
+    id: "session-1",
     workspace: currentWorkspace,
-    title: 'Initial prompt',
-    summary: '',
-    createdAt: '2026-08-22T00:00:00.000Z',
-    updatedAt: '2026-08-22T00:00:00.000Z',
+    title: "Initial prompt",
+    summary: "",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
     messages: [
       {
-        id: 'message-1',
-        role: 'assistant',
-        kind: 'response',
-        content: 'Previous response.',
-        createdAt: '2026-08-22T00:00:00.000Z',
+        id: "message-1",
+        role: "assistant",
+        kind: "response",
+        content: "Previous response.",
+        createdAt: "2026-08-22T00:00:00.000Z",
       },
     ],
     rounds: [],
@@ -447,20 +434,20 @@ test('applies summary updates without replacing streamed messages', async ({
     messages: [
       ...initialSession.messages,
       {
-        id: 'message-2',
-        role: 'user',
-        content: 'Continue with a streamed summary test',
-        createdAt: '2026-08-22T00:00:00.000Z',
+        id: "message-2",
+        role: "user",
+        content: "Continue with a streamed summary test",
+        createdAt: "2026-08-22T00:00:00.000Z",
       },
     ],
     isRunning: true,
-    runningTurnId: 'turn-1',
+    runningTurnId: "turn-1",
   };
   const summarizedSession = {
     ...startedSession,
-    title: 'Early summary title',
-    summary: 'Summary generated from the latest user input.',
-    updatedAt: '2026-08-22T00:00:01.000Z',
+    title: "Early summary title",
+    summary: "Summary generated from the latest user input.",
+    updatedAt: "2026-08-22T00:00:01.000Z",
   };
   let sessionListRequests = 0;
 
@@ -485,54 +472,54 @@ test('applies summary updates without replacing streamed messages', async ({
 
         window.setTimeout(() => {
           this.readyState = MockEventSource.OPEN;
-          this.dispatchEvent(new Event('open'));
+          this.dispatchEvent(new Event("open"));
           this.dispatchEvent(
-            new MessageEvent('delta', {
+            new MessageEvent("delta", {
               data: JSON.stringify({
-                type: 'delta',
-                text: 'Streamed ',
+                type: "delta",
+                text: "Streamed ",
               }),
             }),
           );
           this.dispatchEvent(
-            new MessageEvent('session.updated', {
+            new MessageEvent("session.updated", {
               data: JSON.stringify({
-                type: 'session.updated',
+                type: "session.updated",
                 session: {
-                  id: 'session-1',
-                  workspace: '/Users/bytedance/cui',
-                  title: 'Early summary title',
-                  summary: 'Summary generated from the latest user input.',
-                  createdAt: '2026-08-22T00:00:00.000Z',
-                  updatedAt: '2026-08-22T00:00:01.000Z',
+                  id: "session-1",
+                  workspace: "/Users/bytedance/cui",
+                  title: "Early summary title",
+                  summary: "Summary generated from the latest user input.",
+                  createdAt: "2026-08-22T00:00:00.000Z",
+                  updatedAt: "2026-08-22T00:00:01.000Z",
                   messages: [
                     {
-                      id: 'message-1',
-                      role: 'assistant',
-                      kind: 'response',
-                      content: 'Previous response.',
-                      createdAt: '2026-08-22T00:00:00.000Z',
+                      id: "message-1",
+                      role: "assistant",
+                      kind: "response",
+                      content: "Previous response.",
+                      createdAt: "2026-08-22T00:00:00.000Z",
                     },
                     {
-                      id: 'message-2',
-                      role: 'user',
-                      content: 'Continue with a streamed summary test',
-                      createdAt: '2026-08-22T00:00:00.000Z',
+                      id: "message-2",
+                      role: "user",
+                      content: "Continue with a streamed summary test",
+                      createdAt: "2026-08-22T00:00:00.000Z",
                     },
                   ],
                   rounds: [],
                   currentRound: 0,
                   isRunning: true,
-                  runningTurnId: 'turn-1',
+                  runningTurnId: "turn-1",
                 },
               }),
             }),
           );
           this.dispatchEvent(
-            new MessageEvent('delta', {
+            new MessageEvent("delta", {
               data: JSON.stringify({
-                type: 'delta',
-                text: 'answer.',
+                type: "delta",
+                text: "answer.",
               }),
             }),
           );
@@ -551,29 +538,27 @@ test('applies summary updates without replacing streamed messages', async ({
     sessionListRequests += 1;
     return sessionListRequests < 3 ? [initialSession] : [summarizedSession];
   });
-  await page.route('**/api/sessions/session-1/messages', async (route) => {
+  await page.route("**/api/sessions/session-1/messages", async (route) => {
     await fulfillJson(route, {
-      status: 'ok',
+      status: "ok",
       session: startedSession,
-      turnId: 'turn-1',
+      turnId: "turn-1",
     });
   });
   await mockSession(page, initialSession);
 
-  await page.goto('/');
-  await expect(page.getByText('Previous response.')).toBeVisible();
+  await page.goto("/");
+  await expect(page.getByText("Previous response.")).toBeVisible();
   await page
-    .getByPlaceholder('Continue this session...')
-    .fill('Continue with a streamed summary test');
-  await page.getByRole('button', { name: 'Send message' }).click();
+    .getByPlaceholder("Continue this session...")
+    .fill("Continue with a streamed summary test");
+  await page.getByRole("button", { name: "Send message" }).click();
 
-  const conversation = page.getByLabel('AI conversation');
+  const conversation = page.getByLabel("AI conversation");
 
+  await expect(conversation.getByRole("heading", { name: "Early summary title" })).toBeVisible();
   await expect(
-    conversation.getByRole('heading', { name: 'Early summary title' }),
+    conversation.getByText("Summary generated from the latest user input."),
   ).toBeVisible();
-  await expect(
-    conversation.getByText('Summary generated from the latest user input.'),
-  ).toBeVisible();
-  await expect(conversation.getByText('Streamed answer.')).toBeVisible();
+  await expect(conversation.getByText("Streamed answer.")).toBeVisible();
 });

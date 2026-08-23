@@ -1,31 +1,19 @@
-import {
-  type FormEvent,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import {
-  continueSession,
-  createSession,
-  getSession,
-  listSessions,
-} from '../api/sessionsApi';
+import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { continueSession, createSession, getSession, listSessions } from "../api/sessionsApi";
 import {
   getCurrentRound,
   groupSessionsByWorkspace,
   partitionSessionsForSidebar,
   toSessionSummary,
-} from '../model/sessionSummaries';
+} from "../model/sessionSummaries";
 import {
   loadSessionSidebarBrowserState,
   saveSessionSidebarBrowserState,
   setLastSeenRound,
   type SessionSidebarBrowserState,
-} from '../model/sessionBrowserState';
-import { useTurnStream } from './useTurnStream';
-import type { ApiSession, SessionSummary } from '../../../types';
+} from "../model/sessionBrowserState";
+import { useTurnStream } from "./useTurnStream";
+import type { ApiSession, SessionSummary } from "../../../types";
 
 type OpenSessionOptions = {
   resetError?: boolean;
@@ -35,7 +23,7 @@ type SetCurrentActiveSessionOptions = {
   persist?: boolean;
 };
 
-const LAST_ACTIVE_SESSION_STORAGE_KEY = 'cui:last-active-session-id:v1';
+const LAST_ACTIVE_SESSION_STORAGE_KEY = "cui:last-active-session-id:v1";
 
 export function useSessionController(defaultWorkspace: string) {
   const [sidebarBrowserState, setSidebarBrowserState] = useState(() =>
@@ -46,32 +34,22 @@ export function useSessionController(defaultWorkspace: string) {
   const expandedWorkspaces = sidebarBrowserState.expandedWorkspaces;
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [activeSession, setActiveSession] = useState<ApiSession | null>(null);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState("");
   const [workspaceDraft, setWorkspaceDraft] = useState(defaultWorkspace);
-  const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(
-    () => new Set(),
-  );
-  const [submittingSessionIds, setSubmittingSessionIds] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(() => new Set());
+  const [submittingSessionIds, setSubmittingSessionIds] = useState<Set<string>>(() => new Set());
   const [creatingSession, setCreatingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expandedTraceIds, setExpandedTraceIds] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const [expandedTraceIds, setExpandedTraceIds] = useState<Set<string>>(() => new Set());
   const activeSessionRef = useRef<ApiSession | null>(null);
   const openSessionRequestIdRef = useRef(0);
   const lastEnterKeyDownRef = useRef<number | null>(null);
   const messageStreamRef = useRef<HTMLDivElement | null>(null);
   const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const activeSessionBlocked = activeSession
-    ? runningSessionIds.has(activeSession.id) ||
-      submittingSessionIds.has(activeSession.id)
+    ? runningSessionIds.has(activeSession.id) || submittingSessionIds.has(activeSession.id)
     : creatingSession;
-  const sidebarSessionPartition = useMemo(
-    () => partitionSessionsForSidebar(sessions),
-    [sessions],
-  );
+  const sidebarSessionPartition = useMemo(() => partitionSessionsForSidebar(sessions), [sessions]);
 
   const workspaces = useMemo(
     () => groupSessionsByWorkspace(sidebarSessionPartition.current),
@@ -116,17 +94,16 @@ export function useSessionController(defaultWorkspace: string) {
     const resizeTextarea = () => {
       const maxHeight = Math.floor(window.innerHeight / 3);
 
-      textarea.style.height = 'auto';
+      textarea.style.height = "auto";
       textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
-      textarea.style.overflowY =
-        textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+      textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
     };
 
     resizeTextarea();
-    window.addEventListener('resize', resizeTextarea);
+    window.addEventListener("resize", resizeTextarea);
 
     return () => {
-      window.removeEventListener('resize', resizeTextarea);
+      window.removeEventListener("resize", resizeTextarea);
     };
   }, [draft]);
 
@@ -169,9 +146,7 @@ export function useSessionController(defaultWorkspace: string) {
   }
 
   function updateSidebarBrowserState(
-    updater: (
-      current: SessionSidebarBrowserState,
-    ) => SessionSidebarBrowserState,
+    updater: (current: SessionSidebarBrowserState) => SessionSidebarBrowserState,
   ) {
     setSidebarBrowserState((current) => {
       const next = updater(current);
@@ -223,16 +198,11 @@ export function useSessionController(defaultWorkspace: string) {
         streamTurn(nextActiveSession.id, nextActiveSession.runningTurnId);
       }
     } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : 'Failed to load sessions',
-      );
+      setError(reason instanceof Error ? reason.message : "Failed to load sessions");
     }
   }
 
-  async function openSession(
-    sessionId: string,
-    options: OpenSessionOptions = {},
-  ) {
+  async function openSession(sessionId: string, options: OpenSessionOptions = {}) {
     const requestId = openSessionRequestIdRef.current + 1;
 
     openSessionRequestIdRef.current = requestId;
@@ -258,9 +228,7 @@ export function useSessionController(defaultWorkspace: string) {
         return;
       }
 
-      setError(
-        reason instanceof Error ? reason.message : 'Failed to open session',
-      );
+      setError(reason instanceof Error ? reason.message : "Failed to open session");
     }
   }
 
@@ -280,7 +248,7 @@ export function useSessionController(defaultWorkspace: string) {
       setCreatingSession(true);
     }
     setError(null);
-    setDraft('');
+    setDraft("");
 
     try {
       const data = activeSession
@@ -297,8 +265,7 @@ export function useSessionController(defaultWorkspace: string) {
       setCreatingSession(false);
 
       if (
-        (submittedSessionId &&
-          activeSessionRef.current?.id === submittedSessionId) ||
+        (submittedSessionId && activeSessionRef.current?.id === submittedSessionId) ||
         (!submittedSessionId && !activeSessionRef.current)
       ) {
         setCurrentActiveSession(data.session);
@@ -314,19 +281,18 @@ export function useSessionController(defaultWorkspace: string) {
       setCreatingSession(false);
 
       if (
-        (submittedSessionId &&
-          activeSessionRef.current?.id === submittedSessionId) ||
+        (submittedSessionId && activeSessionRef.current?.id === submittedSessionId) ||
         (!submittedSessionId && !activeSessionRef.current)
       ) {
         setDraft(trimmed);
-        setError(reason instanceof Error ? reason.message : 'Request failed');
+        setError(reason instanceof Error ? reason.message : "Request failed");
       }
     }
   }
 
   function startNewSession(workspace?: string) {
     setCurrentActiveSession(null);
-    setDraft('');
+    setDraft("");
     if (workspace) {
       setWorkspaceDraft(workspace);
       expandWorkspace(workspace);

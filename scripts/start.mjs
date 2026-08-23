@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn } from "node:child_process";
 
 const DEFAULT_WEB_PORT = 5173;
 const DEFAULT_API_PORT = 3000;
@@ -21,19 +21,11 @@ if (!Number.isInteger(options.apiPort) || options.apiPort <= 0) {
 const webCommand = [
   `CUI_API_PORT=${options.apiPort} npm run preview -w @cui/web --`,
   `--port ${options.port}`,
-  '--strictPort',
-].join(' ');
+  "--strictPort",
+].join(" ");
 const apiCommand = `PORT=${options.apiPort} npm run start -w @cui/api`;
 
-runAttached('npx', [
-  'concurrently',
-  '-n',
-  'web,api',
-  '-c',
-  'blue,green',
-  webCommand,
-  apiCommand,
-]);
+runAttached("npx", ["concurrently", "-n", "web,api", "-c", "blue,green", webCommand, apiCommand]);
 
 function parseArgs(args) {
   const parsed = {
@@ -45,28 +37,28 @@ function parseArgs(args) {
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
 
-    if (arg === '--help' || arg === '-h') {
+    if (arg === "--help" || arg === "-h") {
       parsed.help = true;
       continue;
     }
 
-    if (arg === '--port' || arg === '-p') {
+    if (arg === "--port" || arg === "-p") {
       parsed.port = readPortValue(args, (index += 1), arg);
       continue;
     }
 
-    if (arg.startsWith('--port=')) {
-      parsed.port = parsePort(arg.slice('--port='.length), '--port');
+    if (arg.startsWith("--port=")) {
+      parsed.port = parsePort(arg.slice("--port=".length), "--port");
       continue;
     }
 
-    if (arg === '--api-port') {
+    if (arg === "--api-port") {
       parsed.apiPort = readPortValue(args, (index += 1), arg);
       continue;
     }
 
-    if (arg.startsWith('--api-port=')) {
-      parsed.apiPort = parsePort(arg.slice('--api-port='.length), '--api-port');
+    if (arg.startsWith("--api-port=")) {
+      parsed.apiPort = parsePort(arg.slice("--api-port=".length), "--api-port");
       continue;
     }
 
@@ -98,15 +90,15 @@ function parsePort(value, flag) {
 
 function runAttached(command, args) {
   const child = spawn(command, args, {
-    stdio: 'inherit',
+    stdio: "inherit",
   });
 
-  child.on('error', (error) => {
+  child.on("error", (error) => {
     console.error(error);
     process.exit(1);
   });
 
-  child.on('exit', (code, signal) => {
+  child.on("exit", (code, signal) => {
     if (signal) {
       process.kill(process.pid, signal);
       return;
