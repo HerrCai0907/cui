@@ -576,6 +576,39 @@
   white-space: pre-wrap;
 }
 
+.message-heading {
+  margin: 14px 0 6px;
+  color: #151b23;
+  font-weight: 680;
+  line-height: 1.3;
+}
+
+.message-heading:first-child {
+  margin-top: 0;
+}
+
+.message-heading:last-child {
+  margin-bottom: 0;
+}
+
+.message-heading-1 {
+  font-size: 1.22rem;
+}
+
+.message-heading-2 {
+  font-size: 1.12rem;
+}
+
+.message-heading-3 {
+  font-size: 1.04rem;
+}
+
+.message-heading-4,
+.message-heading-5,
+.message-heading-6 {
+  font-size: 0.98rem;
+}
+
 .message-inline-code,
 .message-code-block code {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;

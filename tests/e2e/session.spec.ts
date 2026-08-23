@@ -241,3 +241,33 @@ test("shows full review separately from completed atomic review in assistant mes
   );
   await atomicReviewPopup.close();
 });
+
+test("renders assistant markdown headings", async ({ page }) => {
+  const session = {
+    id: "session-1",
+    workspace: currentWorkspace,
+    title: "Heading rendering session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-1",
+        role: "assistant",
+        kind: "response",
+        content:
+          "Intro line\n\n## Review `summary`\nBody text\n\n```md\n# Not a rendered heading\n```",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    rounds: [],
+  };
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { level: 2, name: "Review summary" })).toBeVisible();
+  await expect(page.locator(".message-heading-2 .message-inline-code")).toHaveText("summary");
+  await expect(page.locator(".message-code-block code")).toHaveText("# Not a rendered heading");
+});

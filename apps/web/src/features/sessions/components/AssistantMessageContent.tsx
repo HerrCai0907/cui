@@ -6,6 +6,11 @@ type MessagePart =
       text: string;
     }
   | {
+      type: "heading";
+      level: 1 | 2 | 3 | 4 | 5 | 6;
+      text: string;
+    }
+  | {
       type: "codeBlock";
       code: string;
       language?: string;
@@ -31,6 +36,10 @@ export function AssistantMessageContent({ content }: { content: string }) {
           <pre className="message-code-block" key={index}>
             <code data-language={part.language}>{part.code}</code>
           </pre>
+        ) : part.type === "heading" ? (
+          <MessageHeading key={index} level={part.level}>
+            {renderInlineCode(part.text, index)}
+          </MessageHeading>
         ) : (
           <span className="message-text" key={index}>
             {renderInlineCode(part.text, index)}
@@ -39,6 +48,18 @@ export function AssistantMessageContent({ content }: { content: string }) {
       )}
     </div>
   );
+}
+
+function MessageHeading({
+  children,
+  level,
+}: {
+  children: ReactNode;
+  level: 1 | 2 | 3 | 4 | 5 | 6;
+}) {
+  const Tag = `h${level}` as const;
+
+  return <Tag className={`message-heading message-heading-${level}`}>{children}</Tag>;
 }
 
 function parseMessageContent(content: string): MessagePart[] {
@@ -161,9 +182,39 @@ function pushTextPart(parts: MessagePart[], text: string) {
     return;
   }
 
+  const lines = text.match(/[^\r\n]*(?:\r?\n|$)/g) ?? [];
+  let pendingText = "";
+
+  for (const line of lines) {
+    if (!line) {
+      continue;
+    }
+
+    const heading = parseHeadingLine(line);
+
+    if (!heading) {
+      pendingText += line;
+      continue;
+    }
+
+    if (pendingText) {
+      parts.push({
+        type: "text",
+        text: pendingText,
+      });
+      pendingText = "";
+    }
+
+    parts.push(heading);
+  }
+
+  if (!pendingText) {
+    return;
+  }
+
   parts.push({
     type: "text",
-    text,
+    text: pendingText,
   });
 }
 
@@ -180,4 +231,22 @@ function pushInlineTextPart(parts: InlinePart[], text: string) {
 
 function isLanguageMarker(value: string): boolean {
   return Boolean(value) && /^[A-Za-z0-9_+.#-]+$/.test(value);
+}
+
+function parseHeadingLine(line: string): MessagePart | null {
+  const lineBreak = line.match(/\r?\n$/)?.[0] ?? "";
+  const content = line.slice(0, line.length - lineBreak.length);
+  const headingMatch = /^(#{1,6})[ \t]+(.+?)[ \t]*$/.exec(content);
+
+  if (!headingMatch) {
+    return null;
+  }
+
+  const headingText = headingMatch[2].replace(/[ \t]+#{1,}[ \t]*$/, "");
+
+  return {
+    type: "heading",
+    level: headingMatch[1].length as 1 | 2 | 3 | 4 | 5 | 6,
+    text: headingText,
+  };
 }
