@@ -11,7 +11,9 @@ import {
   appendTraceEvent,
   createStreamMessageState,
 } from '../model/streamMessages';
+import { toSessionSummary } from '../model/sessionSummaries';
 import { parseTurnStreamEvent } from '../model/turnStream';
+import type { SessionSummary } from '../../../types';
 
 type UseTurnStreamInput = {
   activeSessionRef: MutableRefObject<ApiSession | null>;
@@ -21,6 +23,7 @@ type UseTurnStreamInput = {
   setError: (error: string | null) => void;
   setExpandedTraceIds: Dispatch<SetStateAction<Set<string>>>;
   setRunningSession: (sessionId: string, running: boolean) => void;
+  setSessions: Dispatch<SetStateAction<SessionSummary[]>>;
 };
 
 export function useTurnStream({
@@ -31,6 +34,7 @@ export function useTurnStream({
   setError,
   setExpandedTraceIds,
   setRunningSession,
+  setSessions,
 }: UseTurnStreamInput) {
   const eventSourceRefs = useRef<Map<string, EventSource>>(new Map());
   const turnIdRefs = useRef<Map<string, string>>(new Map());
@@ -119,6 +123,38 @@ export function useTurnStream({
       });
     };
 
+    const updateSessionMetadata = (updatedSession: ApiSession) => {
+      setActiveSession((session) => {
+        const currentSession = session ?? activeSessionRef.current;
+
+        if (currentSession?.id !== updatedSession.id) {
+          return session;
+        }
+
+        const nextSession = {
+          ...currentSession,
+          title: updatedSession.title,
+          summary: updatedSession.summary,
+          updatedAt: updatedSession.updatedAt,
+          currentRound: updatedSession.currentRound,
+          isRunning: updatedSession.isRunning,
+          runningTurnId: updatedSession.runningTurnId,
+        };
+
+        activeSessionRef.current = nextSession;
+        return nextSession;
+      });
+      setSessions((current) => {
+        const nextSummary = toSessionSummary(updatedSession);
+
+        return current.some((session) => session.id === updatedSession.id)
+          ? current.map((session) =>
+              session.id === updatedSession.id ? nextSummary : session,
+            )
+          : [nextSummary, ...current];
+      });
+    };
+
     eventSource.addEventListener('delta', (event) => {
       const data = parseTurnStreamEvent(event);
 
@@ -133,6 +169,16 @@ export function useTurnStream({
       if (data?.type === 'raw') {
         updateTraceMessage(data.event);
       }
+    });
+
+    eventSource.addEventListener('session.updated', (event) => {
+      const data = parseTurnStreamEvent(event);
+
+      if (data?.type !== 'session.updated') {
+        return;
+      }
+
+      updateSessionMetadata(data.session);
     });
 
     eventSource.addEventListener('done', (event) => {

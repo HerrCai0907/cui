@@ -1229,3 +1229,181 @@ test('reconnects to a running turn after page reload', async ({ page }) => {
     )
     .toEqual(['/api/turns/turn-1/events']);
 });
+
+test('applies summary updates without replacing streamed messages', async ({
+  page,
+}) => {
+  const initialSession = {
+    id: 'session-1',
+    workspace: '/Users/bytedance/cui',
+    title: 'Initial prompt',
+    summary: '',
+    createdAt: '2026-08-22T00:00:00.000Z',
+    updatedAt: '2026-08-22T00:00:00.000Z',
+    messages: [
+      {
+        id: 'message-1',
+        role: 'assistant',
+        kind: 'response',
+        content: 'Previous response.',
+        createdAt: '2026-08-22T00:00:00.000Z',
+      },
+    ],
+    rounds: [],
+    currentRound: 0,
+    isRunning: false,
+  };
+  const startedSession = {
+    ...initialSession,
+    messages: [
+      ...initialSession.messages,
+      {
+        id: 'message-2',
+        role: 'user',
+        content: 'Continue with a streamed summary test',
+        createdAt: '2026-08-22T00:00:00.000Z',
+      },
+    ],
+    isRunning: true,
+    runningTurnId: 'turn-1',
+  };
+  const summarizedSession = {
+    ...startedSession,
+    title: 'Early summary title',
+    summary: 'Summary generated from the latest user input.',
+    updatedAt: '2026-08-22T00:00:01.000Z',
+  };
+  let sessionListRequests = 0;
+
+  await page.addInitScript(() => {
+    class MockEventSource extends EventTarget {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSED = 2;
+      readonly CONNECTING = 0;
+      readonly OPEN = 1;
+      readonly CLOSED = 2;
+      readonly url: string;
+      readonly withCredentials = false;
+      readyState = MockEventSource.CONNECTING;
+      onerror: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onopen: ((event: Event) => void) | null = null;
+
+      constructor(url: string | URL) {
+        super();
+        this.url = String(url);
+
+        window.setTimeout(() => {
+          this.readyState = MockEventSource.OPEN;
+          this.dispatchEvent(new Event('open'));
+          this.dispatchEvent(
+            new MessageEvent('delta', {
+              data: JSON.stringify({
+                type: 'delta',
+                text: 'Streamed ',
+              }),
+            }),
+          );
+          this.dispatchEvent(
+            new MessageEvent('session.updated', {
+              data: JSON.stringify({
+                type: 'session.updated',
+                session: {
+                  id: 'session-1',
+                  workspace: '/Users/bytedance/cui',
+                  title: 'Early summary title',
+                  summary: 'Summary generated from the latest user input.',
+                  createdAt: '2026-08-22T00:00:00.000Z',
+                  updatedAt: '2026-08-22T00:00:01.000Z',
+                  messages: [
+                    {
+                      id: 'message-1',
+                      role: 'assistant',
+                      kind: 'response',
+                      content: 'Previous response.',
+                      createdAt: '2026-08-22T00:00:00.000Z',
+                    },
+                    {
+                      id: 'message-2',
+                      role: 'user',
+                      content: 'Continue with a streamed summary test',
+                      createdAt: '2026-08-22T00:00:00.000Z',
+                    },
+                  ],
+                  rounds: [],
+                  currentRound: 0,
+                  isRunning: true,
+                  runningTurnId: 'turn-1',
+                },
+              }),
+            }),
+          );
+          this.dispatchEvent(
+            new MessageEvent('delta', {
+              data: JSON.stringify({
+                type: 'delta',
+                text: 'answer.',
+              }),
+            }),
+          );
+        }, 0);
+      }
+
+      close() {
+        this.readyState = MockEventSource.CLOSED;
+      }
+    }
+
+    window.EventSource = MockEventSource as typeof EventSource;
+  });
+
+  await page.route('**/api/sessions', async (route) => {
+    if (route.request().method() === 'GET') {
+      sessionListRequests += 1;
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          sessions:
+            sessionListRequests < 3 ? [initialSession] : [summarizedSession],
+        }),
+      });
+      return;
+    }
+
+    await route.fallback();
+  });
+  await page.route('**/api/sessions/session-1/messages', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: 'ok',
+        session: startedSession,
+        turnId: 'turn-1',
+      }),
+    });
+  });
+  await page.route('**/api/sessions/session-1', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ session: initialSession }),
+    });
+  });
+
+  await page.goto('/');
+  await expect(page.getByText('Previous response.')).toBeVisible();
+  await page
+    .getByPlaceholder('Continue this session...')
+    .fill('Continue with a streamed summary test');
+  await page.getByRole('button', { name: 'Send message' }).click();
+
+  const conversation = page.getByLabel('AI conversation');
+
+  await expect(
+    conversation.getByRole('heading', { name: 'Early summary title' }),
+  ).toBeVisible();
+  await expect(
+    conversation.getByText('Summary generated from the latest user input.'),
+  ).toBeVisible();
+  await expect(conversation.getByText('Streamed answer.')).toBeVisible();
+});
