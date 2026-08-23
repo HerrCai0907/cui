@@ -93,6 +93,10 @@ export type TurnStreamEvent =
       event: unknown;
     }
   | {
+      type: 'session.updated';
+      session: ApiSession;
+    }
+  | {
       type: 'done';
       session: ApiSession;
     }

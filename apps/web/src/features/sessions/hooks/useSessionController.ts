@@ -82,6 +82,7 @@ export function useSessionController(defaultWorkspace: string) {
     setError,
     setExpandedTraceIds,
     setRunningSession,
+    setSessions,
   });
 
   useEffect(() => {

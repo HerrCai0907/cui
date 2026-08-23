@@ -10,6 +10,10 @@ export type TurnStreamEvent =
       event: unknown;
     }
   | {
+      type: 'session.updated';
+      session: ChatSessionView;
+    }
+  | {
       type: 'done';
       session: ChatSessionView;
     }

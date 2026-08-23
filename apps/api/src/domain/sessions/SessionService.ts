@@ -68,7 +68,6 @@ export class SessionService {
       logger,
       roundService,
       atomicReviewService,
-      sessionSummaryService,
     ),
   ) {}
 
@@ -238,10 +237,14 @@ export class SessionService {
 
     const createdSession = await this.store.createSession(session);
     runningTurn = this.turnRegistry.createRunningTurn(sessionId);
+    const summaryPromise = this.refreshSessionSummaryFromUserInput(
+      createdSession,
+      runningTurn,
+    );
     bufferedEvents.forEach((event) =>
       this.turnRegistry.emitTurnEvent(runningTurn!, event),
     );
-    this.finishCreateSession(request, run.result, runningTurn);
+    this.finishCreateSession(request, run.result, runningTurn, summaryPromise);
 
     return {
       session: toSessionView(createdSession, runningTurn.id),
@@ -332,6 +335,10 @@ export class SessionService {
       userMessage,
     ]);
     const runningTurn = this.turnRegistry.createRunningTurn(sessionId);
+    const summaryPromise = this.refreshSessionSummaryFromUserInput(
+      updatedSession,
+      runningTurn,
+    );
     const run = this.aiModel.continueSessionStream(
       {
         sessionId,
@@ -350,6 +357,7 @@ export class SessionService {
       run.result,
       runningTurn,
       session.workspace,
+      summaryPromise,
     );
 
     return {
@@ -373,6 +381,7 @@ export class SessionService {
     request: CreateSessionRequest,
     result: Promise<AiRunResult>,
     turn: RunningTurn,
+    summaryPromise: Promise<ChatSession>,
   ): void {
     result
       .then(async (aiResponse) => {
@@ -382,10 +391,13 @@ export class SessionService {
           prompt: request.prompt,
           aiResponse,
         });
+        const latestSession =
+          (await this.waitForInputSummary(summaryPromise, turn.sessionId)) ??
+          session;
 
         this.turnRegistry.emitTurnEvent(turn, {
           type: 'done',
-          session,
+          session: latestSession,
         });
       })
       .catch((error: unknown) => {
@@ -406,6 +418,7 @@ export class SessionService {
     result: Promise<AiRunResult>,
     turn: RunningTurn,
     workspace: string,
+    summaryPromise: Promise<ChatSession>,
   ): void {
     result
       .then(async (aiResponse) => {
@@ -415,10 +428,13 @@ export class SessionService {
           prompt: request.prompt,
           aiResponse,
         });
+        const latestSession =
+          (await this.waitForInputSummary(summaryPromise, turn.sessionId)) ??
+          session;
 
         this.turnRegistry.emitTurnEvent(turn, {
           type: 'done',
-          session,
+          session: latestSession,
         });
       })
       .catch((error: unknown) => {
@@ -434,6 +450,35 @@ export class SessionService {
               : 'Session continuation failed',
         });
       });
+  }
+
+  private refreshSessionSummaryFromUserInput(
+    session: ChatSession,
+    turn?: RunningTurn,
+  ): Promise<ChatSession> {
+    return this.sessionSummaryService
+      .refreshSessionSummary(session)
+      .then((updatedSession) => {
+        if (turn && !turn.completed && updatedSession !== session) {
+          this.turnRegistry.emitTurnEvent(turn, {
+            type: 'session.updated',
+            session: toSessionView(updatedSession, turn.id),
+          });
+        }
+
+        return updatedSession;
+      });
+  }
+
+  private async waitForInputSummary(
+    summaryPromise: Promise<ChatSession>,
+    sessionId: string,
+  ): Promise<ChatSessionView | undefined> {
+    await summaryPromise;
+
+    const latestSession = await this.store.getSession(sessionId);
+
+    return latestSession ? toSessionView(latestSession) : undefined;
   }
 
 }

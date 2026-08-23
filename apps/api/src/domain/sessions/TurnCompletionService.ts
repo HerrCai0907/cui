@@ -6,7 +6,6 @@ import { RoundService } from '../reviews/RoundService.js';
 import { createAssistantMessages } from './sessionMessages.js';
 import { toSessionView } from './sessionViews.js';
 import { createSessionInputTranscript } from './transcripts.js';
-import { SessionSummaryService } from './SessionSummaryService.js';
 
 export type TurnCompletionKind = 'create' | 'continue';
 
@@ -16,7 +15,6 @@ export class TurnCompletionService {
     private readonly logger: AppLogger,
     private readonly roundService: RoundService,
     private readonly atomicReviewService: AtomicReviewService,
-    private readonly sessionSummaryService: SessionSummaryService,
   ) {}
 
   async completeTurn(input: {
@@ -48,12 +46,10 @@ export class TurnCompletionService {
       round,
       assistantMessages,
     );
-    const session =
-      await this.sessionSummaryService.refreshSessionSummary(updatedSession);
 
     await this.logCompletedTurn(input);
 
-    return toSessionView(session);
+    return toSessionView(updatedSession);
   }
 
   private async logCompletedTurn(input: {
