@@ -13,6 +13,61 @@ export function createStreamMessageState(): StreamMessageState {
   };
 }
 
+export function appendResponseDeltaToState(state: StreamMessageState, text: string): boolean {
+  if (!text) {
+    return false;
+  }
+
+  state.streamedResponse += text;
+
+  return true;
+}
+
+export function appendTraceEventToState(state: StreamMessageState, rawEvent: unknown): boolean {
+  const json = encodeExecutionTraceEvent(rawEvent);
+
+  if (!json) {
+    return false;
+  }
+
+  state.streamedTrace = state.streamedTrace ? `${state.streamedTrace}\n${json}` : json;
+
+  return true;
+}
+
+export function applyStreamMessageState(
+  session: ApiSession,
+  input: {
+    state: StreamMessageState;
+    sessionId: string;
+    traceMessageId: string;
+    responseMessageId: string;
+  },
+): ApiSession {
+  if (session.id !== input.sessionId) {
+    return session;
+  }
+
+  let nextSession = session;
+
+  if (input.state.streamedTrace) {
+    nextSession = upsertTraceMessage(nextSession, {
+      traceMessageId: input.traceMessageId,
+      responseMessageId: input.responseMessageId,
+      content: input.state.streamedTrace,
+    });
+  }
+
+  if (input.state.streamedResponse) {
+    nextSession = upsertResponseMessage(nextSession, {
+      responseMessageId: input.responseMessageId,
+      content: input.state.streamedResponse,
+    });
+  }
+
+  return nextSession;
+}
+
 export function appendResponseDelta(
   session: ApiSession,
   input: {
@@ -22,12 +77,23 @@ export function appendResponseDelta(
     text: string;
   },
 ): ApiSession {
-  if (session.id !== input.sessionId || !input.text) {
+  if (session.id !== input.sessionId || !appendResponseDeltaToState(input.state, input.text)) {
     return session;
   }
 
-  input.state.streamedResponse += input.text;
+  return upsertResponseMessage(session, {
+    responseMessageId: input.responseMessageId,
+    content: input.state.streamedResponse,
+  });
+}
 
+function upsertResponseMessage(
+  session: ApiSession,
+  input: {
+    responseMessageId: string;
+    content: string;
+  },
+): ApiSession {
   const existingMessage = session.messages.find(
     (message) => message.id === input.responseMessageId,
   );
@@ -36,9 +102,7 @@ export function appendResponseDelta(
     return {
       ...session,
       messages: session.messages.map((message) =>
-        message.id === input.responseMessageId
-          ? { ...message, content: input.state.streamedResponse }
-          : message,
+        message.id === input.responseMessageId ? { ...message, content: input.content } : message,
       ),
     };
   }
@@ -47,7 +111,7 @@ export function appendResponseDelta(
     id: input.responseMessageId,
     role: "assistant",
     kind: "response",
-    content: input.state.streamedResponse,
+    content: input.content,
     createdAt: new Date().toISOString(),
   };
 
@@ -71,25 +135,28 @@ export function appendTraceEvent(
     return session;
   }
 
-  const json = encodeExecutionTraceEvent(input.rawEvent);
-
-  if (!json) {
+  if (!appendTraceEventToState(input.state, input.rawEvent)) {
     return undefined;
   }
 
-  input.state.streamedTrace = input.state.streamedTrace
-    ? `${input.state.streamedTrace}\n${json}`
-    : json;
+  return applyStreamMessageState(session, input);
+}
 
+function upsertTraceMessage(
+  session: ApiSession,
+  input: {
+    traceMessageId: string;
+    responseMessageId: string;
+    content: string;
+  },
+): ApiSession {
   const existingMessage = session.messages.find((message) => message.id === input.traceMessageId);
 
   if (existingMessage) {
     return {
       ...session,
       messages: session.messages.map((message) =>
-        message.id === input.traceMessageId
-          ? { ...message, content: input.state.streamedTrace }
-          : message,
+        message.id === input.traceMessageId ? { ...message, content: input.content } : message,
       ),
     };
   }
@@ -98,7 +165,7 @@ export function appendTraceEvent(
     id: input.traceMessageId,
     role: "assistant",
     kind: "trace",
-    content: input.state.streamedTrace,
+    content: input.content,
     createdAt: new Date().toISOString(),
   };
   const responseIndex = session.messages.findIndex(

@@ -7,9 +7,11 @@ import {
 } from "react";
 import type { ApiSession } from "../../../types";
 import {
-  appendResponseDelta,
-  appendTraceEvent,
+  appendResponseDeltaToState,
+  appendTraceEventToState,
+  applyStreamMessageState,
   createStreamMessageState,
+  type StreamMessageState,
 } from "../model/streamMessages";
 import { toSessionSummary } from "../model/sessionSummaries";
 import { parseTurnStreamEvent } from "../model/turnStream";
@@ -38,6 +40,16 @@ export function useTurnStream({
 }: UseTurnStreamInput) {
   const eventSourceRefs = useRef<Map<string, EventSource>>(new Map());
   const turnIdRefs = useRef<Map<string, string>>(new Map());
+  const streamStateRefs = useRef<Map<string, StreamMessageState>>(new Map());
+  const streamMessageIdRefs = useRef<
+    Map<
+      string,
+      {
+        traceMessageId: string;
+        responseMessageId: string;
+      }
+    >
+  >(new Map());
 
   useEffect(() => {
     return () => {
@@ -46,6 +58,8 @@ export function useTurnStream({
       });
       eventSourceRefs.current.clear();
       turnIdRefs.current.clear();
+      streamStateRefs.current.clear();
+      streamMessageIdRefs.current.clear();
     };
   }, []);
 
@@ -61,7 +75,12 @@ export function useTurnStream({
     turnIdRefs.current.set(sessionId, turnId);
     const streamingTraceMessageId = `stream-${turnId}-trace`;
     const streamingResponseMessageId = `stream-${turnId}-response`;
-    const streamMessageState = createStreamMessageState();
+    const streamMessageState = streamStateRefs.current.get(sessionId) ?? createStreamMessageState();
+    streamStateRefs.current.set(sessionId, streamMessageState);
+    streamMessageIdRefs.current.set(sessionId, {
+      traceMessageId: streamingTraceMessageId,
+      responseMessageId: streamingResponseMessageId,
+    });
     let streamClosed = false;
 
     const closeCurrentStream = () => {
@@ -73,6 +92,10 @@ export function useTurnStream({
     };
 
     const updateResponseMessage = (text: string) => {
+      if (!appendResponseDeltaToState(streamMessageState, text)) {
+        return;
+      }
+
       setActiveSession((session) => {
         const currentSession = session ?? activeSessionRef.current;
 
@@ -80,11 +103,15 @@ export function useTurnStream({
           return session;
         }
 
-        const nextSession = appendResponseDelta(currentSession, {
+        if (currentSession.id !== sessionId) {
+          return session;
+        }
+
+        const nextSession = applyStreamMessageState(currentSession, {
           state: streamMessageState,
           sessionId,
+          traceMessageId: streamingTraceMessageId,
           responseMessageId: streamingResponseMessageId,
-          text,
         });
 
         activeSessionRef.current = nextSession;
@@ -93,6 +120,10 @@ export function useTurnStream({
     };
 
     const updateTraceMessage = (rawEvent: unknown) => {
+      if (!appendTraceEventToState(streamMessageState, rawEvent)) {
+        return;
+      }
+
       setActiveSession((session) => {
         const currentSession = session ?? activeSessionRef.current;
 
@@ -100,17 +131,16 @@ export function useTurnStream({
           return session;
         }
 
-        const nextSession = appendTraceEvent(currentSession, {
+        if (currentSession.id !== sessionId) {
+          return session;
+        }
+
+        const nextSession = applyStreamMessageState(currentSession, {
           state: streamMessageState,
           sessionId,
           traceMessageId: streamingTraceMessageId,
           responseMessageId: streamingResponseMessageId,
-          rawEvent,
         });
-
-        if (!nextSession) {
-          return session;
-        }
 
         activeSessionRef.current = nextSession;
         setExpandedTraceIds((current) => new Set(current).add(streamingTraceMessageId));
@@ -181,6 +211,8 @@ export function useTurnStream({
         return;
       }
 
+      streamStateRefs.current.delete(sessionId);
+      streamMessageIdRefs.current.delete(sessionId);
       if (activeSessionRef.current?.id === data.session.id) {
         setCurrentActiveSession(data.session);
       }
@@ -203,6 +235,8 @@ export function useTurnStream({
       if (activeSessionRef.current?.id === sessionId) {
         setError(data?.type === "failed" ? data.error : "Request failed");
       }
+      streamStateRefs.current.delete(sessionId);
+      streamMessageIdRefs.current.delete(sessionId);
       setRunningSession(sessionId, false);
       streamClosed = true;
       closeCurrentStream();
@@ -221,5 +255,21 @@ export function useTurnStream({
     };
   }
 
-  return { streamTurn };
+  function applyRunningTurnOverlay(session: ApiSession): ApiSession {
+    const streamMessageState = streamStateRefs.current.get(session.id);
+    const streamMessageIds = streamMessageIdRefs.current.get(session.id);
+
+    if (!streamMessageState || !streamMessageIds) {
+      return session;
+    }
+
+    return applyStreamMessageState(session, {
+      state: streamMessageState,
+      sessionId: session.id,
+      traceMessageId: streamMessageIds.traceMessageId,
+      responseMessageId: streamMessageIds.responseMessageId,
+    });
+  }
+
+  return { applyRunningTurnOverlay, streamTurn };
 }
