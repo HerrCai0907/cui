@@ -1,5 +1,6 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import {
+  Check,
   ChevronDown,
   ChevronRight,
   Circle,
@@ -34,6 +35,7 @@ type SessionSidebarProps = {
   sessionCount: number;
   visibleSessionCount: number;
   activeSessionId?: string;
+  pendingDoneSessionIds: Set<string>;
   runningSessionIds: Set<string>;
   reviewNavigation?: ReviewNavigation | null;
   reviewNavigationActive?: boolean;
@@ -43,6 +45,7 @@ type SessionSidebarProps = {
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
   onOpenSession: (sessionId: string) => void;
+  onMarkSessionDone: (sessionId: string) => void;
   onNavigateReview?: (target: ReviewNavigationTarget) => void;
 };
 
@@ -55,6 +58,7 @@ export function SessionSidebar({
   sessionCount,
   visibleSessionCount,
   activeSessionId,
+  pendingDoneSessionIds,
   runningSessionIds,
   reviewNavigation,
   reviewNavigationActive,
@@ -64,6 +68,7 @@ export function SessionSidebar({
   onStartNewSession,
   onToggleWorkspace,
   onOpenSession,
+  onMarkSessionDone,
   onNavigateReview,
 }: SessionSidebarProps) {
   const workspaceGroups = groupWorkspacesForDisplay(workspaces);
@@ -182,9 +187,11 @@ export function SessionSidebar({
                   activeSessionId={activeSessionId}
                   expandedWorkspaces={expandedWorkspaces}
                   groups={workspaceGroups}
+                  pendingDoneSessionIds={pendingDoneSessionIds}
                   sessionListMode={sessionListMode}
                   runningSessionIds={runningSessionIds}
                   onOpenSession={onOpenSession}
+                  onMarkSessionDone={onMarkSessionDone}
                   onStartNewSession={onStartNewSession}
                   onToggleWorkspace={onToggleWorkspace}
                 />
@@ -224,18 +231,22 @@ function WorkspaceGroupList({
   activeSessionId,
   expandedWorkspaces,
   groups,
+  pendingDoneSessionIds,
   sessionListMode,
   runningSessionIds,
   onOpenSession,
+  onMarkSessionDone,
   onStartNewSession,
   onToggleWorkspace,
 }: {
   activeSessionId?: string;
   expandedWorkspaces: Set<string>;
   groups: WorkspaceDisplayGroup[];
+  pendingDoneSessionIds: Set<string>;
   sessionListMode: SessionListMode;
   runningSessionIds: Set<string>;
   onOpenSession: (sessionId: string) => void;
+  onMarkSessionDone: (sessionId: string) => void;
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
 }) {
@@ -254,9 +265,11 @@ function WorkspaceGroupList({
               expanded={expandedWorkspaces.has(workspace.workspace)}
               key={workspace.workspace}
               runningSessionIds={runningSessionIds}
+              pendingDoneSessionIds={pendingDoneSessionIds}
               sessionListMode={sessionListMode}
               workspace={workspace}
               onOpenSession={onOpenSession}
+              onMarkSessionDone={onMarkSessionDone}
               onStartNewSession={onStartNewSession}
               onToggleWorkspace={onToggleWorkspace}
             />
@@ -329,18 +342,22 @@ function WorkspaceGroup({
   activeSessionId,
   expanded,
   runningSessionIds,
+  pendingDoneSessionIds,
   sessionListMode,
   workspace,
   onOpenSession,
+  onMarkSessionDone,
   onStartNewSession,
   onToggleWorkspace,
 }: {
   activeSessionId?: string;
   expanded: boolean;
   runningSessionIds: Set<string>;
+  pendingDoneSessionIds: Set<string>;
   sessionListMode: SessionListMode;
   workspace: WorkspaceDisplayItem;
   onOpenSession: (sessionId: string) => void;
+  onMarkSessionDone: (sessionId: string) => void;
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
 }) {
@@ -399,6 +416,7 @@ function WorkspaceGroup({
             const active = activeSessionId === session.id;
             const isRunning = runningSessionIds.has(session.id) || session.isRunning;
             const hasUnreadRound = !isRunning && session.hasUnreadRound;
+            const isDone = Boolean(session.doneAt) || pendingDoneSessionIds.has(session.id);
             const className = [
               "session-button",
               active ? "is-active" : "",
@@ -409,32 +427,43 @@ function WorkspaceGroup({
               .join(" ");
 
             return (
-              <button
-                className={className}
-                key={session.id}
-                type="button"
-                onClick={() => onOpenSession(session.id)}
-              >
-                <span className="session-title-row">
-                  <span className="session-title">{session.title}</span>
-                  {isRunning && (
-                    <LoaderCircle className="session-running-icon" size={13} aria-hidden="true" />
-                  )}
-                  {hasUnreadRound && (
-                    <Circle
-                      className="session-status-dot"
-                      size={8}
-                      aria-hidden="true"
-                      fill="currentColor"
-                    />
-                  )}
-                </span>
-                <small>
-                  {active && session.summary
-                    ? session.summary
-                    : formatRelativeTime(session.updatedAt)}
-                </small>
-              </button>
+              <div className="session-list-row" key={session.id}>
+                <button
+                  className={className}
+                  type="button"
+                  onClick={() => onOpenSession(session.id)}
+                >
+                  <span className="session-title-row">
+                    <span className="session-title">{session.title}</span>
+                    {isRunning && (
+                      <LoaderCircle className="session-running-icon" size={13} aria-hidden="true" />
+                    )}
+                    {hasUnreadRound && (
+                      <Circle
+                        className="session-status-dot"
+                        size={8}
+                        aria-hidden="true"
+                        fill="currentColor"
+                      />
+                    )}
+                  </span>
+                  <small>
+                    {active && session.summary
+                      ? session.summary
+                      : formatRelativeTime(session.updatedAt)}
+                  </small>
+                </button>
+                <button
+                  className={`session-done-button ${isDone ? "is-done" : ""}`}
+                  type="button"
+                  aria-label="Mark session done"
+                  aria-pressed={isDone}
+                  title={isDone ? `${session.title} is done` : `Mark ${session.title} done`}
+                  onClick={() => onMarkSessionDone(session.id)}
+                >
+                  {isDone ? <Check size={13} aria-hidden="true" /> : <span aria-hidden="true" />}
+                </button>
+              </div>
             );
           })}
         </div>

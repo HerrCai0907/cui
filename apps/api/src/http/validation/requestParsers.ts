@@ -1,4 +1,5 @@
 import type { CreateSessionRequest } from "../../domain/sessions/SessionService.js";
+import type { UpdateSessionRequest } from "../../domain/sessions/SessionService.js";
 
 export type ParsedBody<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -39,4 +40,23 @@ export function parsePrompt(body: unknown): string | undefined {
   }
 
   return prompt.trim();
+}
+
+export function parseUpdateSessionBody(body: unknown): ParsedBody<UpdateSessionRequest> {
+  if (!body || typeof body !== "object") {
+    return { ok: false, error: "body must be an object" };
+  }
+
+  const done = "done" in body ? body.done : undefined;
+
+  if (typeof done !== "boolean") {
+    return { ok: false, error: "done must be a boolean" };
+  }
+
+  return {
+    ok: true,
+    value: {
+      done,
+    },
+  };
 }

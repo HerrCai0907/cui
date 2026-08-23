@@ -100,6 +100,40 @@ test("JsonSessionStore stores session metadata, messages, and rounds separately"
   }
 });
 
+test("JsonSessionStore stores done state and clears it when appending messages", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-json-session-store-"));
+  const storePath = join(cwd, "sessions.json");
+  const session: ChatSession = {
+    id: "session-1",
+    workspace: cwd,
+    title: "Done session",
+    summary: "",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+  };
+
+  try {
+    const store = new JsonSessionStore(storePath);
+
+    await store.createSession(session);
+    const doneSession = await store.updateSessionDoneAt(
+      "session-1",
+      "2026-08-22T00:00:10.000Z",
+    );
+
+    assert.equal(doneSession.doneAt, "2026-08-22T00:00:10.000Z");
+    assert.equal((await store.getSession("session-1"))?.doneAt, "2026-08-22T00:00:10.000Z");
+
+    const appendedSession = await store.appendMessages("session-1", [createMessage("message-1")]);
+
+    assert.equal(appendedSession.doneAt, undefined);
+    assert.equal((await store.getSession("session-1"))?.doneAt, undefined);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 function createMessage(id: string): ChatMessage {
   return {
     id,

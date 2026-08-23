@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { currentWorkspace, mockSession, mockSessions } from "./helpers";
+import { currentWorkspace, fulfillJson, mockSession, mockSessions } from "./helpers";
 
 test("merges shared workspace path prefixes in the sidebar", async ({ page }) => {
   const firstSession = {
@@ -81,6 +81,60 @@ test("shows a focused Active list and keeps all sessions in More", async ({ page
   await expect(page.getByRole("button", { name: "Session 2" })).toBeVisible();
   await page.getByRole("button", { name: "Session 1" }).click();
   await expect(page.getByRole("heading", { name: "Session 1" })).toBeVisible();
+});
+
+test("marks a session done and removes it from Active after feedback", async ({ page }) => {
+  const sessions = [
+    {
+      id: "session-1",
+      workspace: currentWorkspace,
+      title: "Finishable session",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [],
+      rounds: [],
+      currentRound: 1,
+      isRunning: false,
+    },
+  ];
+  let doneAt: string | undefined;
+
+  await mockSessions(page, () => sessions.map((session) => ({ ...session, doneAt })));
+  await page.route("**/api/sessions/session-1", async (route) => {
+    if (route.request().method() === "PATCH") {
+      expect(route.request().postDataJSON()).toEqual({ done: true });
+      doneAt = "2026-08-22T00:00:10.000Z";
+      await fulfillJson(route, {
+        session: {
+          ...sessions[0],
+          doneAt,
+        },
+      });
+      return;
+    }
+
+    await fulfillJson(route, {
+      session: {
+        ...sessions[0],
+        doneAt,
+      },
+    });
+  });
+
+  await page.goto("/");
+
+  await expect(page.getByRole("button", { name: "Finishable session" })).toBeVisible();
+
+  const doneButton = page.getByRole("button", { name: "Mark session done" });
+
+  await doneButton.click();
+  await expect(doneButton).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Finishable session" })).toHaveCount(0, {
+    timeout: 2000,
+  });
+
+  await page.getByRole("button", { name: "More" }).click();
+  await expect(page.getByRole("button", { name: "Finishable session" })).toBeVisible();
 });
 
 test("uses a separate workspace toggle in Active mode only", async ({ page }) => {

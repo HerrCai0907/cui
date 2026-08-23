@@ -5,6 +5,7 @@ import {
   getSession,
   listSessions,
   stopSession,
+  updateSession,
 } from "../api/sessionsApi";
 import {
   getCurrentRound,
@@ -36,6 +37,7 @@ type SetCurrentActiveSessionOptions = {
 };
 
 const LAST_ACTIVE_SESSION_STORAGE_KEY = "cui:last-active-session-id:v1";
+const DONE_MARK_VISIBLE_DURATION_MS = 800;
 
 export function useSessionController(defaultWorkspace: string) {
   const [sidebarBrowserState, setSidebarBrowserState] = useState(() =>
@@ -53,6 +55,7 @@ export function useSessionController(defaultWorkspace: string) {
   const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(() => new Set());
   const [submittingSessionIds, setSubmittingSessionIds] = useState<Set<string>>(() => new Set());
   const [stoppingSessionIds, setStoppingSessionIds] = useState<Set<string>>(() => new Set());
+  const [pendingDoneSessionIds, setPendingDoneSessionIds] = useState<Set<string>>(() => new Set());
   const [creatingSession, setCreatingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedTraceIds, setExpandedTraceIds] = useState<Set<string>>(() => new Set());
@@ -330,6 +333,13 @@ export function useSessionController(defaultWorkspace: string) {
     }
 
     if (submittedSessionId) {
+      setPendingDoneSessionIds((current) => {
+        const next = new Set(current);
+
+        next.delete(submittedSessionId);
+
+        return next;
+      });
       setSubmittingSession(submittedSessionId, true);
       if (activeSession) {
         recordSessionAttention(activeSession);
@@ -405,6 +415,39 @@ export function useSessionController(defaultWorkspace: string) {
     }
   }
 
+  async function markSessionDone(sessionId: string) {
+    setError(null);
+    setPendingDoneSessionIds((current) => new Set(current).add(sessionId));
+
+    try {
+      const [updatedSession] = await Promise.all([
+        updateSession(sessionId, { done: true }),
+        delay(DONE_MARK_VISIBLE_DURATION_MS),
+      ]);
+      const updatedSummary = toSessionSummary(updatedSession);
+
+      setSessions((current) =>
+        current.map((session) => (session.id === sessionId ? updatedSummary : session)),
+      );
+      if (activeSessionRef.current?.id === sessionId) {
+        setCurrentActiveSession(updatedSession, {
+          recordAttention: false,
+        });
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Failed to mark session done");
+      await refreshSessions();
+    } finally {
+      setPendingDoneSessionIds((current) => {
+        const next = new Set(current);
+
+        next.delete(sessionId);
+
+        return next;
+      });
+    }
+  }
+
   function startNewSession(workspace?: string) {
     autoRestoreSessionRef.current = false;
     setCurrentActiveSession(null);
@@ -452,6 +495,7 @@ export function useSessionController(defaultWorkspace: string) {
           summary.id === visibleSession.id
             ? {
                 ...summary,
+                doneAt: visibleSession.doneAt,
                 currentRound: getCurrentRound(visibleSession),
                 isRunning: visibleSession.isRunning ?? Boolean(visibleSession.runningTurnId),
                 hasUnreadRound: false,
@@ -580,6 +624,8 @@ export function useSessionController(defaultWorkspace: string) {
     messageStreamRef,
     refreshSessions,
     openSession,
+    markSessionDone,
+    pendingDoneSessionIds,
     runningSessionIds,
     setDraft,
     setSessionListMode,
@@ -662,4 +708,10 @@ function hasPendingAtomicReview(session: ApiSession | null): boolean {
   return Boolean(
     session?.rounds?.some((round) => round.hasChanges && round.atomicReviewStatus === undefined),
   );
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
 }

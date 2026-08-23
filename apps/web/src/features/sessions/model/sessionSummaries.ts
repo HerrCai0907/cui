@@ -30,6 +30,7 @@ export function toSessionSummary(session: ApiSession): SessionSummary {
     workspace: session.workspace,
     title: session.title,
     summary: session.summary,
+    doneAt: session.doneAt,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
     currentRound,
@@ -56,8 +57,9 @@ export function partitionActiveSessionsForSidebar(
   highlightedWorkspaceIds: Set<string> = new Set(),
   recentWorkspaceCount = ACTIVE_RECENT_WORKSPACE_COUNT,
 ): ActiveSidebarSessionPartition {
+  const activeCandidateSessions = sessions.filter((session) => !session.doneAt);
   const activeSidebarSessionIds = new Set<string>();
-  const sessionsByWorkspace = groupSessionsByWorkspace(sessions);
+  const sessionsByWorkspace = groupSessionsByWorkspace(activeCandidateSessions);
   const activeWorkspaceIds = new Set(highlightedWorkspaceIds);
 
   Object.entries(sessionsByWorkspace).forEach(([workspace, workspaceSessions]) => {
@@ -101,7 +103,7 @@ export function partitionActiveSessionsForSidebar(
 
   return {
     active: sortSessionsForActiveSidebar(
-      sessions.filter((session) => activeSidebarSessionIds.has(session.id)),
+      activeCandidateSessions.filter((session) => activeSidebarSessionIds.has(session.id)),
     ),
     more: sortSessionsForAllSessions(sessions, attentionState),
   };

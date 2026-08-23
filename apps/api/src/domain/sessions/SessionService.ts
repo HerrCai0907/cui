@@ -36,6 +36,10 @@ export type ContinueSessionRequest = {
   prompt: string;
 };
 
+export type UpdateSessionRequest = {
+  done: boolean;
+};
+
 export type SubmittedTurn = {
   session: ChatSessionView;
   turnId: string;
@@ -81,6 +85,19 @@ export class SessionService {
     return session
       ? toSessionView(session, this.turnRegistry.getRunningTurnIdForSession(session.id))
       : undefined;
+  }
+
+  async updateSession(sessionId: string, request: UpdateSessionRequest): Promise<ChatSessionView> {
+    const session = await this.store.getSession(sessionId);
+
+    if (!session) {
+      throw new SessionNotFoundError(sessionId);
+    }
+
+    const doneAt = request.done ? new Date().toISOString() : undefined;
+    const updatedSession = await this.store.updateSessionDoneAt(sessionId, doneAt);
+
+    return toSessionView(updatedSession, this.turnRegistry.getRunningTurnIdForSession(sessionId));
   }
 
   async getRoundReview(
