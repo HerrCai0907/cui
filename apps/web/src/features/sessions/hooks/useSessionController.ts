@@ -18,7 +18,12 @@ import {
   partitionSessionsForSidebar,
   toSessionSummary,
 } from '../model/sessionSummaries';
-import { setLastSeenRound } from '../model/sessionBrowserState';
+import {
+  loadSessionSidebarBrowserState,
+  saveSessionSidebarBrowserState,
+  setLastSeenRound,
+  type SessionSidebarBrowserState,
+} from '../model/sessionBrowserState';
 import { useTurnStream } from './useTurnStream';
 import type { ApiSession, SessionSummary } from '../../../types';
 
@@ -33,10 +38,12 @@ type SetCurrentActiveSessionOptions = {
 const LAST_ACTIVE_SESSION_STORAGE_KEY = 'cui:last-active-session-id:v1';
 
 export function useSessionController(defaultWorkspace: string) {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [expandedWorkspaces, setExpandedWorkspaces] = useState<Set<string>>(
-    () => new Set([defaultWorkspace]),
+  const [sidebarBrowserState, setSidebarBrowserState] = useState(() =>
+    loadSessionSidebarBrowserState(defaultWorkspace),
   );
+  const sidebarOpen = sidebarBrowserState.sidebarOpen;
+  const historyOpen = sidebarBrowserState.historyOpen;
+  const expandedWorkspaces = sidebarBrowserState.expandedWorkspaces;
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [activeSession, setActiveSession] = useState<ApiSession | null>(null);
   const [draft, setDraft] = useState('');
@@ -124,14 +131,52 @@ export function useSessionController(defaultWorkspace: string) {
   }, [draft]);
 
   function toggleWorkspace(workspaceId: string) {
-    setExpandedWorkspaces((current) => {
-      const next = new Set(current);
+    updateSidebarBrowserState((current) => {
+      const nextExpandedWorkspaces = new Set(current.expandedWorkspaces);
 
-      if (next.has(workspaceId)) {
-        next.delete(workspaceId);
+      if (nextExpandedWorkspaces.has(workspaceId)) {
+        nextExpandedWorkspaces.delete(workspaceId);
       } else {
-        next.add(workspaceId);
+        nextExpandedWorkspaces.add(workspaceId);
       }
+
+      return {
+        ...current,
+        expandedWorkspaces: nextExpandedWorkspaces,
+      };
+    });
+  }
+
+  function setSidebarOpen(open: boolean) {
+    updateSidebarBrowserState((current) => ({
+      ...current,
+      sidebarOpen: open,
+    }));
+  }
+
+  function setHistoryOpen(open: boolean) {
+    updateSidebarBrowserState((current) => ({
+      ...current,
+      historyOpen: open,
+    }));
+  }
+
+  function expandWorkspace(workspaceId: string) {
+    updateSidebarBrowserState((current) => ({
+      ...current,
+      expandedWorkspaces: new Set(current.expandedWorkspaces).add(workspaceId),
+    }));
+  }
+
+  function updateSidebarBrowserState(
+    updater: (
+      current: SessionSidebarBrowserState,
+    ) => SessionSidebarBrowserState,
+  ) {
+    setSidebarBrowserState((current) => {
+      const next = updater(current);
+
+      saveSessionSidebarBrowserState(next);
 
       return next;
     });
@@ -203,9 +248,7 @@ export function useSessionController(defaultWorkspace: string) {
 
       setCurrentActiveSession(session);
       setWorkspaceDraft(session.workspace);
-      setExpandedWorkspaces((current) =>
-        new Set(current).add(session.workspace),
-      );
+      expandWorkspace(session.workspace);
       if (session.runningTurnId) {
         setRunningSession(session.id, true);
         streamTurn(session.id, session.runningTurnId);
@@ -261,9 +304,7 @@ export function useSessionController(defaultWorkspace: string) {
         setCurrentActiveSession(data.session);
       }
 
-      setExpandedWorkspaces((current) =>
-        new Set(current).add(data.session.workspace),
-      );
+      expandWorkspace(data.session.workspace);
       void refreshSessions();
       streamTurn(data.session.id, data.turnId);
     } catch (reason) {
@@ -288,7 +329,7 @@ export function useSessionController(defaultWorkspace: string) {
     setDraft('');
     if (workspace) {
       setWorkspaceDraft(workspace);
-      setExpandedWorkspaces((current) => new Set(current).add(workspace));
+      expandWorkspace(workspace);
     }
     setError(null);
   }
@@ -381,12 +422,14 @@ export function useSessionController(defaultWorkspace: string) {
     error,
     expandedTraceIds,
     expandedWorkspaces,
+    historyOpen,
     lastEnterKeyDownRef,
     messageStreamRef,
     refreshSessions,
     openSession,
     runningSessionIds,
     setDraft,
+    setHistoryOpen,
     setSidebarOpen,
     setTraceExpanded,
     setWorkspaceDraft,
