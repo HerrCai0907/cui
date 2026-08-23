@@ -345,6 +345,53 @@
   color: #728096;
 }
 
+.review-diff-code-highlight {
+  color: #243041;
+}
+
+.review-diff-code-highlight .hljs-keyword,
+.review-diff-code-highlight .hljs-selector-tag,
+.review-diff-code-highlight .hljs-title.function_,
+.review-diff-code-highlight .hljs-built_in {
+  color: #6f42c1;
+}
+
+.review-diff-code-highlight .hljs-string,
+.review-diff-code-highlight .hljs-regexp,
+.review-diff-code-highlight .hljs-symbol,
+.review-diff-code-highlight .hljs-template-variable {
+  color: #0b6f6a;
+}
+
+.review-diff-code-highlight .hljs-number,
+.review-diff-code-highlight .hljs-literal,
+.review-diff-code-highlight .hljs-attr,
+.review-diff-code-highlight .hljs-variable {
+  color: #9a4b00;
+}
+
+.review-diff-code-highlight .hljs-comment,
+.review-diff-code-highlight .hljs-quote {
+  color: #6b7280;
+  font-style: italic;
+}
+
+.review-diff-code-highlight .hljs-type,
+.review-diff-code-highlight .hljs-class .hljs-title,
+.review-diff-code-highlight .hljs-title.class_,
+.review-diff-code-highlight .hljs-section {
+  color: #075985;
+}
+
+.review-diff-code-highlight .hljs-meta,
+.review-diff-code-highlight .hljs-doctag,
+.review-diff-code-highlight .hljs-tag,
+.review-diff-code-highlight .hljs-name,
+.review-diff-code-highlight .hljs-selector-id,
+.review-diff-code-highlight .hljs-selector-class {
+  color: #7c2d12;
+}
+
 .review-diff-row-add {
   background: #f0fff4;
 }
