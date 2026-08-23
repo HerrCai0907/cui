@@ -4,6 +4,8 @@ import {
   ChatRoundSchema,
   ChatRoundSummarySchema,
   ChatSessionViewSchema,
+  CodeRangeQuerySchema,
+  CodeRangeResponseSchema,
   ContinueSessionRequestSchema,
   CreateSessionRequestSchema,
   ErrorResponseSchema,
@@ -29,6 +31,7 @@ registry.register("ChatMessage", ChatMessageSchema);
 registry.register("ChatRoundSummary", ChatRoundSummarySchema);
 registry.register("ChatRound", ChatRoundSchema);
 registry.register("ChatSessionView", ChatSessionViewSchema);
+registry.register("CodeRangeResponse", CodeRangeResponseSchema);
 registry.register("CreateSessionRequest", CreateSessionRequestSchema);
 registry.register("ContinueSessionRequest", ContinueSessionRequestSchema);
 registry.register("UpdateSessionRequest", UpdateSessionRequestSchema);
@@ -58,6 +61,27 @@ registry.registerPath({
         },
       },
     },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/code",
+  summary: "Get source code from a file path and optional line range",
+  request: {
+    query: CodeRangeQuerySchema,
+  },
+  responses: {
+    200: {
+      description: "The requested source code.",
+      content: {
+        "application/json": {
+          schema: CodeRangeResponseSchema,
+        },
+      },
+    },
+    400: errorResponse,
+    404: errorResponse,
   },
 });
 

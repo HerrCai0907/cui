@@ -47,6 +47,77 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/code": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get source code from a file path and optional line range */
+    get: {
+      parameters: {
+        query: {
+          filePath: string;
+          startLine?: number;
+          endLine?: number;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The requested source code. */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              filePath: string;
+              startLine: number;
+              endLine: number;
+              code: string;
+              lines: {
+                lineNumber: number;
+                content: string;
+              }[];
+            };
+          };
+        };
+        /** @description Error response. */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+        /** @description Error response. */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions": {
     parameters: {
       query?: never;
@@ -898,6 +969,16 @@ export interface components {
       currentRound: number;
       isRunning: boolean;
       runningTurnId?: string;
+    };
+    CodeRangeResponse: {
+      filePath: string;
+      startLine: number;
+      endLine: number;
+      code: string;
+      lines: {
+        lineNumber: number;
+        content: string;
+      }[];
     };
     CreateSessionRequest: {
       workspace: string;

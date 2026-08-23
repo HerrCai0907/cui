@@ -110,6 +110,59 @@ export const UpdateSessionRequestSchema = z.object({
   done: z.boolean(),
 });
 
+const startLineSchema = z.coerce
+  .number("startLine must be a positive integer")
+  .int("startLine must be a positive integer")
+  .positive("startLine must be a positive integer");
+const endLineSchema = z.coerce
+  .number("endLine must be a positive integer")
+  .int("endLine must be a positive integer")
+  .positive("endLine must be a positive integer");
+
+export const CodeRangeQuerySchema = z
+  .object({
+    filePath: z.string().trim().min(1, "filePath must be a non-empty string"),
+    startLine: startLineSchema.optional(),
+    endLine: endLineSchema.optional(),
+  })
+  .superRefine((value, context) => {
+    if (
+      (value.startLine === undefined && value.endLine !== undefined) ||
+      (value.startLine !== undefined && value.endLine === undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "startLine and endLine must be provided together",
+      });
+      return;
+    }
+
+    if (
+      value.startLine !== undefined &&
+      value.endLine !== undefined &&
+      value.startLine > value.endLine
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "startLine must be less than or equal to endLine",
+        path: ["startLine"],
+      });
+    }
+  });
+
+export const CodeLineSchema = z.object({
+  lineNumber: z.number().int().positive(),
+  content: z.string(),
+});
+
+export const CodeRangeResponseSchema = z.object({
+  filePath: z.string(),
+  startLine: z.number().int().positive(),
+  endLine: z.number().int().positive(),
+  code: z.string(),
+  lines: z.array(CodeLineSchema),
+});
+
 export const SubmittedTurnResponseSchema = z.object({
   status: z.literal("ok"),
   session: ChatSessionViewSchema,
@@ -178,3 +231,5 @@ export const TurnStreamEventSchema = z.discriminatedUnion("type", [
 export type CreateSessionRequestContract = z.infer<typeof CreateSessionRequestSchema>;
 export type ContinueSessionRequestContract = z.infer<typeof ContinueSessionRequestSchema>;
 export type UpdateSessionRequestContract = z.infer<typeof UpdateSessionRequestSchema>;
+export type CodeRangeRequestContract = z.infer<typeof CodeRangeQuerySchema>;
+export type CodeRangeResponseContract = z.infer<typeof CodeRangeResponseSchema>;

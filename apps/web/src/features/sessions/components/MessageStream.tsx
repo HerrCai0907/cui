@@ -137,7 +137,7 @@ function MessageItem({
             onExpandedChange={(open) => onTraceExpandedChange(message.id, open)}
           />
         ) : message.role === "assistant" ? (
-          <AssistantMessageContent content={message.content} />
+          <AssistantMessageContent content={message.content} workspace={activeSession.workspace} />
         ) : (
           <p>{message.content}</p>
         )}

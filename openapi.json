@@ -346,6 +346,42 @@
           "isRunning"
         ]
       },
+      "CodeRangeResponse": {
+        "type": "object",
+        "properties": {
+          "filePath": {
+            "type": "string"
+          },
+          "startLine": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "endLine": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "code": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "lineNumber": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                "content": {
+                  "type": "string"
+                }
+              },
+              "required": ["lineNumber", "content"]
+            }
+          }
+        },
+        "required": ["filePath", "startLine", "endLine", "code", "lines"]
+      },
       "CreateSessionRequest": {
         "type": "object",
         "properties": {
@@ -838,6 +874,117 @@
                     }
                   },
                   "required": ["status", "service", "time"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/code": {
+      "get": {
+        "summary": "Get source code from a file path and optional line range",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "filePath",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "required": false,
+            "name": "startLine",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "required": false,
+            "name": "endLine",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested source code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "filePath": {
+                      "type": "string"
+                    },
+                    "startLine": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "endLine": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "lineNumber": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0
+                          },
+                          "content": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["lineNumber", "content"]
+                      }
+                    }
+                  },
+                  "required": ["filePath", "startLine", "endLine", "code", "lines"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
                 }
               }
             }

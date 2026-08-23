@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import {
+  CodeRangeQuerySchema,
   ContinueSessionRequestSchema,
   CreateSessionRequestSchema,
   RoundReviewParamsSchema,
@@ -47,4 +48,10 @@ function parseWithSchema<T extends z.ZodType>(schema: T, input: unknown): Parsed
   }
 
   return { ok: false, error: parsed.error.issues[0]?.message ?? "invalid request" };
+}
+
+export function parseCodeRangeQuery(
+  query: unknown,
+): ParsedBody<z.infer<typeof CodeRangeQuerySchema>> {
+  return parseWithSchema(CodeRangeQuerySchema, query);
 }
