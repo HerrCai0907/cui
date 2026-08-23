@@ -1,7 +1,14 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const baseURL = process.env.PLAYWRIGHT_TEST_BASE_URL ?? 'http://localhost:5173';
-const serverPort = new URL(baseURL).port || '5173';
+const DEFAULT_TEST_WEB_PORT = '5174';
+const DEFAULT_TEST_API_PORT = '3001';
+
+const testWebPort = process.env.PLAYWRIGHT_TEST_PORT ?? DEFAULT_TEST_WEB_PORT;
+const testApiPort =
+  process.env.PLAYWRIGHT_TEST_API_PORT ?? DEFAULT_TEST_API_PORT;
+const baseURL =
+  process.env.PLAYWRIGHT_TEST_BASE_URL ?? `http://localhost:${testWebPort}`;
+const serverPort = new URL(baseURL).port || testWebPort;
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -21,7 +28,7 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   webServer: {
-    command: `npm run dev -w @cui/web -- --port ${serverPort} --strictPort`,
+    command: `CUI_API_PORT=${testApiPort} npm run dev -w @cui/web -- --port ${serverPort} --strictPort`,
     url: baseURL,
     reuseExistingServer: true,
     timeout: 60_000,
