@@ -2,10 +2,11 @@ import type { ChatSession, ChatSessionView } from "../../types.js";
 
 export function toSessionView(session: ChatSession, runningTurnId?: string): ChatSessionView {
   const roundSummaries =
-    session.rounds?.map(({ round, hasChanges, createdAt }) => ({
+    session.rounds?.map(({ round, hasChanges, createdAt, atomicReview }) => ({
       round,
       hasChanges,
       createdAt,
+      ...(atomicReview ? { atomicReviewStatus: atomicReview.status } : {}),
     })) ?? [];
 
   return {

@@ -163,3 +163,81 @@ test("renders assistant inline and fenced code blocks", async ({ page }) => {
   await expect(page.locator(".message-code-block code")).toHaveText("const ok = true;");
   await expect(page.locator(".message-code-block code")).toHaveAttribute("data-language", "ts");
 });
+
+test("shows full review separately from completed atomic review in assistant messages", async ({
+  page,
+}) => {
+  const session = {
+    id: "session-review-buttons",
+    workspace: currentWorkspace,
+    title: "Review button session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-1",
+        role: "assistant",
+        kind: "response",
+        round: 1,
+        content: "First response",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+      {
+        id: "message-2",
+        role: "assistant",
+        kind: "response",
+        round: 2,
+        content: "Second response",
+        createdAt: "2026-08-22T00:00:01.000Z",
+      },
+    ],
+    rounds: [
+      {
+        round: 1,
+        hasChanges: true,
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+      {
+        round: 2,
+        hasChanges: true,
+        createdAt: "2026-08-22T00:00:01.000Z",
+        atomicReviewStatus: "ready",
+      },
+    ],
+  };
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+
+  await page.goto("/");
+
+  const pendingReviewGroup = page.getByLabel("Round 1 reviews");
+  const readyReviewGroup = page.getByLabel("Round 2 reviews");
+
+  await expect(pendingReviewGroup.getByRole("button", { name: "Atomic review" })).toHaveCount(0);
+  await expect(pendingReviewGroup.getByRole("button", { name: "Full review" })).toBeVisible();
+  await expect(readyReviewGroup.getByRole("button", { name: "Atomic review" })).toBeVisible();
+  await expect(readyReviewGroup.getByRole("button", { name: "Full review" })).toBeVisible();
+
+  const fullReviewPopupPromise = page.waitForEvent("popup");
+  await pendingReviewGroup.getByRole("button", { name: "Full review" }).click();
+  const fullReviewPopup = await fullReviewPopupPromise;
+
+  await mockSessions(fullReviewPopup, [session]);
+  await mockSession(fullReviewPopup, session);
+  await expect(fullReviewPopup).toHaveURL(
+    /\/ui\/sessions\/session-review-buttons\/rounds\/1\/full_review$/,
+  );
+  await fullReviewPopup.close();
+
+  const atomicReviewPopupPromise = page.waitForEvent("popup");
+  await readyReviewGroup.getByRole("button", { name: "Atomic review" }).click();
+  const atomicReviewPopup = await atomicReviewPopupPromise;
+
+  await mockSessions(atomicReviewPopup, [session]);
+  await mockSession(atomicReviewPopup, session);
+  await expect(atomicReviewPopup).toHaveURL(
+    /\/ui\/sessions\/session-review-buttons\/rounds\/2\/atomic_review$/,
+  );
+  await atomicReviewPopup.close();
+});

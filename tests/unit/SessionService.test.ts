@@ -153,6 +153,10 @@ test("beginContinueSession completes without waiting for atomic review generatio
     );
 
     assert.equal((await store.getRound("session-1", 1))?.atomicReview?.status, "ready");
+    assert.equal(
+      (await service.getSessionView("session-1"))?.rounds?.[0]?.atomicReviewStatus,
+      "ready",
+    );
   } finally {
     await rm(cwd, { force: true, recursive: true });
   }

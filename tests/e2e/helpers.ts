@@ -53,7 +53,7 @@ export async function mockRoundReview(
   round: number,
   review: unknown,
 ) {
-  await page.route(`**/api/sessions/${sessionId}/rounds/${round}/review`, async (route) => {
+  await page.route(`**/api/sessions/${sessionId}/rounds/${round}/review**`, async (route) => {
     await fulfillJson(route, { review });
   });
 }

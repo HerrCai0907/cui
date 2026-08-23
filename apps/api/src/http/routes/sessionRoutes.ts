@@ -37,7 +37,10 @@ export function createSessionRouter(sessionService: SessionService): Router {
         return;
       }
 
-      const review = await sessionService.getRoundReview(request.params.sessionId, round);
+      const includeAtomicReview = request.query.mode !== "full";
+      const review = await sessionService.getRoundReview(request.params.sessionId, round, {
+        includeAtomicReview,
+      });
 
       if (!review) {
         response.status(404).json({ error: "Round review not found" });

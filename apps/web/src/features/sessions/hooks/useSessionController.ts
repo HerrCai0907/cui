@@ -119,6 +119,20 @@ export function useSessionController(defaultWorkspace: string) {
     void refreshSessions();
   }, []);
 
+  useEffect(() => {
+    if (!hasPendingAtomicReview(activeSession)) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshSessions();
+    }, 3000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [activeSession?.id, activeSession?.rounds]);
+
   useLayoutEffect(() => {
     const messageStream = messageStreamRef.current;
 
@@ -250,8 +264,11 @@ export function useSessionController(defaultWorkspace: string) {
             streamTurn(fallbackSession.id, fallbackSession.runningTurnId);
           }
         }
-      } else if (nextActiveSession?.runningTurnId) {
-        streamTurn(nextActiveSession.id, nextActiveSession.runningTurnId);
+      } else if (nextActiveSession) {
+        setCurrentActiveSession(nextActiveSession);
+        if (nextActiveSession.runningTurnId) {
+          streamTurn(nextActiveSession.id, nextActiveSession.runningTurnId);
+        }
       }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Failed to load sessions");
@@ -623,5 +640,11 @@ function isSameNumberRecord(left: Record<string, number>, right: Record<string, 
   return (
     leftEntries.length === rightEntries.length &&
     leftEntries.every(([key, value]) => right[key] === value)
+  );
+}
+
+function hasPendingAtomicReview(session: ApiSession | null): boolean {
+  return Boolean(
+    session?.rounds?.some((round) => round.hasChanges && round.atomicReviewStatus === undefined),
   );
 }

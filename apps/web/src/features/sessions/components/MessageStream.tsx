@@ -13,7 +13,7 @@ type MessageStreamProps = {
   expandedTraceIds: Set<string>;
   messageStreamRef: RefObject<HTMLDivElement | null>;
   workspaceDraft: string;
-  onOpenReview: (sessionId: string, round: number) => void;
+  onOpenReview: (sessionId: string, round: number, mode: "atomic" | "full") => void;
   onTraceExpandedChange: (messageId: string, open: boolean) => void;
   onWorkspaceDraftChange: (value: string) => void;
 };
@@ -73,17 +73,16 @@ function MessageItem({
   activeSession: ApiSession;
   expanded: boolean;
   message: ApiMessage;
-  onOpenReview: (sessionId: string, round: number) => void;
+  onOpenReview: (sessionId: string, round: number, mode: "atomic" | "full") => void;
   onTraceExpandedChange: (messageId: string, open: boolean) => void;
 }) {
   const isTrace = message.kind === "trace";
-  const hasReviewDiff =
-    message.role === "assistant" &&
-    message.kind === "response" &&
-    Boolean(
-      message.round &&
-      activeSession.rounds?.find((round) => round.round === message.round)?.hasChanges,
-    );
+  const reviewRound =
+    message.role === "assistant" && message.kind === "response" && message.round
+      ? activeSession.rounds?.find((round) => round.round === message.round && round.hasChanges)
+      : undefined;
+  const hasReviewDiff = Boolean(reviewRound);
+  const hasAtomicReview = Boolean(reviewRound?.atomicReviewStatus);
 
   return (
     <article className={`message ${message.role} ${isTrace ? "trace" : ""}`}>
@@ -95,14 +94,30 @@ function MessageItem({
           <div className="message-title-row">
             <strong>{getMessageTitle(message)}</strong>
             {message.round && hasReviewDiff && (
-              <button
-                className="review-button"
-                type="button"
-                onClick={() => onOpenReview(activeSession.id, message.round!)}
+              <span
+                className="review-button-group"
+                role="group"
+                aria-label={`Round ${message.round} reviews`}
               >
-                <FileDiff size={14} />
-                [review]
-              </button>
+                {hasAtomicReview && (
+                  <button
+                    className="review-button"
+                    type="button"
+                    onClick={() => onOpenReview(activeSession.id, message.round!, "atomic")}
+                  >
+                    <FileDiff size={14} />
+                    Atomic review
+                  </button>
+                )}
+                <button
+                  className="review-button"
+                  type="button"
+                  onClick={() => onOpenReview(activeSession.id, message.round!, "full")}
+                >
+                  <FileDiff size={14} />
+                  Full review
+                </button>
+              </span>
             )}
           </div>
           <time>{formatMessageTime(message.createdAt)}</time>
