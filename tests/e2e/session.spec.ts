@@ -164,6 +164,35 @@ test("renders assistant inline and fenced code blocks", async ({ page }) => {
   await expect(page.locator(".message-code-block code")).toHaveAttribute("data-language", "ts");
 });
 
+test("renders assistant markdown bold and italic text", async ({ page }) => {
+  const session = {
+    id: "session-1",
+    workspace: currentWorkspace,
+    title: "Inline emphasis session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-1",
+        role: "assistant",
+        kind: "response",
+        content: "Use **bold text** and *italic text*.\n\n```\n**literal** and *literal*\n```",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    rounds: [],
+  };
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+
+  await page.goto("/");
+
+  await expect(page.locator(".message-content strong")).toHaveText("bold text");
+  await expect(page.locator(".message-content em")).toHaveText("italic text");
+  await expect(page.locator(".message-code-block code")).toHaveText("**literal** and *literal*");
+});
+
 test("shows full review separately from completed atomic review in assistant messages", async ({
   page,
 }) => {
