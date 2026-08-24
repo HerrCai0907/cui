@@ -1,9 +1,11 @@
 import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   continueSession,
+  createShellSession,
   createSession,
   getSession,
   listSessions,
+  runShellCommand,
   stopSession,
   updateSession,
 } from "../api/sessionsApi";
@@ -37,9 +39,12 @@ type SetCurrentActiveSessionOptions = {
 };
 
 type QueuedPrompt = {
+  mode: ComposerMode;
   prompt: string;
   restoreDraftOnFailure: boolean;
 };
+
+type ComposerMode = "chat" | "shell";
 
 const LAST_ACTIVE_SESSION_STORAGE_KEY = "cui:last-active-session-id:v1";
 const DONE_MARK_VISIBLE_DURATION_MS = 800;
@@ -57,6 +62,7 @@ export function useSessionController(defaultWorkspace: string) {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [activeSession, setActiveSession] = useState<ApiSession | null>(null);
   const [draft, setDraft] = useState("");
+  const [composerMode, setComposerMode] = useState<ComposerMode>("chat");
   const [workspaceDraft, setWorkspaceDraft] = useState(defaultWorkspace);
   const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(() => new Set());
   const [submittingSessionIds, setSubmittingSessionIds] = useState<Set<string>>(() => new Set());
@@ -377,9 +383,13 @@ export function useSessionController(defaultWorkspace: string) {
     }
   }
 
-  async function submitPrompt(prompt: string, options: { restoreDraftOnFailure?: boolean } = {}) {
+  async function submitPrompt(
+    prompt: string,
+    options: { mode?: ComposerMode; restoreDraftOnFailure?: boolean } = {},
+  ) {
     const trimmed = prompt.trim();
     const submittedSessionId = activeSession?.id ?? null;
+    const mode = options.mode ?? "chat";
 
     if (!trimmed) {
       return false;
@@ -387,6 +397,7 @@ export function useSessionController(defaultWorkspace: string) {
 
     if (submittedSessionId && runningSessionIdsRef.current.has(submittedSessionId)) {
       queuePrompt(submittedSessionId, {
+        mode,
         prompt: trimmed,
         restoreDraftOnFailure: options.restoreDraftOnFailure ?? true,
       });
@@ -423,12 +434,21 @@ export function useSessionController(defaultWorkspace: string) {
     }
 
     try {
-      const data = activeSession
-        ? await continueSession(activeSession.id, { prompt: trimmed })
-        : await createSession({
-            workspace: workspaceDraft.trim() || defaultWorkspace,
-            prompt: trimmed,
-          });
+      const workspace = workspaceDraft.trim() || defaultWorkspace;
+      const data =
+        mode === "shell"
+          ? activeSession
+            ? await runShellCommand(activeSession.id, { command: trimmed })
+            : await createShellSession({
+                workspace,
+                command: trimmed,
+              })
+          : activeSession
+            ? await continueSession(activeSession.id, { prompt: trimmed })
+            : await createSession({
+                workspace,
+                prompt: trimmed,
+              });
 
       setRunningTurn(data.session.id, data.turnId);
       recordSessionAttention(data.session);
@@ -470,7 +490,7 @@ export function useSessionController(defaultWorkspace: string) {
   async function submitDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    await submitPrompt(draft, { restoreDraftOnFailure: true });
+    await submitPrompt(draft, { mode: composerMode, restoreDraftOnFailure: true });
   }
 
   async function drainQueuedPrompt(sessionId: string) {
@@ -506,7 +526,10 @@ export function useSessionController(defaultWorkspace: string) {
     setError(null);
 
     try {
-      const data = await continueSession(sessionId, { prompt: nextPrompt.prompt });
+      const data =
+        nextPrompt.mode === "shell"
+          ? await runShellCommand(sessionId, { command: nextPrompt.prompt })
+          : await continueSession(sessionId, { prompt: nextPrompt.prompt });
 
       setRunningTurn(data.session.id, data.turnId);
       recordSessionAttention(data.session);
@@ -829,6 +852,7 @@ export function useSessionController(defaultWorkspace: string) {
     activeSessionBlocked,
     activeSessionRunning,
     activeSessionStopping,
+    composerMode,
     composerSubmitDisabled,
     composerTextareaRef,
     draft,
@@ -844,6 +868,7 @@ export function useSessionController(defaultWorkspace: string) {
     pendingDoneSessionIds,
     runningSessionIds,
     setDraft,
+    setComposerMode,
     setSessionListMode,
     setSidebarOpen,
     setSidebarWidth,

@@ -2,9 +2,11 @@ import type { z } from "zod";
 import {
   CodeRangeQuerySchema,
   ContinueSessionRequestSchema,
+  CreateShellSessionRequestSchema,
   CreateSessionRequestSchema,
   RoundReviewParamsSchema,
   RoundReviewQuerySchema,
+  RunShellCommandRequestSchema,
   UpdateSessionRequestSchema,
 } from "../../contracts/apiSchemas.js";
 
@@ -16,10 +18,22 @@ export function parseCreateSessionBody(
   return parseWithSchema(CreateSessionRequestSchema, body);
 }
 
+export function parseCreateShellSessionBody(
+  body: unknown,
+): ParsedBody<z.infer<typeof CreateShellSessionRequestSchema>> {
+  return parseWithSchema(CreateShellSessionRequestSchema, body);
+}
+
 export function parsePrompt(body: unknown): string | undefined {
   const parsed = parseWithSchema(ContinueSessionRequestSchema, body);
 
   return parsed.ok ? parsed.value.prompt : undefined;
+}
+
+export function parseRunShellCommandBody(
+  body: unknown,
+): ParsedBody<z.infer<typeof RunShellCommandRequestSchema>> {
+  return parseWithSchema(RunShellCommandRequestSchema, body);
 }
 
 export function parseUpdateSessionBody(

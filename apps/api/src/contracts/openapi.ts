@@ -7,6 +7,7 @@ import {
   CodeRangeQuerySchema,
   CodeRangeResponseSchema,
   ContinueSessionRequestSchema,
+  CreateShellSessionRequestSchema,
   CreateSessionRequestSchema,
   ErrorResponseSchema,
   GetRoundReviewResponseSchema,
@@ -16,6 +17,7 @@ import {
   OkResponseSchema,
   RoundReviewParamsSchema,
   RoundReviewQuerySchema,
+  RunShellCommandRequestSchema,
   SessionIdParamsSchema,
   SubmittedTurnResponseSchema,
   TurnIdParamsSchema,
@@ -34,6 +36,8 @@ registry.register("ChatSessionView", ChatSessionViewSchema);
 registry.register("CodeRangeResponse", CodeRangeResponseSchema);
 registry.register("CreateSessionRequest", CreateSessionRequestSchema);
 registry.register("ContinueSessionRequest", ContinueSessionRequestSchema);
+registry.register("CreateShellSessionRequest", CreateShellSessionRequestSchema);
+registry.register("RunShellCommandRequest", RunShellCommandRequestSchema);
 registry.register("UpdateSessionRequest", UpdateSessionRequestSchema);
 registry.register("SubmittedTurnResponse", SubmittedTurnResponseSchema);
 registry.register("OkResponse", OkResponseSchema);
@@ -118,6 +122,34 @@ registry.registerPath({
   responses: {
     202: {
       description: "The turn was accepted and started.",
+      content: {
+        "application/json": {
+          schema: SubmittedTurnResponseSchema,
+        },
+      },
+    },
+    400: errorResponse,
+    409: errorResponse,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/shell-sessions",
+  summary: "Create a session and run its first shell command",
+  request: {
+    body: {
+      required: true,
+      content: {
+        "application/json": {
+          schema: CreateShellSessionRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    202: {
+      description: "The shell command was accepted and started.",
       content: {
         "application/json": {
           schema: SubmittedTurnResponseSchema,
@@ -218,6 +250,36 @@ registry.registerPath({
   responses: {
     202: {
       description: "The continuation turn was accepted and started.",
+      content: {
+        "application/json": {
+          schema: SubmittedTurnResponseSchema,
+        },
+      },
+    },
+    400: errorResponse,
+    404: errorResponse,
+    409: errorResponse,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/sessions/{sessionId}/shell",
+  summary: "Run a shell command in a session workspace",
+  request: {
+    params: SessionIdParamsSchema,
+    body: {
+      required: true,
+      content: {
+        "application/json": {
+          schema: RunShellCommandRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    202: {
+      description: "The shell command was accepted and started.",
       content: {
         "application/json": {
           schema: SubmittedTurnResponseSchema,

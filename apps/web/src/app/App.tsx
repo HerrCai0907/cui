@@ -241,11 +241,15 @@ export function App() {
               active={Boolean(sessionController.activeSession)}
               disabled={sessionController.composerSubmitDisabled}
               draft={sessionController.draft}
+              shellMode={sessionController.composerMode === "shell"}
               stopping={sessionController.activeSessionRunning}
               stopDisabled={sessionController.activeSessionStopping}
               lastEnterKeyDownRef={sessionController.lastEnterKeyDownRef}
               textareaRef={sessionController.composerTextareaRef}
               onDraftChange={sessionController.setDraft}
+              onShellModeChange={(shellMode) =>
+                sessionController.setComposerMode(shellMode ? "shell" : "chat")
+              }
               onStop={sessionController.stopActiveSession}
               onSubmit={sessionController.submitDraft}
             />

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   AiModel,
   AiRunEvent,
@@ -26,16 +27,26 @@ import { SessionSummaryService } from "./SessionSummaryService.js";
 import { TurnCompletionService } from "./TurnCompletionService.js";
 import type {
   ContinueSessionRequestContract,
+  CreateShellSessionRequestContract,
   CreateSessionRequestContract,
+  RunShellCommandRequestContract,
   UpdateSessionRequestContract,
 } from "../../contracts/apiSchemas.js";
 import { GitDiffService } from "../../infrastructure/diff/GitDiffService.js";
+import {
+  ShellCommandRunner,
+  type ShellCommandResult,
+} from "../../infrastructure/shell/ShellCommandRunner.js";
 
 export type { TurnStreamEvent } from "../turns/turnEvents.js";
 
 export type CreateSessionRequest = CreateSessionRequestContract;
 
 export type ContinueSessionRequest = ContinueSessionRequestContract;
+
+export type CreateShellSessionRequest = CreateShellSessionRequestContract;
+
+export type RunShellCommandRequest = RunShellCommandRequestContract;
 
 export type UpdateSessionRequest = UpdateSessionRequestContract;
 
@@ -61,6 +72,7 @@ export class SessionService {
       atomicReviewService,
     ),
     private readonly gitDiffService = new GitDiffService(),
+    private readonly shellCommandRunner = new ShellCommandRunner(),
   ) {}
 
   async listSessions(): Promise<ChatSession[]> {
@@ -241,6 +253,43 @@ export class SessionService {
     };
   }
 
+  async beginCreateShellSession(request: CreateShellSessionRequest): Promise<SubmittedTurn> {
+    await this.logger.framework.info("shell.session.create.started", {
+      workspace: request.workspace,
+      commandLength: request.command.length,
+    });
+
+    const sessionId = randomUUID();
+    const now = new Date().toISOString();
+    const userMessage = createMessage("user", request.command);
+    const session: ChatSession = {
+      id: sessionId,
+      workspace: request.workspace,
+      title: createShellTitle(request.command),
+      summary: "Shell session",
+      createdAt: now,
+      updatedAt: now,
+      messages: [userMessage],
+    };
+
+    const createdSession = await this.store.createSession(session);
+    const shellRun = this.startShellRun({
+      sessionId,
+      workspace: request.workspace,
+      command: request.command,
+    });
+
+    await this.logger.framework.info("shell.session.create.accepted", {
+      sessionId,
+      workspace: request.workspace,
+    });
+
+    return {
+      session: await this.toSessionView(createdSession, shellRun.turn.id),
+      turnId: shellRun.turn.id,
+    };
+  }
+
   async continueSession(sessionId: string, request: ContinueSessionRequest): Promise<ChatSession> {
     await this.logger.framework.info("session.continue.started", {
       sessionId,
@@ -349,6 +398,41 @@ export class SessionService {
     };
   }
 
+  async beginRunShellCommand(
+    sessionId: string,
+    request: RunShellCommandRequest,
+  ): Promise<SubmittedTurn> {
+    await this.logger.framework.info("shell.command.started", {
+      sessionId,
+      commandLength: request.command.length,
+    });
+    const session = await this.store.getSession(sessionId);
+
+    if (!session) {
+      await this.logger.framework.warn("shell.command.not_found", {
+        sessionId,
+      });
+      throw new SessionNotFoundError(sessionId);
+    }
+
+    if (this.turnRegistry.isSessionActive(sessionId)) {
+      throw new SessionBusyError(sessionId);
+    }
+
+    const userMessage = createMessage("user", request.command);
+    const updatedSession = await this.store.appendMessages(sessionId, [userMessage]);
+    const shellRun = this.startShellRun({
+      sessionId,
+      workspace: session.workspace,
+      command: request.command,
+    });
+
+    return {
+      session: await this.toSessionView(updatedSession, shellRun.turn.id),
+      turnId: shellRun.turn.id,
+    };
+  }
+
   hasRunningTurn(turnId: string): boolean {
     return this.turnRegistry.hasRunningTurn(turnId);
   }
@@ -453,6 +537,117 @@ export class SessionService {
       });
   }
 
+  private startShellRun(input: { sessionId: string; workspace: string; command: string }): {
+    turn: RunningTurn;
+  } {
+    let turn: RunningTurn | undefined;
+    const bufferedEvents: TurnStreamEvent[] = [];
+    const emit = (event: TurnStreamEvent) => {
+      if (turn) {
+        this.turnRegistry.emitTurnEvent(turn, event);
+      } else {
+        bufferedEvents.push(event);
+      }
+    };
+    const shellRun = this.shellCommandRunner.run(input.command, {
+      cwd: input.workspace,
+      onEvent: (event) => {
+        if (event.type === "started") {
+          emit({
+            type: "raw",
+            event: createShellTraceEvent("item.started", input.command, {
+              status: "in_progress",
+            }),
+          });
+          return;
+        }
+
+        emit({ type: "delta", text: event.text });
+      },
+    });
+
+    turn = this.turnRegistry.createRunningTurn(input.sessionId, shellRun.cancel);
+    bufferedEvents.forEach((event) => this.turnRegistry.emitTurnEvent(turn!, event));
+    this.finishShellRun(input, shellRun.result, turn);
+
+    return { turn };
+  }
+
+  private finishShellRun(
+    input: {
+      sessionId: string;
+      workspace: string;
+      command: string;
+    },
+    result: Promise<ShellCommandResult>,
+    turn: RunningTurn,
+  ): void {
+    result
+      .then(async (shellResult) => {
+        const cancelled = shellResult.signal === "SIGTERM";
+        const traceStatus = cancelled
+          ? "cancelled"
+          : shellResult.exitCode === 0
+            ? "completed"
+            : "failed";
+
+        const startedTraceEvent = createShellTraceEvent("item.started", input.command, {
+          status: "in_progress",
+        });
+        const completedTraceEvent = createShellTraceEvent("item.completed", input.command, {
+          status: traceStatus,
+          exitCode: shellResult.exitCode,
+          output: shellResult.output,
+        });
+
+        this.turnRegistry.emitTurnEvent(turn, {
+          type: "raw",
+          event: completedTraceEvent,
+        });
+
+        const output = formatShellCommandOutput(input.command, shellResult);
+        const traceMessage = createMessage(
+          "assistant",
+          [startedTraceEvent, completedTraceEvent].map((event) => JSON.stringify(event)).join("\n"),
+          "trace",
+        );
+        const assistantMessage = createMessage("assistant", output, "response");
+        const updatedSession = await this.store.appendMessages(input.sessionId, [
+          traceMessage,
+          assistantMessage,
+        ]);
+
+        await this.logger.session(input.sessionId).info("shell.command.completed", {
+          sessionId: input.sessionId,
+          workspace: input.workspace,
+          command: input.command,
+          exitCode: shellResult.exitCode,
+          signal: shellResult.signal,
+        });
+        await this.logger.framework.info("shell.command.completed", {
+          sessionId: input.sessionId,
+          workspace: input.workspace,
+        });
+
+        const sessionView = await this.toSessionView(updatedSession);
+
+        this.turnRegistry.emitTurnEvent(turn, {
+          type: "done",
+          session: sessionView,
+        });
+      })
+      .catch((error: unknown) => {
+        void this.logger.framework.error("shell.command.failed", {
+          sessionId: input.sessionId,
+          error,
+        });
+        this.turnRegistry.emitTurnEvent(turn, {
+          type: "failed",
+          error: error instanceof Error ? error.message : "Shell command failed",
+        });
+      });
+  }
+
   private refreshSessionSummaryFromUserInput(
     session: ChatSession,
     turn?: RunningTurn,
@@ -549,6 +744,54 @@ export class SessionNotRunningError extends Error {
     super(`Session is not running: ${sessionId}`);
     this.name = "SessionNotRunningError";
   }
+}
+
+function createShellTitle(command: string): string {
+  return createTitle(`$ ${command}`);
+}
+
+function createShellTraceEvent(
+  type: "item.started" | "item.completed",
+  command: string,
+  options: {
+    status: string;
+    exitCode?: number | null;
+    output?: string;
+  },
+) {
+  return {
+    type,
+    item: {
+      id: `shell-${hashShellCommand(command)}`,
+      type: "command_execution",
+      command,
+      status: options.status,
+      ...(options.exitCode !== undefined ? { exit_code: options.exitCode } : {}),
+      ...(options.output !== undefined ? { aggregated_output: options.output } : {}),
+    },
+  };
+}
+
+function formatShellCommandOutput(command: string, result: ShellCommandResult): string {
+  const status =
+    result.signal === "SIGTERM"
+      ? "cancelled"
+      : result.exitCode === 0
+        ? "completed"
+        : `failed with exit code ${result.exitCode ?? "unknown"}`;
+  const output = result.output.trimEnd();
+
+  return [`$ ${command}`, "", output || "(no output)", "", `Status: ${status}`].join("\n");
+}
+
+function hashShellCommand(command: string): string {
+  let hash = 0;
+
+  for (let index = 0; index < command.length; index += 1) {
+    hash = (hash * 31 + command.charCodeAt(index)) >>> 0;
+  }
+
+  return hash.toString(16);
 }
 
 function handleAiRunEvent(event: AiRunEvent, emit: (event: TurnStreamEvent) => void): void {

@@ -409,6 +409,30 @@
         },
         "required": ["prompt"]
       },
+      "CreateShellSessionRequest": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "minLength": 1
+          },
+          "command": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["workspace", "command"]
+      },
+      "RunShellCommandRequest": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["command"]
+      },
       "UpdateSessionRequest": {
         "type": "object",
         "properties": {
@@ -1335,6 +1359,201 @@
         }
       }
     },
+    "/api/shell-sessions": {
+      "post": {
+        "summary": "Create a session and run its first shell command",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "workspace": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "command": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["workspace", "command"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The shell command was accepted and started.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["ok"]
+                    },
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "workspace": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "doneAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "messages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "role": {
+                                "type": "string",
+                                "enum": ["assistant", "user"]
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": ["response", "trace"]
+                              },
+                              "round": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "content": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": ["id", "role", "content", "createdAt"]
+                          }
+                        },
+                        "rounds": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "round": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "hasChanges": {
+                                "type": "boolean"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "atomicReviewStatus": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": ["ready"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["failed"]
+                                  }
+                                ]
+                              }
+                            },
+                            "required": ["round", "hasChanges", "createdAt"]
+                          }
+                        },
+                        "currentRound": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "gitBranch": {
+                          "type": "string"
+                        },
+                        "isRunning": {
+                          "type": "boolean"
+                        },
+                        "runningTurnId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "workspace",
+                        "title",
+                        "createdAt",
+                        "updatedAt",
+                        "messages",
+                        "currentRound",
+                        "isRunning"
+                      ]
+                    },
+                    "turnId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["status", "session", "turnId"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/{sessionId}": {
       "get": {
         "summary": "Get a session",
@@ -1961,6 +2180,224 @@
         "responses": {
           "202": {
             "description": "The continuation turn was accepted and started.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["ok"]
+                    },
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "workspace": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "doneAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "messages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "role": {
+                                "type": "string",
+                                "enum": ["assistant", "user"]
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": ["response", "trace"]
+                              },
+                              "round": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "content": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": ["id", "role", "content", "createdAt"]
+                          }
+                        },
+                        "rounds": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "round": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "hasChanges": {
+                                "type": "boolean"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "atomicReviewStatus": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": ["ready"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["failed"]
+                                  }
+                                ]
+                              }
+                            },
+                            "required": ["round", "hasChanges", "createdAt"]
+                          }
+                        },
+                        "currentRound": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "gitBranch": {
+                          "type": "string"
+                        },
+                        "isRunning": {
+                          "type": "boolean"
+                        },
+                        "runningTurnId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "workspace",
+                        "title",
+                        "createdAt",
+                        "updatedAt",
+                        "messages",
+                        "currentRound",
+                        "isRunning"
+                      ]
+                    },
+                    "turnId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["status", "session", "turnId"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/shell": {
+      "post": {
+        "summary": "Run a shell command in a session workspace",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["command"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The shell command was accepted and started.",
             "content": {
               "application/json": {
                 "schema": {

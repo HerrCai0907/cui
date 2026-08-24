@@ -1,10 +1,12 @@
 import { Router } from "express";
 import type { SessionService } from "../../domain/sessions/SessionService.js";
 import {
+  parseCreateShellSessionBody,
   parseCreateSessionBody,
   parsePrompt,
   parseRoundReviewParams,
   parseRoundReviewQuery,
+  parseRunShellCommandBody,
   parseUpdateSessionBody,
 } from "../validation/requestParsers.js";
 
@@ -104,6 +106,23 @@ export function createSessionRouter(sessionService: SessionService): Router {
     }
   });
 
+  router.post("/api/shell-sessions", async (request, response, next) => {
+    try {
+      const parsed = parseCreateShellSessionBody(request.body);
+
+      if (!parsed.ok) {
+        response.status(400).json({ error: parsed.error });
+        return;
+      }
+
+      const submittedTurn = await sessionService.beginCreateShellSession(parsed.value);
+
+      response.status(202).json({ status: "ok", ...submittedTurn });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.post("/api/sessions/:sessionId/messages", async (request, response, next) => {
     try {
       const prompt = parsePrompt(request.body);
@@ -116,6 +135,26 @@ export function createSessionRouter(sessionService: SessionService): Router {
       const submittedTurn = await sessionService.beginContinueSession(request.params.sessionId, {
         prompt,
       });
+
+      response.status(202).json({ status: "ok", ...submittedTurn });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/sessions/:sessionId/shell", async (request, response, next) => {
+    try {
+      const parsed = parseRunShellCommandBody(request.body);
+
+      if (!parsed.ok) {
+        response.status(400).json({ error: parsed.error });
+        return;
+      }
+
+      const submittedTurn = await sessionService.beginRunShellCommand(
+        request.params.sessionId,
+        parsed.value,
+      );
 
       response.status(202).json({ status: "ok", ...submittedTurn });
     } catch (error) {

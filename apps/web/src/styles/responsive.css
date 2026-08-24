@@ -41,7 +41,7 @@
   }
 
   .composer {
-    grid-template-columns: 1fr;
+    grid-template-columns: 44px minmax(0, 1fr);
   }
 
   .send-button {
@@ -50,6 +50,7 @@
 
   .composer-actions {
     display: grid;
+    grid-column: 1 / -1;
     grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
   }
 
