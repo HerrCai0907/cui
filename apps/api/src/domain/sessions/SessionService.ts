@@ -37,6 +37,7 @@ import {
   ShellCommandRunner,
   type ShellCommandResult,
 } from "../../infrastructure/shell/ShellCommandRunner.js";
+import { formatRawEvents } from "../../infrastructure/ai/traexEvents.js";
 
 export type { TurnStreamEvent } from "../turns/turnEvents.js";
 
@@ -474,11 +475,12 @@ export class SessionService {
           session: latestSession,
         });
       })
-      .catch((error: unknown) => {
+      .catch(async (error: unknown) => {
         if (error instanceof AiRunCancelledError) {
           void this.logger.framework.info("session.create.cancelled", {
             sessionId: turn.sessionId,
           });
+          await this.persistCancelledTrace(turn);
           this.turnRegistry.emitTurnEvent(turn, { type: "cancelled" });
           return;
         }
@@ -517,11 +519,12 @@ export class SessionService {
           session: latestSession,
         });
       })
-      .catch((error: unknown) => {
+      .catch(async (error: unknown) => {
         if (error instanceof AiRunCancelledError) {
           void this.logger.framework.info("session.continue.cancelled", {
             sessionId: turn.sessionId,
           });
+          await this.persistCancelledTrace(turn);
           this.turnRegistry.emitTurnEvent(turn, { type: "cancelled" });
           return;
         }
@@ -675,6 +678,27 @@ export class SessionService {
     const latestSession = await this.store.getSession(sessionId);
 
     return latestSession ? this.toSessionView(latestSession) : undefined;
+  }
+
+  private async persistCancelledTrace(turn: RunningTurn): Promise<void> {
+    const rawEvents = turn.events.flatMap(({ event }) =>
+      event.type === "raw" ? [event.event] : [],
+    );
+
+    if (rawEvents.length === 0) {
+      return;
+    }
+
+    try {
+      await this.store.appendMessages(turn.sessionId, [
+        createMessage("assistant", formatRawEvents(rawEvents), "trace"),
+      ]);
+    } catch (error) {
+      void this.logger.session(turn.sessionId).warn("session.cancelled_trace.persist_failed", {
+        sessionId: turn.sessionId,
+        error,
+      });
+    }
   }
 
   private async toSessionView(

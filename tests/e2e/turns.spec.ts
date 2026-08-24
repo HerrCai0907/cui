@@ -148,12 +148,35 @@ test("stops a running session and restores the send button", async ({ page }) =>
         (
           window as Window & {
             __cancelTurn?: () => void;
+            __emitTrace?: () => void;
           }
         ).__cancelTurn = () => {
           this.dispatchEvent(
             new MessageEvent("cancelled", {
               data: JSON.stringify({
                 type: "cancelled",
+              }),
+            }),
+          );
+        };
+        (
+          window as Window & {
+            __cancelTurn?: () => void;
+            __emitTrace?: () => void;
+          }
+        ).__emitTrace = () => {
+          this.dispatchEvent(
+            new MessageEvent("raw", {
+              data: JSON.stringify({
+                type: "raw",
+                event: {
+                  type: "item.completed",
+                  item: {
+                    id: "item-stop",
+                    type: "agent_message",
+                    text: "Trace before stop.",
+                  },
+                },
               }),
             }),
           );
@@ -198,11 +221,39 @@ test("stops a running session and restores the send button", async ({ page }) =>
   await page.getByRole("button", { name: "Send message" }).click();
 
   await expect(page.getByRole("button", { name: "Stop generation" })).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          typeof (
+            window as Window & {
+              __emitTrace?: () => void;
+            }
+          ).__emitTrace,
+      ),
+    )
+    .toBe("function");
+  await page.evaluate(() =>
+    (
+      window as Window & {
+        __emitTrace?: () => void;
+      }
+    ).__emitTrace?.(),
+  );
+  await expect(page.getByText("Hide execution trace")).toBeVisible();
+  await expect(page.getByText("Trace before stop.")).toBeVisible();
+
   await page.getByRole("button", { name: "Stop generation" }).click();
 
   await expect.poll(() => stopRequests).toBe(1);
   await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
   await expect(page.getByText("Waiting for TRAEX...")).not.toBeVisible();
+  await expect(page.getByText("Show execution trace")).toBeVisible();
+  await expect(page.getByText("1 event / 1 message")).toBeVisible();
+  await expect(page.getByText("Trace before stop.")).not.toBeVisible();
+
+  await page.getByText("Show execution trace").click();
+  await expect(page.getByText("Trace before stop.")).toBeVisible();
 });
 
 test("queues a prompt while a session is running and sends it after stop", async ({ page }) => {
