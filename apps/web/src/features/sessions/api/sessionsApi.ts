@@ -10,10 +10,18 @@ type CreateSessionRequest =
   paths["/api/sessions"]["post"]["requestBody"]["content"]["application/json"];
 type CreateSessionResponse =
   paths["/api/sessions"]["post"]["responses"][202]["content"]["application/json"];
+type CreateShellSessionRequest =
+  paths["/api/shell-sessions"]["post"]["requestBody"]["content"]["application/json"];
+type CreateShellSessionResponse =
+  paths["/api/shell-sessions"]["post"]["responses"][202]["content"]["application/json"];
 type ContinueSessionRequest =
   paths["/api/sessions/{sessionId}/messages"]["post"]["requestBody"]["content"]["application/json"];
 type ContinueSessionResponse =
   paths["/api/sessions/{sessionId}/messages"]["post"]["responses"][202]["content"]["application/json"];
+type RunShellCommandRequest =
+  paths["/api/sessions/{sessionId}/shell"]["post"]["requestBody"]["content"]["application/json"];
+type RunShellCommandResponse =
+  paths["/api/sessions/{sessionId}/shell"]["post"]["responses"][202]["content"]["application/json"];
 type UpdateSessionRequest =
   paths["/api/sessions/{sessionId}"]["patch"]["requestBody"]["content"]["application/json"];
 type UpdateSessionResponse =
@@ -45,12 +53,38 @@ export async function createSession(input: CreateSessionRequest): Promise<Submit
   });
 }
 
+export async function createShellSession(input: CreateShellSessionRequest): Promise<SubmittedTurn> {
+  return fetchJson<CreateShellSessionResponse>("/api/shell-sessions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  });
+}
+
 export async function continueSession(
   sessionId: string,
   input: ContinueSessionRequest,
 ): Promise<SubmittedTurn> {
   return fetchJson<ContinueSessionResponse>(
     `/api/sessions/${encodeURIComponent(sessionId)}/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export async function runShellCommand(
+  sessionId: string,
+  input: RunShellCommandRequest,
+): Promise<SubmittedTurn> {
+  return fetchJson<RunShellCommandResponse>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/shell`,
     {
       method: "POST",
       headers: {

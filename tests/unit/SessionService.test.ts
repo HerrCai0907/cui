@@ -202,6 +202,42 @@ test("cancelRunningTurn stops an active stream and emits a cancellation event", 
   }
 });
 
+test("beginCreateShellSession streams and stores command output", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    const submitted = await service.beginCreateShellSession({
+      workspace: cwd,
+      command: 'printf "hello\\n"',
+    });
+    const events: unknown[] = [];
+
+    service.subscribeToTurn(submitted.turnId, (event) => {
+      events.push(event);
+    });
+
+    await waitFor(() => events.some(isDoneEvent));
+
+    const doneEvent = events.find(isDoneEvent);
+    const session = await store.getSession(doneEvent!.session.id);
+
+    assert.equal(doneEvent?.session.title, '$ printf "hello\\n"');
+    assert.equal(session?.messages.length, 3);
+    assert.equal(session?.messages[0]?.role, "user");
+    assert.equal(session?.messages[0]?.content, 'printf "hello\\n"');
+    assert.equal(session?.messages[1]?.kind, "trace");
+    assert.match(session?.messages[1]?.content ?? "", /command_execution/);
+    assert.equal(session?.messages[2]?.kind, "response");
+    assert.match(session?.messages[2]?.content ?? "", /hello/);
+    assert.match(session?.messages[2]?.content ?? "", /Status: completed/);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 class FakeAiModel implements AiModel {
   readonly summaryPrompts: string[] = [];
   readonly atomicReviewInputs: AiAtomicDiffReviewInput[] = [];

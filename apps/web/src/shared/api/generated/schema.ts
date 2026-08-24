@@ -276,6 +276,109 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/shell-sessions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create a session and run its first shell command */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": {
+            workspace: string;
+            command: string;
+          };
+        };
+      };
+      responses: {
+        /** @description The shell command was accepted and started. */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              /** @enum {string} */
+              status: "ok";
+              session: {
+                id: string;
+                workspace: string;
+                title: string;
+                summary?: string;
+                /** Format: date-time */
+                doneAt?: string;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                updatedAt: string;
+                messages: {
+                  id: string;
+                  /** @enum {string} */
+                  role: "assistant" | "user";
+                  /** @enum {string} */
+                  kind?: "response" | "trace";
+                  round?: number;
+                  content: string;
+                  /** Format: date-time */
+                  createdAt: string;
+                }[];
+                rounds?: {
+                  round: number;
+                  hasChanges: boolean;
+                  /** Format: date-time */
+                  createdAt: string;
+                  atomicReviewStatus?: "ready" | "failed";
+                }[];
+                currentRound: number;
+                gitBranch?: string;
+                isRunning: boolean;
+                runningTurnId?: string;
+              };
+              turnId: string;
+            };
+          };
+        };
+        /** @description Error response. */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+        /** @description Error response. */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions/{sessionId}": {
     parameters: {
       query?: never;
@@ -577,6 +680,121 @@ export interface paths {
       };
       responses: {
         /** @description The continuation turn was accepted and started. */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              /** @enum {string} */
+              status: "ok";
+              session: {
+                id: string;
+                workspace: string;
+                title: string;
+                summary?: string;
+                /** Format: date-time */
+                doneAt?: string;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                updatedAt: string;
+                messages: {
+                  id: string;
+                  /** @enum {string} */
+                  role: "assistant" | "user";
+                  /** @enum {string} */
+                  kind?: "response" | "trace";
+                  round?: number;
+                  content: string;
+                  /** Format: date-time */
+                  createdAt: string;
+                }[];
+                rounds?: {
+                  round: number;
+                  hasChanges: boolean;
+                  /** Format: date-time */
+                  createdAt: string;
+                  atomicReviewStatus?: "ready" | "failed";
+                }[];
+                currentRound: number;
+                gitBranch?: string;
+                isRunning: boolean;
+                runningTurnId?: string;
+              };
+              turnId: string;
+            };
+          };
+        };
+        /** @description Error response. */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+        /** @description Error response. */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+        /** @description Error response. */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/{sessionId}/shell": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Run a shell command in a session workspace */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          sessionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": {
+            command: string;
+          };
+        };
+      };
+      responses: {
+        /** @description The shell command was accepted and started. */
         202: {
           headers: {
             [name: string]: unknown;
@@ -994,6 +1212,13 @@ export interface components {
     };
     ContinueSessionRequest: {
       prompt: string;
+    };
+    CreateShellSessionRequest: {
+      workspace: string;
+      command: string;
+    };
+    RunShellCommandRequest: {
+      command: string;
     };
     UpdateSessionRequest: {
       done: boolean;

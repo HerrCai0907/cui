@@ -915,11 +915,37 @@
 
 .composer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
   gap: 10px;
+  align-items: end;
   border-top: 1px solid #e0e6ee;
   background: #fbfcfd;
   padding: 16px min(7vw, 92px);
+}
+
+.composer-mode-button {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cfd8e3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #4d5a69;
+  padding: 0;
+}
+
+.composer-mode-button:hover {
+  border-color: #aab8c8;
+  background: #f3f6f9;
+  color: #1f2937;
+}
+
+.composer-mode-button[aria-pressed="true"] {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
 }
 
 .composer textarea {
@@ -940,6 +966,12 @@
 .composer textarea:focus {
   border-color: #6d8aa7;
   box-shadow: 0 0 0 3px rgb(109 138 167 / 16%);
+}
+
+.composer.is-shell-mode textarea {
+  border-color: #93c5fd;
+  background: #fbfdff;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
 .composer-actions {

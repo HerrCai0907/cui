@@ -107,6 +107,15 @@ export const ContinueSessionRequestSchema = z.object({
   prompt: nonEmptyStringSchema,
 });
 
+export const CreateShellSessionRequestSchema = z.object({
+  workspace: nonEmptyStringSchema,
+  command: nonEmptyStringSchema,
+});
+
+export const RunShellCommandRequestSchema = z.object({
+  command: nonEmptyStringSchema,
+});
+
 export const UpdateSessionRequestSchema = z.object({
   done: z.boolean(),
 });
@@ -231,6 +240,8 @@ export const TurnStreamEventSchema = z.discriminatedUnion("type", [
 
 export type CreateSessionRequestContract = z.infer<typeof CreateSessionRequestSchema>;
 export type ContinueSessionRequestContract = z.infer<typeof ContinueSessionRequestSchema>;
+export type CreateShellSessionRequestContract = z.infer<typeof CreateShellSessionRequestSchema>;
+export type RunShellCommandRequestContract = z.infer<typeof RunShellCommandRequestSchema>;
 export type UpdateSessionRequestContract = z.infer<typeof UpdateSessionRequestSchema>;
 export type CodeRangeRequestContract = z.infer<typeof CodeRangeQuerySchema>;
 export type CodeRangeResponseContract = z.infer<typeof CodeRangeResponseSchema>;
