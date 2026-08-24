@@ -175,12 +175,13 @@ test("renders reasoning collapsed and file changes as file paths", async ({ page
       item: {
         id: "item_file_change",
         type: "file_change",
-        path: "apps/web/src/features/trace/components/TraceView.tsx",
-        changes: {
-          "apps/web/src/styles/trace.css": {
-            type: "update",
+        changes: [
+          {
+            path: "/data01/home/caicongcong/botmux/ROG/library/runtime/src/scheduler.rs",
+            kind: "update",
           },
-        },
+        ],
+        status: "completed",
       },
     },
   ];
@@ -217,9 +218,10 @@ test("renders reasoning collapsed and file changes as file paths", async ({ page
   await expect(reasoningRow.locator("pre")).toContainText("Detailed private reasoning text.");
   await expect(
     page.getByText(
-      "apps/web/src/features/trace/components/TraceView.tsx, apps/web/src/styles/trace.css",
+      "File Change: /data01/home/caicongcong/botmux/ROG/library/runtime/src/scheduler.rs",
     ),
   ).toBeVisible();
+  await expect(page.getByText('"originalType": "file_change"')).toHaveCount(0);
   await expect(
     page.locator(".trace-event-header strong", { hasText: /^File Change$/ }),
   ).toHaveCount(0);
