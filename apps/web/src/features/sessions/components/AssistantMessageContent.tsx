@@ -37,6 +37,14 @@ type InlinePart =
       type: "link";
       label: string;
       href: string;
+    }
+  | {
+      type: "strong";
+      children: InlinePart[];
+    }
+  | {
+      type: "emphasis";
+      children: InlinePart[];
     };
 
 type CodeLinkTarget = {
@@ -161,37 +169,23 @@ function parseCodeBlock(rawCode: string): MessagePart {
 }
 
 function renderInlineContent(text: string, workspace: string, blockIndex: number): ReactNode[] {
-  return parseInlineContent(text, workspace).map((part, index) =>
-    part.type === "inlineCode" ? (
-      <code className="message-inline-code" key={`${blockIndex}-${index}`}>
-        {part.code}
-      </code>
-    ) : part.type === "workspaceLink" ? (
-      <CodePreviewButton key={`${blockIndex}-${index}`} label={part.label} target={part.target} />
-    ) : part.type === "link" ? (
-      <a
-        className="message-link"
-        href={part.href}
-        key={`${blockIndex}-${index}`}
-        rel="noreferrer"
-        target={isExternalHref(part.href) ? "_blank" : undefined}
-      >
-        {part.label}
-      </a>
-    ) : (
-      <span key={`${blockIndex}-${index}`}>{part.text}</span>
-    ),
-  );
+  return renderInlineParts(parseInlineContent(text, workspace), blockIndex);
 }
 
 export function parseInlineContent(text: string, workspace: string): InlinePart[] {
+  return parseInlineContentSegment(text, workspace);
+}
+
+function parseInlineContentSegment(text: string, workspace: string): InlinePart[] {
   const parts: InlinePart[] = [];
   let cursor = 0;
 
   while (cursor < text.length) {
     const codeStart = findSingleBacktick(text, cursor);
     const linkStart = text.indexOf("[", cursor);
-    const nextStart = findNextInlineToken(codeStart, linkStart);
+    const strongStart = findStrongDelimiter(text, cursor);
+    const emphasisStart = findEmphasisDelimiter(text, cursor);
+    const nextStart = findNextInlineToken(codeStart, linkStart, strongStart, emphasisStart);
 
     if (nextStart === -1) {
       pushInlineTextPart(parts, text.slice(cursor));
@@ -215,6 +209,27 @@ export function parseInlineContent(text: string, workspace: string): InlinePart[
       continue;
     }
 
+    if (nextStart === strongStart || nextStart === emphasisStart) {
+      const delimiter =
+        nextStart === strongStart ? text.slice(strongStart, strongStart + 2) : text[nextStart];
+      const delimiterEnd = findClosingDelimiter(text, nextStart + delimiter.length, delimiter);
+
+      if (delimiterEnd === -1) {
+        pushInlineTextPart(parts, text.slice(cursor, nextStart + delimiter.length));
+        cursor = nextStart + delimiter.length;
+        continue;
+      }
+
+      const innerText = text.slice(nextStart + delimiter.length, delimiterEnd);
+      pushInlineTextPart(parts, text.slice(cursor, nextStart));
+      parts.push({
+        type: delimiter.length === 2 ? "strong" : "emphasis",
+        children: parseInlineContentSegment(innerText, workspace),
+      });
+      cursor = delimiterEnd + delimiter.length;
+      continue;
+    }
+
     const parsedLink = parseMarkdownLinkAt(text, linkStart, workspace);
 
     if (!parsedLink) {
@@ -231,6 +246,47 @@ export function parseInlineContent(text: string, workspace: string): InlinePart[
   return parts;
 }
 
+function renderInlineParts(
+  parts: InlinePart[],
+  parentBlockIndex: number,
+  parentPartIndex?: number,
+): ReactNode[] {
+  const keyPrefix =
+    parentPartIndex === undefined
+      ? String(parentBlockIndex)
+      : `${parentBlockIndex}-${parentPartIndex}`;
+
+  return parts.map((part, index) =>
+    part.type === "inlineCode" ? (
+      <code className="message-inline-code" key={`${keyPrefix}-${index}`}>
+        {part.code}
+      </code>
+    ) : part.type === "workspaceLink" ? (
+      <CodePreviewButton key={`${keyPrefix}-${index}`} label={part.label} target={part.target} />
+    ) : part.type === "link" ? (
+      <a
+        className="message-link"
+        href={part.href}
+        key={`${keyPrefix}-${index}`}
+        rel="noreferrer"
+        target={isExternalHref(part.href) ? "_blank" : undefined}
+      >
+        {part.label}
+      </a>
+    ) : part.type === "strong" ? (
+      <strong key={`${keyPrefix}-${index}`}>
+        {renderInlineParts(part.children, parentBlockIndex, index)}
+      </strong>
+    ) : part.type === "emphasis" ? (
+      <em key={`${keyPrefix}-${index}`}>
+        {renderInlineParts(part.children, parentBlockIndex, index)}
+      </em>
+    ) : (
+      <span key={`${keyPrefix}-${index}`}>{part.text}</span>
+    ),
+  );
+}
+
 function findSingleBacktick(text: string, startIndex: number): number {
   for (let index = startIndex; index < text.length; index += 1) {
     if (text[index] !== "`") {
@@ -245,6 +301,66 @@ function findSingleBacktick(text: string, startIndex: number): number {
   }
 
   return -1;
+}
+
+function findStrongDelimiter(text: string, startIndex: number): number {
+  for (let index = startIndex; index < text.length - 1; index += 1) {
+    const delimiter = text.slice(index, index + 2);
+
+    if (delimiter !== "**" && delimiter !== "__") {
+      continue;
+    }
+
+    if (!isDelimiterEscaped(text, index)) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function findEmphasisDelimiter(text: string, startIndex: number): number {
+  for (let index = startIndex; index < text.length; index += 1) {
+    const delimiter = text[index];
+
+    if (delimiter !== "*" && delimiter !== "_") {
+      continue;
+    }
+
+    if (text[index - 1] === delimiter || text[index + 1] === delimiter) {
+      continue;
+    }
+
+    if (!isDelimiterEscaped(text, index)) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function findClosingDelimiter(text: string, startIndex: number, delimiter: string): number {
+  for (let index = startIndex; index <= text.length - delimiter.length; index += 1) {
+    if (text.slice(index, index + delimiter.length) !== delimiter) {
+      continue;
+    }
+
+    if (!isDelimiterEscaped(text, index)) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function isDelimiterEscaped(text: string, delimiterIndex: number): boolean {
+  let slashCount = 0;
+
+  for (let index = delimiterIndex - 1; index >= 0 && text[index] === "\\"; index -= 1) {
+    slashCount += 1;
+  }
+
+  return slashCount % 2 === 1;
 }
 
 function pushTextPart(parts: MessagePart[], text: string) {
@@ -299,16 +415,14 @@ function pushInlineTextPart(parts: InlinePart[], text: string) {
   });
 }
 
-function findNextInlineToken(codeStart: number, linkStart: number): number {
-  if (codeStart === -1) {
-    return linkStart;
+function findNextInlineToken(...starts: number[]): number {
+  const candidates = starts.filter((start) => start !== -1);
+
+  if (candidates.length === 0) {
+    return -1;
   }
 
-  if (linkStart === -1) {
-    return codeStart;
-  }
-
-  return Math.min(codeStart, linkStart);
+  return Math.min(...candidates);
 }
 
 function parseMarkdownLinkAt(

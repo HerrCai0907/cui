@@ -49,3 +49,35 @@ test("parseInlineContent keeps whole-file workspace links and normal external li
     ],
   );
 });
+
+test("parseInlineContent renders markdown bold and italic inline spans", () => {
+  assert.deepEqual(
+    parseInlineContent(
+      "Use **bold `code`** and *italic [docs](https://example.com)*.",
+      "/Users/bytedance/cui_workspace/3",
+    ),
+    [
+      { type: "text", text: "Use " },
+      {
+        type: "strong",
+        children: [
+          { type: "text", text: "bold " },
+          { type: "inlineCode", code: "code" },
+        ],
+      },
+      { type: "text", text: " and " },
+      {
+        type: "emphasis",
+        children: [
+          { type: "text", text: "italic " },
+          {
+            type: "link",
+            label: "docs",
+            href: "https://example.com",
+          },
+        ],
+      },
+      { type: "text", text: "." },
+    ],
+  );
+});
