@@ -4,6 +4,8 @@ data
 apps/api/data
 logs
 apps/api/logs
+/prod/*
+!/prod/.gitignore
 playwright-report
 test-results
 .env

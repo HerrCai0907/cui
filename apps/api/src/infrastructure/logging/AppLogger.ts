@@ -13,8 +13,8 @@ type LogEntry = {
 export class AppLogger {
   private readonly logDir: string;
 
-  constructor() {
-    this.logDir = resolve(process.cwd(), "logs");
+  constructor(logDir = process.env.CUI_LOG_DIR ?? "logs") {
+    this.logDir = resolve(process.cwd(), logDir);
   }
 
   framework = {

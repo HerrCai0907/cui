@@ -1,7 +1,13 @@
 import { spawn } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const DEFAULT_WEB_PORT = 5173;
 const DEFAULT_API_PORT = 3000;
+const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const DEFAULT_STORE_PATH =
+  process.env.CUI_STORE_PATH ?? resolve(PROJECT_ROOT, "prod/data/sessions.json");
+const DEFAULT_LOG_DIR = process.env.CUI_LOG_DIR ?? resolve(PROJECT_ROOT, "prod/logs");
 
 const options = parseArgs(process.argv.slice(2));
 
@@ -23,7 +29,12 @@ const webCommand = [
   `--port ${options.port}`,
   "--strictPort",
 ].join(" ");
-const apiCommand = `PORT=${options.apiPort} npm run start -w @cui/api`;
+const apiCommand = [
+  `PORT=${options.apiPort}`,
+  `CUI_STORE_PATH=${shellQuote(resolveProjectPath(options.storePath))}`,
+  `CUI_LOG_DIR=${shellQuote(resolveProjectPath(options.logDir))}`,
+  "npm run start -w @cui/api",
+].join(" ");
 
 runAttached("npx", ["concurrently", "-n", "web,api", "-c", "blue,green", webCommand, apiCommand]);
 
@@ -31,7 +42,9 @@ function parseArgs(args) {
   const parsed = {
     apiPort: DEFAULT_API_PORT,
     help: false,
+    logDir: DEFAULT_LOG_DIR,
     port: DEFAULT_WEB_PORT,
+    storePath: DEFAULT_STORE_PATH,
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -62,6 +75,26 @@ function parseArgs(args) {
       continue;
     }
 
+    if (arg === "--store-path") {
+      parsed.storePath = readPathValue(args, (index += 1), arg);
+      continue;
+    }
+
+    if (arg.startsWith("--store-path=")) {
+      parsed.storePath = parsePath(arg.slice("--store-path=".length), "--store-path");
+      continue;
+    }
+
+    if (arg === "--log-dir") {
+      parsed.logDir = readPathValue(args, (index += 1), arg);
+      continue;
+    }
+
+    if (arg.startsWith("--log-dir=")) {
+      parsed.logDir = parsePath(arg.slice("--log-dir=".length), "--log-dir");
+      continue;
+    }
+
     fail(`Unknown argument: ${arg}`);
   }
 
@@ -78,6 +111,16 @@ function readPortValue(args, index, flag) {
   return parsePort(value, flag);
 }
 
+function readPathValue(args, index, flag) {
+  const value = args[index];
+
+  if (!value) {
+    fail(`Missing value for ${flag}`);
+  }
+
+  return parsePath(value, flag);
+}
+
 function parsePort(value, flag) {
   const port = Number(value);
 
@@ -86,6 +129,22 @@ function parsePort(value, flag) {
   }
 
   return port;
+}
+
+function parsePath(value, flag) {
+  if (!value.trim()) {
+    fail(`Invalid ${flag} value: ${value}`);
+  }
+
+  return value;
+}
+
+function resolveProjectPath(value) {
+  return resolve(PROJECT_ROOT, value);
+}
+
+function shellQuote(value) {
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 function runAttached(command, args) {
@@ -114,6 +173,9 @@ function printHelp() {
 Options:
   -p, --port <port>      Web app port. Default: ${DEFAULT_WEB_PORT}
       --api-port <port>  API server port. Default: ${DEFAULT_API_PORT}
+      --store-path <path>
+                          API session store path. Default: ${DEFAULT_STORE_PATH}
+      --log-dir <path>   API log directory. Default: ${DEFAULT_LOG_DIR}
   -h, --help             Show this help message
 `);
 }

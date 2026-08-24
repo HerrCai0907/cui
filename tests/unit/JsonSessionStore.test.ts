@@ -1,16 +1,15 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { JsonSessionStore } from "../../apps/api/src/infrastructure/store/JsonSessionStore.js";
 import type { ChatMessage, ChatRound, ChatSession } from "../../apps/api/src/types.js";
 
-test("JsonSessionStore reads legacy embedded sessions and writes normalized store data", async () => {
+test("JsonSessionStore rejects old v2 aggregate session store data", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-json-session-store-"));
   const storePath = join(cwd, "sessions.json");
   const message = createMessage("message-1");
-  const round = createRound(1);
   const legacySession: ChatSession = {
     id: "session-1",
     workspace: cwd,
@@ -19,50 +18,40 @@ test("JsonSessionStore reads legacy embedded sessions and writes normalized stor
     createdAt: "2026-08-22T00:00:00.000Z",
     updatedAt: "2026-08-22T00:00:00.000Z",
     messages: [message],
-    rounds: [round],
+    rounds: [createRound(1)],
   };
 
   try {
-    await writeFile(storePath, `${JSON.stringify({ sessions: [legacySession] }, null, 2)}\n`);
+    await writeFile(
+      storePath,
+      `${JSON.stringify(
+        {
+          version: 2,
+          sessions: [legacySession],
+          messagesBySessionId: {
+            "session-1": [message],
+          },
+          roundsBySessionId: {
+            "session-1": [createRound(1)],
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
 
     const store = new JsonSessionStore(storePath);
-    const loadedSession = await store.getSession("session-1");
 
-    assert.deepEqual(loadedSession, legacySession);
-
-    const appendedMessage = createMessage("message-2");
-    await store.appendMessages("session-1", [appendedMessage]);
-
-    const rawStore = JSON.parse(await readFile(storePath, "utf8")) as {
-      sessions: Array<Record<string, unknown>>;
-      messagesBySessionId: Record<string, ChatMessage[]>;
-      roundsBySessionId: Record<string, ChatRound[]>;
-      version: number;
-    };
-
-    assert.equal(rawStore.version, 2);
-    assert.deepEqual(rawStore.sessions, [
-      {
-        id: "session-1",
-        workspace: cwd,
-        title: "Legacy session",
-        summary: "Stored before normalization.",
-        createdAt: "2026-08-22T00:00:00.000Z",
-        updatedAt: rawStore.sessions[0].updatedAt,
-      },
-    ]);
-    assert.equal("messages" in rawStore.sessions[0], false);
-    assert.equal("rounds" in rawStore.sessions[0], false);
-    assert.deepEqual(rawStore.messagesBySessionId["session-1"], [message, appendedMessage]);
-    assert.deepEqual(rawStore.roundsBySessionId["session-1"], [round]);
+    await assert.rejects(() => store.getSession("session-1"), /Unsupported session store version/);
   } finally {
     await rm(cwd, { force: true, recursive: true });
   }
 });
 
-test("JsonSessionStore stores session metadata, messages, and rounds separately", async () => {
+test("JsonSessionStore stores session index and per-session details separately", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-json-session-store-"));
   const storePath = join(cwd, "sessions.json");
+  const detailPath = join(cwd, "sessions", "session-1.json");
   const message = createMessage("message-1");
   const round = createRound(1);
   const session: ChatSession = {
@@ -83,17 +72,27 @@ test("JsonSessionStore stores session metadata, messages, and rounds separately"
 
     const rawStore = JSON.parse(await readFile(storePath, "utf8")) as {
       sessions: Array<Record<string, unknown>>;
-      messagesBySessionId: Record<string, ChatMessage[]>;
-      roundsBySessionId: Record<string, ChatRound[]>;
+      version: number;
+    };
+    const rawDetail = JSON.parse(await readFile(detailPath, "utf8")) as {
+      id: string;
+      messages: ChatMessage[];
+      rounds: ChatRound[];
       version: number;
     };
 
-    assert.equal(rawStore.version, 2);
+    assert.equal(rawStore.version, 3);
     assert.equal(rawStore.sessions.length, 1);
     assert.equal("messages" in rawStore.sessions[0], false);
     assert.equal("rounds" in rawStore.sessions[0], false);
-    assert.deepEqual(rawStore.messagesBySessionId["session-1"], [message]);
-    assert.deepEqual(rawStore.roundsBySessionId["session-1"], [round]);
+    assert.equal("messagesBySessionId" in rawStore, false);
+    assert.equal("roundsBySessionId" in rawStore, false);
+    assert.deepEqual(rawDetail, {
+      version: 3,
+      id: "session-1",
+      messages: [message],
+      rounds: [round],
+    });
     assert.deepEqual(await store.getSession("session-1"), session);
   } finally {
     await rm(cwd, { force: true, recursive: true });
@@ -103,6 +102,7 @@ test("JsonSessionStore stores session metadata, messages, and rounds separately"
 test("JsonSessionStore stores done state and clears it when appending messages", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-json-session-store-"));
   const storePath = join(cwd, "sessions.json");
+  const detailPath = join(cwd, "sessions", "session-1.json");
   const session: ChatSession = {
     id: "session-1",
     workspace: cwd,
@@ -126,6 +126,69 @@ test("JsonSessionStore stores done state and clears it when appending messages",
 
     assert.equal(appendedSession.doneAt, undefined);
     assert.equal((await store.getSession("session-1"))?.doneAt, undefined);
+    assert.equal("doneAt" in JSON.parse(await readFile(detailPath, "utf8")), false);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("JsonSessionStore reads existing v3 index and per-session detail files", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-json-session-store-"));
+  const storePath = join(cwd, "sessions.json");
+  const detailDirectory = join(cwd, "sessions");
+  const message = createMessage("message-1");
+  const round = createRound(1);
+
+  try {
+    await mkdir(detailDirectory, { recursive: true });
+    await writeFile(
+      storePath,
+      `${JSON.stringify(
+        {
+          version: 3,
+          sessions: [
+            {
+              id: "session-1",
+              workspace: cwd,
+              title: "Existing session",
+              summary: "",
+              createdAt: "2026-08-22T00:00:00.000Z",
+              updatedAt: "2026-08-22T00:00:00.000Z",
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    await writeFile(
+      join(detailDirectory, "session-1.json"),
+      `${JSON.stringify(
+        {
+          version: 3,
+          id: "session-1",
+          messages: [message],
+          rounds: [round],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    const store = new JsonSessionStore(storePath);
+
+    assert.deepEqual(await store.listSessions(), [
+      {
+        id: "session-1",
+        workspace: cwd,
+        title: "Existing session",
+        summary: "",
+        createdAt: "2026-08-22T00:00:00.000Z",
+        updatedAt: "2026-08-22T00:00:00.000Z",
+        messages: [message],
+        rounds: [round],
+      },
+    ]);
   } finally {
     await rm(cwd, { force: true, recursive: true });
   }
