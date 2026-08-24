@@ -81,6 +81,44 @@ test("starts a new session from any workspace row", async ({ page }) => {
   await expect(page.getByPlaceholder("Start with an initial prompt...")).toBeVisible();
 });
 
+test("reuses the composer draft between new and existing sessions", async ({ page }) => {
+  const session = {
+    id: "session-1",
+    workspace: currentWorkspace,
+    title: "Existing session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-1",
+        role: "assistant",
+        kind: "response",
+        content: "Existing session response",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    rounds: [],
+  };
+  const draft = "Draft prompt that should survive navigation";
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "New session", exact: true }).click();
+  await page.getByPlaceholder("Start with an initial prompt...").fill(draft);
+
+  await page.getByRole("button", { name: "Existing session" }).click();
+
+  await expect(page.getByRole("heading", { name: "Existing session" })).toBeVisible();
+  await expect(page.getByPlaceholder("Continue this session...")).toHaveValue(draft);
+
+  await page.getByRole("button", { name: "New session", exact: true }).click();
+
+  await expect(page.getByRole("heading", { name: "New session" })).toBeVisible();
+  await expect(page.getByPlaceholder("Start with an initial prompt...")).toHaveValue(draft);
+});
+
 test("restores the last opened session after a browser refresh", async ({ page }) => {
   const firstSession = {
     id: "session-1",
