@@ -601,7 +601,6 @@ export function useSessionController(defaultWorkspace: string) {
   function startNewSession(workspace?: string) {
     autoRestoreSessionRef.current = false;
     setCurrentActiveSession(null);
-    setDraft("");
     if (workspace) {
       setWorkspaceDraft(workspace);
       recordWorkspaceAttention(workspace);
