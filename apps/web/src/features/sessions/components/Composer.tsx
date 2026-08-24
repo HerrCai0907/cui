@@ -62,17 +62,31 @@ export function Composer({
         onChange={(event) => onDraftChange(event.target.value)}
         onKeyDown={handleKeyDown}
       />
-      <button
-        className={`send-button ${stopping ? "is-stop" : ""}`}
-        type={stopping ? "button" : "submit"}
-        aria-label={stopping ? "Stop generation" : "Send message"}
-        title={stopping ? "Stop" : "Send"}
-        disabled={stopping ? stopDisabled : disabled}
-        onClick={stopping ? onStop : undefined}
-      >
-        {stopping ? <Square size={17} fill="currentColor" /> : <Send size={18} />}
-        <span>{stopping ? "Stop" : "Send"}</span>
-      </button>
+      <div className="composer-actions">
+        {stopping ? (
+          <button
+            className="send-button is-stop"
+            type="button"
+            aria-label="Stop generation"
+            title="Stop"
+            disabled={stopDisabled}
+            onClick={onStop}
+          >
+            <Square size={17} fill="currentColor" />
+            <span>Stop</span>
+          </button>
+        ) : null}
+        <button
+          className="send-button"
+          type="submit"
+          aria-label="Send message"
+          title="Send"
+          disabled={disabled}
+        >
+          <Send size={18} />
+          <span>Send</span>
+        </button>
+      </div>
     </form>
   );
 }

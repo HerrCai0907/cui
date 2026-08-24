@@ -205,6 +205,314 @@ test("stops a running session and restores the send button", async ({ page }) =>
   await expect(page.getByText("Waiting for TRAEX...")).not.toBeVisible();
 });
 
+test("queues a prompt while a session is running and sends it after stop", async ({ page }) => {
+  const initialSession = {
+    id: "session-1",
+    workspace: currentWorkspace,
+    title: "Running session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [],
+    currentRound: 0,
+    isRunning: false,
+  };
+  const firstRunningSession = {
+    ...initialSession,
+    messages: [
+      {
+        id: "message-1",
+        role: "user",
+        content: "Run a long task",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    isRunning: true,
+    runningTurnId: "turn-1",
+  };
+  const stoppedSession = {
+    ...firstRunningSession,
+    isRunning: false,
+    runningTurnId: undefined,
+  };
+  const secondRunningSession = {
+    ...stoppedSession,
+    messages: [
+      ...stoppedSession.messages,
+      {
+        id: "message-2",
+        role: "user",
+        content: "Queued follow-up",
+        createdAt: "2026-08-22T00:00:01.000Z",
+      },
+    ],
+    isRunning: true,
+    runningTurnId: "turn-2",
+  };
+  let visibleSession = initialSession;
+  const prompts: string[] = [];
+
+  await page.addInitScript(() => {
+    const eventSources = new Map<string, EventTarget>();
+
+    (
+      window as Window & {
+        __cancelTurn?: (turnId: string) => void;
+      }
+    ).__cancelTurn = (turnId: string) => {
+      eventSources.get(`/api/turns/${turnId}/events`)?.dispatchEvent(
+        new MessageEvent("cancelled", {
+          data: JSON.stringify({
+            type: "cancelled",
+          }),
+        }),
+      );
+    };
+
+    class MockEventSource extends EventTarget {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSED = 2;
+      readonly CONNECTING = 0;
+      readonly OPEN = 1;
+      readonly CLOSED = 2;
+      readonly url: string;
+      readonly withCredentials = false;
+      readyState = MockEventSource.CONNECTING;
+      onerror: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onopen: ((event: Event) => void) | null = null;
+
+      constructor(url: string | URL) {
+        super();
+        this.url = String(url);
+        this.readyState = MockEventSource.OPEN;
+        eventSources.set(this.url, this);
+      }
+
+      close() {
+        this.readyState = MockEventSource.CLOSED;
+        eventSources.delete(this.url);
+      }
+    }
+
+    window.EventSource = MockEventSource as typeof EventSource;
+  });
+
+  await mockSessions(page, () => [visibleSession]);
+  await mockSessionById(page, "session-1", () => visibleSession);
+  await page.route("**/api/sessions/session-1/messages", async (route) => {
+    const body = route.request().postDataJSON() as { prompt: string };
+
+    prompts.push(body.prompt);
+    visibleSession = prompts.length === 1 ? firstRunningSession : secondRunningSession;
+    await fulfillJson(route, {
+      status: "ok",
+      session: visibleSession,
+      turnId: prompts.length === 1 ? "turn-1" : "turn-2",
+    });
+  });
+  await page.route("**/api/sessions/session-1/stop", async (route) => {
+    visibleSession = stoppedSession;
+    await page.evaluate(() =>
+      (
+        window as Window & {
+          __cancelTurn?: (turnId: string) => void;
+        }
+      ).__cancelTurn?.("turn-1"),
+    );
+    await fulfillJson(route, {
+      status: "ok",
+    });
+  });
+
+  await page.goto("/");
+  await page.getByPlaceholder("Continue this session...").fill("Run a long task");
+  await page.getByRole("button", { name: "Send message" }).click();
+
+  await expect(page.getByRole("button", { name: "Stop generation" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
+
+  await page.getByPlaceholder("Continue this session...").fill("Queued follow-up");
+  await page.getByRole("button", { name: "Send message" }).click();
+  await expect(page.getByPlaceholder("Continue this session...")).toHaveValue("");
+  await expect.poll(() => prompts).toEqual(["Run a long task"]);
+
+  await page.getByRole("button", { name: "Stop generation" }).click();
+
+  await expect.poll(() => prompts).toEqual(["Run a long task", "Queued follow-up"]);
+  await expect(page.getByText("Queued follow-up")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Stop generation" })).toBeVisible();
+});
+
+test("queues a prompt while a session is running and sends it after completion", async ({
+  page,
+}) => {
+  const initialSession = {
+    id: "session-1",
+    workspace: currentWorkspace,
+    title: "Running session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [],
+    currentRound: 0,
+    isRunning: false,
+  };
+  const firstRunningSession = {
+    ...initialSession,
+    messages: [
+      {
+        id: "message-1",
+        role: "user",
+        content: "Run a long task",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    isRunning: true,
+    runningTurnId: "turn-1",
+  };
+  const firstCompletedSession = {
+    ...firstRunningSession,
+    messages: [
+      ...firstRunningSession.messages,
+      {
+        id: "message-2",
+        role: "assistant",
+        kind: "response",
+        content: "First response.",
+        createdAt: "2026-08-22T00:00:01.000Z",
+      },
+    ],
+    currentRound: 1,
+    isRunning: false,
+    runningTurnId: undefined,
+  };
+  const secondRunningSession = {
+    ...firstCompletedSession,
+    messages: [
+      ...firstCompletedSession.messages,
+      {
+        id: "message-3",
+        role: "user",
+        content: "Queued follow-up",
+        createdAt: "2026-08-22T00:00:02.000Z",
+      },
+    ],
+    isRunning: true,
+    runningTurnId: "turn-2",
+  };
+  let visibleSession = initialSession;
+  const prompts: string[] = [];
+
+  await page.addInitScript(() => {
+    const eventSources = new Map<string, EventTarget>();
+
+    (
+      window as Window & {
+        __completeTurn?: (turnId: string) => void;
+      }
+    ).__completeTurn = (turnId: string) => {
+      eventSources.get(`/api/turns/${turnId}/events`)?.dispatchEvent(
+        new MessageEvent("done", {
+          data: JSON.stringify({
+            type: "done",
+            session: {
+              id: "session-1",
+              workspace: "/Users/bytedance/cui",
+              title: "Running session",
+              createdAt: "2026-08-22T00:00:00.000Z",
+              updatedAt: "2026-08-22T00:00:01.000Z",
+              messages: [
+                {
+                  id: "message-1",
+                  role: "user",
+                  content: "Run a long task",
+                  createdAt: "2026-08-22T00:00:00.000Z",
+                },
+                {
+                  id: "message-2",
+                  role: "assistant",
+                  kind: "response",
+                  content: "First response.",
+                  createdAt: "2026-08-22T00:00:01.000Z",
+                },
+              ],
+              rounds: [],
+              currentRound: 1,
+              isRunning: false,
+            },
+          }),
+        }),
+      );
+    };
+
+    class MockEventSource extends EventTarget {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSED = 2;
+      readonly CONNECTING = 0;
+      readonly OPEN = 1;
+      readonly CLOSED = 2;
+      readonly url: string;
+      readonly withCredentials = false;
+      readyState = MockEventSource.CONNECTING;
+      onerror: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onopen: ((event: Event) => void) | null = null;
+
+      constructor(url: string | URL) {
+        super();
+        this.url = String(url);
+        this.readyState = MockEventSource.OPEN;
+        eventSources.set(this.url, this);
+      }
+
+      close() {
+        this.readyState = MockEventSource.CLOSED;
+        eventSources.delete(this.url);
+      }
+    }
+
+    window.EventSource = MockEventSource as typeof EventSource;
+  });
+
+  await mockSessions(page, () => [visibleSession]);
+  await mockSessionById(page, "session-1", () => visibleSession);
+  await page.route("**/api/sessions/session-1/messages", async (route) => {
+    const body = route.request().postDataJSON() as { prompt: string };
+
+    prompts.push(body.prompt);
+    visibleSession = prompts.length === 1 ? firstRunningSession : secondRunningSession;
+    await fulfillJson(route, {
+      status: "ok",
+      session: visibleSession,
+      turnId: prompts.length === 1 ? "turn-1" : "turn-2",
+    });
+  });
+
+  await page.goto("/");
+  await page.getByPlaceholder("Continue this session...").fill("Run a long task");
+  await page.getByRole("button", { name: "Send message" }).click();
+
+  await expect(page.getByRole("button", { name: "Stop generation" })).toBeVisible();
+  await page.getByPlaceholder("Continue this session...").fill("Queued follow-up");
+  await page.getByRole("button", { name: "Send message" }).click();
+  await expect.poll(() => prompts).toEqual(["Run a long task"]);
+
+  visibleSession = firstCompletedSession;
+  await page.evaluate(() =>
+    (
+      window as Window & {
+        __completeTurn?: (turnId: string) => void;
+      }
+    ).__completeTurn?.("turn-1"),
+  );
+
+  await expect.poll(() => prompts).toEqual(["Run a long task", "Queued follow-up"]);
+  await expect(page.getByText("Queued follow-up")).toBeVisible();
+});
+
 test("restores streamed execution trace after switching back to a running session", async ({
   page,
 }) => {

@@ -47,6 +47,11 @@
     width: 100%;
   }
 
+  .composer-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  }
+
   .atomic-review-item-header {
     padding: 12px;
   }

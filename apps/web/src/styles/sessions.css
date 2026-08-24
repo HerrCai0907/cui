@@ -915,6 +915,12 @@
   box-shadow: 0 0 0 3px rgb(109 138 167 / 16%);
 }
 
+.composer-actions {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+}
+
 .send-button {
   gap: 8px;
   min-width: 104px;
