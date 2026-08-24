@@ -130,7 +130,8 @@ function describeTraceEvent(event: ExecutionTraceEvent): {
     event.type === "item.completed"
   ) {
     const item = describeTraceItem(event.item);
-    const status = formatTraceItemEventStatus(event.type);
+    const status =
+      item.includeStatus === false ? undefined : formatTraceItemEventStatus(event.type);
 
     return {
       title: item.title,
@@ -202,6 +203,7 @@ function describeTraceItem(item: ExecutionTraceItem): {
   tone: string;
   startedIcon: ReactNode;
   completedIcon: ReactNode;
+  includeStatus?: boolean;
 } {
   if (item.type === "command_execution") {
     const status = item.status ?? "unknown";
@@ -259,11 +261,11 @@ function describeTraceItem(item: ExecutionTraceItem): {
 
   if (isFileChangeItem(item.originalType) && fileChangePaths.length > 0) {
     return {
-      title: fileChangePaths.join(", "),
-      meta: shortId(item.id),
+      title: `File Change: ${fileChangePaths.join(", ")}`,
       tone: "trace-event-neutral",
       startedIcon: <TextSearch size={14} />,
       completedIcon: <CheckCircle2 size={14} />,
+      includeStatus: false,
     };
   }
 
@@ -319,15 +321,28 @@ function getFileChangePaths(item: ExecutionTraceItem): string[] {
     return [];
   }
 
+  const changes = item.changes;
   const paths = [
     stringValue(item.path),
     stringValue(item.file_path),
     stringValue(item.filePath),
     ...stringArrayValue(item.files),
-    ...Object.keys(isRecord(item.changes) ? item.changes : {}),
+    ...Object.keys(isRecord(changes) ? changes : {}),
+    ...fileChangeArrayPaths(changes),
   ].filter((path): path is string => Boolean(path));
 
   return [...new Set(paths)];
+}
+
+function fileChangeArrayPaths(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(isRecord)
+    .map((change) => stringValue(change.path))
+    .filter((path): path is string => Boolean(path));
 }
 
 function isFileChangeItem(type: string | undefined): boolean {
