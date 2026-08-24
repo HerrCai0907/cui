@@ -135,6 +135,47 @@ test("restores the last opened session after a browser refresh", async ({ page }
   await expect(page.getByRole("button", { name: /Last opened session/ })).toHaveClass(/is-active/);
 });
 
+test("shows the active session branch in the right side of the title bar", async ({ page }) => {
+  const session = {
+    id: "session-branch",
+    workspace: currentWorkspace,
+    title: "Branch display session",
+    summary: "Branch name is shown in the header",
+    gitBranch: "feature/session-branch",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    currentRound: 1,
+    isRunning: false,
+    messages: [
+      {
+        id: "message-1",
+        role: "assistant",
+        kind: "response",
+        content: "Branch display response",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    rounds: [],
+  };
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+
+  await page.goto("/");
+
+  const title = page.getByRole("heading", { name: "Branch display session" });
+  const branch = page.getByLabel("Current branch feature/session-branch");
+
+  await expect(title).toBeVisible();
+  await expect(branch).toBeVisible();
+
+  const [titleBox, branchBox] = await Promise.all([title.boundingBox(), branch.boundingBox()]);
+
+  expect(titleBox).not.toBeNull();
+  expect(branchBox).not.toBeNull();
+  expect(branchBox!.x).toBeGreaterThan(titleBox!.x + titleBox!.width);
+});
+
 test("renders assistant inline and fenced code blocks", async ({ page }) => {
   const session = {
     id: "session-1",

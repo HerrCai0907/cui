@@ -1,4 +1,4 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, GitBranch } from "lucide-react";
 import type { ApiSession } from "../../../types";
 import type { ReviewRoute } from "../../review/model/reviewRoutes";
 
@@ -9,9 +9,11 @@ type ChatHeaderProps = {
 };
 
 export function ChatHeader({ activeSession, reviewRoute, onCloseReview }: ChatHeaderProps) {
+  const gitBranch = activeSession?.gitBranch;
+
   return (
     <header className="chat-header">
-      <div>
+      <div className="chat-header-title">
         <span className="section-label">
           {reviewRoute
             ? reviewRoute.mode === "atomic"
@@ -28,12 +30,24 @@ export function ChatHeader({ activeSession, reviewRoute, onCloseReview }: ChatHe
           activeSession?.summary && <p className="session-progress">{activeSession.summary}</p>
         )}
       </div>
-      {reviewRoute && (
-        <button className="secondary-button" type="button" onClick={onCloseReview}>
-          <ArrowLeft size={16} />
-          Back
-        </button>
-      )}
+      <div className="chat-header-actions">
+        {gitBranch && (
+          <span
+            className="session-branch"
+            title={gitBranch}
+            aria-label={`Current branch ${gitBranch}`}
+          >
+            <GitBranch size={15} />
+            <span>{gitBranch}</span>
+          </span>
+        )}
+        {reviewRoute && (
+          <button className="secondary-button" type="button" onClick={onCloseReview}>
+            <ArrowLeft size={16} />
+            Back
+          </button>
+        )}
+      </div>
     </header>
   );
 }

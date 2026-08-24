@@ -142,6 +142,20 @@ test("captureWorkspaceDiff can stay based on the round start commit", async () =
   }
 });
 
+test("captureCurrentBranch returns the active workspace branch name", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-git-branch-"));
+  const diffService = new GitDiffService();
+
+  try {
+    await runGit(["init"], cwd);
+    await runGit(["checkout", "-b", "feature/session-branch"], cwd);
+
+    assert.equal(await diffService.captureCurrentBranch(cwd), "feature/session-branch");
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 function runGit(args: string[], cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
     execFile("git", args, { cwd }, (error) => {

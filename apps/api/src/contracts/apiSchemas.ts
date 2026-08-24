@@ -93,6 +93,7 @@ export const ChatSessionViewSchema = z.object({
   messages: z.array(ChatMessageSchema),
   rounds: z.array(ChatRoundSummarySchema).optional(),
   currentRound: z.number().int().nonnegative(),
+  gitBranch: z.string().optional(),
   isRunning: z.boolean(),
   runningTurnId: z.string().optional(),
 });

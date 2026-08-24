@@ -1,6 +1,18 @@
 import type { ChatSession, ChatSessionView } from "../../types.js";
 
-export function toSessionView(session: ChatSession, runningTurnId?: string): ChatSessionView {
+export type SessionViewOptions = {
+  gitBranch?: string;
+  runningTurnId?: string;
+};
+
+export function toSessionView(
+  session: ChatSession,
+  optionsOrRunningTurnId?: SessionViewOptions | string,
+): ChatSessionView {
+  const options =
+    typeof optionsOrRunningTurnId === "string"
+      ? { runningTurnId: optionsOrRunningTurnId }
+      : (optionsOrRunningTurnId ?? {});
   const roundSummaries =
     session.rounds?.map(({ round, hasChanges, createdAt, atomicReview }) => ({
       round,
@@ -13,8 +25,9 @@ export function toSessionView(session: ChatSession, runningTurnId?: string): Cha
     ...session,
     rounds: roundSummaries,
     currentRound: getCurrentRound(session),
-    isRunning: Boolean(runningTurnId),
-    ...(runningTurnId ? { runningTurnId } : {}),
+    ...(options.gitBranch ? { gitBranch: options.gitBranch } : {}),
+    isRunning: Boolean(options.runningTurnId),
+    ...(options.runningTurnId ? { runningTurnId: options.runningTurnId } : {}),
   };
 }
 
