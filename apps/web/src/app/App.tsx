@@ -1,4 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
+import { ConfigPage } from "../features/config/components/ConfigPage";
+import { loadAppConfig, saveAppConfig, type AppConfig } from "../features/config/model/appConfig";
 import { ReviewPage } from "../features/review/components/ReviewPage";
 import { getRoundReview } from "../features/review/api/reviewApi";
 import type {
@@ -20,8 +22,10 @@ import type { ApiRound } from "../types";
 const DEFAULT_WORKSPACE = "/Users/bytedance/cui";
 
 export function App() {
+  const [configOpen, setConfigOpen] = useState(() => location.pathname === "/config");
+  const [config, setConfig] = useState<AppConfig>(loadAppConfig);
   const [reviewRoute, setReviewRoute] = useState<ReviewRoute | null>(() =>
-    parseReviewRoute(location.pathname),
+    location.pathname === "/config" ? null : parseReviewRoute(location.pathname),
   );
   const [review, setReview] = useState<ApiRound | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
@@ -33,7 +37,10 @@ export function App() {
 
   useEffect(() => {
     const handlePopState = () => {
-      setReviewRoute(parseReviewRoute(location.pathname));
+      const nextConfigOpen = location.pathname === "/config";
+
+      setConfigOpen(nextConfigOpen);
+      setReviewRoute(nextConfigOpen ? null : parseReviewRoute(location.pathname));
     };
 
     window.addEventListener("popstate", handlePopState);
@@ -42,6 +49,11 @@ export function App() {
       window.removeEventListener("popstate", handlePopState);
     };
   }, []);
+
+  function updateConfig(nextConfig: AppConfig) {
+    setConfig(nextConfig);
+    saveAppConfig(nextConfig);
+  }
 
   useEffect(() => {
     if (!reviewRoute) {
@@ -87,6 +99,7 @@ export function App() {
   }, [reviewRoute?.sessionId, reviewRoute?.round, reviewRoute?.mode]);
 
   function startNewSession(workspace?: string) {
+    setConfigOpen(false);
     setReviewRoute(null);
     setReview(null);
     setReviewNavigation(null);
@@ -99,6 +112,7 @@ export function App() {
   }
 
   function openSession(sessionId: string) {
+    setConfigOpen(false);
     setReviewRoute(null);
     setReview(null);
     setReviewNavigation(null);
@@ -108,6 +122,18 @@ export function App() {
       history.pushState({}, "", "/");
     }
     void sessionController.openSession(sessionId);
+  }
+
+  function openConfig() {
+    if (location.pathname !== "/config") {
+      history.pushState({}, "", "/config");
+    }
+    setConfigOpen(true);
+    setReviewRoute(null);
+    setReview(null);
+    setReviewNavigation(null);
+    setReviewNavigationTarget(null);
+    setReviewError(null);
   }
 
   function openReview(sessionId: string, round: number, mode: ReviewRoute["mode"]) {
@@ -124,6 +150,7 @@ export function App() {
 
   function closeReview() {
     history.pushState({}, "", "/");
+    setConfigOpen(false);
     setReviewRoute(null);
     setReview(null);
     setReviewNavigation(null);
@@ -142,6 +169,7 @@ export function App() {
     >
       <SessionSidebar
         activeSessionId={sessionController.activeSession?.id}
+        configOpen={configOpen}
         expandedWorkspaces={sessionController.expandedWorkspaces}
         open={sessionController.sidebarOpen}
         pendingDoneSessionIds={sessionController.pendingDoneSessionIds}
@@ -157,20 +185,27 @@ export function App() {
         onOpenSession={openSession}
         onMarkSessionDone={sessionController.markSessionDone}
         onNavigateReview={reviewRoute?.mode === "atomic" ? navigateToReviewTarget : undefined}
+        onOpenConfig={openConfig}
         onStartNewSession={startNewSession}
         onToggleWorkspace={sessionController.toggleWorkspace}
         reviewNavigationActive={reviewRoute?.mode === "atomic"}
         reviewNavigation={reviewRoute?.mode === "atomic" ? reviewNavigation : null}
       />
 
-      <section className="chat-area" aria-label={reviewRoute ? "Round review" : "AI conversation"}>
+      <section
+        className="chat-area"
+        aria-label={configOpen ? "Configuration" : reviewRoute ? "Round review" : "AI conversation"}
+      >
         <ChatHeader
           activeSession={sessionController.activeSession}
+          configOpen={configOpen}
           reviewRoute={reviewRoute}
           onCloseReview={closeReview}
         />
 
-        {reviewRoute ? (
+        {configOpen ? (
+          <ConfigPage config={config} onConfigChange={updateConfig} />
+        ) : reviewRoute ? (
           <ReviewPage
             error={reviewError ?? sessionController.error}
             loading={reviewLoading}
@@ -191,6 +226,7 @@ export function App() {
             <MessageStream
               activeSession={sessionController.activeSession}
               blocked={sessionController.activeSessionBlocked}
+              config={config}
               error={sessionController.error}
               expandedTraceIds={sessionController.expandedTraceIds}
               messageStreamRef={sessionController.messageStreamRef}

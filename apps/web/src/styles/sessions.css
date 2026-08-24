@@ -18,6 +18,33 @@
   background: #f3f6f9;
 }
 
+.sidebar-nav-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #374151;
+  padding: 0 12px;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.sidebar-nav-button:hover,
+.sidebar-nav-button.is-active {
+  background: #edf1f5;
+  color: #111827;
+}
+
+.sidebar-nav-button svg {
+  flex: 0 0 auto;
+  color: #64748b;
+}
+
 .session-mode-switch {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

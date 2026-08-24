@@ -10,6 +10,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  Settings,
 } from "lucide-react";
 import { formatRelativeTime } from "../../../shared/lib/dates";
 import type { SessionSummary } from "../../../types";
@@ -35,6 +36,7 @@ type SessionSidebarProps = {
   sessionCount: number;
   visibleSessionCount: number;
   activeSessionId?: string;
+  configOpen?: boolean;
   pendingDoneSessionIds: Set<string>;
   runningSessionIds: Set<string>;
   reviewNavigation?: ReviewNavigation | null;
@@ -47,6 +49,7 @@ type SessionSidebarProps = {
   onOpenSession: (sessionId: string) => void;
   onMarkSessionDone: (sessionId: string) => void;
   onNavigateReview?: (target: ReviewNavigationTarget) => void;
+  onOpenConfig: () => void;
 };
 
 export function SessionSidebar({
@@ -58,6 +61,7 @@ export function SessionSidebar({
   sessionCount,
   visibleSessionCount,
   activeSessionId,
+  configOpen,
   pendingDoneSessionIds,
   runningSessionIds,
   reviewNavigation,
@@ -70,6 +74,7 @@ export function SessionSidebar({
   onOpenSession,
   onMarkSessionDone,
   onNavigateReview,
+  onOpenConfig,
 }: SessionSidebarProps) {
   const workspaceGroups = groupWorkspacesForDisplay(workspaces);
   const resizeHandleRef = useRef<HTMLDivElement | null>(null);
@@ -161,6 +166,16 @@ export function SessionSidebar({
               <button className="new-session" type="button" onClick={() => onStartNewSession()}>
                 <Plus size={16} />
                 New session
+              </button>
+
+              <button
+                className={`sidebar-nav-button ${configOpen ? "is-active" : ""}`}
+                type="button"
+                aria-current={configOpen ? "page" : undefined}
+                onClick={onOpenConfig}
+              >
+                <Settings size={16} />
+                Config
               </button>
 
               <div className="session-mode-switch" role="group" aria-label="Session list mode">
