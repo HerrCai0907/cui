@@ -203,7 +203,7 @@ export function App() {
 
             <Composer
               active={Boolean(sessionController.activeSession)}
-              disabled={sessionController.activeSessionBlocked}
+              disabled={sessionController.composerSubmitDisabled}
               draft={sessionController.draft}
               stopping={sessionController.activeSessionRunning}
               stopDisabled={sessionController.activeSessionStopping}

@@ -19,6 +19,7 @@ import type { SessionSummary } from "../../../types";
 
 type UseTurnStreamInput = {
   activeSessionRef: MutableRefObject<ApiSession | null>;
+  onTurnSettled?: (sessionId: string, session?: ApiSession) => void;
   refreshSessions: () => void;
   setActiveSession: Dispatch<SetStateAction<ApiSession | null>>;
   setCurrentActiveSession: (
@@ -27,12 +28,13 @@ type UseTurnStreamInput = {
   ) => void;
   setError: (error: string | null) => void;
   setExpandedTraceIds: Dispatch<SetStateAction<Set<string>>>;
-  setRunningSession: (sessionId: string, running: boolean) => void;
+  setRunningSession: (sessionId: string, running: boolean, turnId?: string) => void;
   setSessions: Dispatch<SetStateAction<SessionSummary[]>>;
 };
 
 export function useTurnStream({
   activeSessionRef,
+  onTurnSettled,
   refreshSessions,
   setActiveSession,
   setCurrentActiveSession,
@@ -227,8 +229,9 @@ export function useTurnStream({
 
         return next;
       });
-      setRunningSession(sessionId, false);
+      setRunningSession(sessionId, false, turnId);
       refreshSessions();
+      onTurnSettled?.(sessionId, data.session);
       streamClosed = true;
       closeCurrentStream();
     });
@@ -241,14 +244,8 @@ export function useTurnStream({
       }
       streamStateRefs.current.delete(sessionId);
       streamMessageIdRefs.current.delete(sessionId);
-      setRunningSession(sessionId, false);
-      streamClosed = true;
-      closeCurrentStream();
-    });
-
-    eventSource.addEventListener("cancelled", () => {
-      setRunningSession(sessionId, false);
-      refreshSessions();
+      setRunningSession(sessionId, false, turnId);
+      onTurnSettled?.(sessionId);
       streamClosed = true;
       closeCurrentStream();
     });
@@ -256,8 +253,9 @@ export function useTurnStream({
     eventSource.addEventListener("cancelled", () => {
       streamStateRefs.current.delete(sessionId);
       streamMessageIdRefs.current.delete(sessionId);
-      setRunningSession(sessionId, false);
+      setRunningSession(sessionId, false, turnId);
       refreshSessions();
+      onTurnSettled?.(sessionId);
       streamClosed = true;
       closeCurrentStream();
     });
@@ -270,7 +268,7 @@ export function useTurnStream({
       if (activeSessionRef.current?.id === sessionId) {
         setError("Stream connection failed");
       }
-      setRunningSession(sessionId, false);
+      setRunningSession(sessionId, false, turnId);
       closeCurrentStream();
     };
   }
@@ -291,7 +289,11 @@ export function useTurnStream({
     });
   }
 
-  function closeTurnStream(sessionId: string) {
+  function closeTurnStream(sessionId: string, turnId?: string) {
+    if (turnId && turnIdRefs.current.get(sessionId) !== turnId) {
+      return;
+    }
+
     eventSourceRefs.current.get(sessionId)?.close();
     eventSourceRefs.current.delete(sessionId);
     turnIdRefs.current.delete(sessionId);

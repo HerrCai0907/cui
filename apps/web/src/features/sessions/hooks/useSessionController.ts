@@ -36,6 +36,11 @@ type SetCurrentActiveSessionOptions = {
   recordAttention?: boolean;
 };
 
+type QueuedPrompt = {
+  prompt: string;
+  restoreDraftOnFailure: boolean;
+};
+
 const LAST_ACTIVE_SESSION_STORAGE_KEY = "cui:last-active-session-id:v1";
 const DONE_MARK_VISIBLE_DURATION_MS = 800;
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 48;
@@ -68,11 +73,19 @@ export function useSessionController(defaultWorkspace: string) {
   const lastScrolledSessionIdRef = useRef<string | null>(null);
   const shouldStickToMessageBottomRef = useRef(true);
   const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const queuedPromptsRef = useRef<Map<string, QueuedPrompt[]>>(new Map());
+  const queueDrainInProgressSessionIdsRef = useRef<Set<string>>(new Set());
+  const runningSessionIdsRef = useRef<Set<string>>(runningSessionIds);
+  const runningTurnIdBySessionIdRef = useRef<Map<string, string>>(new Map());
+  const submittingSessionIdsRef = useRef<Set<string>>(submittingSessionIds);
   const activeSessionRunning = activeSession ? runningSessionIds.has(activeSession.id) : false;
   const activeSessionStopping = activeSession ? stoppingSessionIds.has(activeSession.id) : false;
   const activeSessionBlocked = activeSession
     ? runningSessionIds.has(activeSession.id) || submittingSessionIds.has(activeSession.id)
     : creatingSession;
+  const composerSubmitDisabled = activeSession
+    ? activeSessionBlocked && !activeSessionRunning
+    : activeSessionBlocked;
   const highlightedSessionIds = useMemo(() => {
     const ids = new Set([...runningSessionIds, ...submittingSessionIds]);
 
@@ -119,6 +132,9 @@ export function useSessionController(defaultWorkspace: string) {
   );
   const { applyRunningTurnOverlay, closeTurnStream, streamTurn } = useTurnStream({
     activeSessionRef,
+    onTurnSettled: (sessionId) => {
+      void drainQueuedPrompt(sessionId);
+    },
     refreshSessions,
     setActiveSession,
     setCurrentActiveSession,
@@ -259,17 +275,36 @@ export function useSessionController(defaultWorkspace: string) {
   async function refreshSessions() {
     try {
       const loadedSessions = await listSessions();
-      const sessionSummaries = loadedSessions.map(toSessionSummary);
+      const locallyRunningSessionIds = new Set(runningSessionIdsRef.current);
+      const localRunningTurnIds = new Map(runningTurnIdBySessionIdRef.current);
+      const nextRunningSessionIds = new Set(
+        loadedSessions
+          .filter((session) => session.isRunning ?? session.runningTurnId)
+          .map((session) => session.id),
+      );
+      const nextRunningTurnIds = new Map(
+        loadedSessions
+          .filter((session) => session.runningTurnId)
+          .map((session) => [session.id, session.runningTurnId!]),
+      );
+
+      locallyRunningSessionIds.forEach((sessionId) => nextRunningSessionIds.add(sessionId));
+      localRunningTurnIds.forEach((turnId, sessionId) => {
+        if (!nextRunningTurnIds.has(sessionId)) {
+          nextRunningTurnIds.set(sessionId, turnId);
+        }
+      });
+
+      const sessionSummaries = loadedSessions.map((session) => ({
+        ...toSessionSummary(session),
+        isRunning: nextRunningSessionIds.has(session.id),
+      }));
 
       setSessions(sessionSummaries);
       pruneSessionAttention(sessionSummaries);
-      setRunningSessionIds(
-        new Set(
-          loadedSessions
-            .filter((session) => session.isRunning ?? session.runningTurnId)
-            .map((session) => session.id),
-        ),
-      );
+      runningSessionIdsRef.current = nextRunningSessionIds;
+      runningTurnIdBySessionIdRef.current = nextRunningTurnIds;
+      setRunningSessionIds(nextRunningSessionIds);
 
       const currentActiveSession = activeSessionRef.current;
       const nextActiveSession =
@@ -291,7 +326,7 @@ export function useSessionController(defaultWorkspace: string) {
         }
 
         if (fallbackSession) {
-          setCurrentActiveSession(fallbackSession, {
+          setCurrentActiveSession(overlayLocallyRunningSession(fallbackSession), {
             persist: Boolean(restoredSession),
             recordAttention: false,
           });
@@ -300,9 +335,11 @@ export function useSessionController(defaultWorkspace: string) {
           }
         }
       } else if (nextActiveSession) {
-        setCurrentActiveSession(nextActiveSession);
-        if (nextActiveSession.runningTurnId) {
-          streamTurn(nextActiveSession.id, nextActiveSession.runningTurnId);
+        const visibleSession = overlayLocallyRunningSession(nextActiveSession);
+
+        setCurrentActiveSession(visibleSession);
+        if (visibleSession.runningTurnId) {
+          streamTurn(visibleSession.id, visibleSession.runningTurnId);
         }
       }
     } catch (reason) {
@@ -328,7 +365,7 @@ export function useSessionController(defaultWorkspace: string) {
       setWorkspaceDraft(session.workspace);
       expandWorkspace(session.workspace);
       if (session.runningTurnId) {
-        setRunningSession(session.id, true);
+        setRunningTurn(session.id, session.runningTurnId);
         streamTurn(session.id, session.runningTurnId);
       }
     } catch (reason) {
@@ -344,7 +381,24 @@ export function useSessionController(defaultWorkspace: string) {
     const trimmed = prompt.trim();
     const submittedSessionId = activeSession?.id ?? null;
 
-    if (!trimmed || activeSessionBlocked) {
+    if (!trimmed) {
+      return false;
+    }
+
+    if (submittedSessionId && runningSessionIdsRef.current.has(submittedSessionId)) {
+      queuePrompt(submittedSessionId, {
+        prompt: trimmed,
+        restoreDraftOnFailure: options.restoreDraftOnFailure ?? true,
+      });
+      setError(null);
+      setDraft("");
+      if (activeSession) {
+        recordSessionAttention(activeSession);
+      }
+      return true;
+    }
+
+    if (activeSessionBlocked) {
       return false;
     }
 
@@ -376,7 +430,7 @@ export function useSessionController(defaultWorkspace: string) {
             prompt: trimmed,
           });
 
-      setRunningSession(data.session.id, true);
+      setRunningTurn(data.session.id, data.turnId);
       recordSessionAttention(data.session);
       if (submittedSessionId) {
         setSubmittingSession(submittedSessionId, false);
@@ -419,8 +473,75 @@ export function useSessionController(defaultWorkspace: string) {
     await submitPrompt(draft, { restoreDraftOnFailure: true });
   }
 
+  async function drainQueuedPrompt(sessionId: string) {
+    if (
+      runningSessionIdsRef.current.has(sessionId) ||
+      submittingSessionIdsRef.current.has(sessionId) ||
+      queueDrainInProgressSessionIdsRef.current.has(sessionId)
+    ) {
+      return;
+    }
+
+    const queue = queuedPromptsRef.current.get(sessionId);
+    const nextPrompt = queue?.shift();
+
+    if (!nextPrompt) {
+      queuedPromptsRef.current.delete(sessionId);
+      return;
+    }
+
+    if (!queue || queue.length === 0) {
+      queuedPromptsRef.current.delete(sessionId);
+    }
+
+    queueDrainInProgressSessionIdsRef.current.add(sessionId);
+    setPendingDoneSessionIds((current) => {
+      const next = new Set(current);
+
+      next.delete(sessionId);
+
+      return next;
+    });
+    setSubmittingSession(sessionId, true);
+    setError(null);
+
+    try {
+      const data = await continueSession(sessionId, { prompt: nextPrompt.prompt });
+
+      setRunningTurn(data.session.id, data.turnId);
+      recordSessionAttention(data.session);
+      setSessions((current) => {
+        const nextSummary = toSessionSummary(data.session);
+
+        return current.some((session) => session.id === data.session.id)
+          ? current.map((session) => (session.id === data.session.id ? nextSummary : session))
+          : [nextSummary, ...current];
+      });
+
+      if (activeSessionRef.current?.id === sessionId) {
+        setCurrentActiveSession(data.session);
+      }
+
+      expandWorkspace(data.session.workspace);
+      void refreshSessions();
+      streamTurn(data.session.id, data.turnId);
+    } catch (reason) {
+      if (activeSessionRef.current?.id === sessionId) {
+        if (nextPrompt.restoreDraftOnFailure) {
+          setDraft(nextPrompt.prompt);
+        }
+        setError(reason instanceof Error ? reason.message : "Request failed");
+      }
+    } finally {
+      setSubmittingSession(sessionId, false);
+      queueDrainInProgressSessionIdsRef.current.delete(sessionId);
+    }
+  }
+
   async function stopActiveSession() {
-    const sessionId = activeSessionRef.current?.id;
+    const currentSession = activeSessionRef.current;
+    const sessionId = currentSession?.id;
+    const runningTurnId = currentSession?.runningTurnId;
 
     if (!sessionId || !runningSessionIds.has(sessionId) || stoppingSessionIds.has(sessionId)) {
       return;
@@ -431,9 +552,10 @@ export function useSessionController(defaultWorkspace: string) {
 
     try {
       await stopSession(sessionId);
-      closeTurnStream(sessionId);
-      setRunningSession(sessionId, false);
+      closeTurnStream(sessionId, runningTurnId);
+      clearRunningTurn(sessionId, runningTurnId);
       await refreshSessions();
+      void drainQueuedPrompt(sessionId);
     } catch (reason) {
       if (activeSessionRef.current?.id === sessionId) {
         setError(reason instanceof Error ? reason.message : "Failed to stop session");
@@ -550,18 +672,26 @@ export function useSessionController(defaultWorkspace: string) {
     }
   }
 
-  function setRunningSession(sessionId: string, running: boolean) {
-    setRunningSessionIds((current) => {
-      const next = new Set(current);
+  function setRunningSession(sessionId: string, running: boolean, turnId?: string) {
+    if (!running && turnId) {
+      const currentTurnId = runningTurnIdBySessionIdRef.current.get(sessionId);
 
-      if (running) {
-        next.add(sessionId);
-      } else {
-        next.delete(sessionId);
+      if (currentTurnId && currentTurnId !== turnId) {
+        return;
       }
+    }
 
-      return next;
-    });
+    const next = new Set(runningSessionIdsRef.current);
+
+    if (running) {
+      next.add(sessionId);
+    } else {
+      next.delete(sessionId);
+      runningTurnIdBySessionIdRef.current.delete(sessionId);
+    }
+
+    runningSessionIdsRef.current = next;
+    setRunningSessionIds(next);
     setSessions((current) =>
       current.map((summary) =>
         summary.id === sessionId ? { ...summary, isRunning: running } : summary,
@@ -569,18 +699,65 @@ export function useSessionController(defaultWorkspace: string) {
     );
   }
 
+  function setRunningTurn(sessionId: string, turnId: string) {
+    runningTurnIdBySessionIdRef.current.set(sessionId, turnId);
+    setRunningSession(sessionId, true);
+  }
+
+  function clearRunningTurn(sessionId: string, turnId?: string) {
+    const currentTurnId = runningTurnIdBySessionIdRef.current.get(sessionId);
+
+    if (turnId && currentTurnId && currentTurnId !== turnId) {
+      return;
+    }
+
+    setRunningSession(sessionId, false);
+  }
+
   function setSubmittingSession(sessionId: string, submitting: boolean) {
-    setSubmittingSessionIds((current) => {
-      const next = new Set(current);
+    const next = new Set(submittingSessionIdsRef.current);
 
-      if (submitting) {
-        next.add(sessionId);
-      } else {
-        next.delete(sessionId);
-      }
+    if (submitting) {
+      next.add(sessionId);
+    } else {
+      next.delete(sessionId);
+    }
 
-      return next;
-    });
+    submittingSessionIdsRef.current = next;
+    setSubmittingSessionIds(next);
+  }
+
+  function queuePrompt(sessionId: string, prompt: QueuedPrompt) {
+    const queue = queuedPromptsRef.current.get(sessionId) ?? [];
+
+    queuedPromptsRef.current.set(sessionId, [...queue, prompt]);
+  }
+
+  function overlayLocallyRunningSession(session: ApiSession): ApiSession {
+    const localTurnId = runningTurnIdBySessionIdRef.current.get(session.id);
+
+    if (!localTurnId) {
+      return session;
+    }
+
+    const currentSession = activeSessionRef.current;
+
+    if (currentSession?.id !== session.id) {
+      return {
+        ...session,
+        isRunning: true,
+        runningTurnId: localTurnId,
+      };
+    }
+
+    return {
+      ...currentSession,
+      doneAt: session.doneAt,
+      currentRound: Math.max(currentSession.currentRound ?? 0, session.currentRound ?? 0),
+      gitBranch: session.gitBranch ?? currentSession.gitBranch,
+      isRunning: true,
+      runningTurnId: localTurnId,
+    };
   }
 
   function setStoppingSession(sessionId: string, stopping: boolean) {
@@ -653,6 +830,7 @@ export function useSessionController(defaultWorkspace: string) {
     activeSessionBlocked,
     activeSessionRunning,
     activeSessionStopping,
+    composerSubmitDisabled,
     composerTextareaRef,
     draft,
     error,
