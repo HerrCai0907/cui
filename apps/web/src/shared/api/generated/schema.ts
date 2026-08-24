@@ -172,6 +172,7 @@ export interface paths {
                   atomicReviewStatus?: "ready" | "failed";
                 }[];
                 currentRound: number;
+                gitBranch?: string;
                 isRunning: boolean;
                 runningTurnId?: string;
               }[];
@@ -237,6 +238,7 @@ export interface paths {
                   atomicReviewStatus?: "ready" | "failed";
                 }[];
                 currentRound: number;
+                gitBranch?: string;
                 isRunning: boolean;
                 runningTurnId?: string;
               };
@@ -330,6 +332,7 @@ export interface paths {
                   atomicReviewStatus?: "ready" | "failed";
                 }[];
                 currentRound: number;
+                gitBranch?: string;
                 isRunning: boolean;
                 runningTurnId?: string;
               };
@@ -409,6 +412,7 @@ export interface paths {
                   atomicReviewStatus?: "ready" | "failed";
                 }[];
                 currentRound: number;
+                gitBranch?: string;
                 isRunning: boolean;
                 runningTurnId?: string;
               };
@@ -611,6 +615,7 @@ export interface paths {
                   atomicReviewStatus?: "ready" | "failed";
                 }[];
                 currentRound: number;
+                gitBranch?: string;
                 isRunning: boolean;
                 runningTurnId?: string;
               };
@@ -791,6 +796,7 @@ export interface paths {
                       atomicReviewStatus?: "ready" | "failed";
                     }[];
                     currentRound: number;
+                    gitBranch?: string;
                     isRunning: boolean;
                     runningTurnId?: string;
                   };
@@ -828,6 +834,7 @@ export interface paths {
                       atomicReviewStatus?: "ready" | "failed";
                     }[];
                     currentRound: number;
+                    gitBranch?: string;
                     isRunning: boolean;
                     runningTurnId?: string;
                   };
@@ -967,6 +974,7 @@ export interface components {
         atomicReviewStatus?: "ready" | "failed";
       }[];
       currentRound: number;
+      gitBranch?: string;
       isRunning: boolean;
       runningTurnId?: string;
     };
@@ -1023,6 +1031,7 @@ export interface components {
           atomicReviewStatus?: "ready" | "failed";
         }[];
         currentRound: number;
+        gitBranch?: string;
         isRunning: boolean;
         runningTurnId?: string;
       };
@@ -1076,6 +1085,7 @@ export interface components {
               atomicReviewStatus?: "ready" | "failed";
             }[];
             currentRound: number;
+            gitBranch?: string;
             isRunning: boolean;
             runningTurnId?: string;
           };
@@ -1113,6 +1123,7 @@ export interface components {
               atomicReviewStatus?: "ready" | "failed";
             }[];
             currentRound: number;
+            gitBranch?: string;
             isRunning: boolean;
             runningTurnId?: string;
           };

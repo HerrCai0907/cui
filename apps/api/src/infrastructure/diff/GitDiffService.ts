@@ -43,6 +43,18 @@ export class GitDiffService {
     return { gitCommit, diff };
   }
 
+  async captureCurrentBranch(cwd: string): Promise<string | undefined> {
+    const branchName = (await this.runGit(["branch", "--show-current"], cwd)).trim();
+
+    if (branchName) {
+      return branchName;
+    }
+
+    const headName = (await this.runGit(["rev-parse", "--short", "HEAD"], cwd)).trim();
+
+    return headName ? `HEAD ${headName}` : undefined;
+  }
+
   async captureWorkspaceDiff(cwd: string, baseCommit?: string): Promise<string> {
     const diffBase = baseCommit ?? (await this.captureHeadCommit(cwd));
     const trackedDiffArgs = [

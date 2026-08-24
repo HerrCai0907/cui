@@ -328,6 +328,9 @@
             "type": "integer",
             "minimum": 0
           },
+          "gitBranch": {
+            "type": "string"
+          },
           "isRunning": {
             "type": "boolean"
           },
@@ -516,6 +519,9 @@
                 "type": "integer",
                 "minimum": 0
               },
+              "gitBranch": {
+                "type": "string"
+              },
               "isRunning": {
                 "type": "boolean"
               },
@@ -677,6 +683,9 @@
                     "type": "integer",
                     "minimum": 0
                   },
+                  "gitBranch": {
+                    "type": "string"
+                  },
                   "isRunning": {
                     "type": "boolean"
                   },
@@ -798,6 +807,9 @@
                   "currentRound": {
                     "type": "integer",
                     "minimum": 0
+                  },
+                  "gitBranch": {
+                    "type": "string"
                   },
                   "isRunning": {
                     "type": "boolean"
@@ -1099,6 +1111,9 @@
                             "type": "integer",
                             "minimum": 0
                           },
+                          "gitBranch": {
+                            "type": "string"
+                          },
                           "isRunning": {
                             "type": "boolean"
                           },
@@ -1254,6 +1269,9 @@
                         "currentRound": {
                           "type": "integer",
                           "minimum": 0
+                        },
+                        "gitBranch": {
+                          "type": "string"
                         },
                         "isRunning": {
                           "type": "boolean"
@@ -1433,6 +1451,9 @@
                           "type": "integer",
                           "minimum": 0
                         },
+                        "gitBranch": {
+                          "type": "string"
+                        },
                         "isRunning": {
                           "type": "boolean"
                         },
@@ -1605,6 +1626,9 @@
                         "currentRound": {
                           "type": "integer",
                           "minimum": 0
+                        },
+                        "gitBranch": {
+                          "type": "string"
                         },
                         "isRunning": {
                           "type": "boolean"
@@ -2040,6 +2064,9 @@
                           "type": "integer",
                           "minimum": 0
                         },
+                        "gitBranch": {
+                          "type": "string"
+                        },
                         "isRunning": {
                           "type": "boolean"
                         },
@@ -2331,6 +2358,9 @@
                               "type": "integer",
                               "minimum": 0
                             },
+                            "gitBranch": {
+                              "type": "string"
+                            },
                             "isRunning": {
                               "type": "boolean"
                             },
@@ -2452,6 +2482,9 @@
                             "currentRound": {
                               "type": "integer",
                               "minimum": 0
+                            },
+                            "gitBranch": {
+                              "type": "string"
                             },
                             "isRunning": {
                               "type": "boolean"

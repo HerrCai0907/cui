@@ -29,6 +29,7 @@ import type {
   CreateSessionRequestContract,
   UpdateSessionRequestContract,
 } from "../../contracts/apiSchemas.js";
+import { GitDiffService } from "../../infrastructure/diff/GitDiffService.js";
 
 export type { TurnStreamEvent } from "../turns/turnEvents.js";
 
@@ -59,6 +60,7 @@ export class SessionService {
       roundService,
       atomicReviewService,
     ),
+    private readonly gitDiffService = new GitDiffService(),
   ) {}
 
   async listSessions(): Promise<ChatSession[]> {
@@ -67,9 +69,15 @@ export class SessionService {
 
   async listSessionViews(): Promise<ChatSessionView[]> {
     const sessions = await this.store.listSessions();
+    const branchByWorkspace = new Map<string, Promise<string | undefined>>();
 
-    return sessions.map((session) =>
-      toSessionView(session, this.turnRegistry.getRunningTurnIdForSession(session.id)),
+    return Promise.all(
+      sessions.map(async (session) =>
+        toSessionView(session, {
+          gitBranch: await this.getWorkspaceBranch(session.workspace, branchByWorkspace),
+          runningTurnId: this.turnRegistry.getRunningTurnIdForSession(session.id),
+        }),
+      ),
     );
   }
 
@@ -80,9 +88,7 @@ export class SessionService {
   async getSessionView(sessionId: string): Promise<ChatSessionView | undefined> {
     const session = await this.store.getSession(sessionId);
 
-    return session
-      ? toSessionView(session, this.turnRegistry.getRunningTurnIdForSession(session.id))
-      : undefined;
+    return session ? this.toSessionView(session) : undefined;
   }
 
   async updateSession(sessionId: string, request: UpdateSessionRequest): Promise<ChatSessionView> {
@@ -95,7 +101,7 @@ export class SessionService {
     const doneAt = request.done ? new Date().toISOString() : undefined;
     const updatedSession = await this.store.updateSessionDoneAt(sessionId, doneAt);
 
-    return toSessionView(updatedSession, this.turnRegistry.getRunningTurnIdForSession(sessionId));
+    return this.toSessionView(updatedSession);
   }
 
   async getRoundReview(
@@ -230,7 +236,7 @@ export class SessionService {
     this.finishCreateSession(request, run.result, runningTurn, summaryPromise);
 
     return {
-      session: toSessionView(createdSession, runningTurn.id),
+      session: await this.toSessionView(createdSession, runningTurn.id),
       turnId: runningTurn.id,
     };
   }
@@ -338,7 +344,7 @@ export class SessionService {
     this.finishContinueSession(request, run.result, runningTurn, session.workspace, summaryPromise);
 
     return {
-      session: toSessionView(updatedSession, runningTurn.id),
+      session: await this.toSessionView(updatedSession, runningTurn.id),
       turnId: runningTurn.id,
     };
   }
@@ -451,16 +457,18 @@ export class SessionService {
     session: ChatSession,
     turn?: RunningTurn,
   ): Promise<ChatSession> {
-    return this.sessionSummaryService.refreshSessionSummary(session).then((updatedSession) => {
-      if (turn && !turn.completed && updatedSession !== session) {
-        this.turnRegistry.emitTurnEvent(turn, {
-          type: "session.updated",
-          session: toSessionView(updatedSession, turn.id),
-        });
-      }
+    return this.sessionSummaryService
+      .refreshSessionSummary(session)
+      .then(async (updatedSession) => {
+        if (turn && !turn.completed && updatedSession !== session) {
+          this.turnRegistry.emitTurnEvent(turn, {
+            type: "session.updated",
+            session: await this.toSessionView(updatedSession, turn.id),
+          });
+        }
 
-      return updatedSession;
-    });
+        return updatedSession;
+      });
   }
 
   private async waitForInputSummary(
@@ -471,7 +479,33 @@ export class SessionService {
 
     const latestSession = await this.store.getSession(sessionId);
 
-    return latestSession ? toSessionView(latestSession) : undefined;
+    return latestSession ? this.toSessionView(latestSession) : undefined;
+  }
+
+  private async toSessionView(
+    session: ChatSession,
+    runningTurnId = this.turnRegistry.getRunningTurnIdForSession(session.id),
+  ): Promise<ChatSessionView> {
+    return toSessionView(session, {
+      gitBranch: await this.getWorkspaceBranch(session.workspace),
+      runningTurnId,
+    });
+  }
+
+  private async getWorkspaceBranch(
+    workspace: string,
+    cache?: Map<string, Promise<string | undefined>>,
+  ): Promise<string | undefined> {
+    const cachedBranch = cache?.get(workspace);
+
+    if (cachedBranch) {
+      return cachedBranch;
+    }
+
+    const branch = this.gitDiffService.captureCurrentBranch(workspace);
+    cache?.set(workspace, branch);
+
+    return branch;
   }
 
   private scheduleAtomicReview(input: {

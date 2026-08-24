@@ -420,6 +420,45 @@
   padding: 14px 28px;
 }
 
+.chat-header-title {
+  min-width: 0;
+}
+
+.chat-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.session-branch {
+  display: inline-flex;
+  min-width: 0;
+  max-width: min(34vw, 360px);
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  color: #4d5a69;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.8rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.session-branch svg {
+  flex: 0 0 auto;
+  color: #64748b;
+}
+
+.session-branch span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .section-label {
   display: block;
   margin-bottom: 4px;

@@ -165,6 +165,7 @@ export function useTurnStream({
           summary: updatedSession.summary,
           updatedAt: updatedSession.updatedAt,
           currentRound: updatedSession.currentRound,
+          gitBranch: updatedSession.gitBranch,
           isRunning: updatedSession.isRunning,
           runningTurnId: updatedSession.runningTurnId,
         };
