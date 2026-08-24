@@ -1,0 +1,104 @@
+.config-page {
+  min-height: 0;
+  overflow: auto;
+  background: #ffffff;
+  padding: 28px min(7vw, 92px);
+}
+
+.config-section {
+  display: grid;
+  max-width: 760px;
+  gap: 18px;
+}
+
+.config-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.config-section-header h2 {
+  margin: 0;
+  color: #151b23;
+  font-size: 1.1rem;
+  line-height: 1.25;
+}
+
+.config-table {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid #dce3eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.config-toggle-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  min-height: 58px;
+  border-bottom: 1px solid #eef2f6;
+  padding: 0 16px;
+}
+
+.config-toggle-row:last-child {
+  border-bottom: 0;
+}
+
+.config-toggle-row:hover {
+  background: #f8fafc;
+}
+
+.config-toggle-row strong {
+  color: #1d2733;
+  font-size: 0.92rem;
+}
+
+.config-toggle-row input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.config-toggle-row:has(input:focus-visible) .config-switch {
+  outline: 2px solid #64748b;
+  outline-offset: 2px;
+}
+
+.config-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  padding: 2px;
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.config-switch.is-on {
+  background: #2563eb;
+}
+
+.config-switch span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #2563eb;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 18%);
+  transform: translateX(0);
+  transition: transform 120ms ease;
+}
+
+.config-switch.is-on span {
+  transform: translateX(18px);
+}

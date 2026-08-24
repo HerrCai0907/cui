@@ -4,34 +4,45 @@ import type { ReviewRoute } from "../../review/model/reviewRoutes";
 
 type ChatHeaderProps = {
   activeSession: ApiSession | null;
+  configOpen: boolean;
   reviewRoute: ReviewRoute | null;
   onCloseReview: () => void;
 };
 
-export function ChatHeader({ activeSession, reviewRoute, onCloseReview }: ChatHeaderProps) {
+export function ChatHeader({
+  activeSession,
+  configOpen,
+  reviewRoute,
+  onCloseReview,
+}: ChatHeaderProps) {
   const gitBranch = activeSession?.gitBranch;
+  const sectionLabel = configOpen
+    ? "Configuration"
+    : reviewRoute
+      ? reviewRoute.mode === "atomic"
+        ? "Atomic Review"
+        : "Full Review"
+      : "Session";
+  const title = configOpen
+    ? "Config"
+    : reviewRoute
+      ? `Round ${reviewRoute.round}`
+      : (activeSession?.title ?? "New session");
 
   return (
     <header className="chat-header">
       <div className="chat-header-title">
-        <span className="section-label">
-          {reviewRoute
-            ? reviewRoute.mode === "atomic"
-              ? "Atomic Review"
-              : "Full Review"
-            : "Session"}
-        </span>
-        <h1>
-          {reviewRoute ? `Round ${reviewRoute.round}` : (activeSession?.title ?? "New session")}
-        </h1>
-        {reviewRoute ? (
+        <span className="section-label">{sectionLabel}</span>
+        <h1>{title}</h1>
+        {reviewRoute && !configOpen ? (
           <p className="session-progress">{activeSession?.title ?? reviewRoute.sessionId}</p>
         ) : (
+          !configOpen &&
           activeSession?.summary && <p className="session-progress">{activeSession.summary}</p>
         )}
       </div>
       <div className="chat-header-actions">
-        {gitBranch && (
+        {!configOpen && gitBranch && (
           <span
             className="session-branch"
             title={gitBranch}

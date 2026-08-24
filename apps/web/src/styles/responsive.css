@@ -25,6 +25,7 @@
 
   .chat-header,
   .message-stream,
+  .config-page,
   .composer {
     padding-left: 16px;
     padding-right: 16px;

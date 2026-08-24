@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { currentWorkspace, mockSession, mockSessions } from "./helpers";
+import { currentWorkspace, mockSession, mockSessions, showExecutionTraceTypes } from "./helpers";
 
 test("renders updated todo list items in the execution trace", async ({ page }) => {
   const traceEvents = [
@@ -88,6 +88,7 @@ test("renders updated todo list items in the execution trace", async ({ page }) 
     rounds: [],
   };
 
+  await showExecutionTraceTypes(page, ["todo_list"]);
   await mockSessions(page, [session]);
   await mockSession(page, session);
 
@@ -103,6 +104,67 @@ test("renders updated todo list items in the execution trace", async ({ page }) 
   await expect(page.locator(".trace-event-todo")).toHaveCount(0);
   await expect(page.getByText("updated / 0/2 done")).toHaveCount(0);
   await expect(page.getByText("Unknown item")).toHaveCount(0);
+});
+
+test("configures execution trace message visibility", async ({ page }) => {
+  const traceEvents = [
+    {
+      type: "item.completed",
+      item: {
+        id: "item_assistant",
+        type: "agent_message",
+        text: "Visible assistant trace.",
+      },
+    },
+    {
+      type: "item.completed",
+      item: {
+        id: "item_command",
+        type: "command_execution",
+        command: "npm test -- --runInBand",
+        status: "completed",
+        exit_code: 0,
+      },
+    },
+  ];
+  const session = {
+    id: "session-trace-config",
+    workspace: currentWorkspace,
+    title: "Trace config session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "trace-message-config",
+        role: "assistant",
+        kind: "trace",
+        content: traceEvents.map((event) => JSON.stringify(event)).join("\n"),
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    rounds: [],
+  };
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+
+  await page.goto("/");
+  await page.getByText("Show execution trace").click();
+
+  await expect(page.getByText("Visible assistant trace.")).toBeVisible();
+  await expect(page.getByText("npm test -- --runInBand")).not.toBeVisible();
+
+  await page.getByRole("button", { name: "Config", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Execution Trace" })).toBeVisible();
+  await expect(page.getByLabel("Assistant Message")).toBeChecked();
+  await expect(page.getByLabel("Command Execution")).not.toBeChecked();
+
+  await page.locator(".config-toggle-row", { hasText: "Command Execution" }).click();
+  await expect(page.getByLabel("Command Execution")).toBeChecked();
+  await page.getByRole("button", { name: "Trace config session" }).click();
+
+  await expect(page.getByText("Visible assistant trace.")).toBeVisible();
+  await expect(page.getByText("npm test -- --runInBand")).toBeVisible();
 });
 
 test("renders command execution output collapsed without a command label prefix", async ({
@@ -139,6 +201,7 @@ test("renders command execution output collapsed without a command label prefix"
     rounds: [],
   };
 
+  await showExecutionTraceTypes(page, ["command_execution"]);
   await mockSessions(page, [session]);
   await mockSession(page, session);
 
@@ -203,6 +266,7 @@ test("renders reasoning collapsed and file changes as file paths", async ({ page
     rounds: [],
   };
 
+  await showExecutionTraceTypes(page, ["reasoning", "file_change"]);
   await mockSessions(page, [session]);
   await mockSession(page, session);
 

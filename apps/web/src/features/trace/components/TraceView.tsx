@@ -8,6 +8,10 @@ import {
   TextSearch,
 } from "lucide-react";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
+import {
+  getExecutionTraceMessageType,
+  type ExecutionTraceMessageType,
+} from "../../config/model/appConfig";
 import type {
   ExecutionTraceEvent,
   ExecutionTraceItem,
@@ -20,13 +24,20 @@ import { formatExecutionTraceSummary, parseExecutionTrace } from "../model/parse
 type TraceViewProps = {
   content: string;
   expanded: boolean;
+  visibleMessageTypes: Record<ExecutionTraceMessageType, boolean>;
   onExpandedChange: (expanded: boolean) => void;
 };
 
-export function TraceView({ content, expanded, onExpandedChange }: TraceViewProps) {
+export function TraceView({
+  content,
+  expanded,
+  visibleMessageTypes,
+  onExpandedChange,
+}: TraceViewProps) {
   const events = parseExecutionTrace(content);
-  const detailEvents = events.filter((event) => !isTodoListTraceEvent(event));
-  const latestTodoList = findLatestTodoList(events);
+  const visibleEvents = events.filter((event) => isTraceEventVisible(event, visibleMessageTypes));
+  const detailEvents = visibleEvents.filter((event) => !isTodoListTraceEvent(event));
+  const latestTodoList = visibleMessageTypes.todo_list ? findLatestTodoList(events) : undefined;
   const traceListRef = useRef<HTMLOListElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
 
@@ -60,7 +71,7 @@ export function TraceView({ content, expanded, onExpandedChange }: TraceViewProp
     >
       <summary>
         <span>{expanded ? "Hide execution trace" : "Show execution trace"}</span>
-        <small>{formatExecutionTraceSummary(events)}</small>
+        <small>{formatExecutionTraceSummary(visibleEvents)}</small>
       </summary>
       <div className="trace-expanded-content">
         {latestTodoList && <TodoListPanel item={latestTodoList} />}
@@ -72,6 +83,13 @@ export function TraceView({ content, expanded, onExpandedChange }: TraceViewProp
       </div>
     </details>
   );
+}
+
+function isTraceEventVisible(
+  event: ExecutionTraceEvent,
+  visibleMessageTypes: Record<ExecutionTraceMessageType, boolean>,
+): boolean {
+  return visibleMessageTypes[getExecutionTraceMessageType(event)] ?? false;
 }
 
 function TraceEventRow({ event }: { event: ExecutionTraceEvent }) {

@@ -2,6 +2,7 @@ import { ClipboardList, FileDiff } from "lucide-react";
 import type { RefObject } from "react";
 import { TraceView } from "../../trace/components/TraceView";
 import { formatMessageTime } from "../../../shared/lib/dates";
+import type { AppConfig } from "../../config/model/appConfig";
 import type { ApiMessage, ApiSession } from "../../../types";
 import { AssistantMessageContent } from "./AssistantMessageContent";
 import { getMessageTitle } from "../model/messages";
@@ -9,6 +10,7 @@ import { getMessageTitle } from "../model/messages";
 type MessageStreamProps = {
   activeSession: ApiSession | null;
   blocked: boolean;
+  config: AppConfig;
   error: string | null;
   expandedTraceIds: Set<string>;
   messageStreamRef: RefObject<HTMLDivElement | null>;
@@ -22,6 +24,7 @@ type MessageStreamProps = {
 export function MessageStream({
   activeSession,
   blocked,
+  config,
   error,
   expandedTraceIds,
   messageStreamRef,
@@ -60,6 +63,7 @@ export function MessageStream({
           expanded={expandedTraceIds.has(message.id)}
           key={message.id}
           message={message}
+          config={config}
           onOpenReview={onOpenReview}
           onTraceExpandedChange={onTraceExpandedChange}
         />
@@ -73,12 +77,14 @@ export function MessageStream({
 
 function MessageItem({
   activeSession,
+  config,
   expanded,
   message,
   onOpenReview,
   onTraceExpandedChange,
 }: {
   activeSession: ApiSession;
+  config: AppConfig;
   expanded: boolean;
   message: ApiMessage;
   onOpenReview: (sessionId: string, round: number, mode: "atomic" | "full") => void;
@@ -133,6 +139,7 @@ function MessageItem({
         {isTrace ? (
           <TraceView
             content={message.content}
+            visibleMessageTypes={config.executionTrace.visibleMessageTypes}
             expanded={expanded}
             onExpandedChange={(open) => onTraceExpandedChange(message.id, open)}
           />
