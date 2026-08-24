@@ -132,6 +132,9 @@ test("marks a session done and removes it from Active after feedback", async ({ 
   await expect(page.getByRole("button", { name: "Finishable session" })).toHaveCount(0, {
     timeout: 2000,
   });
+  await expect(
+    page.getByRole("button", { name: `New session in ${currentWorkspace}` }),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "More" }).click();
   await expect(page.getByRole("button", { name: "Finishable session" })).toBeVisible();

@@ -183,6 +183,40 @@ test("partitionActiveSessionsForSidebar keeps done sessions out of Active only",
   );
 });
 
+test("partitionActiveSessionsForSidebar uses done sessions when retaining active workspaces", () => {
+  const sessions = createSessions(4);
+  sessions[0] = {
+    ...sessions[0],
+    doneAt: "2026-08-22T00:00:00.000Z",
+  };
+  sessions[1] = {
+    ...sessions[1],
+    workspace: "/workspace/done-only",
+    doneAt: "2026-08-22T00:00:00.000Z",
+  };
+
+  const partition = partitionActiveSessionsForSidebar(
+    sessions,
+    {
+      sessions: {
+        "session-0": 300,
+        "session-1": 200,
+      },
+      workspaces: {
+        "/workspace/a": 100,
+        "/workspace/done-only": 90,
+      },
+    },
+    new Set(["session-0"]),
+  );
+
+  assert.deepEqual(partition.activeWorkspaces, ["/workspace/a", "/workspace/done-only"]);
+  assert.deepEqual(
+    partition.active.map((session) => session.id),
+    ["session-2"],
+  );
+});
+
 test("partitionActiveSessionsForSidebar limits recent workspaces but always keeps running workspaces", () => {
   const sessions = createSessions(8).map((session, index) => ({
     ...session,

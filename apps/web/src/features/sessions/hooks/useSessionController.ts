@@ -104,12 +104,18 @@ export function useSessionController(defaultWorkspace: string) {
 
   const workspaces = useMemo(
     () =>
-      groupSessionsByWorkspace(
-        sessionListMode === "active"
-          ? sidebarSessionPartition.active
-          : sidebarSessionPartition.more,
-      ),
-    [sessionListMode, sidebarSessionPartition.active, sidebarSessionPartition.more],
+      sessionListMode === "active"
+        ? createActiveWorkspaceGroups(
+            sidebarSessionPartition.active,
+            sidebarSessionPartition.activeWorkspaces,
+          )
+        : groupSessionsByWorkspace(sidebarSessionPartition.more),
+    [
+      sessionListMode,
+      sidebarSessionPartition.active,
+      sidebarSessionPartition.activeWorkspaces,
+      sidebarSessionPartition.more,
+    ],
   );
   const { applyRunningTurnOverlay, closeTurnStream, streamTurn } = useTurnStream({
     activeSessionRef,
@@ -719,6 +725,19 @@ function filterKnownKeys(
 
     return filtered;
   }, {});
+}
+
+function createActiveWorkspaceGroups(
+  activeSessions: SessionSummary[],
+  activeWorkspaces: string[],
+): Record<string, SessionSummary[]> {
+  const workspaces = groupSessionsByWorkspace(activeSessions);
+
+  activeWorkspaces.forEach((workspace) => {
+    workspaces[workspace] = workspaces[workspace] ?? [];
+  });
+
+  return workspaces;
 }
 
 function isSameAttentionState(left: SessionAttentionState, right: SessionAttentionState): boolean {
