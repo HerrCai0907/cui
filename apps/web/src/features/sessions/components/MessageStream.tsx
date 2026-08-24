@@ -1,4 +1,4 @@
-import { ClipboardList, FileDiff } from "lucide-react";
+import { ClipboardList, FileDiff, ListChecks, Terminal } from "lucide-react";
 import type { RefObject } from "react";
 import { TraceView } from "../../trace/components/TraceView";
 import { formatMessageTime } from "../../../shared/lib/dates";
@@ -6,6 +6,7 @@ import type { AppConfig } from "../../config/model/appConfig";
 import type { ApiMessage, ApiSession } from "../../../types";
 import { AssistantMessageContent } from "./AssistantMessageContent";
 import { getMessageTitle } from "../model/messages";
+import type { QueuedPromptView } from "../hooks/useSessionController";
 
 type MessageStreamProps = {
   activeSession: ApiSession | null;
@@ -14,6 +15,7 @@ type MessageStreamProps = {
   error: string | null;
   expandedTraceIds: Set<string>;
   messageStreamRef: RefObject<HTMLDivElement | null>;
+  queuedPrompts: QueuedPromptView[];
   workspaceDraft: string;
   onOpenReview: (sessionId: string, round: number, mode: "atomic" | "full") => void;
   onScroll: () => void;
@@ -28,6 +30,7 @@ export function MessageStream({
   error,
   expandedTraceIds,
   messageStreamRef,
+  queuedPrompts,
   workspaceDraft,
   onOpenReview,
   onScroll,
@@ -69,9 +72,35 @@ export function MessageStream({
         />
       ))}
 
+      {queuedPrompts.length > 0 && <QueuedPromptList queuedPrompts={queuedPrompts} />}
       {blocked && <p className="loading-line">Waiting for TRAEX...</p>}
       {error && <p className="error-line">{error}</p>}
     </div>
+  );
+}
+
+function QueuedPromptList({ queuedPrompts }: { queuedPrompts: QueuedPromptView[] }) {
+  return (
+    <section className="queued-prompts" aria-label="Queued prompts">
+      <div className="queued-prompts-heading">
+        <ListChecks size={17} />
+        <strong>Queued prompts</strong>
+        <span>{queuedPrompts.length}</span>
+      </div>
+      <ol className="queued-prompts-list">
+        {queuedPrompts.map((queuedPrompt, index) => (
+          <li className="queued-prompt" key={queuedPrompt.id}>
+            <span className="queued-prompt-index">{index + 1}</span>
+            <p>{queuedPrompt.prompt}</p>
+            {queuedPrompt.mode === "shell" && (
+              <span className="queued-prompt-mode" title="Shell command">
+                <Terminal size={14} />
+              </span>
+            )}
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 

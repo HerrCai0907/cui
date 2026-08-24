@@ -387,11 +387,16 @@ test("queues a prompt while a session is running and sends it after stop", async
   await page.getByPlaceholder("Continue this session...").fill("Queued follow-up");
   await page.getByRole("button", { name: "Send message" }).click();
   await expect(page.getByPlaceholder("Continue this session...")).toHaveValue("");
+  await expect(page.getByRole("region", { name: "Queued prompts" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Queued prompts" })).toContainText(
+    "Queued follow-up",
+  );
   await expect.poll(() => prompts).toEqual(["Run a long task"]);
 
   await page.getByRole("button", { name: "Stop generation" }).click();
 
   await expect.poll(() => prompts).toEqual(["Run a long task", "Queued follow-up"]);
+  await expect(page.getByRole("region", { name: "Queued prompts" })).not.toBeVisible();
   await expect(page.getByText("Queued follow-up")).toBeVisible();
   await expect(page.getByRole("button", { name: "Stop generation" })).toBeVisible();
 });
@@ -549,6 +554,10 @@ test("queues a prompt while a session is running and sends it after completion",
   await expect(page.getByRole("button", { name: "Stop generation" })).toBeVisible();
   await page.getByPlaceholder("Continue this session...").fill("Queued follow-up");
   await page.getByRole("button", { name: "Send message" }).click();
+  await expect(page.getByRole("region", { name: "Queued prompts" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Queued prompts" })).toContainText(
+    "Queued follow-up",
+  );
   await expect.poll(() => prompts).toEqual(["Run a long task"]);
 
   visibleSession = firstCompletedSession;
@@ -561,6 +570,7 @@ test("queues a prompt while a session is running and sends it after completion",
   );
 
   await expect.poll(() => prompts).toEqual(["Run a long task", "Queued follow-up"]);
+  await expect(page.getByRole("region", { name: "Queued prompts" })).not.toBeVisible();
   await expect(page.getByText("Queued follow-up")).toBeVisible();
 });
 
