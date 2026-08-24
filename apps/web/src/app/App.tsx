@@ -230,6 +230,7 @@ export function App() {
               error={sessionController.error}
               expandedTraceIds={sessionController.expandedTraceIds}
               messageStreamRef={sessionController.messageStreamRef}
+              queuedPrompts={sessionController.activeSessionQueuedPrompts}
               workspaceDraft={sessionController.workspaceDraft}
               onOpenReview={openReview}
               onScroll={sessionController.handleMessageStreamScroll}

@@ -39,6 +39,7 @@ type SetCurrentActiveSessionOptions = {
 };
 
 type QueuedPrompt = {
+  id: string;
   mode: ComposerMode;
   prompt: string;
   restoreDraftOnFailure: boolean;
@@ -46,9 +47,16 @@ type QueuedPrompt = {
 
 type ComposerMode = "chat" | "shell";
 
+export type QueuedPromptView = {
+  id: string;
+  mode: ComposerMode;
+  prompt: string;
+};
+
 const LAST_ACTIVE_SESSION_STORAGE_KEY = "cui:last-active-session-id:v1";
 const DONE_MARK_VISIBLE_DURATION_MS = 800;
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 48;
+const EMPTY_QUEUED_PROMPTS: QueuedPromptView[] = [];
 
 export function useSessionController(defaultWorkspace: string) {
   const [sidebarBrowserState, setSidebarBrowserState] = useState(() =>
@@ -68,6 +76,9 @@ export function useSessionController(defaultWorkspace: string) {
   const [submittingSessionIds, setSubmittingSessionIds] = useState<Set<string>>(() => new Set());
   const [stoppingSessionIds, setStoppingSessionIds] = useState<Set<string>>(() => new Set());
   const [pendingDoneSessionIds, setPendingDoneSessionIds] = useState<Set<string>>(() => new Set());
+  const [queuedPromptsBySessionId, setQueuedPromptsBySessionId] = useState<
+    Map<string, QueuedPromptView[]>
+  >(() => new Map());
   const [creatingSession, setCreatingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedTraceIds, setExpandedTraceIds] = useState<Set<string>>(() => new Set());
@@ -84,11 +95,15 @@ export function useSessionController(defaultWorkspace: string) {
   const runningSessionIdsRef = useRef<Set<string>>(runningSessionIds);
   const runningTurnIdBySessionIdRef = useRef<Map<string, string>>(new Map());
   const submittingSessionIdsRef = useRef<Set<string>>(submittingSessionIds);
+  const nextQueuedPromptIdRef = useRef(0);
   const activeSessionRunning = activeSession ? runningSessionIds.has(activeSession.id) : false;
   const activeSessionStopping = activeSession ? stoppingSessionIds.has(activeSession.id) : false;
   const activeSessionBlocked = activeSession
     ? runningSessionIds.has(activeSession.id) || submittingSessionIds.has(activeSession.id)
     : creatingSession;
+  const activeSessionQueuedPrompts = activeSession
+    ? (queuedPromptsBySessionId.get(activeSession.id) ?? EMPTY_QUEUED_PROMPTS)
+    : EMPTY_QUEUED_PROMPTS;
   const composerSubmitDisabled = activeSession
     ? activeSessionBlocked && !activeSessionRunning
     : activeSessionBlocked;
@@ -185,7 +200,13 @@ export function useSessionController(defaultWorkspace: string) {
     }
 
     lastScrolledSessionIdRef.current = activeSession.id;
-  }, [activeSession?.id, activeSession?.messages, activeSessionBlocked, error]);
+  }, [
+    activeSession?.id,
+    activeSession?.messages,
+    activeSessionBlocked,
+    activeSessionQueuedPrompts,
+    error,
+  ]);
 
   useLayoutEffect(() => {
     const textarea = composerTextareaRef.current;
@@ -507,12 +528,14 @@ export function useSessionController(defaultWorkspace: string) {
 
     if (!nextPrompt) {
       queuedPromptsRef.current.delete(sessionId);
+      clearQueuedPromptViews(sessionId);
       return;
     }
 
     if (!queue || queue.length === 0) {
       queuedPromptsRef.current.delete(sessionId);
     }
+    removeQueuedPromptView(sessionId, nextPrompt.id);
 
     queueDrainInProgressSessionIdsRef.current.add(sessionId);
     setPendingDoneSessionIds((current) => {
@@ -749,10 +772,65 @@ export function useSessionController(defaultWorkspace: string) {
     setSubmittingSessionIds(next);
   }
 
-  function queuePrompt(sessionId: string, prompt: QueuedPrompt) {
+  function queuePrompt(sessionId: string, prompt: Omit<QueuedPrompt, "id">) {
     const queue = queuedPromptsRef.current.get(sessionId) ?? [];
+    const queuedPrompt = {
+      ...prompt,
+      id: `queued-prompt-${nextQueuedPromptIdRef.current}`,
+    };
 
-    queuedPromptsRef.current.set(sessionId, [...queue, prompt]);
+    nextQueuedPromptIdRef.current += 1;
+    queuedPromptsRef.current.set(sessionId, [...queue, queuedPrompt]);
+    setQueuedPromptsBySessionId((current) => {
+      const next = new Map(current);
+      const visibleQueue = next.get(sessionId) ?? [];
+
+      next.set(sessionId, [
+        ...visibleQueue,
+        {
+          id: queuedPrompt.id,
+          mode: queuedPrompt.mode,
+          prompt: queuedPrompt.prompt,
+        },
+      ]);
+
+      return next;
+    });
+  }
+
+  function removeQueuedPromptView(sessionId: string, queuedPromptId: string) {
+    setQueuedPromptsBySessionId((current) => {
+      const visibleQueue = current.get(sessionId);
+
+      if (!visibleQueue) {
+        return current;
+      }
+
+      const nextVisibleQueue = visibleQueue.filter((prompt) => prompt.id !== queuedPromptId);
+      const next = new Map(current);
+
+      if (nextVisibleQueue.length === 0) {
+        next.delete(sessionId);
+      } else {
+        next.set(sessionId, nextVisibleQueue);
+      }
+
+      return next;
+    });
+  }
+
+  function clearQueuedPromptViews(sessionId: string) {
+    setQueuedPromptsBySessionId((current) => {
+      if (!current.has(sessionId)) {
+        return current;
+      }
+
+      const next = new Map(current);
+
+      next.delete(sessionId);
+
+      return next;
+    });
   }
 
   function applyLocalSessionState(session: ApiSession): ApiSession {
@@ -856,6 +934,7 @@ export function useSessionController(defaultWorkspace: string) {
     activeSessionBlocked,
     activeSessionRunning,
     activeSessionStopping,
+    activeSessionQueuedPrompts,
     composerMode,
     composerSubmitDisabled,
     composerTextareaRef,
