@@ -15,6 +15,7 @@ export type WorkspaceDisplayGroup = {
 
 export type ActiveSidebarSessionPartition = {
   active: SessionSummary[];
+  activeWorkspaces: string[];
   more: SessionSummary[];
 };
 
@@ -59,7 +60,8 @@ export function partitionActiveSessionsForSidebar(
 ): ActiveSidebarSessionPartition {
   const activeCandidateSessions = sessions.filter((session) => !session.doneAt);
   const activeSidebarSessionIds = new Set<string>();
-  const sessionsByWorkspace = groupSessionsByWorkspace(activeCandidateSessions);
+  const sessionsByWorkspace = groupSessionsByWorkspace(sessions);
+  const activeCandidateSessionsByWorkspace = groupSessionsByWorkspace(activeCandidateSessions);
   const activeWorkspaceIds = new Set(highlightedWorkspaceIds);
 
   Object.entries(sessionsByWorkspace).forEach(([workspace, workspaceSessions]) => {
@@ -81,7 +83,7 @@ export function partitionActiveSessionsForSidebar(
       activeWorkspaceIds.add(workspace);
     });
 
-  Object.entries(sessionsByWorkspace).forEach(([workspace, workspaceSessions]) => {
+  Object.entries(activeCandidateSessionsByWorkspace).forEach(([workspace, workspaceSessions]) => {
     if (!activeWorkspaceIds.has(workspace)) {
       return;
     }
@@ -105,8 +107,15 @@ export function partitionActiveSessionsForSidebar(
     active: sortSessionsForActiveSidebar(
       activeCandidateSessions.filter((session) => activeSidebarSessionIds.has(session.id)),
     ),
+    activeWorkspaces: sortActiveWorkspaces(
+      Object.keys(sessionsByWorkspace).filter((workspace) => activeWorkspaceIds.has(workspace)),
+    ),
     more: sortSessionsForAllSessions(sessions, attentionState),
   };
+}
+
+function sortActiveWorkspaces(workspaces: string[]): string[] {
+  return [...workspaces].sort((left, right) => left.localeCompare(right));
 }
 
 export function sortSessionsForActiveSidebar(sessions: SessionSummary[]): SessionSummary[] {

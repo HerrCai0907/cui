@@ -196,7 +196,7 @@ export function SessionSidebar({
                   onToggleWorkspace={onToggleWorkspace}
                 />
                 {sessionCount === 0 && <p className="empty-sidebar">No sessions yet</p>}
-                {sessionCount > 0 && visibleSessionCount === 0 && (
+                {sessionCount > 0 && workspaceGroups.length === 0 && visibleSessionCount === 0 && (
                   <p className="empty-sidebar">No active sessions</p>
                 )}
               </nav>
