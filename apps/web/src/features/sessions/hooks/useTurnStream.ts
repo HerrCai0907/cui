@@ -32,6 +32,11 @@ type UseTurnStreamInput = {
   setSessions: Dispatch<SetStateAction<SessionSummary[]>>;
 };
 
+type StoppedTraceOverlay = {
+  traceMessageId: string;
+  content: string;
+};
+
 export function useTurnStream({
   activeSessionRef,
   onTurnSettled,
@@ -55,6 +60,7 @@ export function useTurnStream({
       }
     >
   >(new Map());
+  const stoppedTraceOverlayRefs = useRef<Map<string, StoppedTraceOverlay[]>>(new Map());
 
   useEffect(() => {
     return () => {
@@ -65,6 +71,7 @@ export function useTurnStream({
       turnIdRefs.current.clear();
       streamStateRefs.current.clear();
       streamMessageIdRefs.current.clear();
+      stoppedTraceOverlayRefs.current.clear();
     };
   }, []);
 
@@ -80,7 +87,11 @@ export function useTurnStream({
     turnIdRefs.current.set(sessionId, turnId);
     const streamingTraceMessageId = `stream-${turnId}-trace`;
     const streamingResponseMessageId = `stream-${turnId}-response`;
-    const streamMessageState = streamStateRefs.current.get(sessionId) ?? createStreamMessageState();
+    const existingStreamMessageIds = streamMessageIdRefs.current.get(sessionId);
+    const streamMessageState =
+      existingStreamMessageIds?.traceMessageId === streamingTraceMessageId
+        ? (streamStateRefs.current.get(sessionId) ?? createStreamMessageState())
+        : createStreamMessageState();
     streamStateRefs.current.set(sessionId, streamMessageState);
     streamMessageIdRefs.current.set(sessionId, {
       traceMessageId: streamingTraceMessageId,
@@ -88,11 +99,16 @@ export function useTurnStream({
     });
     let streamClosed = false;
 
-    const closeCurrentStream = () => {
+    const closeCurrentStream = (options: { preserveOverlay?: boolean } = {}) => {
       eventSource.close();
       if (eventSourceRefs.current.get(sessionId) === eventSource) {
         eventSourceRefs.current.delete(sessionId);
         turnIdRefs.current.delete(sessionId);
+      }
+
+      if (!options.preserveOverlay) {
+        streamStateRefs.current.delete(sessionId);
+        streamMessageIdRefs.current.delete(sessionId);
       }
     };
 
@@ -251,13 +267,12 @@ export function useTurnStream({
     });
 
     eventSource.addEventListener("cancelled", () => {
-      streamStateRefs.current.delete(sessionId);
-      streamMessageIdRefs.current.delete(sessionId);
+      preserveStoppedStreamOverlay(sessionId);
       setRunningSession(sessionId, false, turnId);
       refreshSessions();
       onTurnSettled?.(sessionId);
       streamClosed = true;
-      closeCurrentStream();
+      closeCurrentStream({ preserveOverlay: true });
     });
 
     eventSource.onerror = () => {
@@ -273,15 +288,16 @@ export function useTurnStream({
     };
   }
 
-  function applyRunningTurnOverlay(session: ApiSession): ApiSession {
+  function applyLocalTurnOverlay(session: ApiSession): ApiSession {
+    const sessionWithStoppedTrace = applyStoppedTraceOverlays(session);
     const streamMessageState = streamStateRefs.current.get(session.id);
     const streamMessageIds = streamMessageIdRefs.current.get(session.id);
 
     if (!streamMessageState || !streamMessageIds) {
-      return session;
+      return sessionWithStoppedTrace;
     }
 
-    return applyStreamMessageState(session, {
+    return applyStreamMessageState(sessionWithStoppedTrace, {
       state: streamMessageState,
       sessionId: session.id,
       traceMessageId: streamMessageIds.traceMessageId,
@@ -289,7 +305,11 @@ export function useTurnStream({
     });
   }
 
-  function closeTurnStream(sessionId: string, turnId?: string) {
+  function closeTurnStream(
+    sessionId: string,
+    turnId?: string,
+    options: { preserveOverlay?: boolean } = {},
+  ) {
     if (turnId && turnIdRefs.current.get(sessionId) !== turnId) {
       return;
     }
@@ -297,9 +317,105 @@ export function useTurnStream({
     eventSourceRefs.current.get(sessionId)?.close();
     eventSourceRefs.current.delete(sessionId);
     turnIdRefs.current.delete(sessionId);
+    if (options.preserveOverlay) {
+      preserveStoppedStreamOverlay(sessionId);
+      return;
+    }
+
     streamStateRefs.current.delete(sessionId);
     streamMessageIdRefs.current.delete(sessionId);
   }
 
-  return { applyRunningTurnOverlay, closeTurnStream, streamTurn };
+  function preserveStoppedStreamOverlay(sessionId: string) {
+    const streamMessageState = streamStateRefs.current.get(sessionId);
+    const streamMessageIds = streamMessageIdRefs.current.get(sessionId);
+
+    if (!streamMessageState?.streamedTrace || !streamMessageIds) {
+      return;
+    }
+
+    const overlays = stoppedTraceOverlayRefs.current.get(sessionId) ?? [];
+
+    if (
+      !overlays.some(
+        (overlay) =>
+          overlay.traceMessageId === streamMessageIds.traceMessageId ||
+          overlay.content === streamMessageState.streamedTrace,
+      )
+    ) {
+      stoppedTraceOverlayRefs.current.set(sessionId, [
+        ...overlays,
+        {
+          traceMessageId: streamMessageIds.traceMessageId,
+          content: streamMessageState.streamedTrace,
+        },
+      ]);
+    }
+    streamStateRefs.current.delete(sessionId);
+    streamMessageIdRefs.current.delete(sessionId);
+    setActiveSession((session) => {
+      const currentSession = session ?? activeSessionRef.current;
+
+      if (!currentSession || currentSession.id !== sessionId) {
+        return session;
+      }
+
+      const nextSession = applyStoppedTraceOverlays(currentSession);
+
+      activeSessionRef.current = nextSession;
+      return nextSession;
+    });
+    setExpandedTraceIds((current) => {
+      const next = new Set(current);
+
+      next.delete(streamMessageIds.traceMessageId);
+
+      return next;
+    });
+  }
+
+  function applyStoppedTraceOverlays(session: ApiSession): ApiSession {
+    const overlays = stoppedTraceOverlayRefs.current.get(session.id);
+
+    if (!overlays?.length) {
+      return session;
+    }
+
+    let nextSession = session;
+    const remainingOverlays: StoppedTraceOverlay[] = [];
+
+    for (const overlay of overlays) {
+      const hasPersistedTrace = nextSession.messages.some(
+        (message) =>
+          message.kind === "trace" &&
+          message.content === overlay.content &&
+          !message.id.startsWith("stream-"),
+      );
+
+      if (hasPersistedTrace) {
+        continue;
+      }
+
+      remainingOverlays.push(overlay);
+      nextSession = applyStreamMessageState(nextSession, {
+        state: {
+          streamedTrace: overlay.content,
+          streamedResponse: "",
+        },
+        sessionId: session.id,
+        traceMessageId: overlay.traceMessageId,
+        responseMessageId: "",
+      });
+    }
+
+    if (remainingOverlays.length > 0) {
+      stoppedTraceOverlayRefs.current.set(session.id, remainingOverlays);
+    } else {
+      stoppedTraceOverlayRefs.current.delete(session.id);
+    }
+
+    return nextSession;
+  }
+
+  return { applyLocalTurnOverlay, closeTurnStream, streamTurn };
 }

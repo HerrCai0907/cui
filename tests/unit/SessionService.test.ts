@@ -189,6 +189,14 @@ test("cancelRunningTurn stops an active stream and emits a cancellation event", 
       events.push(event);
     });
 
+    aiModel.emitRawEvent({
+      type: "item.completed",
+      item: {
+        id: "item-1",
+        type: "agent_message",
+        text: "Trace before stop.",
+      },
+    });
     await service.cancelRunningTurn("session-1");
 
     assert.equal(aiModel.cancelled, true);
@@ -196,7 +204,11 @@ test("cancelRunningTurn stops an active stream and emits a cancellation event", 
       events.some((event) => eventType(event) === "cancelled"),
       true,
     );
-    assert.equal((await service.getSessionView("session-1"))?.isRunning, false);
+    const session = await service.getSessionView("session-1");
+
+    assert.equal(session?.isRunning, false);
+    assert.equal(session?.messages[1]?.kind, "trace");
+    assert.match(session?.messages[1]?.content ?? "", /Trace before stop/);
   } finally {
     await rm(cwd, { force: true, recursive: true });
   }
@@ -245,6 +257,7 @@ class FakeAiModel implements AiModel {
   private readonly run = createDeferred<AiRunResult>();
   private readonly summary = createDeferred<ConversationSummary>();
   private readonly atomicReview = createDeferred<AtomicDiffReview>();
+  private streamEventHandler: ((event: AiRunEvent) => void) | undefined;
 
   async createSession(): Promise<AiResponse> {
     throw new Error("Unexpected createSession call");
@@ -270,7 +283,9 @@ class FakeAiModel implements AiModel {
     throw new Error("Unexpected createSessionStream call");
   }
 
-  continueSessionStream(): AiRun {
+  continueSessionStream(_input: unknown, onEvent: (event: AiRunEvent) => void): AiRun {
+    this.streamEventHandler = onEvent;
+
     return {
       sessionId: Promise.resolve("session-1"),
       result: this.run.promise,
@@ -279,6 +294,13 @@ class FakeAiModel implements AiModel {
         this.run.reject(new AiRunCancelledError());
       },
     };
+  }
+
+  emitRawEvent(event: unknown) {
+    this.streamEventHandler?.({
+      type: "raw",
+      event,
+    });
   }
 
   resolveRun(result: AiRunResult) {

@@ -136,7 +136,7 @@ export function useSessionController(defaultWorkspace: string) {
       sidebarSessionPartition.more,
     ],
   );
-  const { applyRunningTurnOverlay, closeTurnStream, streamTurn } = useTurnStream({
+  const { applyLocalTurnOverlay, closeTurnStream, streamTurn } = useTurnStream({
     activeSessionRef,
     onTurnSettled: (sessionId) => {
       void drainQueuedPrompt(sessionId);
@@ -332,7 +332,7 @@ export function useSessionController(defaultWorkspace: string) {
         }
 
         if (fallbackSession) {
-          setCurrentActiveSession(overlayLocallyRunningSession(fallbackSession), {
+          setCurrentActiveSession(applyLocalSessionState(fallbackSession), {
             persist: Boolean(restoredSession),
             recordAttention: false,
           });
@@ -341,7 +341,7 @@ export function useSessionController(defaultWorkspace: string) {
           }
         }
       } else if (nextActiveSession) {
-        const visibleSession = overlayLocallyRunningSession(nextActiveSession);
+        const visibleSession = applyLocalSessionState(nextActiveSession);
 
         setCurrentActiveSession(visibleSession);
         if (visibleSession.runningTurnId) {
@@ -575,7 +575,7 @@ export function useSessionController(defaultWorkspace: string) {
 
     try {
       await stopSession(sessionId);
-      closeTurnStream(sessionId, runningTurnId);
+      closeTurnStream(sessionId, runningTurnId, { preserveOverlay: true });
       clearRunningTurn(sessionId, runningTurnId);
       await refreshSessions();
       void drainQueuedPrompt(sessionId);
@@ -661,7 +661,7 @@ export function useSessionController(defaultWorkspace: string) {
     options: SetCurrentActiveSessionOptions = {},
   ) {
     const previousSession = activeSessionRef.current;
-    const visibleSession = session ? applyRunningTurnOverlay(session) : null;
+    const visibleSession = session ? applyLocalTurnOverlay(session) : null;
 
     if (previousSession && previousSession.id !== visibleSession?.id) {
       setLastSeenRound(previousSession.id, getCurrentRound(previousSession));
@@ -755,28 +755,32 @@ export function useSessionController(defaultWorkspace: string) {
     queuedPromptsRef.current.set(sessionId, [...queue, prompt]);
   }
 
-  function overlayLocallyRunningSession(session: ApiSession): ApiSession {
+  function applyLocalSessionState(session: ApiSession): ApiSession {
     const localTurnId = runningTurnIdBySessionIdRef.current.get(session.id);
+    const sessionWithTurnOverlay = applyLocalTurnOverlay(session);
 
     if (!localTurnId) {
-      return session;
+      return sessionWithTurnOverlay;
     }
 
     const currentSession = activeSessionRef.current;
 
     if (currentSession?.id !== session.id) {
       return {
-        ...session,
+        ...sessionWithTurnOverlay,
         isRunning: true,
         runningTurnId: localTurnId,
       };
     }
 
     return {
-      ...currentSession,
-      doneAt: session.doneAt,
-      currentRound: Math.max(currentSession.currentRound ?? 0, session.currentRound ?? 0),
-      gitBranch: session.gitBranch ?? currentSession.gitBranch,
+      ...sessionWithTurnOverlay,
+      doneAt: sessionWithTurnOverlay.doneAt,
+      currentRound: Math.max(
+        currentSession.currentRound ?? 0,
+        sessionWithTurnOverlay.currentRound ?? 0,
+      ),
+      gitBranch: sessionWithTurnOverlay.gitBranch ?? currentSession.gitBranch,
       isRunning: true,
       runningTurnId: localTurnId,
     };
