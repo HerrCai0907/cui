@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { currentWorkspace, mockSession, mockSessions } from "./helpers";
+import { currentWorkspace, fulfillJson, mockSession, mockSessions } from "./helpers";
 
 test("loads the new session screen without browser errors", async ({ page }) => {
   const browserErrors: string[] = [];
@@ -24,6 +24,70 @@ test("loads the new session screen without browser errors", async ({ page }) => 
   await expect(page.getByPlaceholder("Start with an initial prompt...")).toBeVisible();
   await expect(page.getByLabel("Send message")).toBeVisible();
   expect(browserErrors).toEqual([]);
+});
+
+test("sends configured models when starting a chat session", async ({ page }) => {
+  const startedSession = {
+    id: "session-models",
+    workspace: currentWorkspace,
+    title: "Model configured session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-1",
+        role: "user",
+        content: "Use the selected models.",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    rounds: [],
+    currentRound: 0,
+    isRunning: true,
+    runningTurnId: "turn-models",
+  };
+  let requestBody: unknown;
+
+  await mockSessions(page, []);
+  await page.route("**/api/sessions", async (route) => {
+    if (route.request().method() === "POST") {
+      requestBody = route.request().postDataJSON();
+      await fulfillJson(route, {
+        status: "ok",
+        session: startedSession,
+        turnId: "turn-models",
+      });
+      return;
+    }
+
+    await fulfillJson(route, { sessions: [] });
+  });
+  await page.route("**/api/turns/turn-models/events", async () => {
+    // Keep the stream open so the submitted session remains visible.
+  });
+
+  await page.goto("/config");
+
+  const modelChoices = page.getByRole("group", { name: "Model choices" });
+
+  await modelChoices.locator("select").nth(0).selectOption("GPT-5.4");
+  await modelChoices.locator("select").nth(1).selectOption("Seed-2.1-Turbo");
+  await modelChoices.locator("select").nth(2).selectOption("DeepSeek-V4-Pro");
+  await page.getByRole("button", { name: "New session", exact: true }).click();
+  await page.getByPlaceholder("Start with an initial prompt...").fill("Use the selected models.");
+  await page.getByRole("button", { name: "Send message" }).click();
+
+  await expect
+    .poll(() => requestBody)
+    .toEqual({
+      workspace: currentWorkspace,
+      prompt: "Use the selected models.",
+      models: {
+        normal: "GPT-5.4",
+        summary: "Seed-2.1-Turbo",
+        atomicReview: "DeepSeek-V4-Pro",
+      },
+    });
 });
 
 test("starts a new session from any workspace row", async ({ page }) => {

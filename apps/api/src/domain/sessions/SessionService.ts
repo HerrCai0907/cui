@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   AiModel,
+  AiModelPreferences,
   AiRunEvent,
   AiRunResult,
   AiRunCancelledError,
@@ -120,7 +121,7 @@ export class SessionService {
   async getRoundReview(
     sessionId: string,
     round: number,
-    options: { includeAtomicReview?: boolean } = {},
+    options: { includeAtomicReview?: boolean; models?: AiModelPreferences } = {},
   ): Promise<ChatRound | undefined> {
     const session = await this.store.getSession(sessionId);
 
@@ -148,6 +149,7 @@ export class SessionService {
           rawEvents: [],
         },
         round: review,
+        models: options.models,
       });
 
       review = await this.store.updateRoundAtomicReview(sessionId, round, atomicReview);
@@ -165,6 +167,7 @@ export class SessionService {
     const aiResponse = await this.aiModel.createSession({
       workspace: request.workspace,
       prompt: request.prompt,
+      models: request.models,
     });
     const sessionId = aiResponse.sessionId;
     const now = new Date().toISOString();
@@ -202,10 +205,11 @@ export class SessionService {
         prompt: request.prompt,
         aiResponse,
         round,
+        models: request.models,
       });
     }
 
-    return this.sessionSummaryService.refreshSessionSummary(createdSession);
+    return this.sessionSummaryService.refreshSessionSummary(createdSession, request.models);
   }
 
   async beginCreateSession(request: CreateSessionRequest): Promise<SubmittedTurn> {
@@ -244,7 +248,11 @@ export class SessionService {
 
     const createdSession = await this.store.createSession(session);
     runningTurn = this.turnRegistry.createRunningTurn(sessionId, run.cancel);
-    const summaryPromise = this.refreshSessionSummaryFromUserInput(createdSession, runningTurn);
+    const summaryPromise = this.refreshSessionSummaryFromUserInput(
+      createdSession,
+      runningTurn,
+      request.models,
+    );
     bufferedEvents.forEach((event) => this.turnRegistry.emitTurnEvent(runningTurn!, event));
     this.finishCreateSession(request, run.result, runningTurn, summaryPromise);
 
@@ -309,6 +317,7 @@ export class SessionService {
       sessionId,
       workspace: session.workspace,
       prompt: request.prompt,
+      models: request.models,
     });
     const userMessage = createMessage("user", request.prompt);
     const round = this.roundService.createNextRound(session, aiResponse);
@@ -340,10 +349,11 @@ export class SessionService {
         prompt: reviewPrompt,
         aiResponse,
         round,
+        models: request.models,
       });
     }
 
-    return this.sessionSummaryService.refreshSessionSummary(updatedSession);
+    return this.sessionSummaryService.refreshSessionSummary(updatedSession, request.models);
   }
 
   async beginContinueSession(
@@ -376,6 +386,7 @@ export class SessionService {
         sessionId,
         workspace: session.workspace,
         prompt: request.prompt,
+        models: request.models,
       },
       (event) => {
         handleAiRunEvent(event, (streamEvent) => {
@@ -388,7 +399,11 @@ export class SessionService {
       },
     );
     runningTurn = this.turnRegistry.createRunningTurn(sessionId, run.cancel);
-    const summaryPromise = this.refreshSessionSummaryFromUserInput(updatedSession, runningTurn);
+    const summaryPromise = this.refreshSessionSummaryFromUserInput(
+      updatedSession,
+      runningTurn,
+      request.models,
+    );
     bufferedEvents.forEach((event) => this.turnRegistry.emitTurnEvent(runningTurn!, event));
 
     this.finishContinueSession(request, run.result, runningTurn, session.workspace, summaryPromise);
@@ -466,6 +481,7 @@ export class SessionService {
           workspace: request.workspace,
           prompt: request.prompt,
           aiResponse,
+          models: request.models,
         });
         const latestSession =
           (await this.waitForInputSummary(summaryPromise, turn.sessionId)) ?? session;
@@ -510,6 +526,7 @@ export class SessionService {
           workspace,
           prompt: request.prompt,
           aiResponse,
+          models: request.models,
         });
         const latestSession =
           (await this.waitForInputSummary(summaryPromise, turn.sessionId)) ?? session;
@@ -654,9 +671,10 @@ export class SessionService {
   private refreshSessionSummaryFromUserInput(
     session: ChatSession,
     turn?: RunningTurn,
+    models?: AiModelPreferences,
   ): Promise<ChatSession> {
     return this.sessionSummaryService
-      .refreshSessionSummary(session)
+      .refreshSessionSummary(session, models)
       .then(async (updatedSession) => {
         if (turn && !turn.completed && updatedSession !== session) {
           this.turnRegistry.emitTurnEvent(turn, {
@@ -733,6 +751,7 @@ export class SessionService {
     prompt: string;
     aiResponse: AiRunResult;
     round: ChatRound;
+    models?: AiModelPreferences;
   }): void {
     void this.atomicReviewService
       .createAtomicDiffReview(input)

@@ -3,6 +3,9 @@
   overflow: auto;
   background: #ffffff;
   padding: 28px min(7vw, 92px);
+  display: grid;
+  align-content: start;
+  gap: 28px;
 }
 
 .config-section {
@@ -51,9 +54,52 @@
   background: #f8fafc;
 }
 
-.config-toggle-row strong {
+.config-select-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+  align-items: center;
+  gap: 18px;
+  min-height: 58px;
+  border-bottom: 1px solid #eef2f6;
+  padding: 0 16px;
+}
+
+.config-select-row:last-child {
+  border-bottom: 0;
+}
+
+.config-select-row:hover {
+  background: #f8fafc;
+}
+
+.config-toggle-row strong,
+.config-select-row strong {
   color: #1d2733;
   font-size: 0.92rem;
+}
+
+.config-select-row select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1d2733;
+  font: inherit;
+  min-height: 36px;
+  padding: 0 34px 0 10px;
+}
+
+.config-select-row select:focus-visible {
+  outline: 2px solid #64748b;
+  outline-offset: 2px;
+}
+
+.config-error {
+  margin: -4px 0 0;
+  color: #b42318;
+  font-size: 0.86rem;
+  line-height: 1.45;
 }
 
 .config-toggle-row input {

@@ -118,6 +118,49 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/models": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List available AI models */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Available AI models from the configured backend. */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              models: {
+                name: string;
+                provider?: string;
+                description?: string;
+                contextWindow?: number;
+              }[];
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions": {
     parameters: {
       query?: never;
@@ -195,6 +238,11 @@ export interface paths {
           "application/json": {
             workspace: string;
             prompt: string;
+            models?: {
+              normal?: string;
+              summary?: string;
+              atomicReview?: string;
+            };
           };
         };
       };
@@ -560,6 +608,7 @@ export interface paths {
       parameters: {
         query?: {
           mode?: "atomic" | "full";
+          atomicReviewModel?: string;
         };
         header?: never;
         path: {
@@ -675,6 +724,11 @@ export interface paths {
         content: {
           "application/json": {
             prompt: string;
+            models?: {
+              normal?: string;
+              summary?: string;
+              atomicReview?: string;
+            };
           };
         };
       };
@@ -1196,6 +1250,11 @@ export interface components {
       isRunning: boolean;
       runningTurnId?: string;
     };
+    AiModelPreferences: {
+      normal?: string;
+      summary?: string;
+      atomicReview?: string;
+    };
     CodeRangeResponse: {
       filePath: string;
       startLine: number;
@@ -1209,9 +1268,19 @@ export interface components {
     CreateSessionRequest: {
       workspace: string;
       prompt: string;
+      models?: {
+        normal?: string;
+        summary?: string;
+        atomicReview?: string;
+      };
     };
     ContinueSessionRequest: {
       prompt: string;
+      models?: {
+        normal?: string;
+        summary?: string;
+        atomicReview?: string;
+      };
     };
     CreateShellSessionRequest: {
       workspace: string;
@@ -1362,6 +1431,14 @@ export interface components {
           /** @enum {string} */
           type: "cancelled";
         };
+    ListModelsResponse: {
+      models: {
+        name: string;
+        provider?: string;
+        description?: string;
+        contextWindow?: number;
+      }[];
+    };
   };
   responses: never;
   parameters: never;

@@ -1,4 +1,10 @@
-import type { AiModel, AiResponse, AtomicDiffReview, ChatRound } from "../../types.js";
+import type {
+  AiModel,
+  AiModelPreferences,
+  AiResponse,
+  AtomicDiffReview,
+  ChatRound,
+} from "../../types.js";
 import type { AppLogger } from "../../infrastructure/logging/AppLogger.js";
 
 export class AtomicReviewService {
@@ -15,6 +21,7 @@ export class AtomicReviewService {
     prompt: string;
     aiResponse: AiResponse;
     round: ChatRound;
+    models?: AiModelPreferences;
   }): Promise<AtomicDiffReview> {
     const key = createAtomicReviewKey(input.sessionId, input.round.round);
     const activeReview = this.activeReviews.get(key);
@@ -38,6 +45,7 @@ export class AtomicReviewService {
     prompt: string;
     aiResponse: AiResponse;
     round: ChatRound;
+    models?: AiModelPreferences;
   }): Promise<AtomicDiffReview> {
     try {
       const review = await this.aiModel.createAtomicDiffReview({
@@ -48,6 +56,7 @@ export class AtomicReviewService {
         executionTrace: input.aiResponse.trace ?? "",
         assistantOutput: input.aiResponse.content,
         diff: input.round.diff,
+        models: input.models,
       });
 
       await this.logger.session(input.sessionId).info("round.review.created", {

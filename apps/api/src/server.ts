@@ -10,9 +10,10 @@ dotenv.config();
 
 const port = Number(process.env.PORT ?? 3000);
 const logger = new AppLogger();
-const sessionService = new SessionService(new TraexModel(), new JsonSessionStore(), logger);
+const aiModel = new TraexModel();
+const sessionService = new SessionService(aiModel, new JsonSessionStore(), logger);
 const codeQueryService = new CodeQueryService();
-const app = createApp({ logger, sessionService, codeQueryService });
+const app = createApp({ logger, aiModel, sessionService, codeQueryService });
 
 app.listen(port, () => {
   console.log(`API listening on http://localhost:${port}`);

@@ -8,11 +8,14 @@ import { createErrorHandler } from "../http/middleware/errorHandler.js";
 import { createRequestLogger } from "../http/middleware/requestLogger.js";
 import { createCodeRouter } from "../http/routes/codeRoutes.js";
 import { createHealthRouter } from "../http/routes/healthRoutes.js";
+import { createModelRouter } from "../http/routes/modelRoutes.js";
 import { createSessionRouter } from "../http/routes/sessionRoutes.js";
 import { createTurnRouter } from "../http/routes/turnRoutes.js";
+import type { AiModel } from "../types.js";
 
 export function createApp(input: {
   logger: AppLogger;
+  aiModel: AiModel;
   sessionService: SessionService;
   codeQueryService: CodeQueryService;
 }): express.Express {
@@ -25,6 +28,7 @@ export function createApp(input: {
     response.json(createOpenApiDocument());
   });
   app.use(createHealthRouter());
+  app.use(createModelRouter(input.aiModel));
   app.use(createCodeRouter(input.codeQueryService));
   app.use(createSessionRouter(input.sessionService));
   app.use(createTurnRouter(input.sessionService));

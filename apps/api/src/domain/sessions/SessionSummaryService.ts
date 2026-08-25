@@ -1,4 +1,4 @@
-import type { AiModel, ChatSession } from "../../types.js";
+import type { AiModel, AiModelPreferences, ChatSession } from "../../types.js";
 import type { AppLogger } from "../../infrastructure/logging/AppLogger.js";
 import type { JsonSessionStore } from "../../infrastructure/store/JsonSessionStore.js";
 import { createSummaryPrompt } from "./transcripts.js";
@@ -10,11 +10,15 @@ export class SessionSummaryService {
     private readonly logger: AppLogger,
   ) {}
 
-  async refreshSessionSummary(session: ChatSession): Promise<ChatSession> {
+  async refreshSessionSummary(
+    session: ChatSession,
+    models?: AiModelPreferences,
+  ): Promise<ChatSession> {
     try {
       const summary = await this.aiModel.summarizeConversation({
         workspace: session.workspace,
         prompt: createSummaryPrompt(session),
+        models,
       });
 
       return this.store.updateSessionSummary(session.id, {

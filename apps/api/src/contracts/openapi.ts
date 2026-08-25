@@ -4,6 +4,7 @@ import {
   ChatRoundSchema,
   ChatRoundSummarySchema,
   ChatSessionViewSchema,
+  AiModelPreferencesSchema,
   CodeRangeQuerySchema,
   CodeRangeResponseSchema,
   ContinueSessionRequestSchema,
@@ -14,6 +15,7 @@ import {
   GetSessionResponseSchema,
   HealthResponseSchema,
   ListSessionsResponseSchema,
+  ListModelsResponseSchema,
   OkResponseSchema,
   RoundReviewParamsSchema,
   RoundReviewQuerySchema,
@@ -33,6 +35,7 @@ registry.register("ChatMessage", ChatMessageSchema);
 registry.register("ChatRoundSummary", ChatRoundSummarySchema);
 registry.register("ChatRound", ChatRoundSchema);
 registry.register("ChatSessionView", ChatSessionViewSchema);
+registry.register("AiModelPreferences", AiModelPreferencesSchema);
 registry.register("CodeRangeResponse", CodeRangeResponseSchema);
 registry.register("CreateSessionRequest", CreateSessionRequestSchema);
 registry.register("ContinueSessionRequest", ContinueSessionRequestSchema);
@@ -42,6 +45,7 @@ registry.register("UpdateSessionRequest", UpdateSessionRequestSchema);
 registry.register("SubmittedTurnResponse", SubmittedTurnResponseSchema);
 registry.register("OkResponse", OkResponseSchema);
 registry.register("TurnStreamEvent", TurnStreamEventSchema);
+registry.register("ListModelsResponse", ListModelsResponseSchema);
 
 const errorResponse = {
   description: "Error response.",
@@ -86,6 +90,22 @@ registry.registerPath({
     },
     400: errorResponse,
     404: errorResponse,
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/models",
+  summary: "List available AI models",
+  responses: {
+    200: {
+      description: "Available AI models from the configured backend.",
+      content: {
+        "application/json": {
+          schema: ListModelsResponseSchema,
+        },
+      },
+    },
   },
 });
 

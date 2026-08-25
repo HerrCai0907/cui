@@ -8,7 +8,11 @@ import {
   CodePathNotFileError,
   CodeQueryService,
 } from "../../apps/api/src/domain/code/CodeQueryService.js";
-import { parseCodeRangeQuery } from "../../apps/api/src/http/validation/requestParsers.js";
+import {
+  parseCodeRangeQuery,
+  parseContinueSessionBody,
+  parseCreateSessionBody,
+} from "../../apps/api/src/http/validation/requestParsers.js";
 
 test("getCodeRange returns the requested inclusive line range", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-code-query-"));
@@ -143,5 +147,60 @@ test("parseCodeRangeQuery validates file path and line range", () => {
       ok: false,
       error: "startLine must be less than or equal to endLine",
     },
+  );
+});
+
+test("session request parsers accept model preferences", () => {
+  assert.deepEqual(
+    parseCreateSessionBody({
+      workspace: "/tmp/workspace",
+      prompt: "Implement a change",
+      models: {
+        normal: "GPT-5.4",
+        summary: "Seed-2.1-Turbo",
+        atomicReview: "DeepSeek-V4-Pro",
+      },
+    }),
+    {
+      ok: true,
+      value: {
+        workspace: "/tmp/workspace",
+        prompt: "Implement a change",
+        models: {
+          normal: "GPT-5.4",
+          summary: "Seed-2.1-Turbo",
+          atomicReview: "DeepSeek-V4-Pro",
+        },
+      },
+    },
+  );
+
+  assert.deepEqual(
+    parseContinueSessionBody({
+      prompt: "Continue the work",
+      models: {
+        normal: "GPT-5.6-Sol",
+      },
+    }),
+    {
+      ok: true,
+      value: {
+        prompt: "Continue the work",
+        models: {
+          normal: "GPT-5.6-Sol",
+        },
+      },
+    },
+  );
+
+  assert.equal(
+    parseCreateSessionBody({
+      workspace: "/tmp/workspace",
+      prompt: "Implement a change",
+      models: {
+        summary: "",
+      },
+    }).ok,
+    false,
   );
 });

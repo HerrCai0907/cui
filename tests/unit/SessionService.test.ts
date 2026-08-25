@@ -9,6 +9,8 @@ import type { AppLogger } from "../../apps/api/src/infrastructure/logging/AppLog
 import type {
   AiAtomicDiffReviewInput,
   AiModel,
+  AiModelInfo,
+  AiModelPreferences,
   AiResponse,
   AiRun,
   AiRunResult,
@@ -45,6 +47,10 @@ test("beginContinueSession refreshes summary after user input and before turn co
 
     const submitted = await service.beginContinueSession("session-1", {
       prompt: "Explain when the summary should run.",
+      models: {
+        normal: "GPT-5.4",
+        summary: "Seed-2.1-Turbo",
+      },
     });
     const events: unknown[] = [];
 
@@ -53,6 +59,10 @@ test("beginContinueSession refreshes summary after user input and before turn co
     });
 
     assert.equal(aiModel.summaryPrompts.length, 1);
+    assert.deepEqual(aiModel.summaryModels[0], {
+      normal: "GPT-5.4",
+      summary: "Seed-2.1-Turbo",
+    });
     assert.match(aiModel.summaryPrompts[0], /用户：Explain when the summary should run\./);
 
     aiModel.resolveRun({
@@ -72,6 +82,10 @@ test("beginContinueSession refreshes summary after user input and before turn co
     await waitFor(() => events.length === 2);
 
     assert.equal(aiModel.summaryPrompts.length, 1);
+    assert.deepEqual(aiModel.runModels[0], {
+      normal: "GPT-5.4",
+      summary: "Seed-2.1-Turbo",
+    });
     assert.deepEqual(
       events.map((event) => eventType(event)),
       ["session.updated", "done"],
@@ -106,6 +120,9 @@ test("beginContinueSession completes without waiting for atomic review generatio
 
     const submitted = await service.beginContinueSession("session-1", {
       prompt: "Change the value.",
+      models: {
+        atomicReview: "DeepSeek-V4-Pro",
+      },
     });
     const events: unknown[] = [];
 
@@ -138,6 +155,9 @@ test("beginContinueSession completes without waiting for atomic review generatio
     const doneEvent = events.find(isDoneEvent);
 
     assert.equal(aiModel.atomicReviewInputs.length, 1);
+    assert.deepEqual(aiModel.atomicReviewInputs[0]?.models, {
+      atomicReview: "DeepSeek-V4-Pro",
+    });
     assert.equal(doneEvent?.session.messages.at(-1)?.content, "Done.");
     assert.equal((await store.getRound("session-1", 1))?.atomicReview, undefined);
 
@@ -252,12 +272,18 @@ test("beginCreateShellSession streams and stores command output", async () => {
 
 class FakeAiModel implements AiModel {
   readonly summaryPrompts: string[] = [];
+  readonly summaryModels: Array<AiModelPreferences | undefined> = [];
+  readonly runModels: Array<AiModelPreferences | undefined> = [];
   readonly atomicReviewInputs: AiAtomicDiffReviewInput[] = [];
   cancelled = false;
   private readonly run = createDeferred<AiRunResult>();
   private readonly summary = createDeferred<ConversationSummary>();
   private readonly atomicReview = createDeferred<AtomicDiffReview>();
   private streamEventHandler: ((event: AiRunEvent) => void) | undefined;
+
+  async listModels(): Promise<AiModelInfo[]> {
+    return [];
+  }
 
   async createSession(): Promise<AiResponse> {
     throw new Error("Unexpected createSession call");
@@ -273,8 +299,9 @@ class FakeAiModel implements AiModel {
     return this.atomicReview.promise;
   }
 
-  async summarizeConversation(input: { prompt: string }) {
+  async summarizeConversation(input: { prompt: string; models?: AiModelPreferences }) {
     this.summaryPrompts.push(input.prompt);
+    this.summaryModels.push(input.models);
 
     return this.summary.promise;
   }
@@ -283,7 +310,11 @@ class FakeAiModel implements AiModel {
     throw new Error("Unexpected createSessionStream call");
   }
 
-  continueSessionStream(_input: unknown, onEvent: (event: AiRunEvent) => void): AiRun {
+  continueSessionStream(
+    input: { models?: AiModelPreferences },
+    onEvent: (event: AiRunEvent) => void,
+  ): AiRun {
+    this.runModels.push(input.models);
     this.streamEventHandler = onEvent;
 
     return {

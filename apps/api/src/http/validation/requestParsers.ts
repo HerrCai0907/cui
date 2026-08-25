@@ -24,10 +24,10 @@ export function parseCreateShellSessionBody(
   return parseWithSchema(CreateShellSessionRequestSchema, body);
 }
 
-export function parsePrompt(body: unknown): string | undefined {
-  const parsed = parseWithSchema(ContinueSessionRequestSchema, body);
-
-  return parsed.ok ? parsed.value.prompt : undefined;
+export function parseContinueSessionBody(
+  body: unknown,
+): ParsedBody<z.infer<typeof ContinueSessionRequestSchema>> {
+  return parseWithSchema(ContinueSessionRequestSchema, body);
 }
 
 export function parseRunShellCommandBody(

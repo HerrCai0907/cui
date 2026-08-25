@@ -23,6 +23,7 @@ export async function fulfillJson(route: Route, body: unknown) {
 }
 
 export async function mockSessions(page: Page, sessions: SessionSource) {
+  await mockModels(page);
   await page.route("**/api/sessions", async (route) => {
     if (route.request().method() === "GET") {
       await fulfillJson(route, {
@@ -32,6 +33,33 @@ export async function mockSessions(page: Page, sessions: SessionSource) {
     }
 
     await route.fallback();
+  });
+}
+
+export async function mockModels(page: Page) {
+  await page.route("**/api/models", async (route) => {
+    await fulfillJson(route, {
+      models: [
+        {
+          name: "GPT-5.4",
+          provider: "trae",
+          description: "Mock model",
+          contextWindow: 200000,
+        },
+        {
+          name: "Seed-2.1-Turbo",
+          provider: "trae",
+          description: "Mock model",
+          contextWindow: 184000,
+        },
+        {
+          name: "DeepSeek-V4-Pro",
+          provider: "trae",
+          description: "Mock model",
+          contextWindow: 200000,
+        },
+      ],
+    });
   });
 }
 

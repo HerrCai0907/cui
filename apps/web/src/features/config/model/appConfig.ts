@@ -16,7 +16,21 @@ export const EXECUTION_TRACE_MESSAGE_TYPES = [
 
 export type ExecutionTraceMessageType = (typeof EXECUTION_TRACE_MESSAGE_TYPES)[number];
 
+export const MODEL_PURPOSES = ["normal", "summary", "atomicReview"] as const;
+
+export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
+
+export type ModelPreferences = Record<ModelPurpose, string>;
+
+export type ModelOption = {
+  name: string;
+  provider?: string;
+  description?: string;
+  contextWindow?: number;
+};
+
 export type AppConfig = {
+  models: ModelPreferences;
   executionTrace: {
     visibleMessageTypes: Record<ExecutionTraceMessageType, boolean>;
   };
@@ -24,6 +38,7 @@ export type AppConfig = {
 
 type StoredAppConfig = {
   version: 1;
+  models?: Partial<Record<ModelPurpose, string>>;
   executionTrace?: {
     visibleMessageTypes?: Partial<Record<ExecutionTraceMessageType, boolean>>;
   };
@@ -42,8 +57,19 @@ export const EXECUTION_TRACE_MESSAGE_TYPE_LABELS: Record<ExecutionTraceMessageTy
   unknown: "Unknown",
 };
 
+export const MODEL_PURPOSE_LABELS: Record<ModelPurpose, string> = {
+  normal: "Normal",
+  summary: "Summary",
+  atomicReview: "Atomic Review",
+};
+
 export function createDefaultAppConfig(): AppConfig {
   return {
+    models: {
+      normal: "",
+      summary: "",
+      atomicReview: "",
+    },
     executionTrace: {
       visibleMessageTypes: Object.fromEntries(
         EXECUTION_TRACE_MESSAGE_TYPES.map((type) => [type, type === "assistant_message"]),
@@ -74,6 +100,10 @@ export function loadAppConfig(): AppConfig {
     }
 
     return {
+      models: {
+        ...defaultConfig.models,
+        ...parseModelPreferences(parsed.models),
+      },
       executionTrace: {
         visibleMessageTypes: {
           ...defaultConfig.executionTrace.visibleMessageTypes,
@@ -95,6 +125,7 @@ export function saveAppConfig(config: AppConfig): void {
   try {
     const storedConfig: StoredAppConfig = {
       version: 1,
+      models: sanitizeModelPreferences(config.models),
       executionTrace: {
         visibleMessageTypes: config.executionTrace.visibleMessageTypes,
       },
@@ -105,6 +136,14 @@ export function saveAppConfig(config: AppConfig): void {
   } catch {
     // App config persistence is local browser state only.
   }
+}
+
+export function createModelRequestPreferences(
+  models: ModelPreferences,
+): Partial<Record<ModelPurpose, string>> | undefined {
+  const preferences = sanitizeModelPreferences(models);
+
+  return Object.keys(preferences).length > 0 ? preferences : undefined;
 }
 
 export function getExecutionTraceMessageType(
@@ -188,6 +227,28 @@ function parseVisibleTraceMessageTypes(
     },
     {},
   );
+}
+
+function parseModelPreferences(value: unknown): Partial<Record<ModelPurpose, string>> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return sanitizeModelPreferences(value as Partial<Record<ModelPurpose, string>>);
+}
+
+function sanitizeModelPreferences(
+  models: Partial<Record<ModelPurpose, string>>,
+): Partial<Record<ModelPurpose, string>> {
+  return MODEL_PURPOSES.reduce<Partial<Record<ModelPurpose, string>>>((preferences, purpose) => {
+    const model = models[purpose]?.trim();
+
+    if (model) {
+      preferences[purpose] = model;
+    }
+
+    return preferences;
+  }, {});
 }
 
 function isFileChangeItem(type: string | undefined): boolean {
