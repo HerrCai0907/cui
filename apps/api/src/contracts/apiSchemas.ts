@@ -98,13 +98,30 @@ export const ChatSessionViewSchema = z.object({
   runningTurnId: z.string().optional(),
 });
 
+export const AiModelPreferencesSchema = z
+  .object({
+    normal: z.string().trim().min(1).optional(),
+    summary: z.string().trim().min(1).optional(),
+    atomicReview: z.string().trim().min(1).optional(),
+  })
+  .strict();
+
+export const AiModelInfoSchema = z.object({
+  name: z.string(),
+  provider: z.string().optional(),
+  description: z.string().optional(),
+  contextWindow: z.number().int().positive().optional(),
+});
+
 export const CreateSessionRequestSchema = z.object({
   workspace: nonEmptyStringSchema,
   prompt: nonEmptyStringSchema,
+  models: AiModelPreferencesSchema.optional(),
 });
 
 export const ContinueSessionRequestSchema = z.object({
   prompt: nonEmptyStringSchema,
+  models: AiModelPreferencesSchema.optional(),
 });
 
 export const CreateShellSessionRequestSchema = z.object({
@@ -187,6 +204,10 @@ export const ListSessionsResponseSchema = z.object({
   sessions: z.array(ChatSessionViewSchema),
 });
 
+export const ListModelsResponseSchema = z.object({
+  models: z.array(AiModelInfoSchema),
+});
+
 export const GetSessionResponseSchema = z.object({
   session: ChatSessionViewSchema,
 });
@@ -206,6 +227,7 @@ export const RoundReviewParamsSchema = z.object({
 
 export const RoundReviewQuerySchema = z.object({
   mode: z.enum(["atomic", "full"]).optional(),
+  atomicReviewModel: z.string().trim().min(1).optional(),
 });
 
 export const TurnIdParamsSchema = z.object({

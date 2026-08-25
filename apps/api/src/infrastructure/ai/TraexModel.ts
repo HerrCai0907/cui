@@ -1,9 +1,13 @@
+import { execFile } from "node:child_process";
 import { GitDiffService } from "../diff/GitDiffService.js";
 import {
   AiAtomicDiffReviewInput,
   AiContinueSessionInput,
   AiCreateSessionInput,
   AiModel,
+  AiModelInfo,
+  AiModelPreferences,
+  AiModelPurpose,
   AiResponse,
   AiRun,
   AiRunEvent,
@@ -20,10 +24,12 @@ import { extractResponseDeltas, extractThreadId, formatRawEvents } from "./traex
 import { runTraexProcess, type TraexProcessRun } from "./traexProcess.js";
 
 type TraexProcessRunner = (input: Parameters<typeof runTraexProcess>[0]) => TraexProcessRun;
+type TraexModelListRunner = () => Promise<unknown>;
 
 type TraexModelOptions = {
   binary?: string;
   diffService?: GitDiffService;
+  modelListRunner?: TraexModelListRunner;
   permissionMode?: string;
   processRunner?: TraexProcessRunner;
   timeoutMs?: number;
@@ -32,6 +38,7 @@ type TraexModelOptions = {
 export class TraexModel implements AiModel {
   private readonly binary: string;
   private readonly diffService: GitDiffService;
+  private readonly modelListRunner: TraexModelListRunner;
   private readonly permissionMode: string;
   private readonly processRunner: TraexProcessRunner;
   private readonly timeoutMs: number;
@@ -39,84 +46,51 @@ export class TraexModel implements AiModel {
   constructor(options: TraexModelOptions = {}) {
     this.binary = options.binary ?? process.env.TRAEX_BIN ?? "traecli";
     this.diffService = options.diffService ?? new GitDiffService();
+    this.modelListRunner =
+      options.modelListRunner ?? (() => execFileJson(this.binary, ["models", "--json"]));
     this.permissionMode =
       options.permissionMode ?? process.env.TRAEX_PERMISSION_MODE ?? "bypass_permissions";
     this.processRunner = options.processRunner ?? runTraexProcess;
     this.timeoutMs = Number(options.timeoutMs ?? process.env.TRAEX_TIMEOUT_MS ?? 10 * 60 * 1000);
   }
 
+  async listModels(): Promise<AiModelInfo[]> {
+    const rawModels = await this.modelListRunner();
+
+    if (!Array.isArray(rawModels)) {
+      throw new Error("TraeX models output was not an array");
+    }
+
+    return rawModels.map(parseTraexModelInfo).filter((model) => model.name);
+  }
+
   async createSession(input: AiCreateSessionInput): Promise<AiResponse> {
-    const args = [
-      "exec",
-      "-C",
-      input.workspace,
-      "--permission-mode",
-      this.permissionMode,
-      "--skip-git-repo-check",
-      "--json",
-      "-",
-    ];
+    const args = this.createExecArgs(input.workspace, input.models, "normal");
 
     return this.run(undefined, args, input.prompt, input.workspace);
   }
 
   createSessionStream(input: AiCreateSessionInput, onEvent: (event: AiRunEvent) => void): AiRun {
-    const args = [
-      "exec",
-      "-C",
-      input.workspace,
-      "--permission-mode",
-      this.permissionMode,
-      "--skip-git-repo-check",
-      "--json",
-      "-",
-    ];
+    const args = this.createExecArgs(input.workspace, input.models, "normal");
 
     return this.startRun(undefined, args, input.prompt, input.workspace, true, onEvent);
   }
 
   async continueSession(input: AiContinueSessionInput): Promise<AiResponse> {
-    const args = [
-      "exec",
-      "resume",
-      input.sessionId,
-      "--permission-mode",
-      this.permissionMode,
-      "--skip-git-repo-check",
-      "--json",
-      "-",
-    ];
+    const args = this.createResumeArgs(input.sessionId, input.models, "normal");
 
     return this.run(input.sessionId, args, input.prompt, input.workspace);
   }
 
   async summarizeConversation(input: AiCreateSessionInput): Promise<ConversationSummary> {
-    const args = [
-      "exec",
-      "-C",
-      input.workspace,
-      "--permission-mode",
-      this.permissionMode,
-      "--skip-git-repo-check",
-      "--json",
-      "-",
-    ];
+    const args = this.createExecArgs(input.workspace, input.models, "summary");
     const response = await this.run(undefined, args, input.prompt, input.workspace, false);
 
     return parseConversationSummary(response.content);
   }
 
   async createAtomicDiffReview(input: AiAtomicDiffReviewInput): Promise<AtomicDiffReview> {
-    const createArgs = [
-      "exec",
-      "-C",
-      input.workspace,
-      "--permission-mode",
-      this.permissionMode,
-      "--skip-git-repo-check",
-      "--json",
-      "-",
-    ];
+    const createArgs = this.createExecArgs(input.workspace, input.models, "atomicReview");
     let response: AiResponse | undefined;
 
     try {
@@ -143,7 +117,7 @@ export class TraexModel implements AiModel {
         try {
           correctionResponse = await this.run(
             response.sessionId,
-            this.createResumeArgs(response.sessionId),
+            this.createResumeArgs(response.sessionId, input.models, "atomicReview"),
             createAtomicDiffReviewFormatCorrectionPrompt({
               validationError:
                 error instanceof Error ? error.message : "Atomic diff review format was invalid",
@@ -186,16 +160,7 @@ export class TraexModel implements AiModel {
     input: AiContinueSessionInput,
     onEvent: (event: AiRunEvent) => void,
   ): AiRun {
-    const args = [
-      "exec",
-      "resume",
-      input.sessionId,
-      "--permission-mode",
-      this.permissionMode,
-      "--skip-git-repo-check",
-      "--json",
-      "-",
-    ];
+    const args = this.createResumeArgs(input.sessionId, input.models, "normal");
 
     return this.startRun(input.sessionId, args, input.prompt, input.workspace, true, onEvent);
   }
@@ -211,17 +176,60 @@ export class TraexModel implements AiModel {
       .result;
   }
 
-  private createResumeArgs(sessionId: string): string[] {
-    return [
-      "exec",
-      "resume",
-      sessionId,
-      "--permission-mode",
-      this.permissionMode,
-      "--skip-git-repo-check",
-      "--json",
-      "-",
-    ];
+  private createExecArgs(
+    workspace: string,
+    models: AiModelPreferences | undefined,
+    purpose: AiModelPurpose,
+  ): string[] {
+    return this.withModelArg(
+      [
+        "exec",
+        "-C",
+        workspace,
+        "--permission-mode",
+        this.permissionMode,
+        "--skip-git-repo-check",
+        "--json",
+        "-",
+      ],
+      models,
+      purpose,
+    );
+  }
+
+  private createResumeArgs(
+    sessionId: string,
+    models: AiModelPreferences | undefined,
+    purpose: AiModelPurpose,
+  ): string[] {
+    return this.withModelArg(
+      [
+        "exec",
+        "resume",
+        sessionId,
+        "--permission-mode",
+        this.permissionMode,
+        "--skip-git-repo-check",
+        "--json",
+        "-",
+      ],
+      models,
+      purpose,
+    );
+  }
+
+  private withModelArg(
+    args: string[],
+    models: AiModelPreferences | undefined,
+    purpose: AiModelPurpose,
+  ): string[] {
+    const model = models?.[purpose]?.trim();
+
+    if (!model) {
+      return args;
+    }
+
+    return [...args.slice(0, -1), "--model", model, args.at(-1)!];
   }
 
   private startRun(
@@ -313,4 +321,61 @@ function createDeferred<T>() {
   });
 
   return { promise, resolve, reject };
+}
+
+function execFileJson(command: string, args: string[]): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      command,
+      args,
+      {
+        env: {
+          ...process.env,
+          NO_COLOR: "1",
+          FORCE_COLOR: "0",
+        },
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(`TraeX models command failed: ${stderr.trim() || error.message}`));
+          return;
+        }
+
+        try {
+          resolve(JSON.parse(stdout));
+        } catch (parseError) {
+          reject(
+            new Error(
+              `TraeX models command returned invalid JSON: ${
+                parseError instanceof Error ? parseError.message : "parse failed"
+              }`,
+            ),
+          );
+        }
+      },
+    );
+  });
+}
+
+function parseTraexModelInfo(value: unknown): AiModelInfo {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { name: "" };
+  }
+
+  const record = value as Record<string, unknown>;
+  const name = typeof record.name === "string" ? record.name.trim() : "";
+  const provider = typeof record.provider === "string" ? record.provider.trim() : undefined;
+  const description =
+    typeof record.description === "string" ? record.description.trim() : undefined;
+  const contextWindow =
+    typeof record.context_window === "number" && Number.isFinite(record.context_window)
+      ? record.context_window
+      : undefined;
+
+  return {
+    name,
+    ...(provider ? { provider } : {}),
+    ...(description ? { description } : {}),
+    ...(contextWindow ? { contextWindow } : {}),
+  };
 }

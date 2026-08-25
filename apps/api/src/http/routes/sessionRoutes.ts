@@ -2,8 +2,8 @@ import { Router } from "express";
 import type { SessionService } from "../../domain/sessions/SessionService.js";
 import {
   parseCreateShellSessionBody,
+  parseContinueSessionBody,
   parseCreateSessionBody,
-  parsePrompt,
   parseRoundReviewParams,
   parseRoundReviewQuery,
   parseRunShellCommandBody,
@@ -53,11 +53,15 @@ export function createSessionRouter(sessionService: SessionService): Router {
       }
 
       const includeAtomicReview = parsedQuery.value.mode !== "full";
+      const models = parsedQuery.value.atomicReviewModel
+        ? { atomicReview: parsedQuery.value.atomicReviewModel }
+        : undefined;
       const review = await sessionService.getRoundReview(
         parsedParams.value.sessionId,
         parsedParams.value.round,
         {
           includeAtomicReview,
+          models,
         },
       );
 
@@ -125,16 +129,17 @@ export function createSessionRouter(sessionService: SessionService): Router {
 
   router.post("/api/sessions/:sessionId/messages", async (request, response, next) => {
     try {
-      const prompt = parsePrompt(request.body);
+      const parsed = parseContinueSessionBody(request.body);
 
-      if (!prompt) {
-        response.status(400).json({ error: "prompt must be a non-empty string" });
+      if (!parsed.ok) {
+        response.status(400).json({ error: parsed.error });
         return;
       }
 
-      const submittedTurn = await sessionService.beginContinueSession(request.params.sessionId, {
-        prompt,
-      });
+      const submittedTurn = await sessionService.beginContinueSession(
+        request.params.sessionId,
+        parsed.value,
+      );
 
       response.status(202).json({ status: "ok", ...submittedTurn });
     } catch (error) {

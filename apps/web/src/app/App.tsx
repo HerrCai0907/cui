@@ -1,6 +1,13 @@
 import { useEffect, useState, type CSSProperties } from "react";
+import { listModels } from "../features/config/api/modelApi";
 import { ConfigPage } from "../features/config/components/ConfigPage";
-import { loadAppConfig, saveAppConfig, type AppConfig } from "../features/config/model/appConfig";
+import {
+  createModelRequestPreferences,
+  loadAppConfig,
+  saveAppConfig,
+  type AppConfig,
+  type ModelOption,
+} from "../features/config/model/appConfig";
 import { ReviewPage } from "../features/review/components/ReviewPage";
 import { getRoundReview } from "../features/review/api/reviewApi";
 import type {
@@ -24,6 +31,8 @@ const DEFAULT_WORKSPACE = "/Users/bytedance/cui";
 export function App() {
   const [configOpen, setConfigOpen] = useState(() => location.pathname === "/config");
   const [config, setConfig] = useState<AppConfig>(loadAppConfig);
+  const [models, setModels] = useState<ModelOption[]>([]);
+  const [modelsError, setModelsError] = useState<string | null>(null);
   const [reviewRoute, setReviewRoute] = useState<ReviewRoute | null>(() =>
     location.pathname === "/config" ? null : parseReviewRoute(location.pathname),
   );
@@ -33,7 +42,29 @@ export function App() {
   const [reviewNavigation, setReviewNavigation] = useState<ReviewNavigation | null>(null);
   const [reviewNavigationTarget, setReviewNavigationTarget] =
     useState<ReviewNavigationTarget | null>(null);
-  const sessionController = useSessionController(DEFAULT_WORKSPACE);
+  const sessionController = useSessionController(DEFAULT_WORKSPACE, config);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    listModels()
+      .then((loadedModels) => {
+        if (!cancelled) {
+          setModels(loadedModels);
+          setModelsError(null);
+        }
+      })
+      .catch((reason) => {
+        if (!cancelled) {
+          setModels([]);
+          setModelsError(reason instanceof Error ? reason.message : "Failed to load models");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -69,7 +100,9 @@ export function App() {
 
     setReviewLoading(true);
     setReviewError(null);
-    getRoundReview(reviewRoute.sessionId, reviewRoute.round, reviewRoute.mode)
+    getRoundReview(reviewRoute.sessionId, reviewRoute.round, reviewRoute.mode, {
+      atomicReviewModel: createModelRequestPreferences(config.models)?.atomicReview,
+    })
       .then((loadedReview) => {
         if (!cancelled) {
           setReview(loadedReview);
@@ -96,7 +129,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [reviewRoute?.sessionId, reviewRoute?.round, reviewRoute?.mode]);
+  }, [reviewRoute?.sessionId, reviewRoute?.round, reviewRoute?.mode, config.models.atomicReview]);
 
   function startNewSession(workspace?: string) {
     setConfigOpen(false);
@@ -204,7 +237,12 @@ export function App() {
         />
 
         {configOpen ? (
-          <ConfigPage config={config} onConfigChange={updateConfig} />
+          <ConfigPage
+            config={config}
+            models={models}
+            modelsError={modelsError}
+            onConfigChange={updateConfig}
+          />
         ) : reviewRoute ? (
           <ReviewPage
             error={reviewError ?? sessionController.error}

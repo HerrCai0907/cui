@@ -1,5 +1,10 @@
 import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
+  createModelRequestPreferences,
+  type AppConfig,
+  type ModelPreferences,
+} from "../../config/model/appConfig";
+import {
   continueSession,
   createShellSession,
   createSession,
@@ -41,6 +46,7 @@ type SetCurrentActiveSessionOptions = {
 type QueuedPrompt = {
   id: string;
   mode: ComposerMode;
+  models: ModelPreferences;
   prompt: string;
   restoreDraftOnFailure: boolean;
 };
@@ -58,7 +64,7 @@ const DONE_MARK_VISIBLE_DURATION_MS = 800;
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 48;
 const EMPTY_QUEUED_PROMPTS: QueuedPromptView[] = [];
 
-export function useSessionController(defaultWorkspace: string) {
+export function useSessionController(defaultWorkspace: string, config: AppConfig) {
   const [sidebarBrowserState, setSidebarBrowserState] = useState(() =>
     loadSessionSidebarBrowserState(defaultWorkspace),
   );
@@ -419,6 +425,7 @@ export function useSessionController(defaultWorkspace: string) {
     if (submittedSessionId && runningSessionIdsRef.current.has(submittedSessionId)) {
       queuePrompt(submittedSessionId, {
         mode,
+        models: { ...config.models },
         prompt: trimmed,
         restoreDraftOnFailure: options.restoreDraftOnFailure ?? true,
       });
@@ -456,6 +463,7 @@ export function useSessionController(defaultWorkspace: string) {
 
     try {
       const workspace = workspaceDraft.trim() || defaultWorkspace;
+      const models = createModelRequestPreferences(config.models);
       const data =
         mode === "shell"
           ? activeSession
@@ -465,10 +473,11 @@ export function useSessionController(defaultWorkspace: string) {
                 command: trimmed,
               })
           : activeSession
-            ? await continueSession(activeSession.id, { prompt: trimmed })
+            ? await continueSession(activeSession.id, { prompt: trimmed, models })
             : await createSession({
                 workspace,
                 prompt: trimmed,
+                models,
               });
 
       setRunningTurn(data.session.id, data.turnId);
@@ -549,10 +558,11 @@ export function useSessionController(defaultWorkspace: string) {
     setError(null);
 
     try {
+      const models = createModelRequestPreferences(nextPrompt.models);
       const data =
         nextPrompt.mode === "shell"
           ? await runShellCommand(sessionId, { command: nextPrompt.prompt })
-          : await continueSession(sessionId, { prompt: nextPrompt.prompt });
+          : await continueSession(sessionId, { prompt: nextPrompt.prompt, models });
 
       setRunningTurn(data.session.id, data.turnId);
       recordSessionAttention(data.session);

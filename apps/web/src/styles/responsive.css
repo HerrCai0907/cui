@@ -54,6 +54,15 @@
     grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
   }
 
+  .config-select-row {
+    grid-template-columns: 1fr;
+  }
+
+  .config-section-header {
+    flex-direction: column;
+    align-items: start;
+  }
+
   .atomic-review-item-header {
     padding: 12px;
   }

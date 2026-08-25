@@ -1,4 +1,4 @@
-import type { AiRunResult, ChatRound, ChatSession } from "../../types.js";
+import type { AiModelPreferences, AiRunResult, ChatRound, ChatSession } from "../../types.js";
 import type { JsonSessionStore } from "../../infrastructure/store/JsonSessionStore.js";
 import type { AppLogger } from "../../infrastructure/logging/AppLogger.js";
 import { AtomicReviewService } from "../reviews/AtomicReviewService.js";
@@ -22,6 +22,7 @@ export class TurnCompletionService {
     workspace: string;
     prompt: string;
     aiResponse: AiRunResult;
+    models?: AiModelPreferences;
   }) {
     const currentSession = await this.store.getSession(input.aiResponse.sessionId);
     const round = this.roundService.createNextRound(currentSession, input.aiResponse);
@@ -43,6 +44,7 @@ export class TurnCompletionService {
         prompt: reviewPrompt,
         aiResponse: input.aiResponse,
         round,
+        models: input.models,
       });
     }
 
@@ -57,6 +59,7 @@ export class TurnCompletionService {
     prompt: string;
     aiResponse: AiRunResult;
     round: ChatRound;
+    models?: AiModelPreferences;
   }): void {
     void this.atomicReviewService
       .createAtomicDiffReview(input)

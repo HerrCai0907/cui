@@ -44,6 +44,73 @@ test("createAtomicDiffReview retries with validation feedback when item diff for
   assert.match(calls[1].input, /不要输出 Markdown/);
 });
 
+test("uses separate configured models for normal, summary, and atomic review runs", async () => {
+  const calls: ProcessCall[] = [];
+  const model = new TraexModel({
+    binary: "traecli",
+    modelListRunner: () =>
+      Promise.resolve([
+        {
+          name: "GPT-5.4",
+          provider: "trae",
+          description: "Default coding model",
+          context_window: 200000,
+        },
+      ]),
+    processRunner: (input): TraexProcessRun => {
+      calls.push({ args: input.args, input: input.input });
+
+      return {
+        cancel: () => undefined,
+        promise: Promise.resolve({
+          content: contentForCall(calls.length),
+          beforeSnapshot: { gitCommit: "", diff: "" },
+          afterSnapshot: { gitCommit: "", diff: "" },
+          rawEvents: [{ type: "thread.started", thread_id: `session-${calls.length}` }],
+        }),
+      };
+    },
+  });
+  const models = {
+    normal: "GPT-5.4",
+    summary: "Seed-2.1-Turbo",
+    atomicReview: "DeepSeek-V4-Pro",
+  };
+
+  await model.createSession({
+    workspace: "/tmp/workspace",
+    prompt: "Implement the feature.",
+    models,
+  });
+  await model.summarizeConversation({
+    workspace: "/tmp/workspace",
+    prompt: "Summarize the session.",
+    models,
+  });
+  await model.createAtomicDiffReview({
+    workspace: "/tmp/workspace",
+    originalSessionId: "session-1",
+    round: 1,
+    sessionInput: "Update sidebar state.",
+    executionTrace: "",
+    assistantOutput: "Done.",
+    diff: validDiff,
+    models,
+  });
+
+  assert.deepEqual(findModelArgs(calls[0].args), ["--model", "GPT-5.4"]);
+  assert.deepEqual(findModelArgs(calls[1].args), ["--model", "Seed-2.1-Turbo"]);
+  assert.deepEqual(findModelArgs(calls[2].args), ["--model", "DeepSeek-V4-Pro"]);
+  assert.deepEqual(await model.listModels(), [
+    {
+      name: "GPT-5.4",
+      provider: "trae",
+      description: "Default coding model",
+      contextWindow: 200000,
+    },
+  ]);
+});
+
 const invalidAtomicReviewResponse = JSON.stringify({
   items: [
     {
@@ -64,6 +131,27 @@ const invalidAtomicReviewResponse = JSON.stringify({
     },
   ],
 });
+
+function contentForCall(callCount: number): string {
+  if (callCount === 2) {
+    return JSON.stringify({
+      title: "Session title",
+      progress: "Session summary",
+    });
+  }
+
+  if (callCount === 3) {
+    return validAtomicReviewResponse;
+  }
+
+  return "Done.";
+}
+
+function findModelArgs(args: string[]): string[] {
+  const index = args.indexOf("--model");
+
+  return index === -1 ? [] : args.slice(index, index + 2);
+}
 
 const validDiff = [
   "diff --git a/apps/web/src/features/sessions/model/sessionBrowserState.ts b/apps/web/src/features/sessions/model/sessionBrowserState.ts",

@@ -349,6 +349,24 @@
           "isRunning"
         ]
       },
+      "AiModelPreferences": {
+        "type": "object",
+        "properties": {
+          "normal": {
+            "type": "string",
+            "minLength": 1
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "atomicReview": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      },
       "CodeRangeResponse": {
         "type": "object",
         "properties": {
@@ -395,6 +413,24 @@
           "prompt": {
             "type": "string",
             "minLength": 1
+          },
+          "models": {
+            "type": "object",
+            "properties": {
+              "normal": {
+                "type": "string",
+                "minLength": 1
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1
+              },
+              "atomicReview": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
           }
         },
         "required": ["workspace", "prompt"]
@@ -405,6 +441,24 @@
           "prompt": {
             "type": "string",
             "minLength": 1
+          },
+          "models": {
+            "type": "object",
+            "properties": {
+              "normal": {
+                "type": "string",
+                "minLength": 1
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1
+              },
+              "atomicReview": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
           }
         },
         "required": ["prompt"]
@@ -880,6 +934,34 @@
             "required": ["type"]
           }
         ]
+      },
+      "ListModelsResponse": {
+        "type": "object",
+        "properties": {
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "provider": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "contextWindow": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": ["name"]
+            }
+          }
+        },
+        "required": ["models"]
       }
     },
     "parameters": {}
@@ -1021,6 +1103,48 @@
                     }
                   },
                   "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/models": {
+      "get": {
+        "summary": "List available AI models",
+        "responses": {
+          "200": {
+            "description": "Available AI models from the configured backend.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "models": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "contextWindow": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0
+                          }
+                        },
+                        "required": ["name"]
+                      }
+                    }
+                  },
+                  "required": ["models"]
                 }
               }
             }
@@ -1181,6 +1305,24 @@
                   "prompt": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "models": {
+                    "type": "object",
+                    "properties": {
+                      "normal": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "summary": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "atomicReview": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": ["workspace", "prompt"]
@@ -1938,6 +2080,15 @@
             "required": false,
             "name": "mode",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": false,
+            "name": "atomicReviewModel",
+            "in": "query"
           }
         ],
         "responses": {
@@ -2170,6 +2321,24 @@
                   "prompt": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "models": {
+                    "type": "object",
+                    "properties": {
+                      "normal": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "summary": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "atomicReview": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": ["prompt"]

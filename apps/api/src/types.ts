@@ -47,13 +47,19 @@ export type ChatSessionView = Omit<ChatSession, "rounds"> & {
 export type AiCreateSessionInput = {
   workspace: string;
   prompt: string;
+  models?: AiModelPreferences;
 };
 
 export type AiContinueSessionInput = {
   sessionId: string;
   workspace: string;
   prompt: string;
+  models?: AiModelPreferences;
 };
+
+export type AiModelPurpose = "normal" | "summary" | "atomicReview";
+
+export type AiModelPreferences = Partial<Record<AiModelPurpose, string>>;
 
 export type AtomicCapabilityType = 0 | 1 | 2 | 3 | 5;
 
@@ -92,6 +98,7 @@ export type AiAtomicDiffReviewInput = {
   executionTrace: string;
   assistantOutput: string;
   diff: string;
+  models?: AiModelPreferences;
 };
 
 export type AiResponse = {
@@ -116,6 +123,13 @@ export type ConversationSummary = {
   progress: string;
 };
 
+export type AiModelInfo = {
+  name: string;
+  provider?: string;
+  description?: string;
+  contextWindow?: number;
+};
+
 export type AiRunEvent =
   | {
       type: "session";
@@ -137,6 +151,7 @@ export type AiRun = {
 };
 
 export interface AiModel {
+  listModels(): Promise<AiModelInfo[]>;
   createSession(input: AiCreateSessionInput): Promise<AiResponse>;
   continueSession(input: AiContinueSessionInput): Promise<AiResponse>;
   createAtomicDiffReview(input: AiAtomicDiffReviewInput): Promise<AtomicDiffReview>;
