@@ -42,6 +42,7 @@ export function applyStreamMessageState(
     sessionId: string;
     traceMessageId: string;
     responseMessageId: string;
+    traceInsertIndex?: number;
   },
 ): ApiSession {
   if (session.id !== input.sessionId) {
@@ -54,6 +55,7 @@ export function applyStreamMessageState(
     nextSession = upsertTraceMessage(nextSession, {
       traceMessageId: input.traceMessageId,
       responseMessageId: input.responseMessageId,
+      insertIndex: input.traceInsertIndex,
       content: input.state.streamedTrace,
     });
   }
@@ -147,6 +149,7 @@ function upsertTraceMessage(
   input: {
     traceMessageId: string;
     responseMessageId: string;
+    insertIndex?: number;
     content: string;
   },
 ): ApiSession {
@@ -171,17 +174,27 @@ function upsertTraceMessage(
   const responseIndex = session.messages.findIndex(
     (message) => message.id === input.responseMessageId,
   );
+  const insertionIndex =
+    responseIndex === -1 ? clampMessageInsertionIndex(session, input.insertIndex) : responseIndex;
   const messages =
-    responseIndex === -1
+    insertionIndex === session.messages.length
       ? [...session.messages, streamMessage]
       : [
-          ...session.messages.slice(0, responseIndex),
+          ...session.messages.slice(0, insertionIndex),
           streamMessage,
-          ...session.messages.slice(responseIndex),
+          ...session.messages.slice(insertionIndex),
         ];
 
   return {
     ...session,
     messages,
   };
+}
+
+function clampMessageInsertionIndex(session: ApiSession, insertIndex: number | undefined): number {
+  if (insertIndex === undefined) {
+    return session.messages.length;
+  }
+
+  return Math.max(0, Math.min(insertIndex, session.messages.length));
 }

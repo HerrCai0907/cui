@@ -128,7 +128,10 @@ function MessageItem({
   const hasAtomicReview = Boolean(reviewRound?.atomicReviewStatus);
 
   return (
-    <article className={`message ${message.role} ${isTrace ? "trace" : ""}`}>
+    <article
+      className={`message ${message.role} ${isTrace ? "trace" : ""}`}
+      data-message-id={message.id}
+    >
       <div className="message-avatar">
         {isTrace ? <ClipboardList size={17} /> : message.role === "assistant" ? "AI" : "You"}
       </div>
