@@ -34,6 +34,7 @@ type UseTurnStreamInput = {
 
 type StoppedTraceOverlay = {
   traceMessageId: string;
+  insertIndex: number;
   content: string;
 };
 
@@ -57,6 +58,7 @@ export function useTurnStream({
       {
         traceMessageId: string;
         responseMessageId: string;
+        traceInsertIndex: number;
       }
     >
   >(new Map());
@@ -92,10 +94,15 @@ export function useTurnStream({
       existingStreamMessageIds?.traceMessageId === streamingTraceMessageId
         ? (streamStateRefs.current.get(sessionId) ?? createStreamMessageState())
         : createStreamMessageState();
+    const traceInsertIndex =
+      existingStreamMessageIds?.traceMessageId === streamingTraceMessageId
+        ? existingStreamMessageIds.traceInsertIndex
+        : findInitialTraceInsertIndex(activeSessionRef.current, sessionId);
     streamStateRefs.current.set(sessionId, streamMessageState);
     streamMessageIdRefs.current.set(sessionId, {
       traceMessageId: streamingTraceMessageId,
       responseMessageId: streamingResponseMessageId,
+      traceInsertIndex,
     });
     let streamClosed = false;
 
@@ -347,6 +354,7 @@ export function useTurnStream({
         ...overlays,
         {
           traceMessageId: streamMessageIds.traceMessageId,
+          insertIndex: streamMessageIds.traceInsertIndex,
           content: streamMessageState.streamedTrace,
         },
       ]);
@@ -405,6 +413,7 @@ export function useTurnStream({
         sessionId: session.id,
         traceMessageId: overlay.traceMessageId,
         responseMessageId: "",
+        traceInsertIndex: overlay.insertIndex,
       });
     }
 
@@ -418,4 +427,8 @@ export function useTurnStream({
   }
 
   return { applyLocalTurnOverlay, closeTurnStream, streamTurn };
+}
+
+function findInitialTraceInsertIndex(session: ApiSession | null, sessionId: string): number {
+  return session?.id === sessionId ? session.messages.length : 0;
 }

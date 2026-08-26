@@ -309,12 +309,35 @@ test("queues a prompt while a session is running and sends it after stop", async
     (
       window as Window & {
         __cancelTurn?: (turnId: string) => void;
+        __emitTrace?: (turnId: string) => void;
       }
     ).__cancelTurn = (turnId: string) => {
       eventSources.get(`/api/turns/${turnId}/events`)?.dispatchEvent(
         new MessageEvent("cancelled", {
           data: JSON.stringify({
             type: "cancelled",
+          }),
+        }),
+      );
+    };
+    (
+      window as Window & {
+        __cancelTurn?: (turnId: string) => void;
+        __emitTrace?: (turnId: string) => void;
+      }
+    ).__emitTrace = (turnId: string) => {
+      eventSources.get(`/api/turns/${turnId}/events`)?.dispatchEvent(
+        new MessageEvent("raw", {
+          data: JSON.stringify({
+            type: "raw",
+            event: {
+              type: "item.completed",
+              item: {
+                id: "item-stop",
+                type: "agent_message",
+                text: "Trace before stop.",
+              },
+            },
           }),
         }),
       );
@@ -383,6 +406,14 @@ test("queues a prompt while a session is running and sends it after stop", async
 
   await expect(page.getByRole("button", { name: "Stop generation" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
+  await page.evaluate(() =>
+    (
+      window as Window & {
+        __emitTrace?: (turnId: string) => void;
+      }
+    ).__emitTrace?.("turn-1"),
+  );
+  await expect(page.getByText("Trace before stop.")).toBeVisible();
 
   await page.getByPlaceholder("Continue this session...").fill("Queued follow-up");
   await page.getByRole("button", { name: "Send message" }).click();
@@ -399,6 +430,17 @@ test("queues a prompt while a session is running and sends it after stop", async
   await expect(page.getByRole("region", { name: "Queued prompts" })).not.toBeVisible();
   await expect(page.getByText("Queued follow-up")).toBeVisible();
   await expect(page.getByRole("button", { name: "Stop generation" })).toBeVisible();
+  await expect
+    .poll(() =>
+      page
+        .locator("[data-message-id]")
+        .evaluateAll((messages) =>
+          messages.map((message) => message.getAttribute("data-message-id")),
+        ),
+    )
+    .toEqual(["message-1", "stream-turn-1-trace", "message-2"]);
+  await page.getByText("Show execution trace").click();
+  await expect(page.getByText("Trace before stop.")).toBeVisible();
 });
 
 test("queues a prompt while a session is running and sends it after completion", async ({
