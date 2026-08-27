@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseInlineContent } from "../../apps/web/src/features/sessions/components/AssistantMessageContent.js";
+import {
+  parseInlineContent,
+  parseMessageContent,
+} from "../../apps/web/src/features/sessions/model/markdown.js";
 
 test("parseInlineContent converts workspace markdown links to code preview targets", () => {
   assert.deepEqual(
@@ -80,4 +83,75 @@ test("parseInlineContent renders markdown bold and italic inline spans", () => {
       { type: "text", text: "." },
     ],
   );
+});
+
+test("parseInlineContent handles nested emphasis with recursive parsing", () => {
+  assert.deepEqual(parseInlineContent("Use **bold and *nested*** text.", "/workspace"), [
+    { type: "text", text: "Use " },
+    {
+      type: "strong",
+      children: [
+        { type: "text", text: "bold and " },
+        {
+          type: "emphasis",
+          children: [{ type: "text", text: "nested" }],
+        },
+      ],
+    },
+    { type: "text", text: " text." },
+  ]);
+});
+
+test("parseInlineContent preserves unmatched delimiters as text", () => {
+  assert.deepEqual(parseInlineContent("Use **bold and `code`", "/workspace"), [
+    { type: "text", text: "Use **bold and " },
+    { type: "inlineCode", code: "code" },
+  ]);
+});
+
+test("parseInlineContent keeps unmatched underscore before inline code as text", () => {
+  assert.deepEqual(parseInlineContent("_\n`a_b`", "/workspace"), [
+    { type: "text", text: "_\n" },
+    { type: "inlineCode", code: "a_b" },
+  ]);
+});
+
+test("parseMessageContent parses headings, text, and fenced code blocks", () => {
+  assert.deepEqual(
+    parseMessageContent("# Title\nIntro\n```ts\nconst value = 1;\n```\n## Next ##\n"),
+    [
+      {
+        type: "heading",
+        level: 1,
+        text: "Title",
+      },
+      {
+        type: "text",
+        text: "Intro\n",
+      },
+      {
+        type: "codeBlock",
+        language: "ts",
+        code: "const value = 1;",
+      },
+      {
+        type: "heading",
+        level: 2,
+        text: "Next",
+      },
+    ],
+  );
+});
+
+test("parseMessageContent keeps unmatched fences as text", () => {
+  assert.deepEqual(parseMessageContent("Before\n```ts\nconst value = 1;\n"), [
+    {
+      type: "text",
+      text: "Before\n",
+    },
+    {
+      type: "text",
+      text: "```ts\nconst value = 1;\n",
+    },
+  ]);
 });
