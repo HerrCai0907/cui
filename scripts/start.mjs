@@ -1,10 +1,15 @@
 import { spawn } from "node:child_process";
+import { cpSync, existsSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DEFAULT_WEB_PORT = 5173;
 const DEFAULT_API_PORT = 3000;
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const WEB_DIST_PATH = resolve(PROJECT_ROOT, "apps/web/dist");
+const API_DIST_PATH = resolve(PROJECT_ROOT, "apps/api/dist");
+const PROD_WEB_PATH = resolve(PROJECT_ROOT, "prod/web");
+const PROD_API_PATH = resolve(PROJECT_ROOT, "prod/api");
 const DEFAULT_STORE_PATH =
   process.env.CUI_STORE_PATH ?? resolve(PROJECT_ROOT, "prod/data/sessions.json");
 const DEFAULT_LOG_DIR = process.env.CUI_LOG_DIR ?? resolve(PROJECT_ROOT, "prod/logs");
@@ -24,8 +29,11 @@ if (!Number.isInteger(options.apiPort) || options.apiPort <= 0) {
   fail(`Invalid --api-port value: ${options.apiPort}`);
 }
 
+syncProductionArtifacts();
+
 const webCommand = [
   `CUI_API_PORT=${options.apiPort} npm run preview -w @cui/web --`,
+  `--outDir ${shellQuote(PROD_WEB_PATH)}`,
   `--port ${options.port}`,
   "--strictPort",
 ].join(" ");
@@ -33,10 +41,24 @@ const apiCommand = [
   `PORT=${options.apiPort}`,
   `CUI_STORE_PATH=${shellQuote(resolveProjectPath(options.storePath))}`,
   `CUI_LOG_DIR=${shellQuote(resolveProjectPath(options.logDir))}`,
-  "npm run start -w @cui/api",
+  `node ${shellQuote(resolve(PROD_API_PATH, "server.js"))}`,
 ].join(" ");
 
 runAttached("npx", ["concurrently", "-n", "web,api", "-c", "blue,green", webCommand, apiCommand]);
+
+function syncProductionArtifacts() {
+  copyBuildOutput(WEB_DIST_PATH, PROD_WEB_PATH, "web");
+  copyBuildOutput(API_DIST_PATH, PROD_API_PATH, "api");
+}
+
+function copyBuildOutput(source, destination, name) {
+  if (!existsSync(source)) {
+    fail(`Missing ${name} build output at ${source}. Run npm run build first.`);
+  }
+
+  rmSync(destination, { recursive: true, force: true });
+  cpSync(source, destination, { recursive: true });
+}
 
 function parseArgs(args) {
   const parsed = {
