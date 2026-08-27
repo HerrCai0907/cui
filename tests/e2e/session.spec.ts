@@ -307,6 +307,67 @@ test("renders assistant inline and fenced code blocks", async ({ page }) => {
   await expect(page.locator(".message-code-block code")).toHaveAttribute("data-language", "ts");
 });
 
+test("supports expandable assistant code previews", async ({ page }) => {
+  const filePath = `${currentWorkspace}/apps/web/src/app/App.tsx`;
+  const session = {
+    id: "session-code-preview",
+    workspace: currentWorkspace,
+    title: "Code preview session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-1",
+        role: "assistant",
+        kind: "response",
+        content: `See [App.tsx](${filePath}:20).`,
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    rounds: [],
+  };
+  const requests: string[] = [];
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+  await page.route("**/api/code?**", async (route) => {
+    const url = new URL(route.request().url());
+    const startLine = Number(url.searchParams.get("startLine"));
+    const endLine = Number(url.searchParams.get("endLine"));
+    requests.push(`${startLine}-${endLine}`);
+
+    await fulfillJson(route, {
+      filePath,
+      startLine,
+      endLine,
+      code: `line ${startLine}\nline ${endLine}`,
+      lines: [
+        { lineNumber: startLine, content: `line ${startLine}` },
+        { lineNumber: endLine, content: `line ${endLine}` },
+      ],
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "App.tsx" }).click();
+
+  const preview = page.getByRole("dialog", { name: "Code preview" });
+  await expect(preview).toBeVisible();
+  await expect(preview).toContainText("Lines 20-30");
+  expect(requests).toEqual(["20-30"]);
+
+  await page.getByRole("button", { name: "Show 10 previous lines" }).click();
+  await expect(preview).toContainText("Lines 10-30");
+  expect(requests).toEqual(["20-30", "10-30"]);
+
+  await page.getByRole("button", { name: "Show 10 next lines" }).click();
+  await expect(preview).toContainText("Lines 10-40");
+  expect(requests).toEqual(["20-30", "10-30", "10-40"]);
+
+  await page.getByRole("heading", { name: "Code preview session" }).click();
+  await expect(preview).toBeHidden();
+});
+
 test("renders assistant markdown bold and italic text", async ({ page }) => {
   const session = {
     id: "session-1",

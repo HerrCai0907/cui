@@ -1,5 +1,5 @@
-import { FileCode, Loader2, X } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { ChevronDown, ChevronUp, FileCode, Loader2, X } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { HighlightedCode } from "../../review/components/HighlightedCode";
 import { getCodeRange, type CodeRangeResult } from "../api/codeApi";
 import {
@@ -117,8 +117,30 @@ function isExternalHref(href: string): boolean {
 }
 
 function CodePreviewButton({ label, target }: { label: string; target: CodeLinkTarget }) {
+  const previewRef = useRef<HTMLSpanElement | null>(null);
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<CodePreviewState>({ status: "idle" });
+  const [query, setQuery] = useState<CodeLinkTarget>(() => getInitialCodePreviewQuery(target));
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function closeOnOutsidePointerDown(event: PointerEvent) {
+      if (!(event.target instanceof Node) || previewRef.current?.contains(event.target)) {
+        return;
+      }
+
+      setOpen(false);
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsidePointerDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointerDown);
+    };
+  }, [open]);
 
   async function openPreview() {
     if (open) {
@@ -132,10 +154,15 @@ function CodePreviewButton({ label, target }: { label: string; target: CodeLinkT
       return;
     }
 
+    await loadPreview(query);
+  }
+
+  async function loadPreview(nextQuery: CodeLinkTarget) {
+    setQuery(nextQuery);
     setPreview({ status: "loading" });
 
     try {
-      const result = await getCodeRange(target);
+      const result = await getCodeRange(nextQuery);
       setPreview({ status: "ready", result });
     } catch (error) {
       setPreview({
@@ -145,8 +172,34 @@ function CodePreviewButton({ label, target }: { label: string; target: CodeLinkT
     }
   }
 
+  function expandBackward() {
+    if (preview.status !== "ready") {
+      return;
+    }
+
+    void loadPreview({
+      filePath: preview.result.filePath,
+      startLine: Math.max(1, preview.result.startLine - 10),
+      endLine: preview.result.endLine,
+    });
+  }
+
+  function expandForward() {
+    if (preview.status !== "ready") {
+      return;
+    }
+
+    void loadPreview({
+      filePath: preview.result.filePath,
+      startLine: preview.result.startLine,
+      endLine: preview.result.endLine + 10,
+    });
+  }
+
+  const hasRange = query.startLine !== undefined && query.endLine !== undefined;
+
   return (
-    <span className="message-code-preview">
+    <span className="message-code-preview" ref={previewRef}>
       <button
         className="message-code-link"
         type="button"
@@ -162,8 +215,8 @@ function CodePreviewButton({ label, target }: { label: string; target: CodeLinkT
           <span className="message-code-card-header">
             <span className="message-code-card-title">
               {target.filePath}
-              {target.startLine && target.endLine
-                ? `:${target.startLine}${target.startLine === target.endLine ? "" : `-${target.endLine}`}`
+              {hasRange
+                ? `:${query.startLine}${query.startLine === query.endLine ? "" : `-${query.endLine}`}`
                 : ""}
             </span>
             <button
@@ -191,8 +244,50 @@ function CodePreviewButton({ label, target }: { label: string; target: CodeLinkT
               </code>
             </span>
           )}
+          {preview.status === "ready" && hasRange && (
+            <span className="message-code-card-actions">
+              <button
+                className="message-code-card-action"
+                type="button"
+                onClick={expandBackward}
+                disabled={preview.result.startLine <= 1}
+                title="Show 10 previous lines"
+                aria-label="Show 10 previous lines"
+              >
+                <ChevronUp size={14} />
+              </button>
+              <span className="message-code-card-range">
+                Lines {preview.result.startLine}-{preview.result.endLine}
+              </span>
+              <button
+                className="message-code-card-action"
+                type="button"
+                onClick={expandForward}
+                title="Show 10 next lines"
+                aria-label="Show 10 next lines"
+              >
+                <ChevronDown size={14} />
+              </button>
+            </span>
+          )}
         </span>
       )}
     </span>
   );
+}
+
+function getInitialCodePreviewQuery(target: CodeLinkTarget): CodeLinkTarget {
+  if (
+    target.startLine !== undefined &&
+    target.endLine !== undefined &&
+    target.startLine === target.endLine
+  ) {
+    return {
+      filePath: target.filePath,
+      startLine: target.startLine,
+      endLine: target.endLine + 10,
+    };
+  }
+
+  return target;
 }
