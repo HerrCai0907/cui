@@ -1,6 +1,6 @@
 import { fetchJson } from "../../../shared/api/fetchJson";
 import type { paths } from "../../../shared/api/generated/schema";
-import type { ApiSession, SubmittedTurn } from "../../../types";
+import type { ApiSession, ApiSessionListItem, SubmittedTurn } from "../../../types";
 
 type ListSessionsResponse =
   paths["/api/sessions"]["get"]["responses"][200]["content"]["application/json"];
@@ -29,7 +29,7 @@ type UpdateSessionResponse =
 type StopSessionResponse =
   paths["/api/sessions/{sessionId}/stop"]["post"]["responses"][202]["content"]["application/json"];
 
-export async function listSessions(): Promise<ApiSession[]> {
+export async function listSessions(): Promise<ApiSessionListItem[]> {
   const data = await fetchJson<ListSessionsResponse>("/api/sessions");
 
   return data.sessions;

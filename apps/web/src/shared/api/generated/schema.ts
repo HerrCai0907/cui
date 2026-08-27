@@ -196,24 +196,6 @@ export interface paths {
                 createdAt: string;
                 /** Format: date-time */
                 updatedAt: string;
-                messages: {
-                  id: string;
-                  /** @enum {string} */
-                  role: "assistant" | "user";
-                  /** @enum {string} */
-                  kind?: "response" | "trace";
-                  round?: number;
-                  content: string;
-                  /** Format: date-time */
-                  createdAt: string;
-                }[];
-                rounds?: {
-                  round: number;
-                  hasChanges: boolean;
-                  /** Format: date-time */
-                  createdAt: string;
-                  atomicReviewStatus?: "ready" | "failed";
-                }[];
                 currentRound: number;
                 gitBranch?: string;
                 isRunning: boolean;
@@ -1245,6 +1227,22 @@ export interface components {
         createdAt: string;
         atomicReviewStatus?: "ready" | "failed";
       }[];
+      currentRound: number;
+      gitBranch?: string;
+      isRunning: boolean;
+      runningTurnId?: string;
+    };
+    ChatSessionListItem: {
+      id: string;
+      workspace: string;
+      title: string;
+      summary?: string;
+      /** Format: date-time */
+      doneAt?: string;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      updatedAt: string;
       currentRound: number;
       gitBranch?: string;
       isRunning: boolean;

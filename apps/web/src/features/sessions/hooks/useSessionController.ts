@@ -341,7 +341,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       setRunningSessionIds(nextRunningSessionIds);
 
       const currentActiveSession = activeSessionRef.current;
-      const nextActiveSession =
+      const nextActiveSessionSummary =
         currentActiveSession &&
         loadedSessions.find((session) => session.id === currentActiveSession.id);
       const shouldRestoreInitialSession = !currentActiveSession && autoRestoreSessionRef.current;
@@ -360,16 +360,31 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
         }
 
         if (fallbackSession) {
-          setCurrentActiveSession(applyLocalSessionState(fallbackSession), {
+          const session = await getSession(fallbackSession.id);
+
+          setCurrentActiveSession(applyLocalSessionState(session), {
             persist: Boolean(restoredSession),
             recordAttention: false,
           });
-          if (fallbackSession.runningTurnId) {
-            streamTurn(fallbackSession.id, fallbackSession.runningTurnId);
+          if (session.runningTurnId) {
+            streamTurn(session.id, session.runningTurnId);
           }
         }
-      } else if (nextActiveSession) {
-        const visibleSession = applyLocalSessionState(nextActiveSession);
+      } else if (nextActiveSessionSummary && currentActiveSession) {
+        const visibleSession = applyLocalSessionState({
+          ...currentActiveSession,
+          title: nextActiveSessionSummary.title,
+          summary: nextActiveSessionSummary.summary,
+          doneAt: nextActiveSessionSummary.doneAt,
+          updatedAt: nextActiveSessionSummary.updatedAt,
+          currentRound: Math.max(
+            currentActiveSession.currentRound,
+            nextActiveSessionSummary.currentRound,
+          ),
+          gitBranch: nextActiveSessionSummary.gitBranch ?? currentActiveSession.gitBranch,
+          isRunning: nextActiveSessionSummary.isRunning,
+          runningTurnId: nextActiveSessionSummary.runningTurnId,
+        });
 
         setCurrentActiveSession(visibleSession);
         if (visibleSession.runningTurnId) {

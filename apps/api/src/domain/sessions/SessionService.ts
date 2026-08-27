@@ -7,13 +7,14 @@ import {
   AiRunCancelledError,
   ChatRound,
   ChatSession,
+  ChatSessionListItem,
   ChatSessionView,
 } from "../../types.js";
 import { JsonSessionStore } from "../../infrastructure/store/JsonSessionStore.js";
 import { AppLogger } from "../../infrastructure/logging/AppLogger.js";
 import { createAssistantMessages, createMessage } from "./sessionMessages.js";
 import { createTitle } from "./sessionTitles.js";
-import { toSessionView } from "./sessionViews.js";
+import { toSessionListItem, toSessionView } from "./sessionViews.js";
 import {
   createRoundInputTranscript,
   createSessionInputTranscript,
@@ -81,13 +82,13 @@ export class SessionService {
     return this.store.listSessions();
   }
 
-  async listSessionViews(): Promise<ChatSessionView[]> {
-    const sessions = await this.store.listSessions();
+  async listSessionViews(): Promise<ChatSessionListItem[]> {
+    const sessions = await this.store.listSessionIndexEntries();
     const branchByWorkspace = new Map<string, Promise<string | undefined>>();
 
     return Promise.all(
       sessions.map(async (session) =>
-        toSessionView(session, {
+        toSessionListItem(session, {
           gitBranch: await this.getWorkspaceBranch(session.workspace, branchByWorkspace),
           runningTurnId: this.turnRegistry.getRunningTurnIdForSession(session.id),
         }),

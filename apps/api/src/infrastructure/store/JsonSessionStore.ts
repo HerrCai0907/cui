@@ -1,10 +1,18 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
-import { AtomicDiffReview, ChatMessage, ChatRound, ChatSession } from "../../types.js";
+import {
+  AtomicDiffReview,
+  ChatMessage,
+  ChatRound,
+  ChatSession,
+  ChatSessionIndexEntry,
+} from "../../types.js";
 
 const STORE_VERSION = 3;
 
-type StoredSession = Omit<ChatSession, "messages" | "rounds">;
+type StoredSession = Omit<ChatSession, "messages" | "rounds"> & {
+  currentRound?: number;
+};
 
 type SessionIndexData = {
   version: typeof STORE_VERSION;
@@ -37,6 +45,20 @@ export class JsonSessionStore {
       index.sessions.map(async (session) =>
         hydrateSession(session, await this.readSessionDetail(session.id)),
       ),
+    );
+
+    return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async listSessionIndexEntries(): Promise<ChatSessionIndexEntry[]> {
+    const index = await this.readIndex();
+    const sessions = await Promise.all(
+      index.sessions.map(async (session) => ({
+        ...toSessionIndexEntry(session),
+        currentRound:
+          session.currentRound ??
+          getCurrentRoundFromSessionDetail(await this.readSessionDetail(session.id)),
+      })),
     );
 
     return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -378,10 +400,11 @@ function normalizeSessionDetail(data: unknown, sessionId: string): SessionDetail
 }
 
 function hydrateSession(session: StoredSession, detail: SessionDetailData): ChatSession {
+  const { currentRound: _currentRound, ...sessionMetadata } = session;
   const rounds = detail.rounds;
 
   return {
-    ...session,
+    ...sessionMetadata,
     messages: detail.messages,
     ...(rounds.length > 0 ? { rounds } : {}),
   };
@@ -412,7 +435,51 @@ function toStoredSession(session: ChatSession | StoredSession): StoredSession {
     ...(session.doneAt ? { doneAt: session.doneAt } : {}),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
+    currentRound:
+      ("currentRound" in session ? session.currentRound : undefined) ??
+      ("messages" in session ? getCurrentRoundFromSession(session) : undefined),
   };
+}
+
+function toSessionIndexEntry(session: StoredSession): ChatSessionIndexEntry {
+  return {
+    id: session.id,
+    workspace: session.workspace,
+    title: session.title,
+    summary: session.summary,
+    ...(session.doneAt ? { doneAt: session.doneAt } : {}),
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    currentRound: session.currentRound ?? 0,
+  };
+}
+
+function getCurrentRoundFromSession(session: ChatSession): number {
+  return getCurrentRoundFromParts(session.messages, session.rounds ?? []);
+}
+
+function getCurrentRoundFromSessionDetail(detail: SessionDetailData): number {
+  return getCurrentRoundFromParts(detail.messages, detail.rounds);
+}
+
+function getCurrentRoundFromParts(messages: ChatMessage[], rounds: ChatRound[]): number {
+  const storedRound = Math.max(0, ...rounds.map(({ round }) => round));
+  const messageRound = Math.max(
+    0,
+    ...messages
+      .map(({ round }) => round ?? 0)
+      .filter((round) => Number.isInteger(round) && round > 0),
+  );
+  const completedTurnCount = Math.max(
+    countAssistantMessages(messages, "trace"),
+    countAssistantMessages(messages, "response"),
+  );
+
+  return Math.max(storedRound, messageRound, completedTurnCount);
+}
+
+function countAssistantMessages(messages: ChatMessage[], kind: "response" | "trace"): number {
+  return messages.filter((message) => message.role === "assistant" && message.kind === kind).length;
 }
 
 function parseArray<T>(value: unknown, fallback: T[] = []): T[] {
