@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { currentWorkspace, fulfillJson, mockSession, mockSessions } from "./helpers";
 
-test("merges shared workspace path prefixes in the sidebar", async ({ page }) => {
+test("renders workspace paths as a file tree in the sidebar", async ({ page }) => {
   const firstSession = {
     id: "session-1",
     workspace: currentWorkspace,
@@ -32,11 +32,30 @@ test("merges shared workspace path prefixes in the sidebar", async ({ page }) =>
   await expect(sidebar.getByText("/Users/bytedance", { exact: true })).toBeVisible();
   await expect(sidebar.getByText("cui", { exact: true })).toBeVisible();
   await expect(sidebar.getByText("oss/go", { exact: true })).toBeVisible();
+  await expect(sidebar.getByText("Users", { exact: true })).toHaveCount(0);
+  await expect(sidebar.getByText("bytedance", { exact: true })).toHaveCount(0);
+  await expect(sidebar.getByText("oss", { exact: true })).toHaveCount(0);
   await expect(sidebar.getByText("/Users/bytedance/oss/go", { exact: true })).toHaveCount(0);
 
   await page.getByRole("button", { name: "/Users/bytedance/oss/go", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "New session in /Users/bytedance/oss/go" }),
+  ).toBeVisible();
+});
+
+test("keeps the current workspace available when it has no sessions", async ({ page }) => {
+  await mockSessions(page, []);
+
+  await page.goto("/");
+
+  const sidebar = page.getByLabel("Workspace sessions");
+
+  await expect(sidebar.getByText("/Users/bytedance/cui", { exact: true })).toBeVisible();
+  await expect(sidebar.getByText("Users", { exact: true })).toHaveCount(0);
+  await expect(sidebar.getByText("bytedance", { exact: true })).toHaveCount(0);
+  await expect(sidebar.getByLabel(currentWorkspace, { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: `New session in ${currentWorkspace}` }),
   ).toBeVisible();
 });
 
@@ -157,14 +176,16 @@ test("uses a separate workspace toggle in Active mode only", async ({ page }) =>
   await mockSessions(page, sessions);
   await page.goto("/");
 
+  const sidebar = page.getByLabel("Workspace sessions");
   const workspaceToggle = page.getByRole("button", {
     name: `Collapse ${currentWorkspace}`,
     exact: true,
   });
 
   await expect(workspaceToggle).toBeVisible();
-  await expect(page.getByText(currentWorkspace, { exact: true })).toBeVisible();
-  await page.getByText(currentWorkspace, { exact: true }).click();
+  await expect(sidebar.getByLabel(currentWorkspace, { exact: true })).toBeVisible();
+  await expect(sidebar.getByText(currentWorkspace, { exact: true })).toBeVisible();
+  await sidebar.getByText(currentWorkspace, { exact: true }).click();
   await expect(page.getByRole("button", { name: "Active session" })).toBeVisible();
 
   await workspaceToggle.click();
@@ -176,7 +197,7 @@ test("uses a separate workspace toggle in Active mode only", async ({ page }) =>
   ).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Active session" })).toBeVisible();
 
-  await page.getByRole("button", { name: currentWorkspace, exact: true }).click();
+  await sidebar.getByLabel(currentWorkspace, { exact: true }).click();
   await expect(page.getByRole("button", { name: "Active session" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Active" }).click();

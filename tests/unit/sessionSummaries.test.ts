@@ -3,11 +3,11 @@ import test from "node:test";
 import {
   groupWorkspacesForDisplay,
   partitionActiveSessionsForSidebar,
-  type WorkspaceDisplayGroup,
+  type WorkspaceTreeNode,
 } from "../../apps/web/src/features/sessions/model/sessionSummaries.js";
 import type { SessionSummary } from "../../apps/web/src/types.js";
 
-test("groupWorkspacesForDisplay merges shared path prefixes", () => {
+test("groupWorkspacesForDisplay builds a workspace file tree", () => {
   assert.deepEqual(
     stripSessions(
       groupWorkspacesForDisplay({
@@ -17,16 +17,23 @@ test("groupWorkspacesForDisplay merges shared path prefixes", () => {
     ),
     [
       {
-        id: "prefix:/:Users/bytedance",
-        prefix: "/Users/bytedance",
-        workspaces: [
+        id: "/Users/bytedance",
+        label: "/Users/bytedance",
+        path: "/Users/bytedance",
+        children: [
           {
-            workspace: "/Users/bytedance/cui",
+            id: "/Users/bytedance/cui",
             label: "cui",
+            path: "/Users/bytedance/cui",
+            workspace: "/Users/bytedance/cui",
+            children: [],
           },
           {
-            workspace: "/Users/bytedance/oss/go",
+            id: "/Users/bytedance/oss/go",
             label: "oss/go",
+            path: "/Users/bytedance/oss/go",
+            workspace: "/Users/bytedance/oss/go",
+            children: [],
           },
         ],
       },
@@ -34,7 +41,54 @@ test("groupWorkspacesForDisplay merges shared path prefixes", () => {
   );
 });
 
-test("groupWorkspacesForDisplay leaves unrelated single workspace labels complete", () => {
+test("groupWorkspacesForDisplay compresses single-child directory chains", () => {
+  assert.deepEqual(
+    stripSessions(
+      groupWorkspacesForDisplay({
+        "/Users/bytedance/cui": [],
+      }),
+    ),
+    [
+      {
+        id: "/Users/bytedance/cui",
+        label: "/Users/bytedance/cui",
+        path: "/Users/bytedance/cui",
+        workspace: "/Users/bytedance/cui",
+        children: [],
+      },
+    ],
+  );
+});
+
+test("groupWorkspacesForDisplay keeps workspace nodes that also have descendants", () => {
+  assert.deepEqual(
+    stripSessions(
+      groupWorkspacesForDisplay({
+        "/Users/bytedance": [],
+        "/Users/bytedance/cui": [],
+      }),
+    ),
+    [
+      {
+        id: "/Users/bytedance",
+        label: "/Users/bytedance",
+        path: "/Users/bytedance",
+        workspace: "/Users/bytedance",
+        children: [
+          {
+            id: "/Users/bytedance/cui",
+            label: "cui",
+            path: "/Users/bytedance/cui",
+            workspace: "/Users/bytedance/cui",
+            children: [],
+          },
+        ],
+      },
+    ],
+  );
+});
+
+test("groupWorkspacesForDisplay includes unrelated paths under their roots", () => {
   assert.deepEqual(
     stripSessions(
       groupWorkspacesForDisplay({
@@ -45,25 +99,37 @@ test("groupWorkspacesForDisplay leaves unrelated single workspace labels complet
     ),
     [
       {
-        id: "prefix:/:Users/bytedance",
-        prefix: "/Users/bytedance",
-        workspaces: [
+        id: "/",
+        label: "/",
+        path: "/",
+        children: [
           {
-            workspace: "/Users/bytedance/cui",
-            label: "cui",
+            id: "/Users/bytedance",
+            label: "Users/bytedance",
+            path: "/Users/bytedance",
+            children: [
+              {
+                id: "/Users/bytedance/cui",
+                label: "cui",
+                path: "/Users/bytedance/cui",
+                workspace: "/Users/bytedance/cui",
+                children: [],
+              },
+              {
+                id: "/Users/bytedance/oss/go",
+                label: "oss/go",
+                path: "/Users/bytedance/oss/go",
+                workspace: "/Users/bytedance/oss/go",
+                children: [],
+              },
+            ],
           },
           {
-            workspace: "/Users/bytedance/oss/go",
-            label: "oss/go",
-          },
-        ],
-      },
-      {
-        id: "/tmp/project",
-        workspaces: [
-          {
+            id: "/tmp/project",
+            label: "tmp/project",
+            path: "/tmp/project",
             workspace: "/tmp/project",
-            label: "/tmp/project",
+            children: [],
           },
         ],
       },
@@ -248,14 +314,28 @@ test("partitionActiveSessionsForSidebar limits recent workspaces but always keep
   );
 });
 
-function stripSessions(groups: WorkspaceDisplayGroup[]) {
-  return groups.map((group) => ({
-    id: group.id,
-    ...(group.prefix ? { prefix: group.prefix } : {}),
-    workspaces: group.workspaces.map((workspace) => ({
-      workspace: workspace.workspace,
-      label: workspace.label,
-    })),
+test("partitionActiveSessionsForSidebar keeps highlighted workspaces without sessions", () => {
+  const partition = partitionActiveSessionsForSidebar(
+    [],
+    {
+      sessions: {},
+      workspaces: {},
+    },
+    new Set(),
+    new Set(["/workspace/empty"]),
+  );
+
+  assert.deepEqual(partition.activeWorkspaces, ["/workspace/empty"]);
+  assert.deepEqual(partition.active, []);
+});
+
+function stripSessions(nodes: WorkspaceTreeNode[]): unknown[] {
+  return nodes.map((node) => ({
+    id: node.id,
+    label: node.label,
+    path: node.path,
+    ...(node.workspace ? { workspace: node.workspace.workspace } : {}),
+    children: stripSessions(node.children),
   }));
 }
 

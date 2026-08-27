@@ -1,10 +1,12 @@
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import {
   Check,
   ChevronDown,
   ChevronRight,
   Circle,
   FileText,
+  Folder,
+  FolderOpen,
   Hash,
   LoaderCircle,
   PanelLeftClose,
@@ -18,8 +20,8 @@ import type { ReviewNavigation, ReviewNavigationTarget } from "../../review/mode
 import type { SessionListMode } from "../model/sessionBrowserState";
 import {
   groupWorkspacesForDisplay,
-  type WorkspaceDisplayGroup,
   type WorkspaceDisplayItem,
+  type WorkspaceTreeNode,
 } from "../model/sessionSummaries";
 import {
   SIDEBAR_MAX_WIDTH,
@@ -210,7 +212,9 @@ export function SessionSidebar({
                   onStartNewSession={onStartNewSession}
                   onToggleWorkspace={onToggleWorkspace}
                 />
-                {sessionCount === 0 && <p className="empty-sidebar">No sessions yet</p>}
+                {sessionCount === 0 && workspaceGroups.length === 0 && (
+                  <p className="empty-sidebar">No sessions yet</p>
+                )}
                 {sessionCount > 0 && workspaceGroups.length === 0 && visibleSessionCount === 0 && (
                   <p className="empty-sidebar">No active sessions</p>
                 )}
@@ -256,7 +260,7 @@ function WorkspaceGroupList({
 }: {
   activeSessionId?: string;
   expandedWorkspaces: Set<string>;
-  groups: WorkspaceDisplayGroup[];
+  groups: WorkspaceTreeNode[];
   pendingDoneSessionIds: Set<string>;
   sessionListMode: SessionListMode;
   runningSessionIds: Set<string>;
@@ -266,32 +270,107 @@ function WorkspaceGroupList({
   onToggleWorkspace: (workspace: string) => void;
 }) {
   return (
-    <>
-      {groups.map((workspaceGroup) => (
-        <section className="workspace-display-group" key={workspaceGroup.id}>
-          {workspaceGroup.prefix && (
-            <div className="workspace-prefix" title={workspaceGroup.prefix}>
-              {workspaceGroup.prefix}
-            </div>
-          )}
-          {workspaceGroup.workspaces.map((workspace) => (
-            <WorkspaceGroup
+    <div className="workspace-tree" role="tree">
+      {groups.map((node) => (
+        <WorkspaceTreeNodeView
+          activeSessionId={activeSessionId}
+          depth={0}
+          expandedWorkspaces={expandedWorkspaces}
+          key={node.id}
+          node={node}
+          pendingDoneSessionIds={pendingDoneSessionIds}
+          runningSessionIds={runningSessionIds}
+          sessionListMode={sessionListMode}
+          onOpenSession={onOpenSession}
+          onMarkSessionDone={onMarkSessionDone}
+          onStartNewSession={onStartNewSession}
+          onToggleWorkspace={onToggleWorkspace}
+        />
+      ))}
+    </div>
+  );
+}
+
+function WorkspaceTreeNodeView({
+  activeSessionId,
+  depth,
+  expandedWorkspaces,
+  node,
+  pendingDoneSessionIds,
+  runningSessionIds,
+  sessionListMode,
+  onOpenSession,
+  onMarkSessionDone,
+  onStartNewSession,
+  onToggleWorkspace,
+}: {
+  activeSessionId?: string;
+  depth: number;
+  expandedWorkspaces: Set<string>;
+  node: WorkspaceTreeNode;
+  pendingDoneSessionIds: Set<string>;
+  runningSessionIds: Set<string>;
+  sessionListMode: SessionListMode;
+  onOpenSession: (sessionId: string) => void;
+  onMarkSessionDone: (sessionId: string) => void;
+  onStartNewSession: (workspace?: string) => void;
+  onToggleWorkspace: (workspace: string) => void;
+}) {
+  const workspace = node.workspace;
+  const expanded = workspace ? expandedWorkspaces.has(workspace.workspace) : true;
+  const hasChildren = node.children.length > 0;
+
+  return (
+    <section
+      className="workspace-tree-node"
+      role="treeitem"
+      aria-expanded={hasChildren ? true : expanded}
+    >
+      {workspace ? (
+        <WorkspaceGroup
+          activeSessionId={activeSessionId}
+          depth={depth}
+          expanded={expanded}
+          runningSessionIds={runningSessionIds}
+          pendingDoneSessionIds={pendingDoneSessionIds}
+          sessionListMode={sessionListMode}
+          workspace={workspace}
+          label={node.label}
+          onOpenSession={onOpenSession}
+          onMarkSessionDone={onMarkSessionDone}
+          onStartNewSession={onStartNewSession}
+          onToggleWorkspace={onToggleWorkspace}
+        />
+      ) : (
+        <div
+          className="workspace-directory-row"
+          style={{ "--workspace-depth": depth } as CSSProperties}
+        >
+          <Folder size={15} aria-hidden="true" />
+          <span title={node.path}>{node.label}</span>
+        </div>
+      )}
+      {hasChildren && (
+        <div className="workspace-tree-children" role="group">
+          {node.children.map((child) => (
+            <WorkspaceTreeNodeView
               activeSessionId={activeSessionId}
-              expanded={expandedWorkspaces.has(workspace.workspace)}
-              key={workspace.workspace}
-              runningSessionIds={runningSessionIds}
+              depth={depth + 1}
+              expandedWorkspaces={expandedWorkspaces}
+              key={child.id}
+              node={child}
               pendingDoneSessionIds={pendingDoneSessionIds}
+              runningSessionIds={runningSessionIds}
               sessionListMode={sessionListMode}
-              workspace={workspace}
               onOpenSession={onOpenSession}
               onMarkSessionDone={onMarkSessionDone}
               onStartNewSession={onStartNewSession}
               onToggleWorkspace={onToggleWorkspace}
             />
           ))}
-        </section>
-      ))}
-    </>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -355,7 +434,9 @@ function ReviewNavigationTree({
 
 function WorkspaceGroup({
   activeSessionId,
+  depth,
   expanded,
+  label,
   runningSessionIds,
   pendingDoneSessionIds,
   sessionListMode,
@@ -366,7 +447,9 @@ function WorkspaceGroup({
   onToggleWorkspace,
 }: {
   activeSessionId?: string;
+  depth: number;
   expanded: boolean;
+  label: string;
   runningSessionIds: Set<string>;
   pendingDoneSessionIds: Set<string>;
   sessionListMode: SessionListMode;
@@ -379,7 +462,7 @@ function WorkspaceGroup({
   const useSeparateToggle = sessionListMode === "active";
 
   return (
-    <section className="workspace-group">
+    <section className="workspace-group" style={{ "--workspace-depth": depth } as CSSProperties}>
       <div className={`workspace-row ${useSeparateToggle ? "has-workspace-toggle" : ""}`}>
         {useSeparateToggle ? (
           <>
@@ -388,7 +471,8 @@ function WorkspaceGroup({
               aria-label={workspace.workspace}
               title={workspace.workspace}
             >
-              <span>{workspace.label}</span>
+              {expanded ? <FolderOpen size={15} /> : <Folder size={15} />}
+              <span>{label}</span>
             </div>
             <button
               className="workspace-toggle"
@@ -411,7 +495,8 @@ function WorkspaceGroup({
             onClick={() => onToggleWorkspace(workspace.workspace)}
           >
             {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            <span>{workspace.label}</span>
+            {expanded ? <FolderOpen size={15} /> : <Folder size={15} />}
+            <span>{label}</span>
           </button>
         )}
         <button
