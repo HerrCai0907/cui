@@ -349,6 +349,57 @@
           "isRunning"
         ]
       },
+      "ChatSessionListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspace": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "doneAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currentRound": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "gitBranch": {
+            "type": "string"
+          },
+          "isRunning": {
+            "type": "boolean"
+          },
+          "runningTurnId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workspace",
+          "title",
+          "createdAt",
+          "updatedAt",
+          "currentRound",
+          "isRunning"
+        ]
+      },
       "AiModelPreferences": {
         "type": "object",
         "properties": {
@@ -1192,69 +1243,6 @@
                             "type": "string",
                             "format": "date-time"
                           },
-                          "messages": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "id": {
-                                  "type": "string"
-                                },
-                                "role": {
-                                  "type": "string",
-                                  "enum": ["assistant", "user"]
-                                },
-                                "kind": {
-                                  "type": "string",
-                                  "enum": ["response", "trace"]
-                                },
-                                "round": {
-                                  "type": "integer",
-                                  "exclusiveMinimum": 0
-                                },
-                                "content": {
-                                  "type": "string"
-                                },
-                                "createdAt": {
-                                  "type": "string",
-                                  "format": "date-time"
-                                }
-                              },
-                              "required": ["id", "role", "content", "createdAt"]
-                            }
-                          },
-                          "rounds": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "round": {
-                                  "type": "integer",
-                                  "exclusiveMinimum": 0
-                                },
-                                "hasChanges": {
-                                  "type": "boolean"
-                                },
-                                "createdAt": {
-                                  "type": "string",
-                                  "format": "date-time"
-                                },
-                                "atomicReviewStatus": {
-                                  "anyOf": [
-                                    {
-                                      "type": "string",
-                                      "enum": ["ready"]
-                                    },
-                                    {
-                                      "type": "string",
-                                      "enum": ["failed"]
-                                    }
-                                  ]
-                                }
-                              },
-                              "required": ["round", "hasChanges", "createdAt"]
-                            }
-                          },
                           "currentRound": {
                             "type": "integer",
                             "minimum": 0
@@ -1275,7 +1263,6 @@
                           "title",
                           "createdAt",
                           "updatedAt",
-                          "messages",
                           "currentRound",
                           "isRunning"
                         ]

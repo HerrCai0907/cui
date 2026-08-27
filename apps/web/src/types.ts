@@ -4,6 +4,7 @@ export type ApiMessage = components["schemas"]["ChatMessage"];
 export type ApiRound = components["schemas"]["ChatRound"];
 export type ApiRoundSummary = components["schemas"]["ChatRoundSummary"];
 export type ApiSession = components["schemas"]["ChatSessionView"];
+export type ApiSessionListItem = components["schemas"]["ChatSessionListItem"];
 export type ApiAtomicCapabilityType = components["schemas"]["ChatRound"]["atomicReview"] extends {
   items: Array<infer Item>;
 }

@@ -44,6 +44,16 @@ export type ChatSessionView = Omit<ChatSession, "rounds"> & {
   runningTurnId?: string;
 };
 
+export type ChatSessionIndexEntry = Omit<ChatSession, "messages" | "rounds"> & {
+  currentRound: number;
+};
+
+export type ChatSessionListItem = ChatSessionIndexEntry & {
+  gitBranch?: string;
+  isRunning: boolean;
+  runningTurnId?: string;
+};
+
 export type AiCreateSessionInput = {
   workspace: string;
   prompt: string;

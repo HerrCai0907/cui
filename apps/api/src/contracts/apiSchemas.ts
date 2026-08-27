@@ -98,6 +98,11 @@ export const ChatSessionViewSchema = z.object({
   runningTurnId: z.string().optional(),
 });
 
+export const ChatSessionListItemSchema = ChatSessionViewSchema.omit({
+  messages: true,
+  rounds: true,
+});
+
 export const AiModelPreferencesSchema = z
   .object({
     normal: z.string().trim().min(1).optional(),
@@ -201,7 +206,7 @@ export const OkResponseSchema = z.object({
 });
 
 export const ListSessionsResponseSchema = z.object({
-  sessions: z.array(ChatSessionViewSchema),
+  sessions: z.array(ChatSessionListItemSchema),
 });
 
 export const ListModelsResponseSchema = z.object({

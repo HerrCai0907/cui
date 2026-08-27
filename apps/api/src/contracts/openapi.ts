@@ -3,6 +3,7 @@ import {
   ChatMessageSchema,
   ChatRoundSchema,
   ChatRoundSummarySchema,
+  ChatSessionListItemSchema,
   ChatSessionViewSchema,
   AiModelPreferencesSchema,
   CodeRangeQuerySchema,
@@ -35,6 +36,7 @@ registry.register("ChatMessage", ChatMessageSchema);
 registry.register("ChatRoundSummary", ChatRoundSummarySchema);
 registry.register("ChatRound", ChatRoundSchema);
 registry.register("ChatSessionView", ChatSessionViewSchema);
+registry.register("ChatSessionListItem", ChatSessionListItemSchema);
 registry.register("AiModelPreferences", AiModelPreferencesSchema);
 registry.register("CodeRangeResponse", CodeRangeResponseSchema);
 registry.register("CreateSessionRequest", CreateSessionRequestSchema);

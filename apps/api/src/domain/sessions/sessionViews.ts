@@ -1,4 +1,9 @@
-import type { ChatSession, ChatSessionView } from "../../types.js";
+import type {
+  ChatSession,
+  ChatSessionIndexEntry,
+  ChatSessionListItem,
+  ChatSessionView,
+} from "../../types.js";
 
 export type SessionViewOptions = {
   gitBranch?: string;
@@ -25,6 +30,23 @@ export function toSessionView(
     ...session,
     rounds: roundSummaries,
     currentRound: getCurrentRound(session),
+    ...(options.gitBranch ? { gitBranch: options.gitBranch } : {}),
+    isRunning: Boolean(options.runningTurnId),
+    ...(options.runningTurnId ? { runningTurnId: options.runningTurnId } : {}),
+  };
+}
+
+export function toSessionListItem(
+  session: ChatSessionIndexEntry,
+  optionsOrRunningTurnId?: SessionViewOptions | string,
+): ChatSessionListItem {
+  const options =
+    typeof optionsOrRunningTurnId === "string"
+      ? { runningTurnId: optionsOrRunningTurnId }
+      : (optionsOrRunningTurnId ?? {});
+
+  return {
+    ...session,
     ...(options.gitBranch ? { gitBranch: options.gitBranch } : {}),
     isRunning: Boolean(options.runningTurnId),
     ...(options.runningTurnId ? { runningTurnId: options.runningTurnId } : {}),

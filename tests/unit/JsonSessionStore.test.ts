@@ -85,6 +85,7 @@ test("JsonSessionStore stores session index and per-session details separately",
     assert.equal(rawStore.sessions.length, 1);
     assert.equal("messages" in rawStore.sessions[0], false);
     assert.equal("rounds" in rawStore.sessions[0], false);
+    assert.equal(rawStore.sessions[0].currentRound, 1);
     assert.equal("messagesBySessionId" in rawStore, false);
     assert.equal("roundsBySessionId" in rawStore, false);
     assert.deepEqual(rawDetail, {
@@ -94,6 +95,17 @@ test("JsonSessionStore stores session index and per-session details separately",
       rounds: [round],
     });
     assert.deepEqual(await store.getSession("session-1"), session);
+    assert.deepEqual(await store.listSessionIndexEntries(), [
+      {
+        id: "session-1",
+        workspace: cwd,
+        title: "Normalized session",
+        summary: "",
+        createdAt: "2026-08-22T00:00:00.000Z",
+        updatedAt: "2026-08-22T00:00:00.000Z",
+        currentRound: 1,
+      },
+    ]);
   } finally {
     await rm(cwd, { force: true, recursive: true });
   }

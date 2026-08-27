@@ -1,4 +1,4 @@
-import type { ApiSession, SessionSummary } from "../../../types";
+import type { ApiSession, ApiSessionListItem, SessionSummary } from "../../../types";
 import { getLastSeenRound, type SessionAttentionState } from "./sessionBrowserState";
 
 export type WorkspaceDisplayItem = {
@@ -23,7 +23,7 @@ export type ActiveSidebarSessionPartition = {
 export const ACTIVE_RECENT_SESSION_COUNT_PER_WORKSPACE = 1;
 export const ACTIVE_RECENT_WORKSPACE_COUNT = 6;
 
-export function toSessionSummary(session: ApiSession): SessionSummary {
+export function toSessionSummary(session: ApiSession | ApiSessionListItem): SessionSummary {
   const lastSeenRound = getLastSeenRound(session.id);
   const currentRound = getCurrentRound(session);
 
@@ -148,9 +148,13 @@ export function sortSessionsForAllSessions(
   });
 }
 
-export function getCurrentRound(session: ApiSession): number {
+export function getCurrentRound(session: ApiSession | ApiSessionListItem): number {
   if (Number.isInteger(session.currentRound) && session.currentRound >= 0) {
     return session.currentRound;
+  }
+
+  if (!("messages" in session)) {
+    return 0;
   }
 
   const storedRound = Math.max(0, ...(session.rounds?.map(({ round }) => round) ?? []));
