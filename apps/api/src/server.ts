@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import { createApp } from "./app/createApp.js";
 import { TraexModel } from "./infrastructure/ai/TraexModel.js";
+import { assertTraexBinaryAvailable } from "./infrastructure/ai/traexBinary.js";
 import { AppLogger } from "./infrastructure/logging/AppLogger.js";
 import { SessionService } from "./domain/sessions/SessionService.js";
 import { JsonSessionStore } from "./infrastructure/store/JsonSessionStore.js";
@@ -14,6 +15,12 @@ const aiModel = new TraexModel();
 const sessionService = new SessionService(aiModel, new JsonSessionStore(), logger);
 const codeQueryService = new CodeQueryService();
 const app = createApp({ logger, aiModel, sessionService, codeQueryService });
+
+await assertTraexBinaryAvailable().catch(async (error: unknown) => {
+  console.error(error);
+  await logger.framework.error("server.traex.unavailable", error);
+  process.exit(1);
+});
 
 const server = app.listen(port);
 

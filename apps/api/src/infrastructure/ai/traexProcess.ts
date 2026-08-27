@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { GitDiffService, type DiffSnapshot } from "../diff/GitDiffService.js";
 import { parseJsonLine } from "./traexEvents.js";
 import { AiRunCancelledError } from "../../types.js";
+import { createTraexEnv, createTraexNotFoundError } from "./traexBinary.js";
 
 type RunProcessInput = {
   command: string;
@@ -99,10 +100,7 @@ export function runTraexProcess({
             cwd,
             detached: process.platform !== "win32",
             stdio: ["pipe", "pipe", "pipe"],
-            env: {
-              ...process.env,
-              NO_COLOR: "1",
-            },
+            env: createTraexEnv(),
           });
 
           const resetIdleTimer = () => {
@@ -154,7 +152,11 @@ export function runTraexProcess({
               if (forcedKillTimer) {
                 clearTimeout(forcedKillTimer);
               }
-              reject(cancelRequested ? new AiRunCancelledError() : error);
+              reject(
+                cancelRequested
+                  ? new AiRunCancelledError()
+                  : createTraexProcessError(command, error),
+              );
               void cleanupOutputDir(outputDir);
             }
           });
@@ -237,6 +239,18 @@ export function runTraexProcess({
       forcedKillTimer.unref();
     },
   };
+}
+
+function createTraexProcessError(command: string, error: Error): Error {
+  if (isEnoentError(error)) {
+    return createTraexNotFoundError(command);
+  }
+
+  return error;
+}
+
+function isEnoentError(error: Error): boolean {
+  return (error as NodeJS.ErrnoException).code === "ENOENT";
 }
 
 function killChildProcess(

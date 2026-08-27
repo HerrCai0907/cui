@@ -23,6 +23,11 @@ import {
 } from "./atomicDiffReviewPrompt.js";
 import { parseAtomicDiffReviewItems } from "./atomicDiffReviewParser.js";
 import { parseConversationSummary } from "./conversationSummaryParser.js";
+import {
+  createTraexEnv,
+  createTraexNotFoundError,
+  getConfiguredTraexBinary,
+} from "./traexBinary.js";
 import { extractResponseDeltas, extractThreadId, formatRawEvents } from "./traexEvents.js";
 import { runTraexProcess, type TraexProcessRun } from "./traexProcess.js";
 
@@ -47,7 +52,7 @@ export class TraexModel implements AiModel {
   private readonly timeoutMs: number;
 
   constructor(options: TraexModelOptions = {}) {
-    this.binary = options.binary ?? process.env.TRAEX_BIN ?? "traex";
+    this.binary = options.binary ?? getConfiguredTraexBinary();
     this.diffService = options.diffService ?? new GitDiffService();
     this.modelListRunner =
       options.modelListRunner ?? (() => execFileJson(this.binary, ["models", "--json"]));
@@ -336,36 +341,33 @@ function createDeferred<T>() {
 
 function execFileJson(command: string, args: string[]): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    execFile(
-      command,
-      args,
-      {
-        env: {
-          ...process.env,
-          NO_COLOR: "1",
-          FORCE_COLOR: "0",
-        },
-      },
-      (error, stdout, stderr) => {
-        if (error) {
-          reject(new Error(`TraeX models command failed: ${stderr.trim() || error.message}`));
-          return;
-        }
+    execFile(command, args, { env: createTraexEnv() }, (error, stdout, stderr) => {
+      if (error) {
+        reject(createTraexModelsError(command, stderr, error));
+        return;
+      }
 
-        try {
-          resolve(JSON.parse(stdout));
-        } catch (parseError) {
-          reject(
-            new Error(
-              `TraeX models command returned invalid JSON: ${
-                parseError instanceof Error ? parseError.message : "parse failed"
-              }`,
-            ),
-          );
-        }
-      },
-    );
+      try {
+        resolve(JSON.parse(stdout));
+      } catch (parseError) {
+        reject(
+          new Error(
+            `TraeX models command returned invalid JSON: ${
+              parseError instanceof Error ? parseError.message : "parse failed"
+            }`,
+          ),
+        );
+      }
+    });
   });
+}
+
+function createTraexModelsError(command: string, stderr: string, error: Error): Error {
+  if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+    return createTraexNotFoundError(command);
+  }
+
+  return new Error(`TraeX models command failed: ${stderr.trim() || error.message}`);
 }
 
 function parseTraexModelInfo(value: unknown): AiModelInfo {
