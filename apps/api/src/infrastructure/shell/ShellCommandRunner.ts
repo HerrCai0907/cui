@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { isInvalidCwdError, PathNotFoundError } from "../../domain/paths/pathValidation.js";
 
 export type ShellCommandEvent =
   | {
@@ -43,7 +44,7 @@ export class ShellCommandRunner {
           env: process.env,
         });
       } catch (error) {
-        reject(error);
+        reject(createShellProcessError(error, options.cwd));
         return;
       }
 
@@ -61,7 +62,7 @@ export class ShellCommandRunner {
       child.on("error", (error) => {
         if (!settled) {
           settled = true;
-          reject(error);
+          reject(createShellProcessError(error, options.cwd));
         }
       });
       child.on("close", (exitCode, signal) => {
@@ -95,4 +96,12 @@ export class ShellCommandRunner {
       },
     };
   }
+}
+
+function createShellProcessError(error: unknown, cwd: string): Error {
+  if (isInvalidCwdError(error)) {
+    return new PathNotFoundError(cwd);
+  }
+
+  return error instanceof Error ? error : new Error("Shell command failed");
 }

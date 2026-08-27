@@ -156,6 +156,19 @@ test("captureCurrentBranch returns the active workspace branch name", async () =
   }
 });
 
+test("git queries tolerate missing workspaces", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-git-missing-"));
+  const missingWorkspace = join(cwd, "missing");
+  const diffService = new GitDiffService();
+
+  try {
+    assert.equal(await diffService.captureCurrentBranch(missingWorkspace), undefined);
+    assert.equal(await diffService.captureWorkspaceDiff(missingWorkspace), "");
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 function runGit(args: string[], cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
     execFile("git", args, { cwd }, (error) => {

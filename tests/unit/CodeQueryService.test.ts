@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
@@ -67,6 +67,24 @@ test("getCodeRange returns the full file when no range is provided", async () =>
     ]);
   } finally {
     await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("getCodeRange expands home-relative file paths", async () => {
+  const service = new CodeQueryService();
+  const filePath = join(homedir(), ".cui-code-query-home-test");
+
+  try {
+    await writeFile(filePath, "home file\n");
+
+    const result = await service.getCodeRange({
+      filePath: "~/.cui-code-query-home-test",
+    });
+
+    assert.equal(result.filePath, filePath);
+    assert.equal(result.code, "home file\n");
+  } finally {
+    await rm(filePath, { force: true });
   }
 });
 
