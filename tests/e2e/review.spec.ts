@@ -414,20 +414,25 @@ test("sends all atomic review comments together", async ({ page }) => {
   });
 
   await expect(sendCommentsButton).toBeDisabled();
-  await firstChange.getByRole("button", { name: "Comment on atomic change 1" }).click();
-  await expect(firstChange.getByPlaceholder("Comment on this atomic change...")).toBeVisible();
+  await firstChange.getByRole("button", { name: "Comment on added diff line 2" }).click();
+  await expect(firstChange.getByPlaceholder("Comment on this diff line...")).toBeVisible();
+  await expect(
+    firstChange
+      .locator(".review-diff-row-add", { hasText: "return 2;" })
+      .locator("+ .review-diff-inline-comment"),
+  ).toBeVisible();
   await firstChange
-    .getByPlaceholder("Comment on this atomic change...")
+    .getByPlaceholder("Comment on this diff line...")
     .fill("Please simplify this function.");
   await page.reload();
-  await expect(firstChange.getByPlaceholder("Comment on this atomic change...")).toHaveValue(
+  await expect(firstChange.getByPlaceholder("Comment on this diff line...")).toHaveValue(
     "Please simplify this function.",
   );
   await expect(page.getByRole("button", { name: "Send 1 atomic review comment" })).toBeEnabled();
 
-  await secondChange.getByRole("button", { name: "Comment on atomic change 2" }).click();
+  await secondChange.getByRole("button", { name: "Comment on added diff line 2" }).click();
   await secondChange
-    .getByPlaceholder("Comment on this atomic change...")
+    .getByPlaceholder("Comment on this diff line...")
     .fill("Please align the test name too.");
   await page.getByRole("button", { name: "Send 2 atomic review comments" }).click();
 

@@ -5,15 +5,25 @@ import { DiffRow } from "./DiffRow";
 type DiffFileListProps = {
   files: DiffFile[];
   approvedFileIds?: Set<string>;
+  commentLineId?: string;
+  commentDraft?: string;
+  hasComment?: boolean;
   getFileSectionId?: (file: DiffFile) => string;
   onToggleFile?: (fileId: string, approved: boolean) => void;
+  onToggleCommentLine?: (lineId: string) => void;
+  onUpdateCommentDraft?: (commentDraft: string) => void;
 };
 
 export function DiffFileList({
   files,
   approvedFileIds,
+  commentLineId,
+  commentDraft,
+  hasComment,
   getFileSectionId,
   onToggleFile,
+  onToggleCommentLine,
+  onUpdateCommentDraft,
 }: DiffFileListProps) {
   const [localApprovedFileIds, setLocalApprovedFileIds] = useState<Set<string>>(() => new Set());
   const [expandedLinesByFileId, setExpandedLinesByFileId] = useState<Record<string, DiffLine[]>>(
@@ -88,8 +98,15 @@ export function DiffFileList({
                     filePath={file.path}
                     line={line}
                     key={line.id}
+                    commentOpen={commentLineId === line.id}
+                    commentDraft={commentDraft}
+                    hasComment={hasComment && commentLineId === line.id}
                     onExpandDown={() => expandContextLine(file.id, line.id, "down")}
                     onExpandUp={() => expandContextLine(file.id, line.id, "up")}
+                    onToggleComment={
+                      onToggleCommentLine ? () => onToggleCommentLine(line.id) : undefined
+                    }
+                    onUpdateCommentDraft={onUpdateCommentDraft}
                   />
                 ))}
               </div>
