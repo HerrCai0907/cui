@@ -20,7 +20,7 @@ test("loads the new session screen without browser errors", async ({ page }) => 
 
   await expect(page.getByRole("heading", { name: "New session" })).toBeVisible();
   await expect(page.getByRole("button", { name: "New session" })).toBeVisible();
-  await expect(page.getByLabel("Workspace path")).toHaveValue(currentWorkspace);
+  await expect(page.getByLabel("Workspace path")).toHaveValue("~");
   await expect(page.getByPlaceholder("Start with an initial prompt...")).toBeVisible();
   await expect(page.getByLabel("Send message")).toBeVisible();
   expect(browserErrors).toEqual([]);

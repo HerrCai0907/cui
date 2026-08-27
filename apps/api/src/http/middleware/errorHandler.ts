@@ -5,6 +5,11 @@ import {
   SessionNotFoundError,
   SessionNotRunningError,
 } from "../../domain/sessions/SessionService.js";
+import {
+  InvalidPathError,
+  PathNotDirectoryError,
+  PathNotFoundError,
+} from "../../domain/paths/pathValidation.js";
 
 export function createErrorHandler(logger: AppLogger): express.ErrorRequestHandler {
   return (error, request, response, _next) => {
@@ -27,6 +32,16 @@ export function createErrorHandler(logger: AppLogger): express.ErrorRequestHandl
 
     if (error instanceof SessionNotRunningError) {
       response.status(409).json({ error: "Session does not have a running turn" });
+      return;
+    }
+
+    if (error instanceof InvalidPathError || error instanceof PathNotDirectoryError) {
+      response.status(400).json({ error: error.message });
+      return;
+    }
+
+    if (error instanceof PathNotFoundError) {
+      response.status(404).json({ error: error.message });
       return;
     }
 

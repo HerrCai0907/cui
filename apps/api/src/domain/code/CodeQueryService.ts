@@ -3,6 +3,7 @@ import type {
   CodeRangeRequestContract,
   CodeRangeResponseContract,
 } from "../../contracts/apiSchemas.js";
+import { expandHomePath, InvalidPathError } from "../paths/pathValidation.js";
 
 export type CodeLine = {
   lineNumber: number;
@@ -28,23 +29,29 @@ export class CodePathNotFileError extends Error {
 
 export class CodeQueryService {
   async getCodeRange(request: CodeRangeRequest): Promise<CodeRangeResult> {
+    const filePath = expandHomePath(request.filePath.trim());
+
+    if (!filePath) {
+      throw new InvalidPathError(request.filePath, "Path must not be empty.");
+    }
+
     let fileStat;
 
     try {
-      fileStat = await stat(request.filePath);
+      fileStat = await stat(filePath);
     } catch (error) {
       if (isNodeError(error) && error.code === "ENOENT") {
-        throw new CodeFileNotFoundError(request.filePath);
+        throw new CodeFileNotFoundError(filePath);
       }
 
       throw error;
     }
 
     if (!fileStat.isFile()) {
-      throw new CodePathNotFileError(request.filePath);
+      throw new CodePathNotFileError(filePath);
     }
 
-    const content = await readFile(request.filePath, "utf8");
+    const content = await readFile(filePath, "utf8");
     const allLines = content.split(/\r?\n/);
     const startLine = request.startLine ?? 1;
     const endLine = request.endLine ?? allLines.length;
@@ -54,7 +61,7 @@ export class CodeQueryService {
     }));
 
     return {
-      filePath: request.filePath,
+      filePath,
       startLine,
       endLine,
       code: selectedLines.map((line) => line.content).join("\n"),

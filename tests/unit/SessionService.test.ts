@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { SessionService } from "../../apps/api/src/domain/sessions/SessionService.js";
+import { PathNotFoundError } from "../../apps/api/src/domain/paths/pathValidation.js";
 import { JsonSessionStore } from "../../apps/api/src/infrastructure/store/JsonSessionStore.js";
 import type { AppLogger } from "../../apps/api/src/infrastructure/logging/AppLogger.js";
 import type {
@@ -270,10 +271,66 @@ test("beginCreateShellSession streams and stores command output", async () => {
   }
 });
 
+test("beginCreateSession expands home workspace before calling the model", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    const submitted = await service.beginCreateSession({
+      workspace: "~",
+      prompt: "Use my home directory.",
+    });
+    const events: unknown[] = [];
+
+    service.subscribeToTurn(submitted.turnId, (event) => {
+      events.push(event);
+    });
+
+    assert.equal(aiModel.createStreamInputs[0]?.workspace, homedir());
+    assert.equal(submitted.session.workspace, homedir());
+    aiModel.resolveSummary({
+      title: "Home workspace",
+      progress: "The home workspace was accepted.",
+    });
+    aiModel.resolveRun({
+      sessionId: submitted.session.id,
+      content: "Done.",
+      rawEvents: [],
+    });
+    await waitFor(() => events.some(isDoneEvent));
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("beginCreateSession rejects missing workspaces before calling the model", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    await assert.rejects(
+      () =>
+        service.beginCreateSession({
+          workspace: join(cwd, "missing"),
+          prompt: "This should fail before TraeX.",
+        }),
+      PathNotFoundError,
+    );
+    assert.equal(aiModel.createStreamInputs.length, 0);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 class FakeAiModel implements AiModel {
   readonly summaryPrompts: string[] = [];
   readonly summaryModels: Array<AiModelPreferences | undefined> = [];
   readonly runModels: Array<AiModelPreferences | undefined> = [];
+  readonly createStreamInputs: Array<{ workspace: string; models?: AiModelPreferences }> = [];
   readonly atomicReviewInputs: AiAtomicDiffReviewInput[] = [];
   cancelled = false;
   private readonly run = createDeferred<AiRunResult>();
@@ -306,8 +363,17 @@ class FakeAiModel implements AiModel {
     return this.summary.promise;
   }
 
-  createSessionStream(): AiRun {
-    throw new Error("Unexpected createSessionStream call");
+  createSessionStream(input: { workspace: string; models?: AiModelPreferences }): AiRun {
+    this.createStreamInputs.push(input);
+
+    return {
+      sessionId: Promise.resolve("created-session-1"),
+      result: this.run.promise,
+      cancel: () => {
+        this.cancelled = true;
+        this.run.reject(new AiRunCancelledError());
+      },
+    };
   }
 
   continueSessionStream(

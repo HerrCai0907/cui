@@ -6,6 +6,7 @@ import { GitDiffService, type DiffSnapshot } from "../diff/GitDiffService.js";
 import { parseJsonLine } from "./traexEvents.js";
 import { AiRunCancelledError } from "../../types.js";
 import { createTraexEnv, createTraexNotFoundError } from "./traexBinary.js";
+import { isInvalidCwdError, PathNotFoundError } from "../../domain/paths/pathValidation.js";
 
 type RunProcessInput = {
   command: string;
@@ -96,12 +97,18 @@ export function runTraexProcess({
             return;
           }
 
-          child = spawn(command, childArgs, {
-            cwd,
-            detached: process.platform !== "win32",
-            stdio: ["pipe", "pipe", "pipe"],
-            env: createTraexEnv(),
-          });
+          try {
+            child = spawn(command, childArgs, {
+              cwd,
+              detached: process.platform !== "win32",
+              stdio: ["pipe", "pipe", "pipe"],
+              env: createTraexEnv(),
+            });
+          } catch (error) {
+            reject(createTraexProcessError(command, error, cwd));
+            void cleanupOutputDir(outputDir);
+            return;
+          }
 
           const resetIdleTimer = () => {
             if (idleTimer) {
@@ -155,7 +162,7 @@ export function runTraexProcess({
               reject(
                 cancelRequested
                   ? new AiRunCancelledError()
-                  : createTraexProcessError(command, error),
+                  : createTraexProcessError(command, error, cwd),
               );
               void cleanupOutputDir(outputDir);
             }
@@ -241,7 +248,15 @@ export function runTraexProcess({
   };
 }
 
-function createTraexProcessError(command: string, error: Error): Error {
+function createTraexProcessError(command: string, error: unknown, cwd: string): Error {
+  if (isInvalidCwdError(error)) {
+    return new PathNotFoundError(cwd);
+  }
+
+  if (!(error instanceof Error)) {
+    return new Error("TraeX command failed");
+  }
+
   if (isEnoentError(error)) {
     return createTraexNotFoundError(command);
   }

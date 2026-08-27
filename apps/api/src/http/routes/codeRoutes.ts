@@ -4,6 +4,7 @@ import {
   CodePathNotFileError,
   type CodeQueryService,
 } from "../../domain/code/CodeQueryService.js";
+import { InvalidPathError } from "../../domain/paths/pathValidation.js";
 import { parseCodeRangeQuery } from "../validation/requestParsers.js";
 
 export function createCodeRouter(codeQueryService: CodeQueryService): Router {
@@ -29,6 +30,11 @@ export function createCodeRouter(codeQueryService: CodeQueryService): Router {
 
       if (error instanceof CodePathNotFileError) {
         response.status(400).json({ error: "Code path is not a file" });
+        return;
+      }
+
+      if (error instanceof InvalidPathError) {
+        response.status(400).json({ error: error.message });
         return;
       }
 

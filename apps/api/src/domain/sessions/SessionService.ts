@@ -40,6 +40,7 @@ import {
   type ShellCommandResult,
 } from "../../infrastructure/shell/ShellCommandRunner.js";
 import { formatRawEvents } from "../../infrastructure/ai/traexEvents.js";
+import { assertExistingDirectory } from "../paths/pathValidation.js";
 
 export type { TurnStreamEvent } from "../turns/turnEvents.js";
 
@@ -161,12 +162,14 @@ export class SessionService {
   }
 
   async createSession(request: CreateSessionRequest): Promise<ChatSession> {
+    const workspace = await assertExistingDirectory(request.workspace);
+
     await this.logger.framework.info("session.create.started", {
-      workspace: request.workspace,
+      workspace,
       promptLength: request.prompt.length,
     });
     const aiResponse = await this.aiModel.createSession({
-      workspace: request.workspace,
+      workspace,
       prompt: request.prompt,
       models: request.models,
     });
@@ -177,7 +180,7 @@ export class SessionService {
     const assistantMessages = createAssistantMessages(aiResponse, round);
     const session: ChatSession = {
       id: sessionId,
-      workspace: request.workspace,
+      workspace,
       title: createTitle(request.prompt),
       summary: "",
       createdAt: now,
@@ -188,21 +191,21 @@ export class SessionService {
 
     await this.logger.session(sessionId).info("session.created", {
       sessionId,
-      workspace: request.workspace,
+      workspace,
       prompt: request.prompt,
       response: aiResponse.content,
       rawEvents: aiResponse.rawEvents,
     });
     await this.logger.framework.info("session.create.completed", {
       sessionId,
-      workspace: request.workspace,
+      workspace,
     });
 
     const createdSession = await this.store.createSession(session);
     if (round?.hasChanges) {
       this.scheduleAtomicReview({
         sessionId,
-        workspace: request.workspace,
+        workspace,
         prompt: request.prompt,
         aiResponse,
         round,
@@ -214,13 +217,16 @@ export class SessionService {
   }
 
   async beginCreateSession(request: CreateSessionRequest): Promise<SubmittedTurn> {
+    const workspace = await assertExistingDirectory(request.workspace);
+    const normalizedRequest = { ...request, workspace };
+
     await this.logger.framework.info("session.create.started", {
-      workspace: request.workspace,
+      workspace,
       promptLength: request.prompt.length,
     });
     const bufferedEvents: TurnStreamEvent[] = [];
     let runningTurn: RunningTurn | undefined;
-    const run = this.aiModel.createSessionStream(request, (event) => {
+    const run = this.aiModel.createSessionStream(normalizedRequest, (event) => {
       handleAiRunEvent(event, (streamEvent) => {
         if (runningTurn) {
           this.turnRegistry.emitTurnEvent(runningTurn, streamEvent);
@@ -239,7 +245,7 @@ export class SessionService {
     const userMessage = createMessage("user", request.prompt);
     const session: ChatSession = {
       id: sessionId,
-      workspace: request.workspace,
+      workspace,
       title: createTitle(request.prompt),
       summary: "",
       createdAt: now,
@@ -255,7 +261,7 @@ export class SessionService {
       request.models,
     );
     bufferedEvents.forEach((event) => this.turnRegistry.emitTurnEvent(runningTurn!, event));
-    this.finishCreateSession(request, run.result, runningTurn, summaryPromise);
+    this.finishCreateSession(normalizedRequest, run.result, runningTurn, summaryPromise);
 
     return {
       session: await this.toSessionView(createdSession, runningTurn.id),
@@ -264,8 +270,10 @@ export class SessionService {
   }
 
   async beginCreateShellSession(request: CreateShellSessionRequest): Promise<SubmittedTurn> {
+    const workspace = await assertExistingDirectory(request.workspace);
+
     await this.logger.framework.info("shell.session.create.started", {
-      workspace: request.workspace,
+      workspace,
       commandLength: request.command.length,
     });
 
@@ -274,7 +282,7 @@ export class SessionService {
     const userMessage = createMessage("user", request.command);
     const session: ChatSession = {
       id: sessionId,
-      workspace: request.workspace,
+      workspace,
       title: createShellTitle(request.command),
       summary: "Shell session",
       createdAt: now,
@@ -285,13 +293,13 @@ export class SessionService {
     const createdSession = await this.store.createSession(session);
     const shellRun = this.startShellRun({
       sessionId,
-      workspace: request.workspace,
+      workspace,
       command: request.command,
     });
 
     await this.logger.framework.info("shell.session.create.accepted", {
       sessionId,
-      workspace: request.workspace,
+      workspace,
     });
 
     return {
@@ -314,9 +322,10 @@ export class SessionService {
       throw new SessionNotFoundError(sessionId);
     }
 
+    const workspace = await assertExistingDirectory(session.workspace);
     const aiResponse = await this.aiModel.continueSession({
       sessionId,
-      workspace: session.workspace,
+      workspace,
       prompt: request.prompt,
       models: request.models,
     });
@@ -329,14 +338,14 @@ export class SessionService {
 
     await this.logger.session(sessionId).info("session.continued", {
       sessionId,
-      workspace: session.workspace,
+      workspace,
       prompt: request.prompt,
       response: aiResponse.content,
       rawEvents: aiResponse.rawEvents,
     });
     await this.logger.framework.info("session.continue.completed", {
       sessionId,
-      workspace: session.workspace,
+      workspace,
     });
 
     const updatedSession = await this.store.appendRoundAndMessages(sessionId, round, [
@@ -346,7 +355,7 @@ export class SessionService {
     if (round?.hasChanges && reviewPrompt) {
       this.scheduleAtomicReview({
         sessionId,
-        workspace: session.workspace,
+        workspace,
         prompt: reviewPrompt,
         aiResponse,
         round,
@@ -378,6 +387,7 @@ export class SessionService {
       throw new SessionBusyError(sessionId);
     }
 
+    const workspace = await assertExistingDirectory(session.workspace);
     const userMessage = createMessage("user", request.prompt);
     const updatedSession = await this.store.appendMessages(sessionId, [userMessage]);
     const bufferedEvents: TurnStreamEvent[] = [];
@@ -385,7 +395,7 @@ export class SessionService {
     const run = this.aiModel.continueSessionStream(
       {
         sessionId,
-        workspace: session.workspace,
+        workspace,
         prompt: request.prompt,
         models: request.models,
       },
@@ -407,7 +417,7 @@ export class SessionService {
     );
     bufferedEvents.forEach((event) => this.turnRegistry.emitTurnEvent(runningTurn!, event));
 
-    this.finishContinueSession(request, run.result, runningTurn, session.workspace, summaryPromise);
+    this.finishContinueSession(request, run.result, runningTurn, workspace, summaryPromise);
 
     return {
       session: await this.toSessionView(updatedSession, runningTurn.id),
@@ -436,11 +446,12 @@ export class SessionService {
       throw new SessionBusyError(sessionId);
     }
 
+    const workspace = await assertExistingDirectory(session.workspace);
     const userMessage = createMessage("user", request.command);
     const updatedSession = await this.store.appendMessages(sessionId, [userMessage]);
     const shellRun = this.startShellRun({
       sessionId,
-      workspace: session.workspace,
+      workspace,
       command: request.command,
     });
 

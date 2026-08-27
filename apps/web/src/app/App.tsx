@@ -26,7 +26,7 @@ import { SessionSidebar } from "../features/sessions/components/SessionSidebar";
 import { useSessionController } from "../features/sessions/hooks/useSessionController";
 import type { ApiRound } from "../types";
 
-const DEFAULT_WORKSPACE = "/Users/bytedance/cui";
+const DEFAULT_WORKSPACE = "~";
 
 export function App() {
   const [configOpen, setConfigOpen] = useState(() => location.pathname === "/config");

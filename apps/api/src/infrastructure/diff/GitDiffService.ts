@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { isInvalidCwdError } from "../../domain/paths/pathValidation.js";
 
 export type DiffSnapshot = {
   gitCommit: string;
@@ -44,13 +45,13 @@ export class GitDiffService {
   }
 
   async captureCurrentBranch(cwd: string): Promise<string | undefined> {
-    const branchName = (await this.runGit(["branch", "--show-current"], cwd)).trim();
+    const branchName = (await this.runGit(["branch", "--show-current"], cwd)).stdout.trim();
 
     if (branchName) {
       return branchName;
     }
 
-    const headName = (await this.runGit(["rev-parse", "--short", "HEAD"], cwd)).trim();
+    const headName = (await this.runGit(["rev-parse", "--short", "HEAD"], cwd)).stdout.trim();
 
     return headName ? `HEAD ${headName}` : undefined;
   }
@@ -66,7 +67,12 @@ export class GitDiffService {
       ...(diffBase ? [diffBase] : []),
       "--",
     ];
-    const trackedDiff = await this.runGit(trackedDiffArgs, cwd);
+    const trackedDiffResult = await this.runGit(trackedDiffArgs, cwd);
+
+    if (!trackedDiffResult.ok) {
+      return "";
+    }
+
     const untrackedFiles = await this.listUntrackedFiles(cwd);
     const untrackedDiffs = await Promise.all(
       untrackedFiles.map((file) =>
@@ -84,11 +90,11 @@ export class GitDiffService {
           ],
           cwd,
           [0, 1],
-        ),
+        ).then((result) => result.stdout),
       ),
     );
 
-    return [trackedDiff, ...untrackedDiffs]
+    return [trackedDiffResult.stdout, ...untrackedDiffs]
       .map((diff) => diff.trimEnd())
       .filter(Boolean)
       .join("\n");
@@ -580,28 +586,44 @@ export class GitDiffService {
   }
 
   private async listUntrackedFiles(cwd: string): Promise<string[]> {
-    const output = await this.runGit(["ls-files", "--others", "--exclude-standard", "-z"], cwd);
+    const result = await this.runGit(["ls-files", "--others", "--exclude-standard", "-z"], cwd);
 
-    return output
+    if (!result.ok) {
+      return [];
+    }
+
+    return result.stdout
       .split("\0")
       .filter(Boolean)
       .filter((file) => !file.startsWith(".trae/"));
   }
 
   private async captureHeadCommit(cwd: string): Promise<string> {
-    return (await this.runGit(["rev-parse", "--verify", "HEAD"], cwd)).trim();
+    return (await this.runGit(["rev-parse", "--verify", "HEAD"], cwd)).stdout.trim();
   }
 
-  private runGit(args: string[], cwd: string, okCodes = [0]): Promise<string> {
+  private runGit(
+    args: string[],
+    cwd: string,
+    okCodes = [0],
+  ): Promise<{ ok: boolean; stdout: string }> {
     return new Promise((resolve) => {
-      const child = spawn("git", args, {
-        cwd,
-        stdio: ["ignore", "pipe", "pipe"],
-        env: {
-          ...process.env,
-          NO_COLOR: "1",
-        },
-      });
+      let child;
+
+      try {
+        child = spawn("git", args, {
+          cwd,
+          stdio: ["ignore", "pipe", "pipe"],
+          env: {
+            ...process.env,
+            NO_COLOR: "1",
+          },
+        });
+      } catch (error) {
+        resolve({ ok: false, stdout: "" });
+        return;
+      }
+
       let stdout = "";
       let stderr = "";
 
@@ -613,16 +635,16 @@ export class GitDiffService {
       child.stderr.on("data", (chunk: string) => {
         stderr += chunk;
       });
-      child.on("error", () => {
-        resolve("");
+      child.on("error", (error) => {
+        resolve({ ok: false, stdout: isInvalidCwdError(error) ? "" : stdout });
       });
       child.on("close", (code) => {
         if (code !== null && okCodes.includes(code)) {
-          resolve(stdout);
+          resolve({ ok: true, stdout });
           return;
         }
 
-        resolve(stderr ? "" : stdout);
+        resolve({ ok: false, stdout: stderr ? "" : stdout });
       });
     });
   }
