@@ -47,7 +47,7 @@ export class TraexModel implements AiModel {
   private readonly timeoutMs: number;
 
   constructor(options: TraexModelOptions = {}) {
-    this.binary = options.binary ?? process.env.TRAEX_BIN ?? "traecli";
+    this.binary = options.binary ?? process.env.TRAEX_BIN ?? "traex";
     this.diffService = options.diffService ?? new GitDiffService();
     this.modelListRunner =
       options.modelListRunner ?? (() => execFileJson(this.binary, ["models", "--json"]));

@@ -15,7 +15,26 @@ const sessionService = new SessionService(aiModel, new JsonSessionStore(), logge
 const codeQueryService = new CodeQueryService();
 const app = createApp({ logger, aiModel, sessionService, codeQueryService });
 
-app.listen(port, () => {
+const server = app.listen(port);
+
+server.on("listening", () => {
   console.log(`API listening on http://localhost:${port}`);
   void logger.framework.info("server.started", { port });
 });
+
+server.on("error", (error) => {
+  console.error("Failed to start API server", error);
+  void logger.framework.error("server.start.failed", error).finally(() => {
+    process.exitCode = 1;
+    server.close();
+  });
+});
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => {
+    server.close(() => {
+      void logger.framework.info("server.stopped", { signal });
+      process.exit(0);
+    });
+  });
+}

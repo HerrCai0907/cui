@@ -14,7 +14,7 @@ test("createAtomicDiffReview retries with validation feedback when item diff for
   let diffFilePath = "";
   let diffFileContent = "";
   const model = new TraexModel({
-    binary: "traecli",
+    binary: "traex",
     processRunner: (input): TraexProcessRun => {
       calls.push({ args: input.args, input: input.input });
       diffFilePath ||= extractDiffFilePath(input.input);
@@ -60,7 +60,7 @@ test("createAtomicDiffReview retries with validation feedback when item diff for
 test("uses separate configured models for normal, summary, and atomic review runs", async () => {
   const calls: ProcessCall[] = [];
   const model = new TraexModel({
-    binary: "traecli",
+    binary: "traex",
     modelListRunner: () =>
       Promise.resolve([
         {
