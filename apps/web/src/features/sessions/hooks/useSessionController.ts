@@ -145,12 +145,13 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   const workspaces = useMemo(
     () =>
       sessionListMode === "active"
-        ? createActiveWorkspaceGroups(
+        ? createWorkspaceGroups(
             sidebarSessionPartition.active,
             sidebarSessionPartition.activeWorkspaces,
           )
-        : groupSessionsByWorkspace(sidebarSessionPartition.more),
+        : createWorkspaceGroups(sidebarSessionPartition.more, [...highlightedWorkspaceIds]),
     [
+      highlightedWorkspaceIds,
       sessionListMode,
       sidebarSessionPartition.active,
       sidebarSessionPartition.activeWorkspaces,
@@ -658,11 +659,20 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     autoRestoreSessionRef.current = false;
     setCurrentActiveSession(null);
     if (workspace) {
-      setWorkspaceDraft(workspace);
+      updateWorkspaceDraft(workspace);
       recordWorkspaceAttention(workspace);
       expandWorkspace(workspace);
     }
     setError(null);
+  }
+
+  function updateWorkspaceDraft(workspace: string) {
+    setWorkspaceDraft(workspace);
+
+    const trimmedWorkspace = workspace.trim();
+    if (trimmedWorkspace) {
+      expandWorkspace(trimmedWorkspace);
+    }
   }
 
   function setTraceExpanded(messageId: string, open: boolean) {
@@ -967,7 +977,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     setSidebarWidth,
     setTraceExpanded,
     submitPrompt,
-    setWorkspaceDraft,
+    setWorkspaceDraft: updateWorkspaceDraft,
     sidebarOpen,
     sidebarWidth,
     sessionListMode,
@@ -1022,13 +1032,13 @@ function filterKnownKeys(
   }, {});
 }
 
-function createActiveWorkspaceGroups(
-  activeSessions: SessionSummary[],
-  activeWorkspaces: string[],
+function createWorkspaceGroups(
+  sessions: SessionSummary[],
+  extraWorkspaces: string[],
 ): Record<string, SessionSummary[]> {
-  const workspaces = groupSessionsByWorkspace(activeSessions);
+  const workspaces = groupSessionsByWorkspace(sessions);
 
-  activeWorkspaces.forEach((workspace) => {
+  extraWorkspaces.forEach((workspace) => {
     workspaces[workspace] = workspaces[workspace] ?? [];
   });
 

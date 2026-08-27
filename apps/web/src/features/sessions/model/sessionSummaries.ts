@@ -3,14 +3,15 @@ import { getLastSeenRound, type SessionAttentionState } from "./sessionBrowserSt
 
 export type WorkspaceDisplayItem = {
   workspace: string;
-  label: string;
   sessions: SessionSummary[];
 };
 
-export type WorkspaceDisplayGroup = {
+export type WorkspaceTreeNode = {
   id: string;
-  prefix?: string;
-  workspaces: WorkspaceDisplayItem[];
+  label: string;
+  path: string;
+  workspace?: WorkspaceDisplayItem;
+  children: WorkspaceTreeNode[];
 };
 
 export type ActiveSidebarSessionPartition = {
@@ -107,9 +108,7 @@ export function partitionActiveSessionsForSidebar(
     active: sortSessionsForActiveSidebar(
       activeCandidateSessions.filter((session) => activeSidebarSessionIds.has(session.id)),
     ),
-    activeWorkspaces: sortActiveWorkspaces(
-      Object.keys(sessionsByWorkspace).filter((workspace) => activeWorkspaceIds.has(workspace)),
-    ),
+    activeWorkspaces: sortActiveWorkspaces([...activeWorkspaceIds]),
     more: sortSessionsForAllSessions(sessions, attentionState),
   };
 }
@@ -219,25 +218,20 @@ function compareWorkspacesByAttention(
 
 export function groupWorkspacesForDisplay(
   workspaces: Record<string, SessionSummary[]>,
-): WorkspaceDisplayGroup[] {
-  const roots = new Map<string, WorkspacePathNode>();
+): WorkspaceTreeNode[] {
+  const roots = new Map<string, WorkspaceTreeBuildNode>();
 
   Object.entries(workspaces).forEach(([workspace, sessions]) => {
     const parsed = parseWorkspacePath(workspace);
-    const root = getOrCreateChild(roots, parsed.root);
     const item = {
       workspace,
       sessions,
-      parsed,
     };
 
-    root.count += 1;
-    insertWorkspacePath(root, parsed.segments, item);
+    insertWorkspacePath(roots, parsed, item);
   });
 
-  return Array.from(roots.entries()).flatMap(([root, node]) =>
-    collectDisplayGroups(node, root, []),
-  );
+  return sortTreeNodes([...roots.values()].map(compressWorkspaceTreeNode));
 }
 
 type ParsedWorkspacePath = {
@@ -248,137 +242,73 @@ type ParsedWorkspacePath = {
 type WorkspacePathItem = {
   workspace: string;
   sessions: SessionSummary[];
-  parsed: ParsedWorkspacePath;
 };
 
-type WorkspacePathNode = {
-  count: number;
-  entries: WorkspacePathItem[];
-  children: Map<string, WorkspacePathNode>;
+type WorkspaceTreeBuildNode = Omit<WorkspaceTreeNode, "children"> & {
+  children: Map<string, WorkspaceTreeBuildNode>;
 };
 
-function createWorkspacePathNode(): WorkspacePathNode {
+function createWorkspaceTreeBuildNode(
+  id: string,
+  label: string,
+  path: string,
+): WorkspaceTreeBuildNode {
   return {
-    count: 0,
-    entries: [],
+    id,
+    label,
+    path,
+    workspace: undefined,
     children: new Map(),
   };
 }
 
-function getOrCreateChild(
-  children: Map<string, WorkspacePathNode>,
-  segment: string,
-): WorkspacePathNode {
-  const existing = children.get(segment);
+function getOrCreateTreeChild(
+  children: Map<string, WorkspaceTreeBuildNode>,
+  id: string,
+  label: string,
+  path: string,
+): WorkspaceTreeBuildNode {
+  const existing = children.get(id);
 
   if (existing) {
     return existing;
   }
 
-  const child = createWorkspacePathNode();
+  const child = createWorkspaceTreeBuildNode(id, label, path);
 
-  children.set(segment, child);
+  children.set(id, child);
 
   return child;
 }
 
-function insertWorkspacePath(node: WorkspacePathNode, segments: string[], item: WorkspacePathItem) {
-  let current = node;
+function insertWorkspacePath(
+  roots: Map<string, WorkspaceTreeBuildNode>,
+  parsed: ParsedWorkspacePath,
+  item: WorkspacePathItem,
+) {
+  let children = roots;
+  let current: WorkspaceTreeBuildNode | undefined;
 
-  segments.forEach((segment) => {
-    current = getOrCreateChild(current.children, segment);
-    current.count += 1;
+  if (parsed.root) {
+    current = getOrCreateTreeChild(roots, parsed.root, parsed.root, parsed.root);
+    children = current.children;
+  }
+
+  parsed.segments.forEach((segment, index) => {
+    const path = formatWorkspacePath(parsed.root, parsed.segments.slice(0, index + 1));
+
+    current = getOrCreateTreeChild(children, path, segment, path);
+    children = current.children;
   });
 
-  current.entries.push(item);
-}
-
-function collectDisplayGroups(
-  node: WorkspacePathNode,
-  root: string,
-  prefixSegments: string[],
-): WorkspaceDisplayGroup[] {
-  if (node.count < 2) {
-    return collectSingleWorkspaceGroups(node);
+  if (current) {
+    current.workspace = item;
+    return;
   }
 
-  let displayNode = node;
-  const displayPrefixSegments = [...prefixSegments];
+  const relativeRoot = getOrCreateTreeChild(roots, item.workspace, item.workspace, item.workspace);
 
-  while (displayNode.entries.length === 0 && displayNode.children.size === 1) {
-    const [segment, child] = Array.from(displayNode.children.entries())[0];
-
-    displayPrefixSegments.push(segment);
-    displayNode = child;
-  }
-
-  const prefix = formatWorkspacePath(root, displayPrefixSegments);
-  const repeatedChildren = Array.from(displayNode.children.entries()).filter(
-    ([, child]) => child.count > 1,
-  );
-  const singletonChildren = Array.from(displayNode.children.values()).filter(
-    (child) => child.count === 1,
-  );
-
-  if (
-    displayNode.count > 1 &&
-    prefix !== root &&
-    prefix.length > 0 &&
-    (displayNode.entries.length > 0 || repeatedChildren.length === 0)
-  ) {
-    return [
-      {
-        id: `prefix:${root}:${displayPrefixSegments.join("/")}`,
-        prefix,
-        workspaces: collectWorkspaceItems(displayNode, root, displayPrefixSegments),
-      },
-    ];
-  }
-
-  return [
-    ...displayNode.entries.map((item) => toSingleWorkspaceGroup(item)),
-    ...repeatedChildren.flatMap(([segment, child]) =>
-      collectDisplayGroups(child, root, [...displayPrefixSegments, segment]),
-    ),
-    ...singletonChildren.flatMap((child) => collectSingleWorkspaceGroups(child)),
-  ];
-}
-
-function collectSingleWorkspaceGroups(node: WorkspacePathNode): WorkspaceDisplayGroup[] {
-  return [
-    ...node.entries.map((item) => toSingleWorkspaceGroup(item)),
-    ...Array.from(node.children.values()).flatMap((child) => collectSingleWorkspaceGroups(child)),
-  ];
-}
-
-function toSingleWorkspaceGroup(item: WorkspacePathItem): WorkspaceDisplayGroup {
-  return {
-    id: item.workspace,
-    workspaces: [
-      {
-        workspace: item.workspace,
-        label: item.workspace,
-        sessions: item.sessions,
-      },
-    ],
-  };
-}
-
-function collectWorkspaceItems(
-  node: WorkspacePathNode,
-  root: string,
-  prefixSegments: string[],
-): WorkspaceDisplayItem[] {
-  return [
-    ...node.entries.map((item) => ({
-      workspace: item.workspace,
-      label: formatWorkspaceSuffix(item.parsed, root, prefixSegments),
-      sessions: item.sessions,
-    })),
-    ...Array.from(node.children.values()).flatMap((child) =>
-      collectWorkspaceItems(child, root, prefixSegments),
-    ),
-  ];
+  relativeRoot.workspace = item;
 }
 
 function parseWorkspacePath(workspace: string): ParsedWorkspacePath {
@@ -418,16 +348,53 @@ function formatWorkspacePath(root: string, segments: string[]): string {
   return `${root}${segments.join("/")}`;
 }
 
-function formatWorkspaceSuffix(
-  path: ParsedWorkspacePath,
-  root: string,
-  prefixSegments: string[],
-): string {
-  if (path.root !== root) {
-    return formatWorkspacePath(path.root, path.segments);
+function compressWorkspaceTreeNode(node: WorkspaceTreeBuildNode): WorkspaceTreeBuildNode {
+  let compressed = {
+    ...node,
+    children: new Map(
+      [...node.children.entries()].map(([key, child]) => [key, compressWorkspaceTreeNode(child)]),
+    ),
+  };
+
+  while (!compressed.workspace && compressed.children.size === 1) {
+    const child = [...compressed.children.values()][0];
+
+    compressed = {
+      id: child.id,
+      label: joinCompressedPathLabels(compressed.label, child.label),
+      path: child.path,
+      workspace: child.workspace,
+      children: child.children,
+    };
   }
 
-  const suffixSegments = path.segments.slice(prefixSegments.length);
+  return compressed;
+}
 
-  return suffixSegments.length > 0 ? suffixSegments.join("/") : ".";
+function joinCompressedPathLabels(parent: string, child: string): string {
+  if (parent === "/") {
+    return `/${child}`;
+  }
+
+  if (parent.endsWith("/")) {
+    return `${parent}${child}`;
+  }
+
+  return `${parent}/${child}`;
+}
+
+function sortTreeNodes(nodes: WorkspaceTreeBuildNode[]): WorkspaceTreeNode[] {
+  return nodes
+    .map((node) => ({
+      id: node.id,
+      label: node.label,
+      path: node.path,
+      workspace: node.workspace,
+      children: sortTreeNodes([...node.children.values()]),
+    }))
+    .sort((left, right) => {
+      const directoryOrder = Number(!right.workspace) - Number(!left.workspace);
+
+      return directoryOrder !== 0 ? directoryOrder : left.label.localeCompare(right.label);
+    });
 }
