@@ -21,7 +21,8 @@ export function createAtomicDiffReviewPrompt(input: AiAtomicDiffReviewInput): st
     "7. 如果原子能力涉及函数，intent 必须说明该函数的输入、输出和关键边界条件。",
     "8. 如果原子能力涉及类或接口，intent 必须说明该类或接口的作用，并逐一概括不同 method 的功能。",
     "9. 只基于输入材料，不要编造文件或行为。",
-    "10. 只输出 JSON，不要输出 Markdown、代码围栏或额外解释。",
+    "10. 输入 diff 已保存为本地文件。请读取该文件获取完整 diff，不要要求用户重新提供 diff 内容。",
+    "11. 只输出 JSON，不要输出 Markdown、代码围栏或额外解释。",
     "",
     "输出 JSON schema：",
     "{",
@@ -63,21 +64,25 @@ export function createAtomicDiffReviewPrompt(input: AiAtomicDiffReviewInput): st
     input.assistantOutput || "无",
     "</ASSISTANT_OUTPUT>",
     "",
-    "<DIFF>",
-    input.diff || "无",
-    "</DIFF>",
+    "<DIFF_FILE>",
+    input.diffFilePath || "无",
+    "</DIFF_FILE>",
   ].join("\n");
 }
 
 export function createAtomicDiffReviewFormatCorrectionPrompt(input: {
   validationError: string;
   previousResponse: string;
+  diffFilePath?: string;
 }): string {
   return [
     "上一次 atomic diff review 输出没有通过后端 diff 格式校验。",
     "",
     "请基于你上一次的输出，返回修正后的完整 JSON。不要输出 Markdown、代码围栏或额外解释。",
     "必须保留原来的原子能力拆分意图；只修正每个 item.diff 的 unified diff 格式。",
+    input.diffFilePath
+      ? `如需对照原始完整 diff，请读取本地文件：${input.diffFilePath}`
+      : "原始完整 diff 文件不可用。",
     "",
     "diff 格式要求：",
     "1. 每个 item.diff 必须包含至少一个文件块，文件块 header 必须从行首开始：diff --git a/path b/path",
