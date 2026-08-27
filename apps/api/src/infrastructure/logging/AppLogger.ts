@@ -18,10 +18,14 @@ export class AppLogger {
   }
 
   framework = {
-    debug: (event: string, data?: unknown) => this.write("framework.log", "debug", event, data),
-    info: (event: string, data?: unknown) => this.write("framework.log", "info", event, data),
-    warn: (event: string, data?: unknown) => this.write("framework.log", "warn", event, data),
-    error: (event: string, data?: unknown) => this.write("framework.log", "error", event, data),
+    debug: (event: string, data?: unknown) =>
+      this.write(this.frameworkLogFileName(), "debug", event, data),
+    info: (event: string, data?: unknown) =>
+      this.write(this.frameworkLogFileName(), "info", event, data),
+    warn: (event: string, data?: unknown) =>
+      this.write(this.frameworkLogFileName(), "warn", event, data),
+    error: (event: string, data?: unknown) =>
+      this.write(this.frameworkLogFileName(), "error", event, data),
   };
 
   session(sessionId: string) {
@@ -55,10 +59,22 @@ export class AppLogger {
       console.error("Failed to write log entry", error);
     }
   }
+
+  private frameworkLogFileName(): string {
+    return `framework-${formatLocalDate(new Date())}.log`;
+  }
 }
 
 function sanitizeFileSegment(value: string): string {
   return value.replace(/[^a-zA-Z0-9._-]/g, "_") || "unknown";
+}
+
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function normalizeLogData(data: unknown): unknown {
