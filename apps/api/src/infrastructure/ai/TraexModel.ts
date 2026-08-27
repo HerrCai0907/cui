@@ -1,4 +1,7 @@
 import { execFile } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { GitDiffService } from "../diff/GitDiffService.js";
 import {
   AiAtomicDiffReviewInput,
@@ -92,12 +95,17 @@ export class TraexModel implements AiModel {
   async createAtomicDiffReview(input: AiAtomicDiffReviewInput): Promise<AtomicDiffReview> {
     const createArgs = this.createExecArgs(input.workspace, input.models, "atomicReview");
     let response: AiResponse | undefined;
+    const diffFile = await createAtomicReviewDiffFile(input.diff);
+    const reviewInput = {
+      ...input,
+      diffFilePath: diffFile.path,
+    };
 
     try {
       response = await this.run(
         undefined,
         createArgs,
-        createAtomicDiffReviewPrompt(input),
+        createAtomicDiffReviewPrompt(reviewInput),
         input.workspace,
         false,
       );
@@ -122,6 +130,7 @@ export class TraexModel implements AiModel {
               validationError:
                 error instanceof Error ? error.message : "Atomic diff review format was invalid",
               previousResponse: response.content,
+              diffFilePath: diffFile.path,
             }),
             input.workspace,
             false,
@@ -153,6 +162,8 @@ export class TraexModel implements AiModel {
         generatedAt: new Date().toISOString(),
         error: error instanceof Error ? error.message : "Failed to create atomic diff review",
       };
+    } finally {
+      await cleanupAtomicReviewDiffFile(diffFile.directory);
     }
   }
 
@@ -378,4 +389,19 @@ function parseTraexModelInfo(value: unknown): AiModelInfo {
     ...(description ? { description } : {}),
     ...(contextWindow ? { contextWindow } : {}),
   };
+}
+
+async function createAtomicReviewDiffFile(
+  diff: string,
+): Promise<{ directory: string; path: string }> {
+  const directory = await mkdtemp(join(tmpdir(), "cui-atomic-review-"));
+  const path = join(directory, "round.diff");
+
+  await writeFile(path, diff || "无", "utf8");
+
+  return { directory, path };
+}
+
+async function cleanupAtomicReviewDiffFile(directory: string): Promise<void> {
+  await rm(directory, { force: true, recursive: true });
 }
