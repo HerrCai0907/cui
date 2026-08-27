@@ -175,7 +175,7 @@
 
 .atomic-review-heading-row {
   display: grid;
-  grid-template-columns: 30px auto minmax(0, 1fr) 30px;
+  grid-template-columns: 30px auto minmax(0, 1fr) auto;
   min-width: 0;
   align-items: center;
   gap: 10px;
@@ -237,36 +237,12 @@
   cursor: not-allowed;
 }
 
-.atomic-review-comment-toggle {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid #c3cfdd;
-  border-radius: 6px;
-  background: #ffffff;
-  color: #42526a;
-  padding: 0;
-}
-
-.atomic-review-comment-toggle:hover,
-.atomic-review-comment-toggle[aria-expanded="true"] {
-  border-color: #9fb0c4;
-  background: #eef3f8;
-  color: #1f2937;
-}
-
-.atomic-review-comment-dot {
-  position: absolute;
-  right: 4px;
-  bottom: 4px;
-  width: 7px;
-  height: 7px;
-  border: 1px solid #ffffff;
-  border-radius: 999px;
-  background: #2563eb;
+.atomic-review-comment-status {
+  min-width: 74px;
+  color: #2563eb;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-align: right;
 }
 
 .atomic-review-item-header p {
@@ -284,43 +260,6 @@
   background: #eef3f8;
   margin: 0 16px 16px;
   padding: 10px;
-}
-
-.atomic-review-change-block.has-comment-open {
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
-  align-items: start;
-}
-
-.atomic-review-inline-comment {
-  position: sticky;
-  top: 10px;
-  display: grid;
-  min-width: 0;
-  gap: 6px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  background: #ffffff;
-  padding: 10px;
-  box-shadow: 0 8px 18px rgb(31 41 55 / 10%);
-}
-
-.atomic-review-inline-comment textarea {
-  width: 100%;
-  min-height: 132px;
-  resize: vertical;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  background: #fbfcfd;
-  color: #1f2933;
-  padding: 9px 10px;
-  font-size: 0.84rem;
-  line-height: 1.5;
-}
-
-.atomic-review-inline-comment textarea:focus {
-  border-color: #64748b;
-  outline: 2px solid rgb(100 116 139 / 22%);
-  outline-offset: 0;
 }
 
 .review-diff-file {
@@ -412,6 +351,10 @@
   min-width: max-content;
 }
 
+.review-diff-row.has-comment-control {
+  grid-template-columns: 54px 54px minmax(max-content, 1fr) 38px;
+}
+
 .review-diff-row code {
   display: block;
   min-width: 0;
@@ -419,6 +362,10 @@
   color: #243041;
   padding: 1px 12px;
   white-space: pre;
+}
+
+.review-diff-row.has-inline-comment-open code {
+  box-shadow: inset 3px 0 0 #2563eb;
 }
 
 .review-diff-line-number {
@@ -435,6 +382,87 @@
   width: 18px;
   user-select: none;
   color: #728096;
+}
+
+.review-diff-comment-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid #edf1f5;
+  background: #f8fafc;
+  padding: 0 7px;
+}
+
+.review-diff-comment-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #6b7788;
+  padding: 0;
+  opacity: 0;
+}
+
+.review-diff-row:hover .review-diff-comment-toggle,
+.review-diff-comment-toggle:focus-visible,
+.review-diff-comment-toggle[aria-expanded="true"],
+.review-diff-row.has-inline-comment-draft .review-diff-comment-toggle {
+  opacity: 1;
+}
+
+.review-diff-comment-toggle:hover,
+.review-diff-comment-toggle:focus-visible,
+.review-diff-comment-toggle[aria-expanded="true"] {
+  border-color: #c3cfdd;
+  background: #ffffff;
+  color: #1f2937;
+}
+
+.review-diff-comment-dot {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 6px;
+  height: 6px;
+  border: 1px solid #ffffff;
+  border-radius: 999px;
+  background: #2563eb;
+}
+
+.review-diff-inline-comment {
+  display: grid;
+  grid-column: 1 / -1;
+  min-width: 0;
+  gap: 6px;
+  border-top: 1px solid #cbd5e1;
+  border-bottom: 1px solid #cbd5e1;
+  background: #f8fbff;
+  padding: 10px 12px 12px 120px;
+}
+
+.review-diff-inline-comment textarea {
+  width: min(720px, calc(100vw - 220px));
+  min-height: 104px;
+  resize: vertical;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1f2933;
+  padding: 9px 10px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.review-diff-inline-comment textarea:focus {
+  border-color: #64748b;
+  outline: 2px solid rgb(100 116 139 / 22%);
+  outline-offset: 0;
 }
 
 .review-diff-code-highlight {

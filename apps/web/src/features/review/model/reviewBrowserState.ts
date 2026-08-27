@@ -6,6 +6,7 @@ export type AtomicReviewItemState = {
   approvedFileIds: string[];
   commentOpen?: boolean;
   commentDraft?: string;
+  commentLineId?: string;
 };
 
 export type ReviewBrowserState = {
@@ -110,6 +111,8 @@ function parseAtomicItemStates(value: unknown): Record<string, AtomicReviewItemS
         commentOpen: typeof candidate.commentOpen === "boolean" ? candidate.commentOpen : undefined,
         commentDraft:
           typeof candidate.commentDraft === "string" ? candidate.commentDraft : undefined,
+        commentLineId:
+          typeof candidate.commentLineId === "string" ? candidate.commentLineId : undefined,
       };
 
       return states;

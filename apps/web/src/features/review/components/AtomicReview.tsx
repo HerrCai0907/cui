@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, MessageSquare, Send, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Send } from "lucide-react";
 import type { ApiAtomicDiffReview, ApiAtomicDiffReviewItem } from "../../../types";
 import { shortId } from "../../../shared/lib/ids";
 import { DiffFileList } from "./DiffFileList";
@@ -143,6 +143,8 @@ function AtomicReviewItem({
   const commentDraft = itemState.commentDraft ?? "";
   const hasComment = Boolean(commentDraft.trim());
   const files = parseDiff(item.diff);
+  const activeCommentLineId =
+    itemState.commentLineId ?? (commentOpen ? findFirstCommentableLineId(files) : undefined);
   const approvedFileIds = new Set(itemState.approvedFileIds);
   const allFilesApproved = files.length > 0 && files.every((file) => approvedFileIds.has(file.id));
 
@@ -173,10 +175,13 @@ function AtomicReviewItem({
     }));
   }
 
-  function toggleCommentOpen() {
+  function toggleCommentLine(lineId: string) {
     onUpdateItemState(item.id, (current) => ({
       ...current,
-      commentOpen: !Boolean(current.commentOpen),
+      commentLineId: lineId,
+      commentOpen: !(
+        current.commentOpen && (current.commentLineId ?? activeCommentLineId) === lineId
+      ),
     }));
   }
 
@@ -185,6 +190,7 @@ function AtomicReviewItem({
       ...current,
       commentDraft,
       commentOpen: true,
+      commentLineId: current.commentLineId ?? activeCommentLineId,
     }));
   }
 
@@ -215,17 +221,9 @@ function AtomicReviewItem({
             {allFilesApproved ? "Unapprove all" : "Approve all"}
           </button>
           <h2>{item.title}</h2>
-          <button
-            className="atomic-review-comment-toggle"
-            type="button"
-            aria-expanded={commentOpen}
-            aria-label={`${commentOpen ? "Close" : "Comment on"} atomic change ${item.order}`}
-            title={commentOpen ? "Close comment" : "Comment"}
-            onClick={toggleCommentOpen}
-          >
-            {commentOpen ? <X size={16} /> : <MessageSquare size={16} />}
-            {hasComment && <span className="atomic-review-comment-dot" />}
-          </button>
+          <span className="atomic-review-comment-status" aria-hidden={!hasComment}>
+            {hasComment ? "Commented" : ""}
+          </span>
         </div>
         <p>{item.intent}</p>
       </header>
@@ -234,24 +232,30 @@ function AtomicReviewItem({
           <DiffFileList
             files={files}
             approvedFileIds={approvedFileIds}
+            commentLineId={activeCommentLineId}
+            commentDraft={commentDraft}
+            hasComment={hasComment}
             getFileSectionId={(file) => createAtomicReviewFileSectionId(item.id, file.id)}
             onToggleFile={toggleFile}
+            onToggleCommentLine={toggleCommentLine}
+            onUpdateCommentDraft={updateCommentDraft}
           />
-          {commentOpen && (
-            <label className="atomic-review-inline-comment">
-              <span className="section-label">Comment</span>
-              <textarea
-                value={commentDraft}
-                placeholder="Comment on this atomic change..."
-                rows={7}
-                onChange={(event) => updateCommentDraft(event.target.value)}
-              />
-            </label>
-          )}
         </div>
       )}
     </section>
   );
+}
+
+function findFirstCommentableLineId(files: ReturnType<typeof parseDiff>): string | undefined {
+  for (const file of files) {
+    const line = file.lines.find((candidate) => candidate.kind !== "ellipsis");
+
+    if (line) {
+      return line.id;
+    }
+  }
+
+  return undefined;
 }
 
 function capabilityToneClass(capabilityType: ApiAtomicDiffReviewItem["capabilityType"]): string {
