@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import test from "node:test";
 import {
   CodeFileNotFoundError,
+  CodeFileTooLargeError,
   CodePathNotFileError,
   CodeQueryService,
+  CodeRangeTooLargeError,
 } from "../../apps/api/src/domain/code/CodeQueryService.js";
 import {
   parseCodeRangeQuery,
@@ -85,6 +88,95 @@ test("getCodeRange expands home-relative file paths", async () => {
     assert.equal(result.code, "home file\n");
   } finally {
     await rm(filePath, { force: true });
+  }
+});
+
+test("getCodeRange accepts file URLs", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-code-query-"));
+  const filePath = join(cwd, "example.md");
+  const service = new CodeQueryService();
+
+  try {
+    await writeFile(filePath, "markdown file\n");
+
+    const result = await service.getCodeRange({
+      filePath: pathToFileURL(filePath).toString(),
+    });
+
+    assert.equal(result.filePath, filePath);
+    assert.equal(result.code, "markdown file\n");
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("getCodeRange limits default previews and rejects oversized ranges", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-code-query-"));
+  const filePath = join(cwd, "large-line-count.txt");
+  const service = new CodeQueryService();
+
+  try {
+    await writeFile(
+      filePath,
+      Array.from({ length: 600 }, (_, index) => `line ${index + 1}`).join("\n"),
+    );
+
+    const result = await service.getCodeRange({
+      filePath,
+    });
+
+    assert.equal(result.startLine, 1);
+    assert.equal(result.endLine, 200);
+    assert.equal(result.lines.length, 200);
+
+    await assert.rejects(
+      service.getCodeRange({
+        filePath,
+        startLine: 1,
+        endLine: 501,
+      }),
+      CodeRangeTooLargeError,
+    );
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("getCodeRange truncates very long lines", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-code-query-"));
+  const filePath = join(cwd, "long-line.txt");
+  const service = new CodeQueryService();
+
+  try {
+    await writeFile(filePath, "x".repeat(5000));
+
+    const result = await service.getCodeRange({
+      filePath,
+    });
+
+    assert.equal(result.lines[0]?.content.length, 4003);
+    assert.match(result.lines[0]?.content ?? "", /\.\.\.$/);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("getCodeRange rejects files that are too large to preview", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-code-query-"));
+  const filePath = join(cwd, "too-large.txt");
+  const service = new CodeQueryService();
+
+  try {
+    await writeFile(filePath, Buffer.alloc(5 * 1024 * 1024 + 1, "x"));
+
+    await assert.rejects(
+      service.getCodeRange({
+        filePath,
+      }),
+      CodeFileTooLargeError,
+    );
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
   }
 });
 
