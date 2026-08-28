@@ -530,11 +530,12 @@ function appendInlineParts(parts: InlinePart[], nextParts: InlinePart[]) {
 function parseWorkspaceCodeLink(href: string, workspace: string): CodeLinkTarget | undefined {
   const decodedHref = decodeMarkdownHref(href);
   const rangeMatch = /^(.+):(\d+)(?:-(\d+))?$/.exec(decodedHref);
-  const filePath = rangeMatch ? rangeMatch[1] : decodedHref;
+  const rawFilePath = rangeMatch ? rangeMatch[1] : decodedHref;
+  const filePath = normalizePreviewFilePath(rawFilePath, workspace);
   const startLine = rangeMatch ? Number(rangeMatch[2]) : undefined;
   const endLine = rangeMatch ? Number(rangeMatch[3] ?? rangeMatch[2]) : undefined;
 
-  if (!isWorkspaceFilePath(filePath, workspace)) {
+  if (!isPreviewableFilePath(filePath, workspace)) {
     return undefined;
   }
 
@@ -542,6 +543,22 @@ function parseWorkspaceCodeLink(href: string, workspace: string): CodeLinkTarget
     filePath,
     ...(startLine && endLine ? { startLine, endLine } : {}),
   };
+}
+
+function normalizePreviewFilePath(filePath: string, workspace: string): string {
+  if (filePath.startsWith("./")) {
+    return `${trimTrailingSlashes(workspace)}/${filePath.slice(2)}`;
+  }
+
+  if (filePath.startsWith("../")) {
+    return `${trimTrailingSlashes(workspace)}/${filePath}`;
+  }
+
+  if (isRelativePreviewFilePath(filePath)) {
+    return `${trimTrailingSlashes(workspace)}/${filePath}`;
+  }
+
+  return filePath;
 }
 
 function decodeMarkdownHref(href: string): string {
@@ -562,7 +579,31 @@ function normalizeMarkdownHref(href: string): string {
   return trimmed;
 }
 
-function isWorkspaceFilePath(filePath: string, workspace: string): boolean {
+function isPreviewableFilePath(filePath: string, workspace: string): boolean {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(filePath) && !filePath.startsWith("file://")) {
+    return false;
+  }
+
+  if (!filePath || filePath.startsWith("#") || filePath.startsWith("?")) {
+    return false;
+  }
+
+  if (filePath.startsWith("file://")) {
+    return true;
+  }
+
+  if (filePath.startsWith("/") || filePath.startsWith("~/") || filePath === "~") {
+    return true;
+  }
+
+  if (filePath.startsWith("./") || filePath.startsWith("../")) {
+    return true;
+  }
+
+  if (isRelativePreviewFilePath(filePath)) {
+    return true;
+  }
+
   const normalizedFilePath = trimTrailingSlashes(filePath);
   const normalizedWorkspace = trimTrailingSlashes(workspace);
 
@@ -574,6 +615,16 @@ function isWorkspaceFilePath(filePath: string, workspace: string): boolean {
 
 function trimTrailingSlashes(value: string): string {
   return value.replace(/\/+$/, "");
+}
+
+function isRelativePreviewFilePath(filePath: string): boolean {
+  return (
+    !filePath.startsWith("/") &&
+    !filePath.startsWith("~") &&
+    !filePath.startsWith("#") &&
+    !filePath.startsWith("?") &&
+    !/^[a-z][a-z0-9+.-]*:/i.test(filePath)
+  );
 }
 
 function isLanguageMarker(value: string): boolean {

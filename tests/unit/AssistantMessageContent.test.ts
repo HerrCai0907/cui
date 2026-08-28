@@ -53,6 +53,74 @@ test("parseInlineContent keeps whole-file workspace links and normal external li
   );
 });
 
+test("parseInlineContent converts local markdown links outside the workspace to code previews", () => {
+  assert.deepEqual(
+    parseInlineContent(
+      "Open [tmp](/tmp/rog-stack-growth-gc-repro-goroutine.go:12) and [home](~/.config/example.txt).",
+      "/Users/bytedance/cui_workspace/3",
+    ),
+    [
+      { type: "text", text: "Open " },
+      {
+        type: "workspaceLink",
+        label: "tmp",
+        target: {
+          filePath: "/tmp/rog-stack-growth-gc-repro-goroutine.go",
+          startLine: 12,
+          endLine: 12,
+        },
+      },
+      { type: "text", text: " and " },
+      {
+        type: "workspaceLink",
+        label: "home",
+        target: {
+          filePath: "~/.config/example.txt",
+        },
+      },
+      { type: "text", text: "." },
+    ],
+  );
+});
+
+test("parseInlineContent resolves relative local markdown links against the workspace", () => {
+  assert.deepEqual(
+    parseInlineContent(
+      "Open [relative](./src/app.tsx:3-4), [readme](README.md), or [parent](../shared/file.md).",
+      "/Users/bytedance/cui_workspace/3",
+    ),
+    [
+      { type: "text", text: "Open " },
+      {
+        type: "workspaceLink",
+        label: "relative",
+        target: {
+          filePath: "/Users/bytedance/cui_workspace/3/src/app.tsx",
+          startLine: 3,
+          endLine: 4,
+        },
+      },
+      { type: "text", text: ", " },
+      {
+        type: "workspaceLink",
+        label: "readme",
+        target: {
+          filePath: "/Users/bytedance/cui_workspace/3/README.md",
+        },
+      },
+      { type: "text", text: ", or " },
+      {
+        type: "workspaceLink",
+        label: "parent",
+        target: {
+          filePath: "/Users/bytedance/cui_workspace/3/../shared/file.md",
+        },
+      },
+      { type: "text", text: "." },
+    ],
+  );
+});
+
 test("parseInlineContent renders markdown bold and italic inline spans", () => {
   assert.deepEqual(
     parseInlineContent(

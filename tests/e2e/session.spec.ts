@@ -368,6 +368,55 @@ test("supports expandable assistant code previews", async ({ page }) => {
   await expect(preview).toBeHidden();
 });
 
+test("supports assistant code previews for local markdown links outside the workspace", async ({
+  page,
+}) => {
+  const filePath = "/tmp/rog-stack-growth-gc-repro-finalizer.md";
+  const session = {
+    id: "session-external-code-preview",
+    workspace: currentWorkspace,
+    title: "External code preview session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-1",
+        role: "assistant",
+        kind: "response",
+        content: `See [finalizer repro](${filePath}:2).`,
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    rounds: [],
+  };
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+  await page.route("**/api/code?**", async (route) => {
+    const url = new URL(route.request().url());
+
+    expect(url.searchParams.get("filePath")).toBe(filePath);
+    expect(url.searchParams.get("startLine")).toBe("2");
+    expect(url.searchParams.get("endLine")).toBe("12");
+
+    await fulfillJson(route, {
+      filePath,
+      startLine: 2,
+      endLine: 12,
+      code: "finalizer repro",
+      lines: [{ lineNumber: 2, content: "finalizer repro" }],
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "finalizer repro" }).click();
+
+  const preview = page.getByRole("dialog", { name: "Code preview" });
+  await expect(preview).toBeVisible();
+  await expect(preview).toContainText(filePath);
+  await expect(preview).toContainText("finalizer repro");
+});
+
 test("renders assistant markdown bold and italic text", async ({ page }) => {
   const session = {
     id: "session-1",

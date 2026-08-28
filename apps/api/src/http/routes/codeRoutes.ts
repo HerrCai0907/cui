@@ -1,7 +1,9 @@
 import { Router } from "express";
 import {
+  CodeFileTooLargeError,
   CodeFileNotFoundError,
   CodePathNotFileError,
+  CodeRangeTooLargeError,
   type CodeQueryService,
 } from "../../domain/code/CodeQueryService.js";
 import { InvalidPathError } from "../../domain/paths/pathValidation.js";
@@ -30,6 +32,16 @@ export function createCodeRouter(codeQueryService: CodeQueryService): Router {
 
       if (error instanceof CodePathNotFileError) {
         response.status(400).json({ error: "Code path is not a file" });
+        return;
+      }
+
+      if (error instanceof CodeFileTooLargeError) {
+        response.status(413).json({ error: "Code file is too large to preview" });
+        return;
+      }
+
+      if (error instanceof CodeRangeTooLargeError) {
+        response.status(400).json({ error: error.message });
         return;
       }
 
