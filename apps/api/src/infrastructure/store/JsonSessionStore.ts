@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
+import { defaultJsonFileDb, type JsonFileDb } from "./JsonFileDb.js";
 import {
   AtomicDiffReview,
   ChatMessage,
@@ -31,7 +31,10 @@ export class JsonSessionStore {
   private readonly detailDirectoryPath: string;
   private writeQueue: Promise<void> = Promise.resolve();
 
-  constructor(filePath = process.env.CUI_STORE_PATH ?? "data/sessions.json") {
+  constructor(
+    filePath = process.env.CUI_STORE_PATH ?? "data/sessions.json",
+    private readonly db: JsonFileDb = defaultJsonFileDb,
+  ) {
     this.filePath = resolve(process.cwd(), filePath);
     this.detailDirectoryPath = join(
       dirname(this.filePath),
@@ -313,9 +316,7 @@ export class JsonSessionStore {
 
   private async readIndex(): Promise<SessionIndexData> {
     try {
-      const raw = await readFile(this.filePath, "utf8");
-
-      return normalizeIndexData(JSON.parse(raw) as unknown);
+      return normalizeIndexData(await this.db.read<unknown>(this.filePath));
     } catch (error) {
       if (isNodeError(error) && error.code === "ENOENT") {
         return createEmptyIndexData();
@@ -337,23 +338,18 @@ export class JsonSessionStore {
   }
 
   private async readSessionDetail(sessionId: string): Promise<SessionDetailData> {
-    const raw = await readFile(this.getSessionDetailPath(sessionId), "utf8");
-
-    return normalizeSessionDetail(JSON.parse(raw) as unknown, sessionId);
+    return normalizeSessionDetail(
+      await this.db.read<unknown>(this.getSessionDetailPath(sessionId)),
+      sessionId,
+    );
   }
 
   private async writeIndex(data: SessionIndexData): Promise<void> {
-    await mkdir(dirname(this.filePath), { recursive: true });
-    await writeFile(this.filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+    await this.db.write(this.filePath, data);
   }
 
   private async writeSessionDetail(detail: SessionDetailData): Promise<void> {
-    await mkdir(this.detailDirectoryPath, { recursive: true });
-    await writeFile(
-      this.getSessionDetailPath(detail.id),
-      `${JSON.stringify(detail, null, 2)}\n`,
-      "utf8",
-    );
+    await this.db.write(this.getSessionDetailPath(detail.id), detail);
   }
 
   private getSessionDetailPath(sessionId: string): string {
