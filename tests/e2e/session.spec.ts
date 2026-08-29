@@ -359,7 +359,7 @@ test("supports expandable assistant code previews", async ({ page }) => {
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "App.tsx" }).click();
+  await page.getByRole("button", { name: "apps/web/src/app/App.tsx:20" }).click();
 
   const preview = page.getByRole("dialog", { name: "Code preview" });
   await expect(preview).toBeVisible();
@@ -419,7 +419,7 @@ test("supports assistant code previews for local markdown links outside the work
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "finalizer repro" }).click();
+  await page.getByRole("button", { name: `${filePath}:2` }).click();
 
   const preview = page.getByRole("dialog", { name: "Code preview" });
   await expect(preview).toBeVisible();

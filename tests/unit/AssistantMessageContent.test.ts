@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  formatCodeLinkLabel,
   parseInlineContent,
   parseMessageContent,
 } from "../../apps/web/src/features/sessions/model/markdown.js";
@@ -118,6 +119,56 @@ test("parseInlineContent resolves relative local markdown links against the work
       },
       { type: "text", text: "." },
     ],
+  );
+});
+
+test("formatCodeLinkLabel uses workspace-relative paths with line ranges", () => {
+  assert.equal(
+    formatCodeLinkLabel(
+      {
+        filePath: "/Users/bytedance/cui_workspace/3/apps/api/src/http/routes/codeRoutes.ts",
+        startLine: 10,
+        endLine: 20,
+      },
+      "/Users/bytedance/cui_workspace/3",
+    ),
+    "apps/api/src/http/routes/codeRoutes.ts:10-20",
+  );
+
+  assert.equal(
+    formatCodeLinkLabel(
+      {
+        filePath: "/Users/bytedance/cui_workspace/3/apps/web/src/app/App.tsx",
+        startLine: 20,
+        endLine: 20,
+      },
+      "/Users/bytedance/cui_workspace/3/",
+    ),
+    "apps/web/src/app/App.tsx:20",
+  );
+
+  assert.equal(
+    formatCodeLinkLabel(
+      {
+        filePath: "/Users/bytedance/cui_workspace/3/../shared/file.md",
+      },
+      "/Users/bytedance/cui_workspace/3",
+    ),
+    "/Users/bytedance/cui_workspace/shared/file.md",
+  );
+});
+
+test("formatCodeLinkLabel keeps non-workspace local paths absolute", () => {
+  assert.equal(
+    formatCodeLinkLabel(
+      {
+        filePath: "/tmp/rog-stack-growth-gc-repro-goroutine.go",
+        startLine: 12,
+        endLine: 12,
+      },
+      "/Users/bytedance/cui_workspace/3",
+    ),
+    "/tmp/rog-stack-growth-gc-repro-goroutine.go:12",
   );
 });
 
