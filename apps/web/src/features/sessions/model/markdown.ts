@@ -56,6 +56,20 @@ export function parseInlineContent(text: string, workspace: string): InlinePart[
   return new InlineMarkdownParser(text, workspace).parse().parts;
 }
 
+export function formatCodeLinkLabel(target: CodeLinkTarget, workspace: string): string {
+  const displayPath = formatCodeLinkPath(target.filePath, workspace);
+
+  if (target.startLine === undefined || target.endLine === undefined) {
+    return displayPath;
+  }
+
+  if (target.startLine === target.endLine) {
+    return `${displayPath}:${target.startLine}`;
+  }
+
+  return `${displayPath}:${target.startLine}-${target.endLine}`;
+}
+
 class BlockMarkdownParser {
   private cursor = 0;
 
@@ -559,6 +573,72 @@ function normalizePreviewFilePath(filePath: string, workspace: string): string {
   }
 
   return filePath;
+}
+
+function formatCodeLinkPath(filePath: string, workspace: string): string {
+  const comparableFilePath = normalizeComparableFilePath(filePath);
+  const comparableWorkspace = normalizeComparableFilePath(workspace);
+
+  if (
+    comparableFilePath === comparableWorkspace ||
+    comparableFilePath.startsWith(`${comparableWorkspace}/`)
+  ) {
+    const relativePath = comparableFilePath.slice(comparableWorkspace.length).replace(/^\/+/, "");
+    return relativePath || ".";
+  }
+
+  return comparableFilePath;
+}
+
+function normalizeComparableFilePath(filePath: string): string {
+  const withoutFileScheme = stripFileScheme(filePath);
+  const [pathWithoutQuery] = withoutFileScheme.split(/[?#]/, 1);
+  const normalizedPath = normalizePathSegments(pathWithoutQuery.replace(/\/+/g, "/"));
+
+  return trimTrailingSlashes(normalizedPath) || "/";
+}
+
+function stripFileScheme(filePath: string): string {
+  if (!filePath.startsWith("file://")) {
+    return filePath;
+  }
+
+  try {
+    return decodeURIComponent(new URL(filePath).pathname);
+  } catch {
+    return filePath;
+  }
+}
+
+function normalizePathSegments(filePath: string): string {
+  const isAbsolute = filePath.startsWith("/");
+  const segments: string[] = [];
+
+  for (const segment of filePath.split("/")) {
+    if (!segment || segment === ".") {
+      continue;
+    }
+
+    if (segment === "..") {
+      const previousSegment = segments.at(-1);
+
+      if (previousSegment && previousSegment !== "..") {
+        segments.pop();
+        continue;
+      }
+
+      if (!isAbsolute) {
+        segments.push(segment);
+      }
+
+      continue;
+    }
+
+    segments.push(segment);
+  }
+
+  const normalizedPath = segments.join("/");
+  return isAbsolute ? `/${normalizedPath}` : normalizedPath;
 }
 
 function decodeMarkdownHref(href: string): string {

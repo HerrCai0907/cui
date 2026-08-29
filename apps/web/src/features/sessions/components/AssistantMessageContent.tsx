@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { HighlightedCode } from "../../review/components/HighlightedCode";
 import { getCodeRange, type CodeRangeResult } from "../api/codeApi";
 import {
+  formatCodeLinkLabel,
   parseInlineContent,
   parseMessageContent,
   type CodeLinkTarget,
@@ -68,11 +69,12 @@ function MessageHeading({
 }
 
 function renderInlineContent(text: string, workspace: string, blockIndex: number): ReactNode[] {
-  return renderInlineParts(parseInlineContent(text, workspace), blockIndex);
+  return renderInlineParts(parseInlineContent(text, workspace), workspace, blockIndex);
 }
 
 function renderInlineParts(
   parts: InlinePart[],
+  workspace: string,
   parentBlockIndex: number,
   parentPartIndex?: number,
 ): ReactNode[] {
@@ -87,7 +89,11 @@ function renderInlineParts(
         {part.code}
       </code>
     ) : part.type === "workspaceLink" ? (
-      <CodePreviewButton key={`${keyPrefix}-${index}`} label={part.label} target={part.target} />
+      <CodePreviewButton
+        key={`${keyPrefix}-${index}`}
+        label={formatCodeLinkLabel(part.target, workspace)}
+        target={part.target}
+      />
     ) : part.type === "link" ? (
       <a
         className="message-link"
@@ -100,11 +106,11 @@ function renderInlineParts(
       </a>
     ) : part.type === "strong" ? (
       <strong key={`${keyPrefix}-${index}`}>
-        {renderInlineParts(part.children, parentBlockIndex, index)}
+        {renderInlineParts(part.children, workspace, parentBlockIndex, index)}
       </strong>
     ) : part.type === "emphasis" ? (
       <em key={`${keyPrefix}-${index}`}>
-        {renderInlineParts(part.children, parentBlockIndex, index)}
+        {renderInlineParts(part.children, workspace, parentBlockIndex, index)}
       </em>
     ) : (
       <span key={`${keyPrefix}-${index}`}>{part.text}</span>
