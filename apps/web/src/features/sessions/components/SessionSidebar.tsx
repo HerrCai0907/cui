@@ -2,6 +2,7 @@ import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerE
 import {
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Circle,
   FileText,
@@ -36,6 +37,9 @@ type SessionSidebarProps = {
   expandedWorkspaces: Set<string>;
   sessionListMode: SessionListMode;
   sessionCount: number;
+  sessionPage: number;
+  sessionPageLoading: boolean;
+  sessionTotalPages: number;
   visibleSessionCount: number;
   activeSessionId?: string;
   configOpen?: boolean;
@@ -46,6 +50,7 @@ type SessionSidebarProps = {
   onOpenChange: (open: boolean) => void;
   onWidthChange: (width: number) => void;
   onSessionListModeChange: (mode: SessionListMode) => void;
+  onSessionPageChange: (page: number) => void;
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
   onOpenSession: (sessionId: string) => void;
@@ -61,6 +66,9 @@ export function SessionSidebar({
   expandedWorkspaces,
   sessionListMode,
   sessionCount,
+  sessionPage,
+  sessionPageLoading,
+  sessionTotalPages,
   visibleSessionCount,
   activeSessionId,
   configOpen,
@@ -71,6 +79,7 @@ export function SessionSidebar({
   onOpenChange,
   onWidthChange,
   onSessionListModeChange,
+  onSessionPageChange,
   onStartNewSession,
   onToggleWorkspace,
   onOpenSession,
@@ -216,9 +225,40 @@ export function SessionSidebar({
                   <p className="empty-sidebar">No sessions yet</p>
                 )}
                 {sessionCount > 0 && workspaceGroups.length === 0 && visibleSessionCount === 0 && (
-                  <p className="empty-sidebar">No active sessions</p>
+                  <p className="empty-sidebar">
+                    {sessionListMode === "active"
+                      ? "No active sessions"
+                      : "No sessions on this page"}
+                  </p>
                 )}
               </nav>
+              {sessionListMode === "more" && (
+                <div className="session-page-control" aria-label="Session pages">
+                  <button
+                    className="icon-button"
+                    type="button"
+                    aria-label="Previous session page"
+                    title="Previous page"
+                    disabled={sessionPage <= 1 || sessionPageLoading}
+                    onClick={() => onSessionPageChange(sessionPage - 1)}
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span>
+                    {sessionPage} / {sessionTotalPages}
+                  </span>
+                  <button
+                    className="icon-button"
+                    type="button"
+                    aria-label="Next session page"
+                    title="Next page"
+                    disabled={sessionPage >= sessionTotalPages || sessionPageLoading}
+                    onClick={() => onSessionPageChange(sessionPage + 1)}
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
             </>
           )}
         </>

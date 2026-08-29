@@ -171,7 +171,10 @@ export interface paths {
     /** List sessions */
     get: {
       parameters: {
-        query?: never;
+        query?: {
+          page?: number;
+          pageSize?: number;
+        };
         header?: never;
         path?: never;
         cookie?: never;
@@ -201,6 +204,25 @@ export interface paths {
                 isRunning: boolean;
                 runningTurnId?: string;
               }[];
+              pagination: {
+                page: number;
+                pageSize: number;
+                total: number;
+                totalPages: number;
+                hasPreviousPage: boolean;
+                hasNextPage: boolean;
+              };
+            };
+          };
+        };
+        /** @description Error response. */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
             };
           };
         };

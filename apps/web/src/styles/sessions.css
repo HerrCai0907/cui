@@ -86,6 +86,23 @@
   padding-bottom: 12px;
 }
 
+.session-page-control {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid #d7dde5;
+  padding-top: 10px;
+}
+
+.session-page-control span {
+  min-width: 0;
+  color: #526071;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+}
+
 .empty-sidebar {
   margin: 8px;
   color: #7a8696;

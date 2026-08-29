@@ -4,6 +4,7 @@ import {
   parseCreateShellSessionBody,
   parseContinueSessionBody,
   parseCreateSessionBody,
+  parseListSessionsQuery,
   parseRoundReviewParams,
   parseRoundReviewQuery,
   parseRunShellCommandBody,
@@ -13,9 +14,16 @@ import {
 export function createSessionRouter(sessionService: SessionService): Router {
   const router = Router();
 
-  router.get("/api/sessions", async (_request, response, next) => {
+  router.get("/api/sessions", async (request, response, next) => {
     try {
-      response.json({ sessions: await sessionService.listSessionViews() });
+      const parsed = parseListSessionsQuery(request.query);
+
+      if (!parsed.ok) {
+        response.status(400).json({ error: parsed.error });
+        return;
+      }
+
+      response.json(await sessionService.listSessionViews(parsed.value));
     } catch (error) {
       next(error);
     }

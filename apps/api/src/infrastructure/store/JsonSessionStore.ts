@@ -6,6 +6,7 @@ import {
   ChatRound,
   ChatSession,
   ChatSessionIndexEntry,
+  SessionListPage,
 } from "../../types.js";
 
 const STORE_VERSION = 3;
@@ -24,6 +25,11 @@ type SessionDetailData = {
   id: string;
   messages: ChatMessage[];
   rounds: ChatRound[];
+};
+
+export type ListSessionIndexEntriesOptions = {
+  page?: number;
+  pageSize?: number;
 };
 
 export class JsonSessionStore {
@@ -53,10 +59,18 @@ export class JsonSessionStore {
     return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
-  async listSessionIndexEntries(): Promise<ChatSessionIndexEntry[]> {
+  async listSessionIndexEntries(
+    options: ListSessionIndexEntriesOptions = {},
+  ): Promise<SessionListPage<ChatSessionIndexEntry>> {
     const index = await this.readIndex();
+    const sortedSessions = sortStoredSessions(index.sessions);
+    const pagination = createPagination(sortedSessions.length, options);
+    const pageSessions = sortedSessions.slice(
+      (pagination.page - 1) * pagination.pageSize,
+      pagination.page * pagination.pageSize,
+    );
     const sessions = await Promise.all(
-      index.sessions.map(async (session) => ({
+      pageSessions.map(async (session) => ({
         ...toSessionIndexEntry(session),
         currentRound:
           session.currentRound ??
@@ -64,7 +78,10 @@ export class JsonSessionStore {
       })),
     );
 
-    return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return {
+      sessions,
+      pagination,
+    };
   }
 
   async getSession(sessionId: string): Promise<ChatSession | undefined> {
@@ -448,6 +465,42 @@ function toSessionIndexEntry(session: StoredSession): ChatSessionIndexEntry {
     updatedAt: session.updatedAt,
     currentRound: session.currentRound ?? 0,
   };
+}
+
+function sortStoredSessions(sessions: StoredSession[]): StoredSession[] {
+  return [...sessions].sort((left, right) => compareSessionsByUpdatedAt(left, right));
+}
+
+function compareSessionsByUpdatedAt(
+  left: Pick<ChatSession, "id" | "updatedAt">,
+  right: Pick<ChatSession, "id" | "updatedAt">,
+): number {
+  const updatedAtOrder = right.updatedAt.localeCompare(left.updatedAt);
+
+  return updatedAtOrder !== 0 ? updatedAtOrder : right.id.localeCompare(left.id);
+}
+
+function createPagination(
+  total: number,
+  options: ListSessionIndexEntriesOptions,
+): SessionListPage<unknown>["pagination"] {
+  const pageSize = normalizePositiveInteger(options.pageSize, 30);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const requestedPage = normalizePositiveInteger(options.page, 1);
+  const page = Math.min(requestedPage, totalPages);
+
+  return {
+    page,
+    pageSize,
+    total,
+    totalPages,
+    hasPreviousPage: page > 1,
+    hasNextPage: page < totalPages,
+  };
+}
+
+function normalizePositiveInteger(value: number | undefined, fallback: number): number {
+  return value !== undefined && Number.isInteger(value) && value > 0 ? value : fallback;
 }
 
 function getCurrentRoundFromSession(session: ChatSession): number {

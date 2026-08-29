@@ -24,10 +24,33 @@ export async function fulfillJson(route: Route, body: unknown) {
 
 export async function mockSessions(page: Page, sessions: SessionSource) {
   await mockModels(page);
-  await page.route("**/api/sessions", async (route) => {
-    if (route.request().method() === "GET") {
+  await page.route("**/api/sessions**", async (route) => {
+    const url = new URL(route.request().url());
+
+    if (route.request().method() === "GET" && url.pathname === "/api/sessions") {
+      const currentSessions = typeof sessions === "function" ? sessions() : sessions;
+      const pageNumber = Math.max(1, Number(url.searchParams.get("page")) || 1);
+      const pageSize = Math.max(
+        1,
+        Number(url.searchParams.get("pageSize")) || currentSessions.length || 1,
+      );
+      const totalPages = Math.max(1, Math.ceil(currentSessions.length / pageSize));
+      const normalizedPage = Math.min(pageNumber, totalPages);
+      const pageSessions = currentSessions.slice(
+        (normalizedPage - 1) * pageSize,
+        normalizedPage * pageSize,
+      );
+
       await fulfillJson(route, {
-        sessions: typeof sessions === "function" ? sessions() : sessions,
+        sessions: pageSessions,
+        pagination: {
+          page: normalizedPage,
+          pageSize,
+          total: currentSessions.length,
+          totalPages,
+          hasPreviousPage: normalizedPage > 1,
+          hasNextPage: normalizedPage < totalPages,
+        },
       });
       return;
     }

@@ -15,6 +15,7 @@ import {
   GetRoundReviewResponseSchema,
   GetSessionResponseSchema,
   HealthResponseSchema,
+  ListSessionsQuerySchema,
   ListSessionsResponseSchema,
   ListModelsResponseSchema,
   OkResponseSchema,
@@ -115,6 +116,9 @@ registry.registerPath({
   method: "get",
   path: "/api/sessions",
   summary: "List sessions",
+  request: {
+    query: ListSessionsQuerySchema,
+  },
   responses: {
     200: {
       description: "List of session summaries with current running state.",
@@ -124,6 +128,7 @@ registry.registerPath({
         },
       },
     },
+    400: errorResponse,
   },
 });
 

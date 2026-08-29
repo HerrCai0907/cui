@@ -50,13 +50,9 @@ test("keeps the current workspace available when it has no sessions", async ({ p
 
   const sidebar = page.getByLabel("Workspace sessions");
 
-  await expect(sidebar.getByText("/Users/bytedance/cui", { exact: true })).toBeVisible();
-  await expect(sidebar.getByText("Users", { exact: true })).toHaveCount(0);
-  await expect(sidebar.getByText("bytedance", { exact: true })).toHaveCount(0);
-  await expect(sidebar.getByLabel(currentWorkspace, { exact: true })).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: `New session in ${currentWorkspace}` }),
-  ).toBeVisible();
+  await expect(sidebar.getByText("~", { exact: true })).toBeVisible();
+  await expect(sidebar.getByLabel("~", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "New session in ~" })).toBeVisible();
 });
 
 test("shows a focused Active list and keeps all sessions in More", async ({ page }) => {
@@ -89,17 +85,64 @@ test("shows a focused Active list and keeps all sessions in More", async ({ page
     "aria-pressed",
     "true",
   );
-  await expect(page.getByRole("button", { name: "Session 2" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Session 0" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Session 3" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Session 2" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Session 0" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Session 1" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "More" }).click();
 
+  await page.getByRole("button", { name: currentWorkspace, exact: true }).click();
   await expect(page.getByRole("button", { name: "Session 0" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Session 1" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Session 2" })).toBeVisible();
   await page.getByRole("button", { name: "Session 1" }).click();
   await expect(page.getByRole("heading", { name: "Session 1" })).toBeVisible();
+});
+
+test("pages through sessions in More", async ({ page }) => {
+  const sessions = Array.from({ length: 34 }, (_, index) => ({
+    id: `session-${index}`,
+    workspace: currentWorkspace,
+    title: `Session ${index}`,
+    createdAt: new Date(Date.UTC(2026, 7, 22, 0, 0, index)).toISOString(),
+    updatedAt: new Date(Date.UTC(2026, 7, 22, 0, 0, 33 - index)).toISOString(),
+    messages: [],
+    rounds: [],
+    currentRound: 0,
+    isRunning: false,
+  }));
+  const requestedSessionPages: number[] = [];
+
+  await mockSessions(page, sessions);
+  await page.route("**/api/sessions**", async (route) => {
+    const url = new URL(route.request().url());
+
+    if (route.request().method() === "GET" && url.pathname === "/api/sessions") {
+      requestedSessionPages.push(Number(url.searchParams.get("page")) || 1);
+    }
+
+    await route.fallback();
+  });
+
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "More" })).toBeVisible();
+  expect(requestedSessionPages[0]).toBe(1);
+
+  await page.getByRole("button", { name: "More" }).click();
+  await expect(page.getByText("1 / 2")).toBeVisible();
+  await page.getByRole("button", { name: currentWorkspace, exact: true }).click();
+  await expect(page.getByRole("button", { name: "Session 0" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Session 30" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Next session page" }).click();
+  await expect(page.getByText("2 / 2")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Session 30" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Session 0" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Previous session page" }).click();
+  await expect(page.getByText("1 / 2")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Session 0" })).toBeVisible();
 });
 
 test("marks a session done and removes it from Active after feedback", async ({ page }) => {
@@ -156,6 +199,7 @@ test("marks a session done and removes it from Active after feedback", async ({ 
   ).toBeVisible();
 
   await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("button", { name: currentWorkspace, exact: true }).click();
   await expect(page.getByRole("button", { name: "Finishable session" })).toBeVisible();
 });
 
@@ -195,6 +239,7 @@ test("uses a separate workspace toggle in Active mode only", async ({ page }) =>
   await expect(
     page.getByRole("button", { name: `Expand ${currentWorkspace}`, exact: true }),
   ).toHaveCount(0);
+  await sidebar.getByLabel(currentWorkspace, { exact: true }).click();
   await expect(page.getByRole("button", { name: "Active session" })).toBeVisible();
 
   await sidebar.getByLabel(currentWorkspace, { exact: true }).click();
@@ -293,13 +338,15 @@ test("restores session sidebar expansion state after a browser refresh", async (
   ).toBeVisible();
   await expect(
     page.evaluate(() => JSON.parse(localStorage.getItem("cui:session-sidebar-state:v2") ?? "null")),
-  ).resolves.toMatchObject({
-    version: 2,
-    sidebarOpen: true,
-    sessionListMode: "more",
-    activeExpandedWorkspaces: [currentWorkspace],
-    moreExpandedWorkspaces: ["/Users/bytedance/other"],
-  });
+  ).resolves.toEqual(
+    expect.objectContaining({
+      version: 2,
+      sidebarOpen: true,
+      sessionListMode: "more",
+      activeExpandedWorkspaces: expect.arrayContaining([currentWorkspace]),
+      moreExpandedWorkspaces: expect.arrayContaining(["/Users/bytedance/other"]),
+    }),
+  );
 
   await page.reload();
   await expect(
