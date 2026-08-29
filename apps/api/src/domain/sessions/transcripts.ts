@@ -115,17 +115,27 @@ function findRoundResponseIndex(session: ChatSession, round: number): number {
 }
 
 function selectRecentTurnMessages(messages: ChatMessage[]): ChatMessage[] {
-  let userTurns = 0;
-
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (messages[index].role === "user") {
-      userTurns += 1;
-
-      if (userTurns === 4) {
-        return messages.slice(index);
-      }
+  const turnStarts = messages.reduce<number[]>((starts, message, index) => {
+    if (message.role === "user") {
+      starts.push(index);
     }
+
+    return starts;
+  }, []);
+
+  const windowSize = getSummaryTurnWindowSize(turnStarts.length);
+
+  if (windowSize === turnStarts.length) {
+    return messages;
   }
 
-  return messages;
+  return messages.slice(turnStarts[turnStarts.length - windowSize]);
+}
+
+function getSummaryTurnWindowSize(turnCount: number): number {
+  if (turnCount <= 8) {
+    return turnCount;
+  }
+
+  return ((turnCount - 3) % 6) + 3;
 }
