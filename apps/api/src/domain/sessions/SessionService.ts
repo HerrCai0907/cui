@@ -9,6 +9,7 @@ import {
   ChatSession,
   ChatSessionListItem,
   ChatSessionView,
+  SessionListPage,
 } from "../../types.js";
 import { JsonSessionStore } from "../../infrastructure/store/JsonSessionStore.js";
 import { AppLogger } from "../../infrastructure/logging/AppLogger.js";
@@ -54,6 +55,11 @@ export type RunShellCommandRequest = RunShellCommandRequestContract;
 
 export type UpdateSessionRequest = UpdateSessionRequestContract;
 
+export type ListSessionViewsOptions = {
+  page?: number;
+  pageSize?: number;
+};
+
 export type SubmittedTurn = {
   session: ChatSessionView;
   turnId: string;
@@ -83,18 +89,23 @@ export class SessionService {
     return this.store.listSessions();
   }
 
-  async listSessionViews(): Promise<ChatSessionListItem[]> {
-    const sessions = await this.store.listSessionIndexEntries();
+  async listSessionViews(
+    options: ListSessionViewsOptions = {},
+  ): Promise<SessionListPage<ChatSessionListItem>> {
+    const page = await this.store.listSessionIndexEntries(options);
     const branchByWorkspace = new Map<string, Promise<string | undefined>>();
 
-    return Promise.all(
-      sessions.map(async (session) =>
-        toSessionListItem(session, {
-          gitBranch: await this.getWorkspaceBranch(session.workspace, branchByWorkspace),
-          runningTurnId: this.turnRegistry.getRunningTurnIdForSession(session.id),
-        }),
+    return {
+      ...page,
+      sessions: await Promise.all(
+        page.sessions.map(async (session) =>
+          toSessionListItem(session, {
+            gitBranch: await this.getWorkspaceBranch(session.workspace, branchByWorkspace),
+            runningTurnId: this.turnRegistry.getRunningTurnIdForSession(session.id),
+          }),
+        ),
       ),
-    );
+    };
   }
 
   async getSession(sessionId: string): Promise<ChatSession | undefined> {

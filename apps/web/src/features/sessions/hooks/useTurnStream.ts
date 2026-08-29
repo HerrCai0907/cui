@@ -29,7 +29,7 @@ type UseTurnStreamInput = {
   setError: (error: string | null) => void;
   setExpandedTraceIds: Dispatch<SetStateAction<Set<string>>>;
   setRunningSession: (sessionId: string, running: boolean, turnId?: string) => void;
-  setSessions: Dispatch<SetStateAction<SessionSummary[]>>;
+  setSessions: (updater: (current: SessionSummary[]) => SessionSummary[]) => void;
 };
 
 type StoppedTraceOverlay = {
@@ -202,8 +202,10 @@ export function useTurnStream({
         const nextSummary = toSessionSummary(updatedSession);
 
         return current.some((session) => session.id === updatedSession.id)
-          ? current.map((session) => (session.id === updatedSession.id ? nextSummary : session))
-          : [nextSummary, ...current];
+          ? current.map((session) =>
+              session.id === updatedSession.id ? { ...session, ...nextSummary } : session,
+            )
+          : [{ ...updatedSession, ...nextSummary }, ...current];
       });
     };
 

@@ -4,6 +4,7 @@ import {
   ContinueSessionRequestSchema,
   CreateShellSessionRequestSchema,
   CreateSessionRequestSchema,
+  ListSessionsQuerySchema,
   RoundReviewParamsSchema,
   RoundReviewQuerySchema,
   RunShellCommandRequestSchema,
@@ -40,6 +41,12 @@ export function parseUpdateSessionBody(
   body: unknown,
 ): ParsedBody<z.infer<typeof UpdateSessionRequestSchema>> {
   return parseWithSchema(UpdateSessionRequestSchema, body);
+}
+
+export function parseListSessionsQuery(
+  query: unknown,
+): ParsedBody<z.infer<typeof ListSessionsQuerySchema>> {
+  return parseWithSchema(ListSessionsQuerySchema, query);
 }
 
 export function parseRoundReviewParams(

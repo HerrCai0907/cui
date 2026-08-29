@@ -60,7 +60,17 @@ test("sends configured models when starting a chat session", async ({ page }) =>
       return;
     }
 
-    await fulfillJson(route, { sessions: [] });
+    await fulfillJson(route, {
+      sessions: [],
+      pagination: {
+        page: 1,
+        pageSize: 30,
+        total: 0,
+        totalPages: 1,
+        hasPreviousPage: false,
+        hasNextPage: false,
+      },
+    });
   });
   await page.route("**/api/turns/turn-models/events", async () => {
     // Keep the stream open so the submitted session remains visible.

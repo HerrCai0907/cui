@@ -54,6 +54,20 @@ export type ChatSessionListItem = ChatSessionIndexEntry & {
   runningTurnId?: string;
 };
 
+export type SessionListPagination = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+};
+
+export type SessionListPage<T> = {
+  sessions: T[];
+  pagination: SessionListPagination;
+};
+
 export type AiCreateSessionInput = {
   workspace: string;
   prompt: string;

@@ -142,6 +142,20 @@ export const UpdateSessionRequestSchema = z.object({
   done: z.boolean(),
 });
 
+export const ListSessionsQuerySchema = z.object({
+  page: z.coerce
+    .number("page must be a positive integer")
+    .int("page must be a positive integer")
+    .positive("page must be a positive integer")
+    .optional(),
+  pageSize: z.coerce
+    .number("pageSize must be a positive integer")
+    .int("pageSize must be a positive integer")
+    .positive("pageSize must be a positive integer")
+    .max(100, "pageSize must be less than or equal to 100")
+    .optional(),
+});
+
 const startLineSchema = z.coerce
   .number("startLine must be a positive integer")
   .int("startLine must be a positive integer")
@@ -207,6 +221,14 @@ export const OkResponseSchema = z.object({
 
 export const ListSessionsResponseSchema = z.object({
   sessions: z.array(ChatSessionListItemSchema),
+  pagination: z.object({
+    page: z.number().int().positive(),
+    pageSize: z.number().int().positive(),
+    total: z.number().int().nonnegative(),
+    totalPages: z.number().int().positive(),
+    hasPreviousPage: z.boolean(),
+    hasNextPage: z.boolean(),
+  }),
 });
 
 export const ListModelsResponseSchema = z.object({
@@ -270,5 +292,6 @@ export type ContinueSessionRequestContract = z.infer<typeof ContinueSessionReque
 export type CreateShellSessionRequestContract = z.infer<typeof CreateShellSessionRequestSchema>;
 export type RunShellCommandRequestContract = z.infer<typeof RunShellCommandRequestSchema>;
 export type UpdateSessionRequestContract = z.infer<typeof UpdateSessionRequestSchema>;
+export type ListSessionsQueryContract = z.infer<typeof ListSessionsQuerySchema>;
 export type CodeRangeRequestContract = z.infer<typeof CodeRangeQuerySchema>;
 export type CodeRangeResponseContract = z.infer<typeof CodeRangeResponseSchema>;

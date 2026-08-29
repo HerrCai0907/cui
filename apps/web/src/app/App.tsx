@@ -208,6 +208,9 @@ export function App() {
         pendingDoneSessionIds={sessionController.pendingDoneSessionIds}
         width={sessionController.sidebarWidth}
         runningSessionIds={sessionController.runningSessionIds}
+        sessionPage={sessionController.sessionPage}
+        sessionPageLoading={sessionController.sessionPageLoading}
+        sessionTotalPages={sessionController.sessionPagination.totalPages}
         sessionListMode={sessionController.sessionListMode}
         sessionCount={sessionController.sessionCount}
         visibleSessionCount={sessionController.visibleSessionCount}
@@ -215,6 +218,7 @@ export function App() {
         onOpenChange={sessionController.setSidebarOpen}
         onWidthChange={sessionController.setSidebarWidth}
         onSessionListModeChange={sessionController.setSessionListMode}
+        onSessionPageChange={sessionController.setSessionListPage}
         onOpenSession={openSession}
         onMarkSessionDone={sessionController.markSessionDone}
         onNavigateReview={reviewRoute?.mode === "atomic" ? navigateToReviewTarget : undefined}

@@ -10,6 +10,7 @@ import {
   createSession,
   getSession,
   listSessions,
+  type SessionListPage,
   runShellCommand,
   stopSession,
   updateSession,
@@ -32,7 +33,7 @@ import {
   type SessionSidebarBrowserState,
 } from "../model/sessionBrowserState";
 import { useTurnStream } from "./useTurnStream";
-import type { ApiSession, SessionSummary } from "../../../types";
+import type { ApiSession, ApiSessionListItem, SessionSummary } from "../../../types";
 
 type OpenSessionOptions = {
   resetError?: boolean;
@@ -63,6 +64,25 @@ const LAST_ACTIVE_SESSION_STORAGE_KEY = "cui:last-active-session-id:v1";
 const DONE_MARK_VISIBLE_DURATION_MS = 800;
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 48;
 const EMPTY_QUEUED_PROMPTS: QueuedPromptView[] = [];
+const SESSION_PAGE_SIZE = 30;
+
+type SessionPagination = SessionListPage["pagination"];
+
+type CachedSessionListItem = ApiSessionListItem & SessionSummary;
+
+type CachedSessionPage = {
+  sessions: CachedSessionListItem[];
+  pagination: SessionPagination;
+};
+
+const INITIAL_SESSION_PAGINATION: SessionPagination = {
+  page: 1,
+  pageSize: SESSION_PAGE_SIZE,
+  total: 0,
+  totalPages: 1,
+  hasPreviousPage: false,
+  hasNextPage: false,
+};
 
 export function useSessionController(defaultWorkspace: string, config: AppConfig) {
   const [sidebarBrowserState, setSidebarBrowserState] = useState(() =>
@@ -73,7 +93,12 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   const sidebarWidth = sidebarBrowserState.sidebarWidth;
   const sessionListMode = sidebarBrowserState.sessionListMode;
   const expandedWorkspaces = sidebarBrowserState.expandedWorkspacesByMode[sessionListMode];
-  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [sessions, setSessions] = useState<CachedSessionListItem[]>([]);
+  const [sessionPage, setSessionPage] = useState(1);
+  const [sessionPagination, setSessionPagination] = useState<SessionPagination>(
+    INITIAL_SESSION_PAGINATION,
+  );
+  const [sessionPageLoading, setSessionPageLoading] = useState(false);
   const [activeSession, setActiveSession] = useState<ApiSession | null>(null);
   const [draft, setDraft] = useState("");
   const [composerMode, setComposerMode] = useState<ComposerMode>("chat");
@@ -90,6 +115,8 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   const [expandedTraceIds, setExpandedTraceIds] = useState<Set<string>>(() => new Set());
   const activeSessionRef = useRef<ApiSession | null>(null);
   const autoRestoreSessionRef = useRef(true);
+  const sessionPageCacheRef = useRef<Map<number, CachedSessionPage>>(new Map());
+  const refreshSessionsRequestIdRef = useRef(0);
   const openSessionRequestIdRef = useRef(0);
   const lastEnterKeyDownRef = useRef<number | null>(null);
   const messageStreamRef = useRef<HTMLDivElement | null>(null);
@@ -149,13 +176,17 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
             sidebarSessionPartition.active,
             sidebarSessionPartition.activeWorkspaces,
           )
-        : createWorkspaceGroups(sidebarSessionPartition.more, [...highlightedWorkspaceIds]),
+        : createWorkspaceGroups(
+            getCachedSessionPageSessions(sessionPageCacheRef.current, sessionPage),
+            [...highlightedWorkspaceIds],
+          ),
     [
       highlightedWorkspaceIds,
       sessionListMode,
       sidebarSessionPartition.active,
       sidebarSessionPartition.activeWorkspaces,
-      sidebarSessionPartition.more,
+      sessionPage,
+      sessions,
     ],
   );
   const { applyLocalTurnOverlay, closeTurnStream, streamTurn } = useTurnStream({
@@ -169,7 +200,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     setError,
     setExpandedTraceIds,
     setRunningSession,
-    setSessions,
+    setSessions: updateSessionSummaries,
   });
 
   useEffect(() => {
@@ -294,6 +325,16 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     }));
   }
 
+  function expandWorkspaceForMode(workspaceId: string, mode: SessionListMode) {
+    updateSidebarBrowserState((current) => ({
+      ...current,
+      expandedWorkspacesByMode: {
+        ...current.expandedWorkspacesByMode,
+        [mode]: new Set(current.expandedWorkspacesByMode[mode]).add(workspaceId),
+      },
+    }));
+  }
+
   function updateSidebarBrowserState(
     updater: (current: SessionSidebarBrowserState) => SessionSidebarBrowserState,
   ) {
@@ -306,9 +347,26 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     });
   }
 
-  async function refreshSessions() {
+  async function refreshSessions(
+    page = sessionPage,
+    options: { force?: boolean; showLoading?: boolean } = {},
+  ) {
+    const requestId = refreshSessionsRequestIdRef.current + 1;
+    const showLoading = options.showLoading ?? true;
+
+    refreshSessionsRequestIdRef.current = requestId;
+    if (showLoading) {
+      setSessionPageLoading(true);
+    }
+
     try {
-      const loadedSessions = await listSessions();
+      const loadedPage = await loadSessionPage(page, { force: options.force ?? true });
+
+      if (refreshSessionsRequestIdRef.current !== requestId) {
+        return;
+      }
+
+      const loadedSessions = mergeCachedSessionPages();
       const locallyRunningSessionIds = new Set(runningSessionIdsRef.current);
       const localRunningTurnIds = new Map(runningTurnIdBySessionIdRef.current);
       const nextRunningSessionIds = new Set(
@@ -330,12 +388,15 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       });
 
       const sessionSummaries = loadedSessions.map((session) => ({
+        ...session,
         ...toSessionSummary(session),
         isRunning: nextRunningSessionIds.has(session.id),
       }));
 
-      setSessions(sessionSummaries);
+      replaceCachedSessions(sessionSummaries);
       pruneSessionAttention(sessionSummaries);
+      setSessionPage(loadedPage.pagination.page);
+      setSessionPagination(loadedPage.pagination);
       runningSessionIdsRef.current = nextRunningSessionIds;
       runningTurnIdBySessionIdRef.current = nextRunningTurnIds;
       setRunningSessionIds(nextRunningSessionIds);
@@ -360,15 +421,17 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
         }
 
         if (fallbackSession) {
-          const session = await getSession(fallbackSession.id);
-
-          setCurrentActiveSession(applyLocalSessionState(session), {
+          expandWorkspaceForMode(fallbackSession.workspace, "active");
+          setCurrentActiveSession(createSessionShell(fallbackSession), {
             persist: Boolean(restoredSession),
             recordAttention: false,
           });
-          if (session.runningTurnId) {
-            streamTurn(session.id, session.runningTurnId);
+          if (fallbackSession.runningTurnId) {
+            streamTurn(fallbackSession.id, fallbackSession.runningTurnId);
           }
+          void restoreInitialSession(fallbackSession.id, Boolean(restoredSession), {
+            showError: false,
+          });
         }
       } else if (nextActiveSessionSummary && currentActiveSession) {
         const visibleSession = applyLocalSessionState({
@@ -391,9 +454,141 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
           streamTurn(visibleSession.id, visibleSession.runningTurnId);
         }
       }
+
+      void warmSessionPageNeighbors(loadedPage.pagination).then(() => {
+        if (refreshSessionsRequestIdRef.current === requestId) {
+          setSessions(mergeCachedSessionPages());
+        }
+      });
     } catch (reason) {
+      if (refreshSessionsRequestIdRef.current !== requestId) {
+        return;
+      }
+
       setError(reason instanceof Error ? reason.message : "Failed to load sessions");
+    } finally {
+      if (showLoading && refreshSessionsRequestIdRef.current === requestId) {
+        setSessionPageLoading(false);
+      }
     }
+  }
+
+  async function restoreInitialSession(
+    sessionId: string,
+    persist: boolean,
+    options: { showError?: boolean } = {},
+  ) {
+    try {
+      const session = await getSession(sessionId);
+
+      setCurrentActiveSession(applyLocalSessionState(session), {
+        persist,
+        recordAttention: false,
+      });
+      if (session.runningTurnId) {
+        streamTurn(session.id, session.runningTurnId);
+      }
+    } catch (reason) {
+      if (options.showError ?? true) {
+        setError(reason instanceof Error ? reason.message : "Failed to open session");
+      }
+    }
+  }
+
+  async function setSessionListPage(page: number) {
+    await refreshSessions(page, { force: false });
+  }
+
+  async function loadSessionPage(
+    page: number,
+    options: { force?: boolean } = {},
+  ): Promise<CachedSessionPage> {
+    const cachedPage = sessionPageCacheRef.current.get(page);
+
+    if (cachedPage && !(options.force ?? false)) {
+      return cachedPage;
+    }
+
+    const loadedPage = await listSessions(page, SESSION_PAGE_SIZE);
+    const cachedSessionPage = {
+      sessions: loadedPage.sessions.map(toCachedSessionListItem),
+      pagination: loadedPage.pagination,
+    };
+
+    sessionPageCacheRef.current.set(loadedPage.pagination.page, cachedSessionPage);
+
+    return cachedSessionPage;
+  }
+
+  async function warmSessionPageNeighbors(pagination: SessionPagination) {
+    await Promise.all(
+      [pagination.page - 1, pagination.page + 1]
+        .filter((page) => page >= 1 && page <= pagination.totalPages)
+        .map((page) => loadSessionPage(page).catch(() => undefined)),
+    );
+    trimSessionPageCache(pagination.page);
+  }
+
+  function mergeCachedSessionPages(): CachedSessionListItem[] {
+    const mergedSessionsById = new Map<string, CachedSessionListItem>();
+
+    [...sessionPageCacheRef.current.entries()]
+      .sort(([leftPage], [rightPage]) => leftPage - rightPage)
+      .forEach(([, page]) => {
+        page.sessions.forEach((session) => {
+          mergedSessionsById.set(session.id, session);
+        });
+      });
+
+    return sortSessionsByUpdatedAt([...mergedSessionsById.values()]);
+  }
+
+  function trimSessionPageCache(page: number) {
+    const retainedPages = new Set([1, page - 1, page, page + 1].filter((value) => value >= 1));
+
+    sessionPageCacheRef.current.forEach((_, cachedPage) => {
+      if (!retainedPages.has(cachedPage)) {
+        sessionPageCacheRef.current.delete(cachedPage);
+      }
+    });
+  }
+
+  function replaceCachedSessions(sessionSummaries: CachedSessionListItem[]) {
+    updateCachedSessionSummaries(sessionSummaries);
+    setSessions(sessionSummaries);
+  }
+
+  function updateSessions(updater: (current: CachedSessionListItem[]) => CachedSessionListItem[]) {
+    setSessions((current) => {
+      const next = sortSessionsByUpdatedAt(updater(current));
+
+      updateCachedSessionSummaries(next);
+
+      return next;
+    });
+  }
+
+  function updateSessionSummaries(updater: (current: SessionSummary[]) => SessionSummary[]) {
+    updateSessions((current) => {
+      const existingById = new Map(current.map((session) => [session.id, session]));
+
+      return updater(current).map((session) => ({
+        ...existingById.get(session.id),
+        ...session,
+        isRunning: session.isRunning,
+      }));
+    });
+  }
+
+  function updateCachedSessionSummaries(sessionSummaries: CachedSessionListItem[]) {
+    const sessionById = new Map(sessionSummaries.map((session) => [session.id, session]));
+
+    sessionPageCacheRef.current.forEach((page, pageNumber) => {
+      sessionPageCacheRef.current.set(pageNumber, {
+        ...page,
+        sessions: page.sessions.map((session) => sessionById.get(session.id) ?? session),
+      });
+    });
   }
 
   async function openSession(sessionId: string, options: OpenSessionOptions = {}) {
@@ -582,8 +777,8 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
 
       setRunningTurn(data.session.id, data.turnId);
       recordSessionAttention(data.session);
-      setSessions((current) => {
-        const nextSummary = toSessionSummary(data.session);
+      updateSessions((current) => {
+        const nextSummary = toCachedSessionListItem(data.session);
 
         return current.some((session) => session.id === data.session.id)
           ? current.map((session) => (session.id === data.session.id ? nextSummary : session))
@@ -646,9 +841,9 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
         updateSession(sessionId, { done: true }),
         delay(DONE_MARK_VISIBLE_DURATION_MS),
       ]);
-      const updatedSummary = toSessionSummary(updatedSession);
+      const updatedSummary = toCachedSessionListItem(updatedSession);
 
-      setSessions((current) =>
+      updateSessions((current) =>
         current.map((session) => (session.id === sessionId ? updatedSummary : session)),
       );
       if (activeSessionRef.current?.id === sessionId) {
@@ -730,7 +925,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       if (options.recordAttention ?? true) {
         recordSessionAttention(visibleSession);
       }
-      setSessions((current) =>
+      updateSessions((current) =>
         current.map((summary) =>
           summary.id === visibleSession.id
             ? {
@@ -772,7 +967,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
 
     runningSessionIdsRef.current = next;
     setRunningSessionIds(next);
-    setSessions((current) =>
+    updateSessions((current) =>
       current.map((summary) =>
         summary.id === sessionId ? { ...summary, isRunning: running } : summary,
       ),
@@ -988,6 +1183,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     setDraft,
     setComposerMode,
     setSessionListMode,
+    setSessionListPage,
     setSidebarOpen,
     setSidebarWidth,
     setTraceExpanded,
@@ -995,6 +1191,9 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     setWorkspaceDraft: updateWorkspaceDraft,
     sidebarOpen,
     sidebarWidth,
+    sessionPage,
+    sessionPageLoading,
+    sessionPagination,
     sessionListMode,
     startNewSession,
     stopActiveSession,
@@ -1005,8 +1204,8 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     visibleSessionCount:
       sessionListMode === "active"
         ? sidebarSessionPartition.active.length
-        : sidebarSessionPartition.more.length,
-    sessionCount: sessions.length,
+        : (sessionPageCacheRef.current.get(sessionPage)?.sessions.length ?? 0),
+    sessionCount: sessionPagination.total,
   };
 }
 
@@ -1058,6 +1257,45 @@ function createWorkspaceGroups(
   });
 
   return workspaces;
+}
+
+function getCachedSessionPageSessions(
+  cache: Map<number, CachedSessionPage>,
+  page: number,
+): CachedSessionListItem[] {
+  return cache.get(page)?.sessions ?? [];
+}
+
+function sortSessionsByUpdatedAt<T extends SessionSummary>(sessions: T[]): T[] {
+  return [...sessions].sort((left, right) => {
+    const updatedAtOrder = right.updatedAt.localeCompare(left.updatedAt);
+
+    return updatedAtOrder !== 0 ? updatedAtOrder : right.id.localeCompare(left.id);
+  });
+}
+
+function toCachedSessionListItem(session: ApiSession | ApiSessionListItem): CachedSessionListItem {
+  return {
+    ...session,
+    ...toSessionSummary(session),
+  };
+}
+
+function createSessionShell(session: ApiSessionListItem): ApiSession {
+  return {
+    id: session.id,
+    workspace: session.workspace,
+    title: session.title,
+    summary: session.summary,
+    doneAt: session.doneAt,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    messages: [],
+    currentRound: session.currentRound,
+    gitBranch: session.gitBranch,
+    isRunning: session.isRunning,
+    runningTurnId: session.runningTurnId,
+  };
 }
 
 function isSameAttentionState(left: SessionAttentionState, right: SessionAttentionState): boolean {

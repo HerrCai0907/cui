@@ -95,17 +95,73 @@ test("JsonSessionStore stores session index and per-session details separately",
       rounds: [round],
     });
     assert.deepEqual(await store.getSession("session-1"), session);
-    assert.deepEqual(await store.listSessionIndexEntries(), [
-      {
-        id: "session-1",
+    assert.deepEqual(await store.listSessionIndexEntries(), {
+      sessions: [
+        {
+          id: "session-1",
+          workspace: cwd,
+          title: "Normalized session",
+          summary: "",
+          createdAt: "2026-08-22T00:00:00.000Z",
+          updatedAt: "2026-08-22T00:00:00.000Z",
+          currentRound: 1,
+        },
+      ],
+      pagination: {
+        page: 1,
+        pageSize: 30,
+        total: 1,
+        totalPages: 1,
+        hasPreviousPage: false,
+        hasNextPage: false,
+      },
+    });
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("JsonSessionStore paginates session index entries by updated time", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-json-session-store-"));
+  const storePath = join(cwd, "sessions.json");
+
+  try {
+    const store = new JsonSessionStore(storePath);
+
+    for (const index of [0, 1, 2, 3, 4]) {
+      await store.createSession({
+        id: `session-${index}`,
         workspace: cwd,
-        title: "Normalized session",
+        title: `Session ${index}`,
         summary: "",
         createdAt: "2026-08-22T00:00:00.000Z",
-        updatedAt: "2026-08-22T00:00:00.000Z",
-        currentRound: 1,
-      },
-    ]);
+        updatedAt: new Date(Date.UTC(2026, 7, 22, 0, 0, index)).toISOString(),
+        messages: [],
+      });
+    }
+
+    const page = await store.listSessionIndexEntries({ page: 2, pageSize: 2 });
+
+    assert.deepEqual(
+      page.sessions.map((session) => session.id),
+      ["session-2", "session-1"],
+    );
+    assert.deepEqual(page.pagination, {
+      page: 2,
+      pageSize: 2,
+      total: 5,
+      totalPages: 3,
+      hasPreviousPage: true,
+      hasNextPage: true,
+    });
+
+    const lastPage = await store.listSessionIndexEntries({ page: 99, pageSize: 2 });
+
+    assert.deepEqual(
+      lastPage.sessions.map((session) => session.id),
+      ["session-0"],
+    );
+    assert.equal(lastPage.pagination.page, 3);
   } finally {
     await rm(cwd, { force: true, recursive: true });
   }

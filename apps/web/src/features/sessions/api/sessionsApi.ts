@@ -29,10 +29,16 @@ type UpdateSessionResponse =
 type StopSessionResponse =
   paths["/api/sessions/{sessionId}/stop"]["post"]["responses"][202]["content"]["application/json"];
 
-export async function listSessions(): Promise<ApiSessionListItem[]> {
-  const data = await fetchJson<ListSessionsResponse>("/api/sessions");
+export type SessionListPage = ListSessionsResponse;
 
-  return data.sessions;
+export async function listSessions(page = 1, pageSize = 30): Promise<SessionListPage> {
+  const params = new URLSearchParams({
+    page: String(page),
+    pageSize: String(pageSize),
+  });
+  const data = await fetchJson<ListSessionsResponse>(`/api/sessions?${params.toString()}`);
+
+  return data;
 }
 
 export async function getSession(sessionId: string): Promise<ApiSession> {
