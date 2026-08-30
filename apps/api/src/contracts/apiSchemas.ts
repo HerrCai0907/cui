@@ -82,6 +82,13 @@ export const ChatRoundSummarySchema = ChatRoundSchema.pick({
     .optional(),
 });
 
+export const QueuedPromptSchema = z.object({
+  id: z.string(),
+  mode: z.enum(["chat", "shell"]),
+  prompt: z.string(),
+  createdAt: z.string().datetime(),
+});
+
 export const ChatSessionViewSchema = z.object({
   id: z.string(),
   workspace: z.string(),
@@ -92,6 +99,7 @@ export const ChatSessionViewSchema = z.object({
   updatedAt: z.string().datetime(),
   messages: z.array(ChatMessageSchema),
   rounds: z.array(ChatRoundSummarySchema).optional(),
+  queuedPrompts: z.array(QueuedPromptSchema).optional(),
   currentRound: z.number().int().nonnegative(),
   gitBranch: z.string().optional(),
   isRunning: z.boolean(),
@@ -211,8 +219,10 @@ export const CodeRangeResponseSchema = z.object({
 
 export const SubmittedTurnResponseSchema = z.object({
   status: z.literal("ok"),
+  disposition: z.enum(["started", "queued"]).optional(),
   session: ChatSessionViewSchema,
-  turnId: z.string(),
+  turnId: z.string().optional(),
+  queuedPromptId: z.string().optional(),
 });
 
 export const OkResponseSchema = z.object({

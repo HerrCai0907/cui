@@ -19,6 +19,7 @@ import {
   ListSessionsResponseSchema,
   ListModelsResponseSchema,
   OkResponseSchema,
+  QueuedPromptSchema,
   RoundReviewParamsSchema,
   RoundReviewQuerySchema,
   RunShellCommandRequestSchema,
@@ -38,6 +39,7 @@ registry.register("ChatRoundSummary", ChatRoundSummarySchema);
 registry.register("ChatRound", ChatRoundSchema);
 registry.register("ChatSessionView", ChatSessionViewSchema);
 registry.register("ChatSessionListItem", ChatSessionListItemSchema);
+registry.register("QueuedPrompt", QueuedPromptSchema);
 registry.register("AiModelPreferences", AiModelPreferencesSchema);
 registry.register("CodeRangeResponse", CodeRangeResponseSchema);
 registry.register("CreateSessionRequest", CreateSessionRequestSchema);
@@ -276,7 +278,7 @@ registry.registerPath({
   },
   responses: {
     202: {
-      description: "The continuation turn was accepted and started.",
+      description: "The continuation turn was accepted and either started or queued.",
       content: {
         "application/json": {
           schema: SubmittedTurnResponseSchema,
@@ -306,7 +308,7 @@ registry.registerPath({
   },
   responses: {
     202: {
-      description: "The shell command was accepted and started.",
+      description: "The shell command was accepted and either started or queued.",
       content: {
         "application/json": {
           schema: SubmittedTurnResponseSchema,

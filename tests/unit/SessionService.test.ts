@@ -235,6 +235,137 @@ test("cancelRunningTurn stops an active stream and emits a cancellation event", 
   }
 });
 
+test("beginContinueSession queues prompts while a session is running", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    await store.createSession({
+      id: "session-1",
+      workspace: cwd,
+      title: "Initial title",
+      summary: "",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [],
+      rounds: [],
+    });
+
+    const firstTurn = await service.beginContinueSession("session-1", {
+      prompt: "Run a long task.",
+      models: {
+        normal: "GPT-5.4",
+      },
+    });
+    const queuedTurn = await service.beginContinueSession("session-1", {
+      prompt: "Queued follow-up.",
+      models: {
+        normal: "DeepSeek-V4-Pro",
+      },
+    });
+
+    assert.equal(firstTurn.disposition, "started");
+    assert.equal(queuedTurn.disposition, "queued");
+    assert.equal(aiModel.continueStreamInputs.length, 1);
+    assert.equal(aiModel.continueStreamInputs[0]?.prompt, "Run a long task.");
+
+    const queuedSession = await store.getSession("session-1");
+
+    assert.deepEqual(
+      queuedSession?.queuedPrompts?.map((prompt) => ({
+        id: prompt.id,
+        mode: prompt.mode,
+        prompt: prompt.prompt,
+        models: prompt.models,
+      })),
+      [
+        {
+          id: queuedTurn.queuedPromptId,
+          mode: "chat",
+          prompt: "Queued follow-up.",
+          models: {
+            normal: "DeepSeek-V4-Pro",
+          },
+        },
+      ],
+    );
+    assert.deepEqual(
+      queuedSession?.messages.map((message) => message.content),
+      ["Run a long task."],
+    );
+
+    aiModel.resolveSummary({
+      title: "First summary",
+      progress: "The first turn is summarized.",
+    });
+    aiModel.resolveRun({
+      sessionId: "session-1",
+      content: "First response.",
+      rawEvents: [],
+    });
+
+    await waitFor(() => aiModel.continueStreamInputs.length === 2);
+
+    assert.equal(aiModel.continueStreamInputs[1]?.prompt, "Queued follow-up.");
+    assert.deepEqual(aiModel.continueStreamInputs[1]?.models, {
+      normal: "DeepSeek-V4-Pro",
+    });
+    assert.equal((await store.getSession("session-1"))?.queuedPrompts?.length ?? 0, 0);
+    assert.equal((await service.getSessionView("session-1"))?.isRunning, true);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("resumeQueuedPrompts starts persisted queued prompts", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    await store.createSession({
+      id: "session-1",
+      workspace: cwd,
+      title: "Initial title",
+      summary: "",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [],
+      rounds: [],
+      queuedPrompts: [
+        {
+          id: "queued-1",
+          mode: "chat",
+          prompt: "Persisted follow-up.",
+          createdAt: "2026-08-22T00:00:01.000Z",
+          models: {
+            normal: "GPT-5.4",
+          },
+        },
+      ],
+    });
+
+    await service.resumeQueuedPrompts();
+    await waitFor(() => aiModel.continueStreamInputs.length === 1);
+
+    assert.equal(aiModel.continueStreamInputs[0]?.prompt, "Persisted follow-up.");
+    assert.deepEqual(aiModel.continueStreamInputs[0]?.models, {
+      normal: "GPT-5.4",
+    });
+    assert.equal((await store.getSession("session-1"))?.queuedPrompts?.length ?? 0, 0);
+
+    const session = await service.getSessionView("session-1");
+
+    assert.equal(session?.isRunning, true);
+    assert.equal(session?.messages[0]?.content, "Persisted follow-up.");
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 test("beginCreateShellSession streams and stores command output", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
@@ -331,12 +462,18 @@ class FakeAiModel implements AiModel {
   readonly summaryModels: Array<AiModelPreferences | undefined> = [];
   readonly runModels: Array<AiModelPreferences | undefined> = [];
   readonly createStreamInputs: Array<{ workspace: string; models?: AiModelPreferences }> = [];
+  readonly continueStreamInputs: Array<{
+    sessionId: string;
+    workspace: string;
+    prompt: string;
+    models?: AiModelPreferences;
+  }> = [];
   readonly atomicReviewInputs: AiAtomicDiffReviewInput[] = [];
   cancelled = false;
-  private readonly run = createDeferred<AiRunResult>();
-  private readonly summary = createDeferred<ConversationSummary>();
+  private readonly runs: Array<ReturnType<typeof createDeferred<AiRunResult>>> = [];
+  private readonly summaries: Array<ReturnType<typeof createDeferred<ConversationSummary>>> = [];
   private readonly atomicReview = createDeferred<AtomicDiffReview>();
-  private streamEventHandler: ((event: AiRunEvent) => void) | undefined;
+  private readonly streamEventHandlers: Array<(event: AiRunEvent) => void> = [];
 
   async listModels(): Promise<AiModelInfo[]> {
     return [];
@@ -357,55 +494,74 @@ class FakeAiModel implements AiModel {
   }
 
   async summarizeConversation(input: { prompt: string; models?: AiModelPreferences }) {
+    const summary = createDeferred<ConversationSummary>();
+
     this.summaryPrompts.push(input.prompt);
     this.summaryModels.push(input.models);
+    this.summaries.push(summary);
 
-    return this.summary.promise;
+    return summary.promise;
   }
 
-  createSessionStream(input: { workspace: string; models?: AiModelPreferences }): AiRun {
+  createSessionStream(
+    input: { workspace: string; prompt: string; models?: AiModelPreferences },
+    onEvent: (event: AiRunEvent) => void,
+  ): AiRun {
+    const run = createDeferred<AiRunResult>();
+
+    this.runs.push(run);
     this.createStreamInputs.push(input);
+    this.streamEventHandlers.push(onEvent);
 
     return {
       sessionId: Promise.resolve("created-session-1"),
-      result: this.run.promise,
+      result: run.promise,
       cancel: () => {
         this.cancelled = true;
-        this.run.reject(new AiRunCancelledError());
+        run.reject(new AiRunCancelledError());
       },
     };
   }
 
   continueSessionStream(
-    input: { models?: AiModelPreferences },
+    input: {
+      sessionId: string;
+      workspace: string;
+      prompt: string;
+      models?: AiModelPreferences;
+    },
     onEvent: (event: AiRunEvent) => void,
   ): AiRun {
+    const run = createDeferred<AiRunResult>();
+
+    this.runs.push(run);
+    this.continueStreamInputs.push(input);
     this.runModels.push(input.models);
-    this.streamEventHandler = onEvent;
+    this.streamEventHandlers.push(onEvent);
 
     return {
-      sessionId: Promise.resolve("session-1"),
-      result: this.run.promise,
+      sessionId: Promise.resolve(input.sessionId),
+      result: run.promise,
       cancel: () => {
         this.cancelled = true;
-        this.run.reject(new AiRunCancelledError());
+        run.reject(new AiRunCancelledError());
       },
     };
   }
 
-  emitRawEvent(event: unknown) {
-    this.streamEventHandler?.({
+  emitRawEvent(event: unknown, index = 0) {
+    this.streamEventHandlers[index]?.({
       type: "raw",
       event,
     });
   }
 
-  resolveRun(result: AiRunResult) {
-    this.run.resolve(result);
+  resolveRun(result: AiRunResult, index = 0) {
+    this.runs[index]?.resolve(result);
   }
 
-  resolveSummary(summary: ConversationSummary) {
-    this.summary.resolve(summary);
+  resolveSummary(summary: ConversationSummary, index = 0) {
+    this.summaries[index]?.resolve(summary);
   }
 
   resolveAtomicReview(review: AtomicDiffReview) {

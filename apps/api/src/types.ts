@@ -24,6 +24,18 @@ export type ChatRoundSummary = Pick<ChatRound, "round" | "hasChanges" | "created
   atomicReviewStatus?: AtomicDiffReview["status"];
 };
 
+export type QueuedPromptMode = "chat" | "shell";
+
+export type QueuedPrompt = {
+  id: string;
+  mode: QueuedPromptMode;
+  prompt: string;
+  createdAt: string;
+  models?: AiModelPreferences;
+};
+
+export type QueuedPromptView = Pick<QueuedPrompt, "id" | "mode" | "prompt" | "createdAt">;
+
 export type ChatSession = {
   id: string;
   workspace: string;
@@ -34,17 +46,20 @@ export type ChatSession = {
   updatedAt: string;
   messages: ChatMessage[];
   rounds?: ChatRound[];
+  queuedPrompts?: QueuedPrompt[];
 };
 
-export type ChatSessionView = Omit<ChatSession, "rounds"> & {
+export type ChatSessionView = Omit<ChatSession, "rounds" | "queuedPrompts"> & {
   rounds?: ChatRoundSummary[];
+  queuedPrompts?: QueuedPromptView[];
   currentRound: number;
   gitBranch?: string;
   isRunning: boolean;
   runningTurnId?: string;
 };
 
-export type ChatSessionIndexEntry = Omit<ChatSession, "messages" | "rounds"> & {
+export type ChatSessionIndexEntry = Omit<ChatSession, "messages" | "rounds" | "queuedPrompts"> & {
+  queuedPrompts?: QueuedPromptView[];
   currentRound: number;
 };
 

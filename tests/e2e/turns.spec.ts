@@ -286,6 +286,17 @@ test("queues a prompt while a session is running and sends it after stop", async
     isRunning: false,
     runningTurnId: undefined,
   };
+  const queuedSession = {
+    ...firstRunningSession,
+    queuedPrompts: [
+      {
+        id: "queued-1",
+        mode: "chat",
+        prompt: "Queued follow-up",
+        createdAt: "2026-08-22T00:00:01.000Z",
+      },
+    ],
+  };
   const secondRunningSession = {
     ...stoppedSession,
     messages: [
@@ -379,15 +390,23 @@ test("queues a prompt while a session is running and sends it after stop", async
     const body = route.request().postDataJSON() as { prompt: string };
 
     prompts.push(body.prompt);
-    visibleSession = prompts.length === 1 ? firstRunningSession : secondRunningSession;
+    visibleSession = prompts.length === 1 ? firstRunningSession : queuedSession;
     await fulfillJson(route, {
       status: "ok",
       session: visibleSession,
-      turnId: prompts.length === 1 ? "turn-1" : "turn-2",
+      ...(prompts.length === 1
+        ? {
+            disposition: "started",
+            turnId: "turn-1",
+          }
+        : {
+            disposition: "queued",
+            queuedPromptId: "queued-1",
+          }),
     });
   });
   await page.route("**/api/sessions/session-1/stop", async (route) => {
-    visibleSession = stoppedSession;
+    visibleSession = secondRunningSession;
     await page.evaluate(() =>
       (
         window as Window & {
@@ -422,7 +441,7 @@ test("queues a prompt while a session is running and sends it after stop", async
   await expect(page.getByRole("region", { name: "Queued prompts" })).toContainText(
     "Queued follow-up",
   );
-  await expect.poll(() => prompts).toEqual(["Run a long task"]);
+  await expect.poll(() => prompts).toEqual(["Run a long task", "Queued follow-up"]);
 
   await page.getByRole("button", { name: "Stop generation" }).click();
 
@@ -485,6 +504,17 @@ test("queues a prompt while a session is running and sends it after completion",
     currentRound: 1,
     isRunning: false,
     runningTurnId: undefined,
+  };
+  const queuedSession = {
+    ...firstRunningSession,
+    queuedPrompts: [
+      {
+        id: "queued-1",
+        mode: "chat",
+        prompt: "Queued follow-up",
+        createdAt: "2026-08-22T00:00:02.000Z",
+      },
+    ],
   };
   const secondRunningSession = {
     ...firstCompletedSession,
@@ -581,11 +611,19 @@ test("queues a prompt while a session is running and sends it after completion",
     const body = route.request().postDataJSON() as { prompt: string };
 
     prompts.push(body.prompt);
-    visibleSession = prompts.length === 1 ? firstRunningSession : secondRunningSession;
+    visibleSession = prompts.length === 1 ? firstRunningSession : queuedSession;
     await fulfillJson(route, {
       status: "ok",
       session: visibleSession,
-      turnId: prompts.length === 1 ? "turn-1" : "turn-2",
+      ...(prompts.length === 1
+        ? {
+            disposition: "started",
+            turnId: "turn-1",
+          }
+        : {
+            disposition: "queued",
+            queuedPromptId: "queued-1",
+          }),
     });
   });
 
@@ -600,9 +638,9 @@ test("queues a prompt while a session is running and sends it after completion",
   await expect(page.getByRole("region", { name: "Queued prompts" })).toContainText(
     "Queued follow-up",
   );
-  await expect.poll(() => prompts).toEqual(["Run a long task"]);
+  await expect.poll(() => prompts).toEqual(["Run a long task", "Queued follow-up"]);
 
-  visibleSession = firstCompletedSession;
+  visibleSession = secondRunningSession;
   await page.evaluate(() =>
     (
       window as Window & {
