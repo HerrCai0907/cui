@@ -784,6 +784,10 @@
   line-height: 1.45;
 }
 
+.message-code-card.is-dragging {
+  box-shadow: 0 22px 52px rgb(15 23 42 / 22%);
+}
+
 .message-code-card-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 28px;
@@ -791,7 +795,14 @@
   gap: 8px;
   border-bottom: 1px solid #e1e8f0;
   background: #f8fafc;
+  cursor: grab;
   padding: 7px 8px 7px 10px;
+  touch-action: none;
+  user-select: none;
+}
+
+.message-code-card.is-dragging .message-code-card-header {
+  cursor: grabbing;
 }
 
 .message-code-card-title {
@@ -848,7 +859,11 @@
   margin: 0;
   overflow: auto;
   background: #fbfcfe;
-  padding: 12px;
+}
+
+.message-code-card-code-stack {
+  display: grid;
+  min-width: max-content;
 }
 
 .message-code-card-block code {
@@ -857,50 +872,60 @@
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.82rem;
   line-height: 1.55;
+  padding: 12px;
   white-space: pre;
 }
 
-.message-code-card-actions {
+.message-code-card-line-action {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 28px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  width: 100%;
+  min-width: 100%;
+  min-height: 30px;
   align-items: center;
   gap: 8px;
-  border-top: 1px solid #e1e8f0;
-  background: #f8fafc;
-  padding: 6px 8px;
+  border: 0;
+  background: #f1f5f9;
+  color: #405168;
+  padding: 0 12px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
 }
 
-.message-code-card-action {
-  display: inline-flex;
-  width: 24px;
-  height: 24px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  background: #ffffff;
-  color: #334155;
-  padding: 0;
+.message-code-card-line-action:first-child {
+  border-bottom: 1px solid #d9e2ec;
 }
 
-.message-code-card-action:hover:not(:disabled) {
-  border-color: #8fb2d6;
+.message-code-card-line-action:last-child {
+  border-top: 1px solid #d9e2ec;
+}
+
+.message-code-card-line-action:hover:not(:disabled) {
   background: #eef6ff;
   color: #123b61;
 }
 
-.message-code-card-action:disabled {
+.message-code-card-line-action:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
 
-.message-code-card-range {
-  min-width: 0;
-  overflow: hidden;
-  color: #526174;
-  font-size: 0.76rem;
-  font-weight: 680;
+.message-code-card-line-action svg {
+  flex: 0 0 auto;
+}
+
+.message-code-card-line-range {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 650;
   text-align: center;
+}
+
+.message-code-card-line-action span {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

@@ -374,6 +374,22 @@ test("supports expandable assistant code previews", async ({ page }) => {
   await expect(preview).toContainText("Lines 10-40");
   expect(requests).toEqual(["20-30", "10-30", "10-40"]);
 
+  const initialBox = await preview.boundingBox();
+  const header = preview.locator(".message-code-card-header");
+  const headerBox = await header.boundingBox();
+  expect(initialBox).not.toBeNull();
+  expect(headerBox).not.toBeNull();
+
+  await page.mouse.move(headerBox!.x + 20, headerBox!.y + 15);
+  await page.mouse.down();
+  await page.mouse.move(headerBox!.x + 90, headerBox!.y + 55);
+  await page.mouse.up();
+
+  const draggedBox = await preview.boundingBox();
+  expect(draggedBox).not.toBeNull();
+  expect(draggedBox!.x).toBeGreaterThan(initialBox!.x + 40);
+  expect(draggedBox!.y).toBeGreaterThan(initialBox!.y + 20);
+
   await page.getByRole("heading", { name: "Code preview session" }).click();
   await expect(preview).toBeHidden();
 });

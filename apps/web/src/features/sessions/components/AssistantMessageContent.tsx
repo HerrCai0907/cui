@@ -1,5 +1,11 @@
 import { ChevronDown, ChevronUp, FileCode, Loader2, X } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import { HighlightedCode } from "../../review/components/HighlightedCode";
 import { getCodeRange, type CodeRangeResult } from "../api/codeApi";
 import {
@@ -25,6 +31,19 @@ type CodePreviewState =
       status: "error";
       message: string;
     };
+
+type CodeCardOffset = {
+  x: number;
+  y: number;
+};
+
+type CodeCardDragState = {
+  pointerId: number;
+  originX: number;
+  originY: number;
+  offsetX: number;
+  offsetY: number;
+};
 
 export function AssistantMessageContent({
   content,
@@ -124,9 +143,12 @@ function isExternalHref(href: string): boolean {
 
 function CodePreviewButton({ label, target }: { label: string; target: CodeLinkTarget }) {
   const previewRef = useRef<HTMLSpanElement | null>(null);
+  const dragStateRef = useRef<CodeCardDragState | null>(null);
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<CodePreviewState>({ status: "idle" });
   const [query, setQuery] = useState<CodeLinkTarget>(() => getInitialCodePreviewQuery(target));
+  const [cardOffset, setCardOffset] = useState<CodeCardOffset>({ x: 0, y: 0 });
+  const [isDraggingCard, setIsDraggingCard] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -202,6 +224,51 @@ function CodePreviewButton({ label, target }: { label: string; target: CodeLinkT
     });
   }
 
+  function startCardDrag(event: ReactPointerEvent<HTMLElement>) {
+    if (event.button !== 0 || isInteractiveDragTarget(event.target)) {
+      return;
+    }
+
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      originX: event.clientX,
+      originY: event.clientY,
+      offsetX: cardOffset.x,
+      offsetY: cardOffset.y,
+    };
+    setIsDraggingCard(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  }
+
+  function dragCard(event: ReactPointerEvent<HTMLElement>) {
+    const dragState = dragStateRef.current;
+
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    setCardOffset({
+      x: dragState.offsetX + event.clientX - dragState.originX,
+      y: dragState.offsetY + event.clientY - dragState.originY,
+    });
+  }
+
+  function stopCardDrag(event: ReactPointerEvent<HTMLElement>) {
+    const dragState = dragStateRef.current;
+
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    dragStateRef.current = null;
+    setIsDraggingCard(false);
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
   const hasRange = query.startLine !== undefined && query.endLine !== undefined;
 
   return (
@@ -217,8 +284,19 @@ function CodePreviewButton({ label, target }: { label: string; target: CodeLinkT
         {label}
       </button>
       {open && (
-        <span className="message-code-card" role="dialog" aria-label="Code preview">
-          <span className="message-code-card-header">
+        <span
+          className={`message-code-card${isDraggingCard ? " is-dragging" : ""}`}
+          role="dialog"
+          aria-label="Code preview"
+          style={{ transform: `translate3d(${cardOffset.x}px, ${cardOffset.y}px, 0)` }}
+        >
+          <span
+            className="message-code-card-header"
+            onPointerDown={startCardDrag}
+            onPointerMove={dragCard}
+            onPointerUp={stopCardDrag}
+            onPointerCancel={stopCardDrag}
+          >
             <span className="message-code-card-title">
               {target.filePath}
               {hasRange
@@ -245,41 +323,53 @@ function CodePreviewButton({ label, target }: { label: string; target: CodeLinkT
           )}
           {preview.status === "ready" && (
             <span className="message-code-card-block">
-              <code>
-                <HighlightedCode content={preview.result.code} filePath={preview.result.filePath} />
-              </code>
-            </span>
-          )}
-          {preview.status === "ready" && hasRange && (
-            <span className="message-code-card-actions">
-              <button
-                className="message-code-card-action"
-                type="button"
-                onClick={expandBackward}
-                disabled={preview.result.startLine <= 1}
-                title="Show 10 previous lines"
-                aria-label="Show 10 previous lines"
-              >
-                <ChevronUp size={14} />
-              </button>
-              <span className="message-code-card-range">
-                Lines {preview.result.startLine}-{preview.result.endLine}
+              <span className="message-code-card-code-stack">
+                {hasRange && (
+                  <button
+                    className="message-code-card-line-action"
+                    type="button"
+                    onClick={expandBackward}
+                    disabled={preview.result.startLine <= 1}
+                    title="Show 10 previous lines"
+                    aria-label="Show 10 previous lines"
+                  >
+                    <ChevronUp size={14} />
+                    <span className="message-code-card-line-range">
+                      Lines {preview.result.startLine}-{preview.result.endLine}
+                    </span>
+                  </button>
+                )}
+                <code>
+                  <HighlightedCode
+                    content={preview.result.code}
+                    filePath={preview.result.filePath}
+                  />
+                </code>
+                {hasRange && (
+                  <button
+                    className="message-code-card-line-action"
+                    type="button"
+                    onClick={expandForward}
+                    title="Show 10 next lines"
+                    aria-label="Show 10 next lines"
+                  >
+                    <ChevronDown size={14} />
+                    <span className="message-code-card-line-range">
+                      Lines {preview.result.startLine}-{preview.result.endLine}
+                    </span>
+                  </button>
+                )}
               </span>
-              <button
-                className="message-code-card-action"
-                type="button"
-                onClick={expandForward}
-                title="Show 10 next lines"
-                aria-label="Show 10 next lines"
-              >
-                <ChevronDown size={14} />
-              </button>
             </span>
           )}
         </span>
       )}
     </span>
   );
+}
+
+function isInteractiveDragTarget(target: EventTarget): boolean {
+  return target instanceof Element && Boolean(target.closest("button, a, input, textarea, select"));
 }
 
 function getInitialCodePreviewQuery(target: CodeLinkTarget): CodeLinkTarget {
