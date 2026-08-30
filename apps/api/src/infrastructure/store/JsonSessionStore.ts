@@ -6,12 +6,14 @@ import {
   ChatRound,
   ChatSession,
   ChatSessionIndexEntry,
+  QueuedPrompt,
+  QueuedPromptView,
   SessionListPage,
 } from "../../types.js";
 
 const STORE_VERSION = 3;
 
-type StoredSession = Omit<ChatSession, "messages" | "rounds"> & {
+type StoredSession = Omit<ChatSession, "messages" | "rounds" | "queuedPrompts"> & {
   currentRound?: number;
 };
 
@@ -25,6 +27,7 @@ type SessionDetailData = {
   id: string;
   messages: ChatMessage[];
   rounds: ChatRound[];
+  queuedPrompts: QueuedPrompt[];
 };
 
 export type ListSessionIndexEntriesOptions = {
@@ -70,12 +73,15 @@ export class JsonSessionStore {
       pagination.page * pagination.pageSize,
     );
     const sessions = await Promise.all(
-      pageSessions.map(async (session) => ({
-        ...toSessionIndexEntry(session),
-        currentRound:
-          session.currentRound ??
-          getCurrentRoundFromSessionDetail(await this.readSessionDetail(session.id)),
-      })),
+      pageSessions.map(async (session) => {
+        const detail = await this.readSessionDetail(session.id);
+
+        return {
+          ...toSessionIndexEntry(session),
+          currentRound: session.currentRound ?? getCurrentRoundFromSessionDetail(detail),
+          ...toQueuedPromptViewsProperty(detail.queuedPrompts),
+        };
+      }),
     );
 
     return {
@@ -149,6 +155,76 @@ export class JsonSessionStore {
     }
 
     return updatedSession;
+  }
+
+  async enqueuePrompt(sessionId: string, prompt: QueuedPrompt): Promise<ChatSession> {
+    let updatedSession: ChatSession | undefined;
+
+    await this.enqueueWrite(async () => {
+      const index = await this.readIndex();
+      const storedSession = index.sessions.find((session) => session.id === sessionId);
+
+      if (!storedSession) {
+        return;
+      }
+
+      const detail = await this.readSessionDetail(sessionId);
+      const sessions = index.sessions.map((session) => {
+        if (session.id !== sessionId) {
+          return session;
+        }
+
+        updatedSession = {
+          ...hydrateSession(session, detail),
+          updatedAt: new Date().toISOString(),
+          doneAt: undefined,
+          queuedPrompts: [...detail.queuedPrompts, prompt],
+        };
+
+        return toStoredSession(updatedSession);
+      });
+
+      if (!updatedSession) {
+        return;
+      }
+
+      await this.writeSessionDetail(toSessionDetail(updatedSession));
+      await this.writeIndex({ ...index, sessions });
+    });
+
+    if (!updatedSession) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    return updatedSession;
+  }
+
+  async shiftQueuedPrompt(sessionId: string): Promise<QueuedPrompt | undefined> {
+    let shiftedPrompt: QueuedPrompt | undefined;
+
+    await this.enqueueWrite(async () => {
+      const index = await this.readIndex();
+      const storedSession = index.sessions.find((session) => session.id === sessionId);
+
+      if (!storedSession) {
+        return;
+      }
+
+      const detail = await this.readSessionDetail(sessionId);
+      const [nextPrompt, ...remainingPrompts] = detail.queuedPrompts;
+
+      if (!nextPrompt) {
+        return;
+      }
+
+      shiftedPrompt = nextPrompt;
+      await this.writeSessionDetail({
+        ...detail,
+        queuedPrompts: remainingPrompts,
+      });
+    });
+
+    return shiftedPrompt;
   }
 
   async appendRoundAndMessages(
@@ -409,6 +485,7 @@ function normalizeSessionDetail(data: unknown, sessionId: string): SessionDetail
     id: sessionId,
     messages: parseArray<ChatMessage>(detail.messages),
     rounds: parseArray<ChatRound>(detail.rounds),
+    queuedPrompts: parseArray<QueuedPrompt>(detail.queuedPrompts),
   };
 }
 
@@ -420,6 +497,7 @@ function hydrateSession(session: StoredSession, detail: SessionDetailData): Chat
     ...sessionMetadata,
     messages: detail.messages,
     ...(rounds.length > 0 ? { rounds } : {}),
+    ...(detail.queuedPrompts.length > 0 ? { queuedPrompts: detail.queuedPrompts } : {}),
   };
 }
 
@@ -436,6 +514,7 @@ function toSessionDetail(session: ChatSession): SessionDetailData {
     id: session.id,
     messages: session.messages,
     rounds: session.rounds ?? [],
+    queuedPrompts: session.queuedPrompts ?? [],
   };
 }
 
@@ -465,6 +544,27 @@ function toSessionIndexEntry(session: StoredSession): ChatSessionIndexEntry {
     updatedAt: session.updatedAt,
     currentRound: session.currentRound ?? 0,
   };
+}
+
+function toQueuedPromptViews(queuedPrompts: QueuedPrompt[]): QueuedPromptView[] | undefined {
+  if (queuedPrompts.length === 0) {
+    return undefined;
+  }
+
+  return queuedPrompts.map(({ id, mode, prompt, createdAt }) => ({
+    id,
+    mode,
+    prompt,
+    createdAt,
+  }));
+}
+
+function toQueuedPromptViewsProperty(
+  queuedPrompts: QueuedPrompt[],
+): Pick<ChatSessionIndexEntry, "queuedPrompts"> | Record<string, never> {
+  const queuedPromptViews = toQueuedPromptViews(queuedPrompts);
+
+  return queuedPromptViews ? { queuedPrompts: queuedPromptViews } : {};
 }
 
 function sortStoredSessions(sessions: StoredSession[]): StoredSession[] {

@@ -25,10 +25,18 @@ export function toSessionView(
       createdAt,
       ...(atomicReview ? { atomicReviewStatus: atomicReview.status } : {}),
     })) ?? [];
+  const queuedPrompts =
+    session.queuedPrompts?.map(({ id, mode, prompt, createdAt }) => ({
+      id,
+      mode,
+      prompt,
+      createdAt,
+    })) ?? [];
 
   return {
     ...session,
     rounds: roundSummaries,
+    queuedPrompts,
     currentRound: getCurrentRound(session),
     ...(options.gitBranch ? { gitBranch: options.gitBranch } : {}),
     isRunning: Boolean(options.runningTurnId),

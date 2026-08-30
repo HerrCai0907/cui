@@ -93,6 +93,7 @@ test("JsonSessionStore stores session index and per-session details separately",
       id: "session-1",
       messages: [message],
       rounds: [round],
+      queuedPrompts: [],
     });
     assert.deepEqual(await store.getSession("session-1"), session);
     assert.deepEqual(await store.listSessionIndexEntries(), {
@@ -195,6 +196,55 @@ test("JsonSessionStore stores done state and clears it when appending messages",
     assert.equal(appendedSession.doneAt, undefined);
     assert.equal((await store.getSession("session-1"))?.doneAt, undefined);
     assert.equal("doneAt" in JSON.parse(await readFile(detailPath, "utf8")), false);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("JsonSessionStore persists and shifts queued prompts", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-json-session-store-"));
+  const storePath = join(cwd, "sessions.json");
+
+  try {
+    const store = new JsonSessionStore(storePath);
+
+    await store.createSession({
+      id: "session-1",
+      workspace: cwd,
+      title: "Queued session",
+      summary: "",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [],
+    });
+    await store.enqueuePrompt("session-1", {
+      id: "queued-1",
+      mode: "chat",
+      prompt: "Queued follow-up.",
+      createdAt: "2026-08-22T00:00:01.000Z",
+      models: {
+        normal: "GPT-5.4",
+      },
+    });
+
+    const queuedSession = await store.getSession("session-1");
+    const listedSessions = await store.listSessionIndexEntries();
+
+    assert.equal(queuedSession?.queuedPrompts?.[0]?.models?.normal, "GPT-5.4");
+    assert.deepEqual(listedSessions.sessions[0]?.queuedPrompts, [
+      {
+        id: "queued-1",
+        mode: "chat",
+        prompt: "Queued follow-up.",
+        createdAt: "2026-08-22T00:00:01.000Z",
+      },
+    ]);
+
+    const shiftedPrompt = await store.shiftQueuedPrompt("session-1");
+
+    assert.equal(shiftedPrompt?.id, "queued-1");
+    assert.equal((await store.getSession("session-1"))?.queuedPrompts?.length ?? 0, 0);
+    assert.equal(await store.shiftQueuedPrompt("session-1"), undefined);
   } finally {
     await rm(cwd, { force: true, recursive: true });
   }

@@ -1,9 +1,5 @@
 import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import {
-  createModelRequestPreferences,
-  type AppConfig,
-  type ModelPreferences,
-} from "../../config/model/appConfig";
+import { createModelRequestPreferences, type AppConfig } from "../../config/model/appConfig";
 import {
   continueSession,
   createShellSession,
@@ -44,20 +40,13 @@ type SetCurrentActiveSessionOptions = {
   recordAttention?: boolean;
 };
 
-type QueuedPrompt = {
-  id: string;
-  mode: ComposerMode;
-  models: ModelPreferences;
-  prompt: string;
-  restoreDraftOnFailure: boolean;
-};
-
 type ComposerMode = "chat" | "shell";
 
 export type QueuedPromptView = {
   id: string;
   mode: ComposerMode;
   prompt: string;
+  createdAt: string;
 };
 
 const LAST_ACTIVE_SESSION_STORAGE_KEY = "cui:last-active-session-id:v1";
@@ -107,9 +96,6 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   const [submittingSessionIds, setSubmittingSessionIds] = useState<Set<string>>(() => new Set());
   const [stoppingSessionIds, setStoppingSessionIds] = useState<Set<string>>(() => new Set());
   const [pendingDoneSessionIds, setPendingDoneSessionIds] = useState<Set<string>>(() => new Set());
-  const [queuedPromptsBySessionId, setQueuedPromptsBySessionId] = useState<
-    Map<string, QueuedPromptView[]>
-  >(() => new Map());
   const [creatingSession, setCreatingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedTraceIds, setExpandedTraceIds] = useState<Set<string>>(() => new Set());
@@ -123,23 +109,21 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   const lastScrolledSessionIdRef = useRef<string | null>(null);
   const shouldStickToMessageBottomRef = useRef(true);
   const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const queuedPromptsRef = useRef<Map<string, QueuedPrompt[]>>(new Map());
-  const queueDrainInProgressSessionIdsRef = useRef<Set<string>>(new Set());
   const runningSessionIdsRef = useRef<Set<string>>(runningSessionIds);
   const runningTurnIdBySessionIdRef = useRef<Map<string, string>>(new Map());
   const submittingSessionIdsRef = useRef<Set<string>>(submittingSessionIds);
-  const nextQueuedPromptIdRef = useRef(0);
   const activeSessionRunning = activeSession ? runningSessionIds.has(activeSession.id) : false;
+  const activeSessionSubmitting = activeSession
+    ? submittingSessionIds.has(activeSession.id)
+    : false;
   const activeSessionStopping = activeSession ? stoppingSessionIds.has(activeSession.id) : false;
   const activeSessionBlocked = activeSession
-    ? runningSessionIds.has(activeSession.id) || submittingSessionIds.has(activeSession.id)
+    ? activeSessionRunning || activeSessionSubmitting
     : creatingSession;
   const activeSessionQueuedPrompts = activeSession
-    ? (queuedPromptsBySessionId.get(activeSession.id) ?? EMPTY_QUEUED_PROMPTS)
+    ? (activeSession.queuedPrompts ?? EMPTY_QUEUED_PROMPTS)
     : EMPTY_QUEUED_PROMPTS;
-  const composerSubmitDisabled = activeSession
-    ? activeSessionBlocked && !activeSessionRunning
-    : activeSessionBlocked;
+  const composerSubmitDisabled = activeSession ? activeSessionSubmitting : creatingSession;
   const highlightedSessionIds = useMemo(() => {
     const ids = new Set([...runningSessionIds, ...submittingSessionIds]);
 
@@ -192,7 +176,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   const { applyLocalTurnOverlay, closeTurnStream, streamTurn } = useTurnStream({
     activeSessionRef,
     onTurnSettled: (sessionId) => {
-      void drainQueuedPrompt(sessionId);
+      void refreshSessions();
     },
     refreshSessions,
     setActiveSession,
@@ -208,7 +192,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   }, []);
 
   useEffect(() => {
-    if (!hasPendingAtomicReview(activeSession)) {
+    if (!hasPendingAtomicReview(activeSession) && activeSessionQueuedPrompts.length === 0) {
       return;
     }
 
@@ -219,7 +203,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [activeSession?.id, activeSession?.rounds]);
+  }, [activeSession?.id, activeSession?.rounds, activeSessionQueuedPrompts.length]);
 
   useLayoutEffect(() => {
     const messageStream = messageStreamRef.current;
@@ -367,6 +351,10 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       }
 
       const loadedSessions = mergeCachedSessionPages();
+      const currentActiveSession = activeSessionRef.current;
+      const previousActiveSessionRunningTurnId = currentActiveSession
+        ? runningTurnIdBySessionIdRef.current.get(currentActiveSession.id)
+        : undefined;
       const locallyRunningSessionIds = new Set(runningSessionIdsRef.current);
       const localRunningTurnIds = new Map(runningTurnIdBySessionIdRef.current);
       const nextRunningSessionIds = new Set(
@@ -401,7 +389,6 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       runningTurnIdBySessionIdRef.current = nextRunningTurnIds;
       setRunningSessionIds(nextRunningSessionIds);
 
-      const currentActiveSession = activeSessionRef.current;
       const nextActiveSessionSummary =
         currentActiveSession &&
         loadedSessions.find((session) => session.id === currentActiveSession.id);
@@ -434,20 +421,32 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
           });
         }
       } else if (nextActiveSessionSummary && currentActiveSession) {
-        const visibleSession = applyLocalSessionState({
-          ...currentActiveSession,
-          title: nextActiveSessionSummary.title,
-          summary: nextActiveSessionSummary.summary,
-          doneAt: nextActiveSessionSummary.doneAt,
-          updatedAt: nextActiveSessionSummary.updatedAt,
-          currentRound: Math.max(
-            currentActiveSession.currentRound,
-            nextActiveSessionSummary.currentRound,
-          ),
-          gitBranch: nextActiveSessionSummary.gitBranch ?? currentActiveSession.gitBranch,
-          isRunning: nextActiveSessionSummary.isRunning,
-          runningTurnId: nextActiveSessionSummary.runningTurnId,
-        });
+        const shouldLoadFullActiveSession =
+          nextActiveSessionSummary.runningTurnId &&
+          nextActiveSessionSummary.runningTurnId !== previousActiveSessionRunningTurnId;
+        const nextActiveSession = shouldLoadFullActiveSession
+          ? await getSession(currentActiveSession.id)
+          : {
+              ...currentActiveSession,
+              title: nextActiveSessionSummary.title,
+              summary: nextActiveSessionSummary.summary,
+              doneAt: nextActiveSessionSummary.doneAt,
+              updatedAt: nextActiveSessionSummary.updatedAt,
+              currentRound: Math.max(
+                currentActiveSession.currentRound,
+                nextActiveSessionSummary.currentRound,
+              ),
+              gitBranch: nextActiveSessionSummary.gitBranch ?? currentActiveSession.gitBranch,
+              queuedPrompts: nextActiveSessionSummary.queuedPrompts,
+              isRunning: nextActiveSessionSummary.isRunning,
+              runningTurnId: nextActiveSessionSummary.runningTurnId,
+            };
+
+        if (refreshSessionsRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        const visibleSession = applyLocalSessionState(nextActiveSession);
 
         setCurrentActiveSession(visibleSession);
         if (visibleSession.runningTurnId) {
@@ -633,22 +632,14 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       return false;
     }
 
-    if (submittedSessionId && runningSessionIdsRef.current.has(submittedSessionId)) {
-      queuePrompt(submittedSessionId, {
-        mode,
-        models: { ...config.models },
-        prompt: trimmed,
-        restoreDraftOnFailure: options.restoreDraftOnFailure ?? true,
-      });
-      setError(null);
-      setDraft("");
-      if (activeSession) {
-        recordSessionAttention(activeSession);
-      }
-      return true;
-    }
+    const submittedSessionRunning = submittedSessionId
+      ? runningSessionIdsRef.current.has(submittedSessionId)
+      : false;
+    const submittedSessionSubmitting = submittedSessionId
+      ? submittingSessionIdsRef.current.has(submittedSessionId)
+      : false;
 
-    if (activeSessionBlocked) {
+    if (activeSessionBlocked && (!submittedSessionRunning || submittedSessionSubmitting)) {
       return false;
     }
 
@@ -691,7 +682,6 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
                 models,
               });
 
-      setRunningTurn(data.session.id, data.turnId);
       recordSessionAttention(data.session);
       if (submittedSessionId) {
         setSubmittingSession(submittedSessionId, false);
@@ -707,7 +697,10 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
 
       expandWorkspace(data.session.workspace);
       void refreshSessions();
-      streamTurn(data.session.id, data.turnId);
+      if (data.disposition !== "queued" && data.turnId) {
+        setRunningTurn(data.session.id, data.turnId);
+        streamTurn(data.session.id, data.turnId);
+      }
       return true;
     } catch (reason) {
       if (submittedSessionId) {
@@ -734,77 +727,6 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     await submitPrompt(draft, { mode: composerMode, restoreDraftOnFailure: true });
   }
 
-  async function drainQueuedPrompt(sessionId: string) {
-    if (
-      runningSessionIdsRef.current.has(sessionId) ||
-      submittingSessionIdsRef.current.has(sessionId) ||
-      queueDrainInProgressSessionIdsRef.current.has(sessionId)
-    ) {
-      return;
-    }
-
-    const queue = queuedPromptsRef.current.get(sessionId);
-    const nextPrompt = queue?.shift();
-
-    if (!nextPrompt) {
-      queuedPromptsRef.current.delete(sessionId);
-      clearQueuedPromptViews(sessionId);
-      return;
-    }
-
-    if (!queue || queue.length === 0) {
-      queuedPromptsRef.current.delete(sessionId);
-    }
-    removeQueuedPromptView(sessionId, nextPrompt.id);
-
-    queueDrainInProgressSessionIdsRef.current.add(sessionId);
-    setPendingDoneSessionIds((current) => {
-      const next = new Set(current);
-
-      next.delete(sessionId);
-
-      return next;
-    });
-    setSubmittingSession(sessionId, true);
-    setError(null);
-
-    try {
-      const models = createModelRequestPreferences(nextPrompt.models);
-      const data =
-        nextPrompt.mode === "shell"
-          ? await runShellCommand(sessionId, { command: nextPrompt.prompt })
-          : await continueSession(sessionId, { prompt: nextPrompt.prompt, models });
-
-      setRunningTurn(data.session.id, data.turnId);
-      recordSessionAttention(data.session);
-      updateSessions((current) => {
-        const nextSummary = toCachedSessionListItem(data.session);
-
-        return current.some((session) => session.id === data.session.id)
-          ? current.map((session) => (session.id === data.session.id ? nextSummary : session))
-          : [nextSummary, ...current];
-      });
-
-      if (activeSessionRef.current?.id === sessionId) {
-        setCurrentActiveSession(data.session);
-      }
-
-      expandWorkspace(data.session.workspace);
-      void refreshSessions();
-      streamTurn(data.session.id, data.turnId);
-    } catch (reason) {
-      if (activeSessionRef.current?.id === sessionId) {
-        if (nextPrompt.restoreDraftOnFailure) {
-          setDraft(nextPrompt.prompt);
-        }
-        setError(reason instanceof Error ? reason.message : "Request failed");
-      }
-    } finally {
-      setSubmittingSession(sessionId, false);
-      queueDrainInProgressSessionIdsRef.current.delete(sessionId);
-    }
-  }
-
   async function stopActiveSession() {
     const currentSession = activeSessionRef.current;
     const sessionId = currentSession?.id;
@@ -822,7 +744,6 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       closeTurnStream(sessionId, runningTurnId, { preserveOverlay: true });
       clearRunningTurn(sessionId, runningTurnId);
       await refreshSessions();
-      void drainQueuedPrompt(sessionId);
     } catch (reason) {
       if (activeSessionRef.current?.id === sessionId) {
         setError(reason instanceof Error ? reason.message : "Failed to stop session");
@@ -932,6 +853,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
                 ...summary,
                 doneAt: visibleSession.doneAt,
                 currentRound: getCurrentRound(visibleSession),
+                queuedPrompts: visibleSession.queuedPrompts,
                 isRunning: visibleSession.isRunning ?? Boolean(visibleSession.runningTurnId),
                 hasUnreadRound: false,
               }
@@ -1000,67 +922,6 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
 
     submittingSessionIdsRef.current = next;
     setSubmittingSessionIds(next);
-  }
-
-  function queuePrompt(sessionId: string, prompt: Omit<QueuedPrompt, "id">) {
-    const queue = queuedPromptsRef.current.get(sessionId) ?? [];
-    const queuedPrompt = {
-      ...prompt,
-      id: `queued-prompt-${nextQueuedPromptIdRef.current}`,
-    };
-
-    nextQueuedPromptIdRef.current += 1;
-    queuedPromptsRef.current.set(sessionId, [...queue, queuedPrompt]);
-    setQueuedPromptsBySessionId((current) => {
-      const next = new Map(current);
-      const visibleQueue = next.get(sessionId) ?? [];
-
-      next.set(sessionId, [
-        ...visibleQueue,
-        {
-          id: queuedPrompt.id,
-          mode: queuedPrompt.mode,
-          prompt: queuedPrompt.prompt,
-        },
-      ]);
-
-      return next;
-    });
-  }
-
-  function removeQueuedPromptView(sessionId: string, queuedPromptId: string) {
-    setQueuedPromptsBySessionId((current) => {
-      const visibleQueue = current.get(sessionId);
-
-      if (!visibleQueue) {
-        return current;
-      }
-
-      const nextVisibleQueue = visibleQueue.filter((prompt) => prompt.id !== queuedPromptId);
-      const next = new Map(current);
-
-      if (nextVisibleQueue.length === 0) {
-        next.delete(sessionId);
-      } else {
-        next.set(sessionId, nextVisibleQueue);
-      }
-
-      return next;
-    });
-  }
-
-  function clearQueuedPromptViews(sessionId: string) {
-    setQueuedPromptsBySessionId((current) => {
-      if (!current.has(sessionId)) {
-        return current;
-      }
-
-      const next = new Map(current);
-
-      next.delete(sessionId);
-
-      return next;
-    });
   }
 
   function applyLocalSessionState(session: ApiSession): ApiSession {
@@ -1291,6 +1152,7 @@ function createSessionShell(session: ApiSessionListItem): ApiSession {
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
     messages: [],
+    queuedPrompts: session.queuedPrompts,
     currentRound: session.currentRound,
     gitBranch: session.gitBranch,
     isRunning: session.isRunning,

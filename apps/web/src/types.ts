@@ -27,6 +27,7 @@ export type SessionSummary = {
   createdAt: string;
   updatedAt: string;
   currentRound: number;
+  queuedPrompts?: ApiSession["queuedPrompts"];
   isRunning: boolean;
   hasUnreadRound: boolean;
 };

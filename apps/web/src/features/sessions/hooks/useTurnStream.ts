@@ -191,6 +191,7 @@ export function useTurnStream({
           updatedAt: updatedSession.updatedAt,
           currentRound: updatedSession.currentRound,
           gitBranch: updatedSession.gitBranch,
+          queuedPrompts: updatedSession.queuedPrompts,
           isRunning: updatedSession.isRunning,
           runningTurnId: updatedSession.runningTurnId,
         };

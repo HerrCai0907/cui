@@ -199,6 +199,14 @@ export interface paths {
                 createdAt: string;
                 /** Format: date-time */
                 updatedAt: string;
+                queuedPrompts?: {
+                  id: string;
+                  /** @enum {string} */
+                  mode: "chat" | "shell";
+                  prompt: string;
+                  /** Format: date-time */
+                  createdAt: string;
+                }[];
                 currentRound: number;
                 gitBranch?: string;
                 isRunning: boolean;
@@ -260,6 +268,8 @@ export interface paths {
             "application/json": {
               /** @enum {string} */
               status: "ok";
+              /** @enum {string} */
+              disposition?: "started" | "queued";
               session: {
                 id: string;
                 workspace: string;
@@ -289,12 +299,21 @@ export interface paths {
                   createdAt: string;
                   atomicReviewStatus?: "ready" | "failed";
                 }[];
+                queuedPrompts?: {
+                  id: string;
+                  /** @enum {string} */
+                  mode: "chat" | "shell";
+                  prompt: string;
+                  /** Format: date-time */
+                  createdAt: string;
+                }[];
                 currentRound: number;
                 gitBranch?: string;
                 isRunning: boolean;
                 runningTurnId?: string;
               };
-              turnId: string;
+              turnId?: string;
+              queuedPromptId?: string;
             };
           };
         };
@@ -363,6 +382,8 @@ export interface paths {
             "application/json": {
               /** @enum {string} */
               status: "ok";
+              /** @enum {string} */
+              disposition?: "started" | "queued";
               session: {
                 id: string;
                 workspace: string;
@@ -392,12 +413,21 @@ export interface paths {
                   createdAt: string;
                   atomicReviewStatus?: "ready" | "failed";
                 }[];
+                queuedPrompts?: {
+                  id: string;
+                  /** @enum {string} */
+                  mode: "chat" | "shell";
+                  prompt: string;
+                  /** Format: date-time */
+                  createdAt: string;
+                }[];
                 currentRound: number;
                 gitBranch?: string;
                 isRunning: boolean;
                 runningTurnId?: string;
               };
-              turnId: string;
+              turnId?: string;
+              queuedPromptId?: string;
             };
           };
         };
@@ -486,6 +516,14 @@ export interface paths {
                   createdAt: string;
                   atomicReviewStatus?: "ready" | "failed";
                 }[];
+                queuedPrompts?: {
+                  id: string;
+                  /** @enum {string} */
+                  mode: "chat" | "shell";
+                  prompt: string;
+                  /** Format: date-time */
+                  createdAt: string;
+                }[];
                 currentRound: number;
                 gitBranch?: string;
                 isRunning: boolean;
@@ -565,6 +603,14 @@ export interface paths {
                   /** Format: date-time */
                   createdAt: string;
                   atomicReviewStatus?: "ready" | "failed";
+                }[];
+                queuedPrompts?: {
+                  id: string;
+                  /** @enum {string} */
+                  mode: "chat" | "shell";
+                  prompt: string;
+                  /** Format: date-time */
+                  createdAt: string;
                 }[];
                 currentRound: number;
                 gitBranch?: string;
@@ -737,7 +783,7 @@ export interface paths {
         };
       };
       responses: {
-        /** @description The continuation turn was accepted and started. */
+        /** @description The continuation turn was accepted and either started or queued. */
         202: {
           headers: {
             [name: string]: unknown;
@@ -746,6 +792,8 @@ export interface paths {
             "application/json": {
               /** @enum {string} */
               status: "ok";
+              /** @enum {string} */
+              disposition?: "started" | "queued";
               session: {
                 id: string;
                 workspace: string;
@@ -775,12 +823,21 @@ export interface paths {
                   createdAt: string;
                   atomicReviewStatus?: "ready" | "failed";
                 }[];
+                queuedPrompts?: {
+                  id: string;
+                  /** @enum {string} */
+                  mode: "chat" | "shell";
+                  prompt: string;
+                  /** Format: date-time */
+                  createdAt: string;
+                }[];
                 currentRound: number;
                 gitBranch?: string;
                 isRunning: boolean;
                 runningTurnId?: string;
               };
-              turnId: string;
+              turnId?: string;
+              queuedPromptId?: string;
             };
           };
         };
@@ -852,7 +909,7 @@ export interface paths {
         };
       };
       responses: {
-        /** @description The shell command was accepted and started. */
+        /** @description The shell command was accepted and either started or queued. */
         202: {
           headers: {
             [name: string]: unknown;
@@ -861,6 +918,8 @@ export interface paths {
             "application/json": {
               /** @enum {string} */
               status: "ok";
+              /** @enum {string} */
+              disposition?: "started" | "queued";
               session: {
                 id: string;
                 workspace: string;
@@ -890,12 +949,21 @@ export interface paths {
                   createdAt: string;
                   atomicReviewStatus?: "ready" | "failed";
                 }[];
+                queuedPrompts?: {
+                  id: string;
+                  /** @enum {string} */
+                  mode: "chat" | "shell";
+                  prompt: string;
+                  /** Format: date-time */
+                  createdAt: string;
+                }[];
                 currentRound: number;
                 gitBranch?: string;
                 isRunning: boolean;
                 runningTurnId?: string;
               };
-              turnId: string;
+              turnId?: string;
+              queuedPromptId?: string;
             };
           };
         };
@@ -1071,6 +1139,14 @@ export interface paths {
                       createdAt: string;
                       atomicReviewStatus?: "ready" | "failed";
                     }[];
+                    queuedPrompts?: {
+                      id: string;
+                      /** @enum {string} */
+                      mode: "chat" | "shell";
+                      prompt: string;
+                      /** Format: date-time */
+                      createdAt: string;
+                    }[];
                     currentRound: number;
                     gitBranch?: string;
                     isRunning: boolean;
@@ -1108,6 +1184,14 @@ export interface paths {
                       /** Format: date-time */
                       createdAt: string;
                       atomicReviewStatus?: "ready" | "failed";
+                    }[];
+                    queuedPrompts?: {
+                      id: string;
+                      /** @enum {string} */
+                      mode: "chat" | "shell";
+                      prompt: string;
+                      /** Format: date-time */
+                      createdAt: string;
                     }[];
                     currentRound: number;
                     gitBranch?: string;
@@ -1249,6 +1333,14 @@ export interface components {
         createdAt: string;
         atomicReviewStatus?: "ready" | "failed";
       }[];
+      queuedPrompts?: {
+        id: string;
+        /** @enum {string} */
+        mode: "chat" | "shell";
+        prompt: string;
+        /** Format: date-time */
+        createdAt: string;
+      }[];
       currentRound: number;
       gitBranch?: string;
       isRunning: boolean;
@@ -1265,10 +1357,26 @@ export interface components {
       createdAt: string;
       /** Format: date-time */
       updatedAt: string;
+      queuedPrompts?: {
+        id: string;
+        /** @enum {string} */
+        mode: "chat" | "shell";
+        prompt: string;
+        /** Format: date-time */
+        createdAt: string;
+      }[];
       currentRound: number;
       gitBranch?: string;
       isRunning: boolean;
       runningTurnId?: string;
+    };
+    QueuedPrompt: {
+      id: string;
+      /** @enum {string} */
+      mode: "chat" | "shell";
+      prompt: string;
+      /** Format: date-time */
+      createdAt: string;
     };
     AiModelPreferences: {
       normal?: string;
@@ -1315,6 +1423,8 @@ export interface components {
     SubmittedTurnResponse: {
       /** @enum {string} */
       status: "ok";
+      /** @enum {string} */
+      disposition?: "started" | "queued";
       session: {
         id: string;
         workspace: string;
@@ -1344,12 +1454,21 @@ export interface components {
           createdAt: string;
           atomicReviewStatus?: "ready" | "failed";
         }[];
+        queuedPrompts?: {
+          id: string;
+          /** @enum {string} */
+          mode: "chat" | "shell";
+          prompt: string;
+          /** Format: date-time */
+          createdAt: string;
+        }[];
         currentRound: number;
         gitBranch?: string;
         isRunning: boolean;
         runningTurnId?: string;
       };
-      turnId: string;
+      turnId?: string;
+      queuedPromptId?: string;
     };
     OkResponse: {
       /** @enum {string} */
@@ -1398,6 +1517,14 @@ export interface components {
               createdAt: string;
               atomicReviewStatus?: "ready" | "failed";
             }[];
+            queuedPrompts?: {
+              id: string;
+              /** @enum {string} */
+              mode: "chat" | "shell";
+              prompt: string;
+              /** Format: date-time */
+              createdAt: string;
+            }[];
             currentRound: number;
             gitBranch?: string;
             isRunning: boolean;
@@ -1435,6 +1562,14 @@ export interface components {
               /** Format: date-time */
               createdAt: string;
               atomicReviewStatus?: "ready" | "failed";
+            }[];
+            queuedPrompts?: {
+              id: string;
+              /** @enum {string} */
+              mode: "chat" | "shell";
+              prompt: string;
+              /** Format: date-time */
+              createdAt: string;
             }[];
             currentRound: number;
             gitBranch?: string;

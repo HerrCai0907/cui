@@ -324,6 +324,29 @@
               "required": ["round", "hasChanges", "createdAt"]
             }
           },
+          "queuedPrompts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": ["chat", "shell"]
+                },
+                "prompt": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": ["id", "mode", "prompt", "createdAt"]
+            }
+          },
           "currentRound": {
             "type": "integer",
             "minimum": 0
@@ -376,6 +399,29 @@
             "type": "string",
             "format": "date-time"
           },
+          "queuedPrompts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": ["chat", "shell"]
+                },
+                "prompt": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": ["id", "mode", "prompt", "createdAt"]
+            }
+          },
           "currentRound": {
             "type": "integer",
             "minimum": 0
@@ -399,6 +445,26 @@
           "currentRound",
           "isRunning"
         ]
+      },
+      "QueuedPrompt": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["chat", "shell"]
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "mode", "prompt", "createdAt"]
       },
       "AiModelPreferences": {
         "type": "object",
@@ -554,6 +620,10 @@
             "type": "string",
             "enum": ["ok"]
           },
+          "disposition": {
+            "type": "string",
+            "enum": ["started", "queued"]
+          },
           "session": {
             "type": "object",
             "properties": {
@@ -644,6 +714,29 @@
                   "required": ["round", "hasChanges", "createdAt"]
                 }
               },
+              "queuedPrompts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": ["chat", "shell"]
+                    },
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": ["id", "mode", "prompt", "createdAt"]
+                }
+              },
               "currentRound": {
                 "type": "integer",
                 "minimum": 0
@@ -671,9 +764,12 @@
           },
           "turnId": {
             "type": "string"
+          },
+          "queuedPromptId": {
+            "type": "string"
           }
         },
-        "required": ["status", "session", "turnId"]
+        "required": ["status", "session"]
       },
       "OkResponse": {
         "type": "object",
@@ -808,6 +904,29 @@
                       "required": ["round", "hasChanges", "createdAt"]
                     }
                   },
+                  "queuedPrompts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "mode": {
+                          "type": "string",
+                          "enum": ["chat", "shell"]
+                        },
+                        "prompt": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": ["id", "mode", "prompt", "createdAt"]
+                    }
+                  },
                   "currentRound": {
                     "type": "integer",
                     "minimum": 0
@@ -931,6 +1050,29 @@
                         }
                       },
                       "required": ["round", "hasChanges", "createdAt"]
+                    }
+                  },
+                  "queuedPrompts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "mode": {
+                          "type": "string",
+                          "enum": ["chat", "shell"]
+                        },
+                        "prompt": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": ["id", "mode", "prompt", "createdAt"]
                     }
                   },
                   "currentRound": {
@@ -1264,6 +1406,29 @@
                             "type": "string",
                             "format": "date-time"
                           },
+                          "queuedPrompts": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "type": "string",
+                                  "enum": ["chat", "shell"]
+                                },
+                                "prompt": {
+                                  "type": "string"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                }
+                              },
+                              "required": ["id", "mode", "prompt", "createdAt"]
+                            }
+                          },
                           "currentRound": {
                             "type": "integer",
                             "minimum": 0
@@ -1401,6 +1566,10 @@
                       "type": "string",
                       "enum": ["ok"]
                     },
+                    "disposition": {
+                      "type": "string",
+                      "enum": ["started", "queued"]
+                    },
                     "session": {
                       "type": "object",
                       "properties": {
@@ -1491,6 +1660,29 @@
                             "required": ["round", "hasChanges", "createdAt"]
                           }
                         },
+                        "queuedPrompts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "mode": {
+                                "type": "string",
+                                "enum": ["chat", "shell"]
+                              },
+                              "prompt": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": ["id", "mode", "prompt", "createdAt"]
+                          }
+                        },
                         "currentRound": {
                           "type": "integer",
                           "minimum": 0
@@ -1518,9 +1710,12 @@
                     },
                     "turnId": {
                       "type": "string"
+                    },
+                    "queuedPromptId": {
+                      "type": "string"
                     }
                   },
-                  "required": ["status", "session", "turnId"]
+                  "required": ["status", "session"]
                 }
               }
             }
@@ -1596,6 +1791,10 @@
                       "type": "string",
                       "enum": ["ok"]
                     },
+                    "disposition": {
+                      "type": "string",
+                      "enum": ["started", "queued"]
+                    },
                     "session": {
                       "type": "object",
                       "properties": {
@@ -1686,6 +1885,29 @@
                             "required": ["round", "hasChanges", "createdAt"]
                           }
                         },
+                        "queuedPrompts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "mode": {
+                                "type": "string",
+                                "enum": ["chat", "shell"]
+                              },
+                              "prompt": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": ["id", "mode", "prompt", "createdAt"]
+                          }
+                        },
                         "currentRound": {
                           "type": "integer",
                           "minimum": 0
@@ -1713,9 +1935,12 @@
                     },
                     "turnId": {
                       "type": "string"
+                    },
+                    "queuedPromptId": {
+                      "type": "string"
                     }
                   },
-                  "required": ["status", "session", "turnId"]
+                  "required": ["status", "session"]
                 }
               }
             }
@@ -1865,6 +2090,29 @@
                               }
                             },
                             "required": ["round", "hasChanges", "createdAt"]
+                          }
+                        },
+                        "queuedPrompts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "mode": {
+                                "type": "string",
+                                "enum": ["chat", "shell"]
+                              },
+                              "prompt": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": ["id", "mode", "prompt", "createdAt"]
                           }
                         },
                         "currentRound": {
@@ -2041,6 +2289,29 @@
                               }
                             },
                             "required": ["round", "hasChanges", "createdAt"]
+                          }
+                        },
+                        "queuedPrompts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "mode": {
+                                "type": "string",
+                                "enum": ["chat", "shell"]
+                              },
+                              "prompt": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": ["id", "mode", "prompt", "createdAt"]
                           }
                         },
                         "currentRound": {
@@ -2407,7 +2678,7 @@
         },
         "responses": {
           "202": {
-            "description": "The continuation turn was accepted and started.",
+            "description": "The continuation turn was accepted and either started or queued.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2416,6 +2687,10 @@
                     "status": {
                       "type": "string",
                       "enum": ["ok"]
+                    },
+                    "disposition": {
+                      "type": "string",
+                      "enum": ["started", "queued"]
                     },
                     "session": {
                       "type": "object",
@@ -2507,6 +2782,29 @@
                             "required": ["round", "hasChanges", "createdAt"]
                           }
                         },
+                        "queuedPrompts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "mode": {
+                                "type": "string",
+                                "enum": ["chat", "shell"]
+                              },
+                              "prompt": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": ["id", "mode", "prompt", "createdAt"]
+                          }
+                        },
                         "currentRound": {
                           "type": "integer",
                           "minimum": 0
@@ -2534,9 +2832,12 @@
                     },
                     "turnId": {
                       "type": "string"
+                    },
+                    "queuedPromptId": {
+                      "type": "string"
                     }
                   },
-                  "required": ["status", "session", "turnId"]
+                  "required": ["status", "session"]
                 }
               }
             }
@@ -2625,7 +2926,7 @@
         },
         "responses": {
           "202": {
-            "description": "The shell command was accepted and started.",
+            "description": "The shell command was accepted and either started or queued.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2634,6 +2935,10 @@
                     "status": {
                       "type": "string",
                       "enum": ["ok"]
+                    },
+                    "disposition": {
+                      "type": "string",
+                      "enum": ["started", "queued"]
                     },
                     "session": {
                       "type": "object",
@@ -2725,6 +3030,29 @@
                             "required": ["round", "hasChanges", "createdAt"]
                           }
                         },
+                        "queuedPrompts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "mode": {
+                                "type": "string",
+                                "enum": ["chat", "shell"]
+                              },
+                              "prompt": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": ["id", "mode", "prompt", "createdAt"]
+                          }
+                        },
                         "currentRound": {
                           "type": "integer",
                           "minimum": 0
@@ -2752,9 +3080,12 @@
                     },
                     "turnId": {
                       "type": "string"
+                    },
+                    "queuedPromptId": {
+                      "type": "string"
                     }
                   },
-                  "required": ["status", "session", "turnId"]
+                  "required": ["status", "session"]
                 }
               }
             }
@@ -3019,6 +3350,29 @@
                                 "required": ["round", "hasChanges", "createdAt"]
                               }
                             },
+                            "queuedPrompts": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "mode": {
+                                    "type": "string",
+                                    "enum": ["chat", "shell"]
+                                  },
+                                  "prompt": {
+                                    "type": "string"
+                                  },
+                                  "createdAt": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  }
+                                },
+                                "required": ["id", "mode", "prompt", "createdAt"]
+                              }
+                            },
                             "currentRound": {
                               "type": "integer",
                               "minimum": 0
@@ -3142,6 +3496,29 @@
                                   }
                                 },
                                 "required": ["round", "hasChanges", "createdAt"]
+                              }
+                            },
+                            "queuedPrompts": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "mode": {
+                                    "type": "string",
+                                    "enum": ["chat", "shell"]
+                                  },
+                                  "prompt": {
+                                    "type": "string"
+                                  },
+                                  "createdAt": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  }
+                                },
+                                "required": ["id", "mode", "prompt", "createdAt"]
                               }
                             },
                             "currentRound": {

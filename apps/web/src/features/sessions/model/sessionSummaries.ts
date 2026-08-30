@@ -36,6 +36,7 @@ export function toSessionSummary(session: ApiSession | ApiSessionListItem): Sess
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
     currentRound,
+    queuedPrompts: session.queuedPrompts,
     isRunning: session.isRunning ?? Boolean(session.runningTurnId),
     hasUnreadRound: lastSeenRound !== null && lastSeenRound !== currentRound,
   };

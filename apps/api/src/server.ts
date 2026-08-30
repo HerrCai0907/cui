@@ -27,6 +27,10 @@ const server = app.listen(port);
 server.on("listening", () => {
   console.log(`API listening on http://localhost:${port}`);
   void logger.framework.info("server.started", { port });
+  void sessionService.resumeQueuedPrompts().catch((error: unknown) => {
+    console.error("Failed to resume queued prompts", error);
+    void logger.framework.error("server.queue_resume.failed", error);
+  });
 });
 
 server.on("error", (error) => {
