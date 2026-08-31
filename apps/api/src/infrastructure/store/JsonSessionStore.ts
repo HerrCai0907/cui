@@ -277,6 +277,43 @@ export class JsonSessionStore {
     return updatedSession;
   }
 
+  async updateSessionAiThreadId(sessionId: string, aiThreadId: string): Promise<ChatSession> {
+    let updatedSession: ChatSession | undefined;
+
+    await this.enqueueWrite(async () => {
+      const index = await this.readIndex();
+      let updatedStoredSession: StoredSession | undefined;
+      const sessions = index.sessions.map((session) => {
+        if (session.id !== sessionId) {
+          return session;
+        }
+
+        updatedStoredSession = {
+          ...session,
+          aiThreadId,
+        };
+
+        return toStoredSession(updatedStoredSession);
+      });
+
+      if (!updatedStoredSession) {
+        return;
+      }
+
+      await this.writeIndex({ ...index, sessions });
+      updatedSession = hydrateSession(
+        updatedStoredSession,
+        await this.readSessionDetail(updatedStoredSession.id),
+      );
+    });
+
+    if (!updatedSession) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    return updatedSession;
+  }
+
   async getRound(sessionId: string, roundNumber: number): Promise<ChatRound | undefined> {
     const session = await this.getSession(sessionId);
 
@@ -521,6 +558,8 @@ function toSessionDetail(session: ChatSession): SessionDetailData {
 function toStoredSession(session: ChatSession | StoredSession): StoredSession {
   return {
     id: session.id,
+    ...(session.origin ? { origin: session.origin } : {}),
+    ...(session.aiThreadId ? { aiThreadId: session.aiThreadId } : {}),
     workspace: session.workspace,
     title: session.title,
     summary: session.summary,
@@ -536,6 +575,7 @@ function toStoredSession(session: ChatSession | StoredSession): StoredSession {
 function toSessionIndexEntry(session: StoredSession): ChatSessionIndexEntry {
   return {
     id: session.id,
+    ...(session.origin ? { origin: session.origin } : {}),
     workspace: session.workspace,
     title: session.title,
     summary: session.summary,

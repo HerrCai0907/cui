@@ -240,6 +240,10 @@
           "id": {
             "type": "string"
           },
+          "origin": {
+            "type": "string",
+            "enum": ["chat", "shell"]
+          },
           "workspace": {
             "type": "string"
           },
@@ -377,6 +381,10 @@
         "properties": {
           "id": {
             "type": "string"
+          },
+          "origin": {
+            "type": "string",
+            "enum": ["chat", "shell"]
           },
           "workspace": {
             "type": "string"
@@ -684,6 +692,10 @@
               "id": {
                 "type": "string"
               },
+              "origin": {
+                "type": "string",
+                "enum": ["chat", "shell"]
+              },
               "workspace": {
                 "type": "string"
               },
@@ -874,6 +886,10 @@
                   "id": {
                     "type": "string"
                   },
+                  "origin": {
+                    "type": "string",
+                    "enum": ["chat", "shell"]
+                  },
                   "workspace": {
                     "type": "string"
                   },
@@ -1021,6 +1037,10 @@
                 "properties": {
                   "id": {
                     "type": "string"
+                  },
+                  "origin": {
+                    "type": "string",
+                    "enum": ["chat", "shell"]
                   },
                   "workspace": {
                     "type": "string"
@@ -1439,6 +1459,10 @@
                           "id": {
                             "type": "string"
                           },
+                          "origin": {
+                            "type": "string",
+                            "enum": ["chat", "shell"]
+                          },
                           "workspace": {
                             "type": "string"
                           },
@@ -1647,6 +1671,10 @@
                       "properties": {
                         "id": {
                           "type": "string"
+                        },
+                        "origin": {
+                          "type": "string",
+                          "enum": ["chat", "shell"]
                         },
                         "workspace": {
                           "type": "string"
@@ -1873,6 +1901,10 @@
                         "id": {
                           "type": "string"
                         },
+                        "origin": {
+                          "type": "string",
+                          "enum": ["chat", "shell"]
+                        },
                         "workspace": {
                           "type": "string"
                         },
@@ -2080,6 +2112,10 @@
                         "id": {
                           "type": "string"
                         },
+                        "origin": {
+                          "type": "string",
+                          "enum": ["chat", "shell"]
+                        },
                         "workspace": {
                           "type": "string"
                         },
@@ -2278,6 +2314,10 @@
                       "properties": {
                         "id": {
                           "type": "string"
+                        },
+                        "origin": {
+                          "type": "string",
+                          "enum": ["chat", "shell"]
                         },
                         "workspace": {
                           "type": "string"
@@ -2797,6 +2837,10 @@
                         "id": {
                           "type": "string"
                         },
+                        "origin": {
+                          "type": "string",
+                          "enum": ["chat", "shell"]
+                        },
                         "workspace": {
                           "type": "string"
                         },
@@ -3044,6 +3088,10 @@
                       "properties": {
                         "id": {
                           "type": "string"
+                        },
+                        "origin": {
+                          "type": "string",
+                          "enum": ["chat", "shell"]
                         },
                         "workspace": {
                           "type": "string"
@@ -3365,6 +3413,10 @@
                             "id": {
                               "type": "string"
                             },
+                            "origin": {
+                              "type": "string",
+                              "enum": ["chat", "shell"]
+                            },
                             "workspace": {
                               "type": "string"
                             },
@@ -3512,6 +3564,10 @@
                           "properties": {
                             "id": {
                               "type": "string"
+                            },
+                            "origin": {
+                              "type": "string",
+                              "enum": ["chat", "shell"]
                             },
                             "workspace": {
                               "type": "string"

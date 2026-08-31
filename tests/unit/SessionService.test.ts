@@ -402,6 +402,191 @@ test("beginCreateShellSession streams and stores command output", async () => {
   }
 });
 
+test("beginContinueSession creates a TraeX thread before chatting in a shell session", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    await store.createSession({
+      id: "shell-session-1",
+      origin: "shell",
+      workspace: cwd,
+      title: "$ printf hello",
+      summary: "Shell session",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [
+        {
+          id: "message-1",
+          role: "user",
+          content: "printf hello",
+          createdAt: "2026-08-22T00:00:00.000Z",
+        },
+        {
+          id: "message-2",
+          role: "assistant",
+          kind: "response",
+          content: "$ printf hello\n\nhello\n\nStatus: completed",
+          createdAt: "2026-08-22T00:00:01.000Z",
+        },
+      ],
+    });
+
+    const submitted = await service.beginContinueSession("shell-session-1", {
+      prompt: "Explain this output.",
+      models: {
+        normal: "GPT-5.4",
+      },
+    });
+    const events: unknown[] = [];
+
+    service.subscribeToTurn(submitted.turnId, (event) => {
+      events.push(event);
+    });
+
+    assert.equal(aiModel.createStreamInputs.length, 1);
+    assert.equal(aiModel.continueStreamInputs.length, 0);
+    assert.match(aiModel.createStreamInputs[0]?.prompt ?? "", /用户：printf hello/);
+    assert.match(aiModel.createStreamInputs[0]?.prompt ?? "", /助手：\$ printf hello/);
+    assert.match(aiModel.createStreamInputs[0]?.prompt ?? "", /用户：Explain this output\./);
+
+    aiModel.resolveSummary({
+      title: "Shell explained",
+      progress: "The shell output has been explained.",
+    });
+    aiModel.resolveRun({
+      sessionId: "traex-thread-1",
+      content: "It printed hello.",
+      rawEvents: [],
+    });
+
+    await waitFor(() => events.some(isDoneEvent));
+
+    const storedSession = await store.getSession("shell-session-1");
+    const publicSession = await service.getSessionView("shell-session-1");
+
+    assert.equal(storedSession?.id, "shell-session-1");
+    assert.equal(storedSession?.aiThreadId, "traex-thread-1");
+    assert.equal(publicSession?.id, "shell-session-1");
+    assert.equal("aiThreadId" in (publicSession ?? {}), false);
+    assert.equal(publicSession?.messages.at(-1)?.content, "It printed hello.");
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("beginContinueSession resumes a bound TraeX thread for later shell-session chat", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    await store.createSession({
+      id: "shell-session-1",
+      origin: "shell",
+      aiThreadId: "traex-thread-1",
+      workspace: cwd,
+      title: "$ printf hello",
+      summary: "Shell session",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [],
+    });
+
+    const submitted = await service.beginContinueSession("shell-session-1", {
+      prompt: "Follow up.",
+    });
+    const events: unknown[] = [];
+
+    service.subscribeToTurn(submitted.turnId, (event) => {
+      events.push(event);
+    });
+
+    assert.equal(aiModel.createStreamInputs.length, 0);
+    assert.equal(aiModel.continueStreamInputs.length, 1);
+    assert.equal(aiModel.continueStreamInputs[0]?.sessionId, "traex-thread-1");
+
+    aiModel.resolveSummary({
+      title: "Shell follow-up",
+      progress: "The bound thread was resumed.",
+    });
+    aiModel.resolveRun({
+      sessionId: "traex-thread-1",
+      content: "Continued.",
+      rawEvents: [],
+    });
+
+    await waitFor(() => events.some(isDoneEvent));
+
+    const storedSession = await store.getSession("shell-session-1");
+
+    assert.equal(storedSession?.id, "shell-session-1");
+    assert.equal(storedSession?.aiThreadId, "traex-thread-1");
+    assert.equal(storedSession?.messages.at(-1)?.content, "Continued.");
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("beginContinueSession treats legacy shell sessions as unbound TraeX threads", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    await store.createSession({
+      id: "legacy-shell-session-1",
+      workspace: cwd,
+      title: "$ pwd",
+      summary: "Shell session",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [
+        {
+          id: "message-1",
+          role: "user",
+          content: "pwd",
+          createdAt: "2026-08-22T00:00:00.000Z",
+        },
+      ],
+    });
+
+    const submitted = await service.beginContinueSession("legacy-shell-session-1", {
+      prompt: "Explain this.",
+    });
+    const events: unknown[] = [];
+
+    service.subscribeToTurn(submitted.turnId, (event) => {
+      events.push(event);
+    });
+
+    assert.equal(aiModel.createStreamInputs.length, 1);
+    assert.equal(aiModel.continueStreamInputs.length, 0);
+
+    aiModel.resolveSummary({
+      title: "Legacy shell",
+      progress: "The legacy shell session was rebound.",
+    });
+    aiModel.resolveRun({
+      sessionId: "traex-thread-legacy",
+      content: "Explained.",
+      rawEvents: [],
+    });
+
+    await waitFor(() => events.some(isDoneEvent));
+
+    const storedSession = await store.getSession("legacy-shell-session-1");
+
+    assert.equal(storedSession?.aiThreadId, "traex-thread-legacy");
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 test("beginCreateSession expands home workspace before calling the model", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
@@ -461,7 +646,11 @@ class FakeAiModel implements AiModel {
   readonly summaryPrompts: string[] = [];
   readonly summaryModels: Array<AiModelPreferences | undefined> = [];
   readonly runModels: Array<AiModelPreferences | undefined> = [];
-  readonly createStreamInputs: Array<{ workspace: string; models?: AiModelPreferences }> = [];
+  readonly createStreamInputs: Array<{
+    workspace: string;
+    prompt: string;
+    models?: AiModelPreferences;
+  }> = [];
   readonly continueStreamInputs: Array<{
     sessionId: string;
     workspace: string;

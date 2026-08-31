@@ -212,6 +212,8 @@ export class SessionService {
     const assistantMessages = createAssistantMessages(aiResponse, round);
     const session: ChatSession = {
       id: sessionId,
+      origin: "chat",
+      aiThreadId: sessionId,
       workspace,
       title: createTitle(request.prompt),
       summary: "",
@@ -277,6 +279,8 @@ export class SessionService {
     const userMessage = createMessage("user", request.prompt);
     const session: ChatSession = {
       id: sessionId,
+      origin: "chat",
+      aiThreadId: sessionId,
       workspace,
       title: createTitle(request.prompt),
       summary: "",
@@ -315,6 +319,7 @@ export class SessionService {
     const userMessage = createMessage("user", request.command);
     const session: ChatSession = {
       id: sessionId,
+      origin: "shell",
       workspace,
       title: createShellTitle(request.command),
       summary: "Shell session",
@@ -357,30 +362,37 @@ export class SessionService {
     }
 
     const workspace = await assertExistingDirectory(session.workspace);
-    const aiResponse = await this.aiModel.continueSession({
+    const runInput = this.createChatRunInput(session, request, workspace);
+    const aiResponse =
+      runInput.kind === "continue"
+        ? await this.aiModel.continueSession(runInput.input)
+        : await this.aiModel.createSession(runInput.input);
+    const localAiResponse = {
+      ...aiResponse,
       sessionId,
-      workspace,
-      prompt: request.prompt,
-      models: request.models,
-    });
+    };
     const userMessage = createMessage("user", request.prompt);
-    const round = this.roundService.createNextRound(session, aiResponse);
+    const round = this.roundService.createNextRound(session, localAiResponse);
     const reviewPrompt = round?.hasChanges
       ? createSessionInputTranscript(session, request.prompt)
       : undefined;
-    const assistantMessages = createAssistantMessages(aiResponse, round);
+    const assistantMessages = createAssistantMessages(localAiResponse, round);
 
     await this.logger.session(sessionId).info("session.continued", {
       sessionId,
       workspace,
       prompt: request.prompt,
-      response: aiResponse.content,
-      rawEvents: aiResponse.rawEvents,
+      response: localAiResponse.content,
+      rawEvents: localAiResponse.rawEvents,
     });
     await this.logger.framework.info("session.continue.completed", {
       sessionId,
       workspace,
     });
+
+    if (runInput.kind === "create") {
+      await this.store.updateSessionAiThreadId(sessionId, aiResponse.sessionId);
+    }
 
     const updatedSession = await this.store.appendRoundAndMessages(sessionId, round, [
       userMessage,
@@ -391,7 +403,7 @@ export class SessionService {
         sessionId,
         workspace,
         prompt: reviewPrompt,
-        aiResponse,
+        aiResponse: localAiResponse,
         round,
         models: request.models,
       });
@@ -493,23 +505,24 @@ export class SessionService {
     const updatedSession = await this.store.appendMessages(session.id, [userMessage]);
     const bufferedEvents: TurnStreamEvent[] = [];
     let runningTurn: RunningTurn | undefined;
-    const run = this.aiModel.continueSessionStream(
-      {
-        sessionId: session.id,
-        workspace,
-        prompt: request.prompt,
-        models: request.models,
-      },
-      (event) => {
-        handleAiRunEvent(event, (streamEvent) => {
-          if (runningTurn) {
-            this.turnRegistry.emitTurnEvent(runningTurn, streamEvent);
-          } else {
-            bufferedEvents.push(streamEvent);
-          }
-        });
-      },
-    );
+    const onAiRunEvent = (event: AiRunEvent) => {
+      handleAiRunEvent(event, (streamEvent) => {
+        if (runningTurn) {
+          this.turnRegistry.emitTurnEvent(runningTurn, streamEvent);
+        } else {
+          bufferedEvents.push(streamEvent);
+        }
+      });
+    };
+    const runInput = this.createChatRunInput(session, request, workspace);
+    const run =
+      runInput.kind === "continue"
+        ? this.aiModel.continueSessionStream(runInput.input, onAiRunEvent)
+        : this.aiModel.createSessionStream(runInput.input, onAiRunEvent);
+
+    if (runInput.kind === "create") {
+      void run.sessionId.catch(() => undefined);
+    }
 
     runningTurn = this.turnRegistry.createRunningTurn(session.id, run.cancel);
     const summaryPromise = this.refreshSessionSummaryFromUserInput(
@@ -519,7 +532,9 @@ export class SessionService {
     );
 
     bufferedEvents.forEach((event) => this.turnRegistry.emitTurnEvent(runningTurn!, event));
-    this.finishContinueSession(request, run.result, runningTurn, workspace, summaryPromise);
+    this.finishContinueSession(request, run.result, runningTurn, workspace, summaryPromise, {
+      bindAiThreadId: runInput.kind === "create",
+    });
 
     return {
       disposition: "started",
@@ -683,14 +698,22 @@ export class SessionService {
     turn: RunningTurn,
     workspace: string,
     summaryPromise: Promise<ChatSession>,
+    options: { bindAiThreadId?: boolean } = {},
   ): void {
     result
       .then(async (aiResponse) => {
+        if (options.bindAiThreadId) {
+          await this.store.updateSessionAiThreadId(turn.sessionId, aiResponse.sessionId);
+        }
+
         const session = await this.turnCompletionService.completeTurn({
           kind: "continue",
           workspace,
           prompt: request.prompt,
-          aiResponse,
+          aiResponse: {
+            ...aiResponse,
+            sessionId: turn.sessionId,
+          },
           models: request.models,
         });
         const latestSession =
@@ -723,6 +746,52 @@ export class SessionService {
         });
         this.scheduleNextQueuedPrompt(turn.sessionId);
       });
+  }
+
+  private createChatRunInput(
+    session: ChatSession,
+    request: ContinueSessionRequest,
+    workspace: string,
+  ):
+    | {
+        kind: "continue";
+        input: {
+          sessionId: string;
+          workspace: string;
+          prompt: string;
+          models?: AiModelPreferences;
+        };
+      }
+    | {
+        kind: "create";
+        input: {
+          workspace: string;
+          prompt: string;
+          models?: AiModelPreferences;
+        };
+      } {
+    const aiThreadId = session.aiThreadId ?? inferAiThreadId(session);
+
+    if (aiThreadId) {
+      return {
+        kind: "continue",
+        input: {
+          sessionId: aiThreadId,
+          workspace,
+          prompt: request.prompt,
+          models: request.models,
+        },
+      };
+    }
+
+    return {
+      kind: "create",
+      input: {
+        workspace,
+        prompt: createSessionInputTranscript(session, request.prompt),
+        models: request.models,
+      },
+    };
   }
 
   private startShellRun(input: { sessionId: string; workspace: string; command: string }): {
@@ -1001,6 +1070,28 @@ function createShellTraceEvent(
       ...(options.output !== undefined ? { aggregated_output: options.output } : {}),
     },
   };
+}
+
+function inferAiThreadId(session: ChatSession): string | undefined {
+  if (session.origin === "shell") {
+    return undefined;
+  }
+
+  if (session.origin === "chat") {
+    return session.id;
+  }
+
+  return isLegacyShellSession(session) ? undefined : session.id;
+}
+
+function isLegacyShellSession(session: ChatSession): boolean {
+  const [firstMessage] = session.messages;
+
+  return (
+    session.summary === "Shell session" &&
+    session.title.startsWith("$ ") &&
+    firstMessage?.role === "user"
+  );
 }
 
 function formatShellCommandOutput(command: string, result: ShellCommandResult): string {

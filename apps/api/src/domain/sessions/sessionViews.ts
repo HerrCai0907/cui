@@ -14,6 +14,7 @@ export function toSessionView(
   session: ChatSession,
   optionsOrRunningTurnId?: SessionViewOptions | string,
 ): ChatSessionView {
+  const { aiThreadId: _aiThreadId, ...publicSession } = session;
   const options =
     typeof optionsOrRunningTurnId === "string"
       ? { runningTurnId: optionsOrRunningTurnId }
@@ -34,7 +35,7 @@ export function toSessionView(
     })) ?? [];
 
   return {
-    ...session,
+    ...publicSession,
     rounds: roundSummaries,
     queuedPrompts,
     currentRound: getCurrentRound(session),
