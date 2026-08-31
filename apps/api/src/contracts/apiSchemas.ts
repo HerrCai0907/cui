@@ -89,8 +89,11 @@ export const QueuedPromptSchema = z.object({
   createdAt: z.string().datetime(),
 });
 
+export const ChatSessionOriginSchema = z.enum(["chat", "shell"]);
+
 export const ChatSessionViewSchema = z.object({
   id: z.string(),
+  origin: ChatSessionOriginSchema.optional(),
   workspace: z.string(),
   title: z.string(),
   summary: z.string().optional(),

@@ -190,6 +190,8 @@ export interface paths {
             "application/json": {
               sessions: {
                 id: string;
+                /** @enum {string} */
+                origin?: "chat" | "shell";
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -280,6 +282,8 @@ export interface paths {
               disposition?: "started" | "queued";
               session: {
                 id: string;
+                /** @enum {string} */
+                origin?: "chat" | "shell";
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -394,6 +398,8 @@ export interface paths {
               disposition?: "started" | "queued";
               session: {
                 id: string;
+                /** @enum {string} */
+                origin?: "chat" | "shell";
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -497,6 +503,8 @@ export interface paths {
             "application/json": {
               session: {
                 id: string;
+                /** @enum {string} */
+                origin?: "chat" | "shell";
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -585,6 +593,8 @@ export interface paths {
             "application/json": {
               session: {
                 id: string;
+                /** @enum {string} */
+                origin?: "chat" | "shell";
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -813,6 +823,8 @@ export interface paths {
               disposition?: "started" | "queued";
               session: {
                 id: string;
+                /** @enum {string} */
+                origin?: "chat" | "shell";
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -939,6 +951,8 @@ export interface paths {
               disposition?: "started" | "queued";
               session: {
                 id: string;
+                /** @enum {string} */
+                origin?: "chat" | "shell";
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -1129,6 +1143,8 @@ export interface paths {
                   type: "session.updated";
                   session: {
                     id: string;
+                    /** @enum {string} */
+                    origin?: "chat" | "shell";
                     workspace: string;
                     title: string;
                     summary?: string;
@@ -1175,6 +1191,8 @@ export interface paths {
                   type: "done";
                   session: {
                     id: string;
+                    /** @enum {string} */
+                    origin?: "chat" | "shell";
                     workspace: string;
                     title: string;
                     summary?: string;
@@ -1323,6 +1341,8 @@ export interface components {
     };
     ChatSessionView: {
       id: string;
+      /** @enum {string} */
+      origin?: "chat" | "shell";
       workspace: string;
       title: string;
       summary?: string;
@@ -1365,6 +1385,8 @@ export interface components {
     };
     ChatSessionListItem: {
       id: string;
+      /** @enum {string} */
+      origin?: "chat" | "shell";
       workspace: string;
       title: string;
       summary?: string;
@@ -1468,6 +1490,8 @@ export interface components {
       disposition?: "started" | "queued";
       session: {
         id: string;
+        /** @enum {string} */
+        origin?: "chat" | "shell";
         workspace: string;
         title: string;
         summary?: string;
@@ -1531,6 +1555,8 @@ export interface components {
           type: "session.updated";
           session: {
             id: string;
+            /** @enum {string} */
+            origin?: "chat" | "shell";
             workspace: string;
             title: string;
             summary?: string;
@@ -1577,6 +1603,8 @@ export interface components {
           type: "done";
           session: {
             id: string;
+            /** @enum {string} */
+            origin?: "chat" | "shell";
             workspace: string;
             title: string;
             summary?: string;

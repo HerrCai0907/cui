@@ -36,8 +36,12 @@ export type QueuedPrompt = {
 
 export type QueuedPromptView = Pick<QueuedPrompt, "id" | "mode" | "prompt" | "createdAt">;
 
+export type ChatSessionOrigin = "chat" | "shell";
+
 export type ChatSession = {
   id: string;
+  origin?: ChatSessionOrigin;
+  aiThreadId?: string;
   workspace: string;
   title: string;
   summary?: string;
@@ -49,7 +53,7 @@ export type ChatSession = {
   queuedPrompts?: QueuedPrompt[];
 };
 
-export type ChatSessionView = Omit<ChatSession, "rounds" | "queuedPrompts"> & {
+export type ChatSessionView = Omit<ChatSession, "aiThreadId" | "rounds" | "queuedPrompts"> & {
   rounds?: ChatRoundSummary[];
   queuedPrompts?: QueuedPromptView[];
   currentRound: number;
@@ -58,7 +62,10 @@ export type ChatSessionView = Omit<ChatSession, "rounds" | "queuedPrompts"> & {
   runningTurnId?: string;
 };
 
-export type ChatSessionIndexEntry = Omit<ChatSession, "messages" | "rounds" | "queuedPrompts"> & {
+export type ChatSessionIndexEntry = Omit<
+  ChatSession,
+  "aiThreadId" | "messages" | "rounds" | "queuedPrompts"
+> & {
   queuedPrompts?: QueuedPromptView[];
   currentRound: number;
 };
