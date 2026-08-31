@@ -81,8 +81,11 @@ test("sends configured models when starting a chat session", async ({ page }) =>
   const modelChoices = page.getByRole("group", { name: "Model choices" });
 
   await modelChoices.locator("select").nth(0).selectOption("GPT-5.4");
-  await modelChoices.locator("select").nth(1).selectOption("Seed-2.1-Turbo");
-  await modelChoices.locator("select").nth(2).selectOption("DeepSeek-V4-Pro");
+  await modelChoices.getByLabel("Normal reasoning effort").selectOption("medium");
+  await modelChoices.locator("select").nth(2).selectOption("Seed-2.1-Turbo");
+  await modelChoices.getByLabel("Summary reasoning effort").selectOption("low");
+  await modelChoices.locator("select").nth(4).selectOption("DeepSeek-V4-Pro");
+  await modelChoices.getByLabel("Atomic Review reasoning effort").selectOption("xhigh");
   await page.getByRole("button", { name: "New session", exact: true }).click();
   await page.getByPlaceholder("Start with an initial prompt...").fill("Use the selected models.");
   await page.getByRole("button", { name: "Send message" }).click();
@@ -90,12 +93,17 @@ test("sends configured models when starting a chat session", async ({ page }) =>
   await expect
     .poll(() => requestBody)
     .toEqual({
-      workspace: currentWorkspace,
+      workspace: "~",
       prompt: "Use the selected models.",
       models: {
         normal: "GPT-5.4",
         summary: "Seed-2.1-Turbo",
         atomicReview: "DeepSeek-V4-Pro",
+        reasoningEfforts: {
+          normal: "medium",
+          summary: "low",
+          atomicReview: "xhigh",
+        },
       },
     });
 });

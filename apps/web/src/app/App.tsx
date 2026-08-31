@@ -2,7 +2,6 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { listModels } from "../features/config/api/modelApi";
 import { ConfigPage } from "../features/config/components/ConfigPage";
 import {
-  createModelRequestPreferences,
   loadAppConfig,
   saveAppConfig,
   type AppConfig,
@@ -101,7 +100,8 @@ export function App() {
     setReviewLoading(true);
     setReviewError(null);
     getRoundReview(reviewRoute.sessionId, reviewRoute.round, reviewRoute.mode, {
-      atomicReviewModel: createModelRequestPreferences(config.models)?.atomicReview,
+      atomicReviewModel: config.models.atomicReview || undefined,
+      atomicReviewReasoningEffort: config.reasoningEfforts.atomicReview,
     })
       .then((loadedReview) => {
         if (!cancelled) {
@@ -129,7 +129,13 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [reviewRoute?.sessionId, reviewRoute?.round, reviewRoute?.mode, config.models.atomicReview]);
+  }, [
+    reviewRoute?.sessionId,
+    reviewRoute?.round,
+    reviewRoute?.mode,
+    config.models.atomicReview,
+    config.reasoningEfforts.atomicReview,
+  ]);
 
   function startNewSession(workspace?: string) {
     setConfigOpen(false);

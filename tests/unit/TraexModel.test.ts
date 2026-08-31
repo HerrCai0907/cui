@@ -88,6 +88,11 @@ test("uses separate configured models for normal, summary, and atomic review run
     normal: "GPT-5.4",
     summary: "Seed-2.1-Turbo",
     atomicReview: "DeepSeek-V4-Pro",
+    reasoningEfforts: {
+      normal: "high",
+      summary: "low",
+      atomicReview: "xhigh",
+    },
   };
 
   await model.createSession({
@@ -112,8 +117,14 @@ test("uses separate configured models for normal, summary, and atomic review run
   });
 
   assert.deepEqual(findModelArgs(calls[0].args), ["--model", "GPT-5.4"]);
+  assert.deepEqual(findReasoningEffortArgs(calls[0].args), ["-c", 'model_reasoning_effort="high"']);
   assert.deepEqual(findModelArgs(calls[1].args), ["--model", "Seed-2.1-Turbo"]);
+  assert.deepEqual(findReasoningEffortArgs(calls[1].args), ["-c", 'model_reasoning_effort="low"']);
   assert.deepEqual(findModelArgs(calls[2].args), ["--model", "DeepSeek-V4-Pro"]);
+  assert.deepEqual(findReasoningEffortArgs(calls[2].args), [
+    "-c",
+    'model_reasoning_effort="xhigh"',
+  ]);
   assert.deepEqual(await model.listModels(), [
     {
       name: "GPT-5.4",
@@ -164,6 +175,12 @@ function findModelArgs(args: string[]): string[] {
   const index = args.indexOf("--model");
 
   return index === -1 ? [] : args.slice(index, index + 2);
+}
+
+function findReasoningEffortArgs(args: string[]): string[] {
+  const index = args.findIndex((arg) => arg.startsWith("model_reasoning_effort="));
+
+  return index <= 0 ? [] : args.slice(index - 1, index + 1);
 }
 
 function extractDiffFilePath(input: string): string {

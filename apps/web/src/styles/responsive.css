@@ -58,6 +58,10 @@
     grid-template-columns: 1fr;
   }
 
+  .config-select-controls {
+    grid-template-columns: 1fr;
+  }
+
   .config-section-header {
     flex-direction: column;
     align-items: start;

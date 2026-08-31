@@ -11,12 +11,19 @@ export async function getRoundReview(
   sessionId: string,
   round: number,
   mode: NonNullable<GetRoundReviewQuery>["mode"] = "atomic",
-  query: Pick<NonNullable<GetRoundReviewQuery>, "atomicReviewModel"> = {},
+  query: Pick<
+    NonNullable<GetRoundReviewQuery>,
+    "atomicReviewModel" | "atomicReviewReasoningEffort"
+  > = {},
 ): Promise<ApiRound> {
   const searchParams = new URLSearchParams({ mode });
 
   if (query.atomicReviewModel) {
     searchParams.set("atomicReviewModel", query.atomicReviewModel);
+  }
+
+  if (query.atomicReviewReasoningEffort) {
+    searchParams.set("atomicReviewReasoningEffort", query.atomicReviewReasoningEffort);
   }
 
   const data = await fetchJson<GetRoundReviewResponse>(

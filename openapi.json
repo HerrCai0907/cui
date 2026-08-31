@@ -480,6 +480,24 @@
           "atomicReview": {
             "type": "string",
             "minLength": 1
+          },
+          "reasoningEfforts": {
+            "type": "object",
+            "properties": {
+              "normal": {
+                "type": "string",
+                "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+              },
+              "summary": {
+                "type": "string",
+                "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+              },
+              "atomicReview": {
+                "type": "string",
+                "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+              }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": false
@@ -545,6 +563,24 @@
               "atomicReview": {
                 "type": "string",
                 "minLength": 1
+              },
+              "reasoningEfforts": {
+                "type": "object",
+                "properties": {
+                  "normal": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                  },
+                  "summary": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                  },
+                  "atomicReview": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                  }
+                },
+                "additionalProperties": false
               }
             },
             "additionalProperties": false
@@ -573,6 +609,24 @@
               "atomicReview": {
                 "type": "string",
                 "minLength": 1
+              },
+              "reasoningEfforts": {
+                "type": "object",
+                "properties": {
+                  "normal": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                  },
+                  "summary": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                  },
+                  "atomicReview": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                  }
+                },
+                "additionalProperties": false
               }
             },
             "additionalProperties": false
@@ -1544,6 +1598,24 @@
                       "atomicReview": {
                         "type": "string",
                         "minLength": 1
+                      },
+                      "reasoningEfforts": {
+                        "type": "object",
+                        "properties": {
+                          "normal": {
+                            "type": "string",
+                            "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                          },
+                          "summary": {
+                            "type": "string",
+                            "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                          },
+                          "atomicReview": {
+                            "type": "string",
+                            "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                          }
+                        },
+                        "additionalProperties": false
                       }
                     },
                     "additionalProperties": false
@@ -2419,6 +2491,15 @@
             "required": false,
             "name": "atomicReviewModel",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+            },
+            "required": false,
+            "name": "atomicReviewReasoningEffort",
+            "in": "query"
           }
         ],
         "responses": {
@@ -2666,6 +2747,24 @@
                       "atomicReview": {
                         "type": "string",
                         "minLength": 1
+                      },
+                      "reasoningEfforts": {
+                        "type": "object",
+                        "properties": {
+                          "normal": {
+                            "type": "string",
+                            "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                          },
+                          "summary": {
+                            "type": "string",
+                            "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                          },
+                          "atomicReview": {
+                            "type": "string",
+                            "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                          }
+                        },
+                        "additionalProperties": false
                       }
                     },
                     "additionalProperties": false

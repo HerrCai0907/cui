@@ -116,6 +116,14 @@ export const AiModelPreferencesSchema = z
     normal: z.string().trim().min(1).optional(),
     summary: z.string().trim().min(1).optional(),
     atomicReview: z.string().trim().min(1).optional(),
+    reasoningEfforts: z
+      .object({
+        normal: z.enum(["none", "minimal", "low", "medium", "high", "xhigh"]).optional(),
+        summary: z.enum(["none", "minimal", "low", "medium", "high", "xhigh"]).optional(),
+        atomicReview: z.enum(["none", "minimal", "low", "medium", "high", "xhigh"]).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -265,6 +273,9 @@ export const RoundReviewParamsSchema = z.object({
 export const RoundReviewQuerySchema = z.object({
   mode: z.enum(["atomic", "full"]).optional(),
   atomicReviewModel: z.string().trim().min(1).optional(),
+  atomicReviewReasoningEffort: z
+    .enum(["none", "minimal", "low", "medium", "high", "xhigh"])
+    .optional(),
 });
 
 export const TurnIdParamsSchema = z.object({

@@ -269,6 +269,11 @@ test("session request parsers accept model preferences", () => {
         normal: "GPT-5.4",
         summary: "Seed-2.1-Turbo",
         atomicReview: "DeepSeek-V4-Pro",
+        reasoningEfforts: {
+          normal: "high",
+          summary: "low",
+          atomicReview: "xhigh",
+        },
       },
     }),
     {
@@ -280,6 +285,11 @@ test("session request parsers accept model preferences", () => {
           normal: "GPT-5.4",
           summary: "Seed-2.1-Turbo",
           atomicReview: "DeepSeek-V4-Pro",
+          reasoningEfforts: {
+            normal: "high",
+            summary: "low",
+            atomicReview: "xhigh",
+          },
         },
       },
     },
@@ -290,6 +300,9 @@ test("session request parsers accept model preferences", () => {
       prompt: "Continue the work",
       models: {
         normal: "GPT-5.6-Sol",
+        reasoningEfforts: {
+          normal: "medium",
+        },
       },
     }),
     {
@@ -298,6 +311,9 @@ test("session request parsers accept model preferences", () => {
         prompt: "Continue the work",
         models: {
           normal: "GPT-5.6-Sol",
+          reasoningEfforts: {
+            normal: "medium",
+          },
         },
       },
     },
@@ -309,6 +325,19 @@ test("session request parsers accept model preferences", () => {
       prompt: "Implement a change",
       models: {
         summary: "",
+      },
+    }).ok,
+    false,
+  );
+
+  assert.equal(
+    parseCreateSessionBody({
+      workspace: "/tmp/workspace",
+      prompt: "Implement a change",
+      models: {
+        reasoningEfforts: {
+          normal: "invalid",
+        },
       },
     }).ok,
     false,

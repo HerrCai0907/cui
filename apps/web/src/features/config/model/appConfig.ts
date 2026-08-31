@@ -22,6 +22,16 @@ export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
 
 export type ModelPreferences = Record<ModelPurpose, string>;
 
+export const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh"] as const;
+
+export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
+
+export type ReasoningEffortPreferences = Record<ModelPurpose, ReasoningEffort>;
+
+export type ModelRequestPreferences = Partial<Record<ModelPurpose, string>> & {
+  reasoningEfforts?: Partial<Record<ModelPurpose, ReasoningEffort>>;
+};
+
 export type ModelOption = {
   name: string;
   provider?: string;
@@ -31,6 +41,7 @@ export type ModelOption = {
 
 export type AppConfig = {
   models: ModelPreferences;
+  reasoningEfforts: ReasoningEffortPreferences;
   executionTrace: {
     visibleMessageTypes: Record<ExecutionTraceMessageType, boolean>;
   };
@@ -39,6 +50,7 @@ export type AppConfig = {
 type StoredAppConfig = {
   version: 1;
   models?: Partial<Record<ModelPurpose, string>>;
+  reasoningEfforts?: Partial<Record<ModelPurpose, ReasoningEffort>>;
   executionTrace?: {
     visibleMessageTypes?: Partial<Record<ExecutionTraceMessageType, boolean>>;
   };
@@ -63,12 +75,26 @@ export const MODEL_PURPOSE_LABELS: Record<ModelPurpose, string> = {
   atomicReview: "Atomic Review",
 };
 
+export const REASONING_EFFORT_LABELS: Record<ReasoningEffort, string> = {
+  none: "None",
+  minimal: "Minimal",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  xhigh: "XHigh",
+};
+
 export function createDefaultAppConfig(): AppConfig {
   return {
     models: {
       normal: "",
       summary: "",
       atomicReview: "",
+    },
+    reasoningEfforts: {
+      normal: "high",
+      summary: "low",
+      atomicReview: "medium",
     },
     executionTrace: {
       visibleMessageTypes: Object.fromEntries(
@@ -104,6 +130,10 @@ export function loadAppConfig(): AppConfig {
         ...defaultConfig.models,
         ...parseModelPreferences(parsed.models),
       },
+      reasoningEfforts: {
+        ...defaultConfig.reasoningEfforts,
+        ...parseReasoningEffortPreferences(parsed.reasoningEfforts),
+      },
       executionTrace: {
         visibleMessageTypes: {
           ...defaultConfig.executionTrace.visibleMessageTypes,
@@ -126,6 +156,7 @@ export function saveAppConfig(config: AppConfig): void {
     const storedConfig: StoredAppConfig = {
       version: 1,
       models: sanitizeModelPreferences(config.models),
+      reasoningEfforts: sanitizeReasoningEffortPreferences(config.reasoningEfforts),
       executionTrace: {
         visibleMessageTypes: config.executionTrace.visibleMessageTypes,
       },
@@ -140,8 +171,14 @@ export function saveAppConfig(config: AppConfig): void {
 
 export function createModelRequestPreferences(
   models: ModelPreferences,
-): Partial<Record<ModelPurpose, string>> | undefined {
-  const preferences = sanitizeModelPreferences(models);
+  reasoningEfforts: ReasoningEffortPreferences,
+): ModelRequestPreferences | undefined {
+  const preferences: ModelRequestPreferences = sanitizeModelPreferences(models);
+  const sanitizedReasoningEfforts = sanitizeReasoningEffortPreferences(reasoningEfforts);
+
+  if (Object.keys(sanitizedReasoningEfforts).length > 0) {
+    preferences.reasoningEfforts = sanitizedReasoningEfforts;
+  }
 
   return Object.keys(preferences).length > 0 ? preferences : undefined;
 }
@@ -237,6 +274,16 @@ function parseModelPreferences(value: unknown): Partial<Record<ModelPurpose, str
   return sanitizeModelPreferences(value as Partial<Record<ModelPurpose, string>>);
 }
 
+function parseReasoningEffortPreferences(
+  value: unknown,
+): Partial<Record<ModelPurpose, ReasoningEffort>> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return sanitizeReasoningEffortPreferences(value as Partial<Record<ModelPurpose, unknown>>);
+}
+
 function sanitizeModelPreferences(
   models: Partial<Record<ModelPurpose, string>>,
 ): Partial<Record<ModelPurpose, string>> {
@@ -249,6 +296,27 @@ function sanitizeModelPreferences(
 
     return preferences;
   }, {});
+}
+
+function sanitizeReasoningEffortPreferences(
+  reasoningEfforts: Partial<Record<ModelPurpose, unknown>>,
+): Partial<Record<ModelPurpose, ReasoningEffort>> {
+  return MODEL_PURPOSES.reduce<Partial<Record<ModelPurpose, ReasoningEffort>>>(
+    (preferences, purpose) => {
+      const reasoningEffort = reasoningEfforts[purpose];
+
+      if (isReasoningEffort(reasoningEffort)) {
+        preferences[purpose] = reasoningEffort;
+      }
+
+      return preferences;
+    },
+    {},
+  );
+}
+
+function isReasoningEffort(value: unknown): value is ReasoningEffort {
+  return typeof value === "string" && REASONING_EFFORTS.includes(value as ReasoningEffort);
 }
 
 function isFileChangeItem(type: string | undefined): boolean {
