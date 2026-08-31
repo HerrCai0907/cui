@@ -98,7 +98,11 @@ export type AiContinueSessionInput = {
 
 export type AiModelPurpose = "normal" | "summary" | "atomicReview";
 
-export type AiModelPreferences = Partial<Record<AiModelPurpose, string>>;
+export type AiReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+
+export type AiModelPreferences = Partial<Record<AiModelPurpose, string>> & {
+  reasoningEfforts?: Partial<Record<AiModelPurpose, AiReasoningEffort>>;
+};
 
 export type AtomicCapabilityType = 0 | 1 | 2 | 3 | 5;
 

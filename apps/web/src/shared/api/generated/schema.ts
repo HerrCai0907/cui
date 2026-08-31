@@ -254,6 +254,14 @@ export interface paths {
               normal?: string;
               summary?: string;
               atomicReview?: string;
+              reasoningEfforts?: {
+                /** @enum {string} */
+                normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+                /** @enum {string} */
+                summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+                /** @enum {string} */
+                atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+              };
             };
           };
         };
@@ -659,6 +667,7 @@ export interface paths {
         query?: {
           mode?: "atomic" | "full";
           atomicReviewModel?: string;
+          atomicReviewReasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
         };
         header?: never;
         path: {
@@ -778,6 +787,14 @@ export interface paths {
               normal?: string;
               summary?: string;
               atomicReview?: string;
+              reasoningEfforts?: {
+                /** @enum {string} */
+                normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+                /** @enum {string} */
+                summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+                /** @enum {string} */
+                atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+              };
             };
           };
         };
@@ -1382,6 +1399,14 @@ export interface components {
       normal?: string;
       summary?: string;
       atomicReview?: string;
+      reasoningEfforts?: {
+        /** @enum {string} */
+        normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+        /** @enum {string} */
+        summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+        /** @enum {string} */
+        atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+      };
     };
     CodeRangeResponse: {
       filePath: string;
@@ -1400,6 +1425,14 @@ export interface components {
         normal?: string;
         summary?: string;
         atomicReview?: string;
+        reasoningEfforts?: {
+          /** @enum {string} */
+          normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+          /** @enum {string} */
+          summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+          /** @enum {string} */
+          atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+        };
       };
     };
     ContinueSessionRequest: {
@@ -1408,6 +1441,14 @@ export interface components {
         normal?: string;
         summary?: string;
         atomicReview?: string;
+        reasoningEfforts?: {
+          /** @enum {string} */
+          normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+          /** @enum {string} */
+          summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+          /** @enum {string} */
+          atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+        };
       };
     };
     CreateShellSessionRequest: {

@@ -4,11 +4,14 @@ import {
   EXECUTION_TRACE_MESSAGE_TYPE_LABELS,
   MODEL_PURPOSES,
   MODEL_PURPOSE_LABELS,
+  REASONING_EFFORTS,
+  REASONING_EFFORT_LABELS,
   createDefaultAppConfig,
   type AppConfig,
   type ExecutionTraceMessageType,
   type ModelOption,
   type ModelPurpose,
+  type ReasoningEffort,
 } from "../model/appConfig";
 
 type ConfigPageProps = {
@@ -27,6 +30,16 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
       models: {
         ...config.models,
         [purpose]: model,
+      },
+    });
+  }
+
+  function setReasoningEffort(purpose: ModelPurpose, reasoningEffort: ReasoningEffort) {
+    onConfigChange({
+      ...config,
+      reasoningEfforts: {
+        ...config.reasoningEfforts,
+        [purpose]: reasoningEffort,
       },
     });
   }
@@ -68,17 +81,32 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
               <span>
                 <strong>{MODEL_PURPOSE_LABELS[purpose]}</strong>
               </span>
-              <select
-                value={config.models[purpose]}
-                onChange={(event) => setModel(purpose, event.target.value)}
-              >
-                <option value="">TraeX default</option>
-                {modelOptions.map((model) => (
-                  <option value={model.name} key={model.name}>
-                    {model.name}
-                  </option>
-                ))}
-              </select>
+              <span className="config-select-controls">
+                <select
+                  value={config.models[purpose]}
+                  onChange={(event) => setModel(purpose, event.target.value)}
+                >
+                  <option value="">TraeX default</option>
+                  {modelOptions.map((model) => (
+                    <option value={model.name} key={model.name}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label={`${MODEL_PURPOSE_LABELS[purpose]} reasoning effort`}
+                  value={config.reasoningEfforts[purpose]}
+                  onChange={(event) =>
+                    setReasoningEffort(purpose, event.target.value as ReasoningEffort)
+                  }
+                >
+                  {REASONING_EFFORTS.map((reasoningEffort) => (
+                    <option value={reasoningEffort} key={reasoningEffort}>
+                      {REASONING_EFFORT_LABELS[reasoningEffort]}
+                    </option>
+                  ))}
+                </select>
+              </span>
             </label>
           ))}
         </div>

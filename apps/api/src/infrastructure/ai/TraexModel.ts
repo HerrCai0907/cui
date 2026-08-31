@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GitDiffService } from "../diff/GitDiffService.js";
 import {
+  AiReasoningEffort,
   AiAtomicDiffReviewInput,
   AiContinueSessionInput,
   AiCreateSessionInput,
@@ -240,12 +241,35 @@ export class TraexModel implements AiModel {
     purpose: AiModelPurpose,
   ): string[] {
     const model = models?.[purpose]?.trim();
+    const reasoningEffort = models?.reasoningEfforts?.[purpose];
+    const argsWithReasoningEffort = this.withReasoningEffortArg(args, reasoningEffort);
 
     if (!model) {
+      return argsWithReasoningEffort;
+    }
+
+    return [
+      ...argsWithReasoningEffort.slice(0, -1),
+      "--model",
+      model,
+      argsWithReasoningEffort.at(-1)!,
+    ];
+  }
+
+  private withReasoningEffortArg(
+    args: string[],
+    reasoningEffort: AiReasoningEffort | undefined,
+  ): string[] {
+    if (!reasoningEffort) {
       return args;
     }
 
-    return [...args.slice(0, -1), "--model", model, args.at(-1)!];
+    return [
+      ...args.slice(0, -1),
+      "-c",
+      `model_reasoning_effort="${reasoningEffort}"`,
+      args.at(-1)!,
+    ];
   }
 
   private startRun(

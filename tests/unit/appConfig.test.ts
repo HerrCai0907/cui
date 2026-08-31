@@ -24,6 +24,11 @@ test("default app config only shows assistant execution trace messages", () => {
     summary: "",
     atomicReview: "",
   });
+  assert.deepEqual(config.reasoningEfforts, {
+    normal: "high",
+    summary: "low",
+    atomicReview: "medium",
+  });
   assert.equal(config.executionTrace.visibleMessageTypes.assistant_message, true);
   assert.equal(config.executionTrace.visibleMessageTypes.command_execution, false);
   assert.equal(config.executionTrace.visibleMessageTypes.reasoning, false);
@@ -84,7 +89,7 @@ test("execution trace message type classification handles supported events", () 
   );
 });
 
-test("app config persists selected models and omits default model requests", () => {
+test("app config persists selected models and reasoning efforts", () => {
   const storage = new Map<string, string>();
   const originalWindow = globalThis.window;
 
@@ -109,18 +114,43 @@ test("app config persists selected models and omits default model requests", () 
     config.models.normal = "GPT-5.4";
     config.models.summary = "Seed-2.1-Turbo";
     config.models.atomicReview = "DeepSeek-V4-Pro";
+    config.reasoningEfforts.normal = "medium";
+    config.reasoningEfforts.summary = "low";
+    config.reasoningEfforts.atomicReview = "xhigh";
     saveAppConfig(config);
 
     const loaded = loadAppConfig();
 
     assert.deepEqual(loaded.models, config.models);
-    assert.deepEqual(createModelRequestPreferences(loaded.models), {
+    assert.deepEqual(loaded.reasoningEfforts, config.reasoningEfforts);
+    assert.deepEqual(createModelRequestPreferences(loaded.models, loaded.reasoningEfforts), {
       normal: "GPT-5.4",
       summary: "Seed-2.1-Turbo",
       atomicReview: "DeepSeek-V4-Pro",
+      reasoningEfforts: {
+        normal: "medium",
+        summary: "low",
+        atomicReview: "xhigh",
+      },
     });
-    assert.equal(createModelRequestPreferences(createDefaultAppConfig().models), undefined);
+    assert.deepEqual(
+      createModelRequestPreferences(
+        createDefaultAppConfig().models,
+        createDefaultAppConfig().reasoningEfforts,
+      ),
+      {
+        reasoningEfforts: {
+          normal: "high",
+          summary: "low",
+          atomicReview: "medium",
+        },
+      },
+    );
     assert.equal(JSON.parse(storage.get(APP_CONFIG_STORAGE_KEY) ?? "{}").models.normal, "GPT-5.4");
+    assert.equal(
+      JSON.parse(storage.get(APP_CONFIG_STORAGE_KEY) ?? "{}").reasoningEfforts.normal,
+      "medium",
+    );
   } finally {
     Object.defineProperty(globalThis, "window", {
       configurable: true,

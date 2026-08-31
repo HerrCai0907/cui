@@ -61,9 +61,21 @@ export function createSessionRouter(sessionService: SessionService): Router {
       }
 
       const includeAtomicReview = parsedQuery.value.mode !== "full";
-      const models = parsedQuery.value.atomicReviewModel
-        ? { atomicReview: parsedQuery.value.atomicReviewModel }
-        : undefined;
+      const models =
+        parsedQuery.value.atomicReviewModel || parsedQuery.value.atomicReviewReasoningEffort
+          ? {
+              ...(parsedQuery.value.atomicReviewModel
+                ? { atomicReview: parsedQuery.value.atomicReviewModel }
+                : {}),
+              ...(parsedQuery.value.atomicReviewReasoningEffort
+                ? {
+                    reasoningEfforts: {
+                      atomicReview: parsedQuery.value.atomicReviewReasoningEffort,
+                    },
+                  }
+                : {}),
+            }
+          : undefined;
       const review = await sessionService.getRoundReview(
         parsedParams.value.sessionId,
         parsedParams.value.round,

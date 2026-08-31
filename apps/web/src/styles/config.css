@@ -56,7 +56,7 @@
 
 .config-select-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 500px);
   align-items: center;
   gap: 18px;
   min-height: 58px;
@@ -76,6 +76,13 @@
 .config-select-row strong {
   color: #1d2733;
   font-size: 0.92rem;
+}
+
+.config-select-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(112px, 132px);
+  gap: 10px;
+  min-width: 0;
 }
 
 .config-select-row select {
