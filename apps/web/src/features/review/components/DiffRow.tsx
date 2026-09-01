@@ -27,35 +27,18 @@ export function DiffRow({
 }: DiffRowProps) {
   if (line.kind === "ellipsis") {
     return (
-      <div className="review-diff-row review-diff-row-ellipsis">
-        <span />
-        <span />
-        <code>
-          <span className="review-diff-ellipsis-actions">
-            {line.canExpandUp && (
-              <button
-                type="button"
-                aria-label="Expand 10 lines up"
-                title="Expand 10 lines up"
-                onClick={onExpandUp}
-              >
-                <ChevronsUp size={14} />
-              </button>
-            )}
-            {line.canExpandDown && (
-              <button
-                type="button"
-                aria-label="Expand 10 lines down"
-                title="Expand 10 lines down"
-                onClick={onExpandDown}
-              >
-                <ChevronsDown size={14} />
-              </button>
-            )}
-          </span>
-          <span>{line.content}</span>
-        </code>
-      </div>
+      <>
+        {line.canExpandDown && (
+          <DiffContextExpandRow
+            direction="down"
+            label="Expand 10 lines down"
+            onExpand={onExpandDown}
+          />
+        )}
+        {line.canExpandUp && (
+          <DiffContextExpandRow direction="up" label="Expand 10 lines up" onExpand={onExpandUp} />
+        )}
+      </>
     );
   }
 
@@ -101,6 +84,31 @@ export function DiffRow({
         </label>
       )}
     </>
+  );
+}
+
+function DiffContextExpandRow({
+  direction,
+  label,
+  onExpand,
+}: {
+  direction: "down" | "up";
+  label: string;
+  onExpand?: () => void;
+}) {
+  return (
+    <div className={`review-diff-row review-diff-row-ellipsis is-${direction}`}>
+      <button
+        className="review-diff-context-expand-button"
+        type="button"
+        aria-label={label}
+        title={label}
+        onClick={onExpand}
+      >
+        {direction === "up" ? <ChevronsUp size={14} /> : <ChevronsDown size={14} />}
+        <span>{label}</span>
+      </button>
+    </div>
   );
 }
 
