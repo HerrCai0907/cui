@@ -105,6 +105,7 @@ val buildEmbeddedWeb by tasks.registering(Exec::class) {
     environment("CUI_EMBEDDED_BUILD", "1")
     commandLine("npm", "run", "build", "-w", "@cui/web")
     inputs.dir(webApp.dir("src"))
+    inputs.dir(webApp.dir("public"))
     inputs.file(webApp.file("index.html"))
     inputs.file(webApp.file("package.json"))
     inputs.file(webApp.file("vite.config.ts"))

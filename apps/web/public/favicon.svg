@@ -1,17 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="coding agent">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Coding conversation">
   <defs>
-    <linearGradient id="bg" x1="12" y1="8" x2="54" y2="58" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#13c2a3" />
-      <stop offset="1" stop-color="#3157d5" />
+    <linearGradient id="orange" x1="24" y1="80" x2="364" y2="394" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f9b32e" />
+      <stop offset="1" stop-color="#f6a51d" />
     </linearGradient>
-    <linearGradient id="mark" x1="19" y1="18" x2="45" y2="47" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff" />
-      <stop offset="1" stop-color="#dff7ff" />
+    <linearGradient id="teal" x1="120" y1="130" x2="509" y2="394" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#439b79" />
+      <stop offset="1" stop-color="#24a5bd" />
     </linearGradient>
+    <linearGradient id="overlap" x1="120" y1="130" x2="364" y2="394" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#429774" />
+      <stop offset="1" stop-color="#438f70" />
+    </linearGradient>
+    <clipPath id="orange-bubble">
+      <path d="M85 80h210c38 0 69 31 69 69v176c0 38-31 69-69 69h-90l-72 72c-11 11-30 3-30-12v-60H85c-38 0-69-31-69-69V149c0-38 31-69 69-69Z" />
+    </clipPath>
   </defs>
-  <rect width="64" height="64" rx="14" fill="#101522" />
-  <path d="M10 18c0-4.4 3.6-8 8-8h28c4.4 0 8 3.6 8 8v28c0 4.4-3.6 8-8 8H18c-4.4 0-8-3.6-8-8V18Z" fill="url(#bg)" />
-  <path d="M24.5 23 16 31.5l8.5 8.5 3.4-3.4-5.1-5.1 5.1-5.1L24.5 23Zm15 0-3.4 3.4 5.1 5.1-5.1 5.1 3.4 3.4 8.5-8.5L39.5 23Z" fill="url(#mark)" />
-  <path d="M34.8 18.5 26 45.4h5.2L40 18.5h-5.2Z" fill="#101522" opacity=".82" />
-  <circle cx="48" cy="16" r="5" fill="#68f0c8" stroke="#101522" stroke-width="3" />
+  <path d="M85 80h210c38 0 69 31 69 69v176c0 38-31 69-69 69h-90l-72 72c-11 11-30 3-30-12v-60H85c-38 0-69-31-69-69V149c0-38 31-69 69-69Z" fill="url(#orange)" />
+  <path d="M220 130h220c38 0 69 31 69 69v112c0 38-31 69-69 69h-14v74c0 15-19 23-30 12l-86-86h-90c-55 0-100-45-100-100v-50c0-55 45-100 100-100Z" fill="url(#teal)" />
+  <path d="M220 130h220c38 0 69 31 69 69v112c0 38-31 69-69 69h-14v74c0 15-19 23-30 12l-86-86h-90c-55 0-100-45-100-100v-50c0-55 45-100 100-100Z" fill="url(#overlap)" clip-path="url(#orange-bubble)" />
+  <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="30">
+    <path d="m220 207-63 63 63 63" />
+    <path d="m271 207 63 63-63 63" />
+  </g>
 </svg>
