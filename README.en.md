@@ -2,7 +2,7 @@
 
 [简体中文](README.md) | English
 
-CUI is a coding agents UI designed for better collaboration between humans and AI. It keeps TRAEX-backed coding sessions, execution output, review artifacts, and follow-up prompts in one workspace-oriented interface.
+CUI is a coding agents UI designed for better collaboration between humans and AI. It keeps AI harness-backed coding sessions, execution output, review artifacts, and follow-up prompts in one workspace-oriented interface.
 
 ## Features
 
@@ -12,7 +12,7 @@ CUI is a coding agents UI designed for better collaboration between humans and A
 - Round-based review entry points for changes produced by an assistant turn.
 - Atomic review mode that splits a round diff into smaller reviewable capabilities.
 - Inline review comments that can be sent back into the original session as follow-up prompts.
-- Model and reasoning-effort configuration for normal replies, summaries, and atomic review.
+- Backend AI harness, model, and reasoning-effort configuration for normal replies, summaries, and atomic review.
 
 ## Screenshots
 

@@ -24,6 +24,7 @@ test("default app config shows assistant messages and todo lists in execution tr
     summary: "GPT-5.4",
     atomicReview: "GPT-5.5",
   });
+  assert.equal(config.harness, "traex");
   assert.equal(config.apiBaseUrl, "");
   assert.deepEqual(config.sshTunnel, {
     enabled: false,
@@ -125,6 +126,7 @@ test("app config persists selected models and reasoning efforts", () => {
     config.models.normal = "GPT-5.4";
     config.models.summary = "Seed-2.1-Turbo";
     config.models.atomicReview = "DeepSeek-V4-Pro";
+    config.harness = "codex";
     config.reasoningEfforts.normal = "medium";
     config.reasoningEfforts.summary = "low";
     config.reasoningEfforts.atomicReview = "xhigh";
@@ -141,24 +143,31 @@ test("app config persists selected models and reasoning efforts", () => {
     const loaded = loadAppConfig();
 
     assert.deepEqual(loaded.models, config.models);
+    assert.equal(loaded.harness, "codex");
     assert.deepEqual(loaded.reasoningEfforts, config.reasoningEfforts);
     assert.deepEqual(loaded.sshTunnel, config.sshTunnel);
-    assert.deepEqual(createModelRequestPreferences(loaded.models, loaded.reasoningEfforts), {
-      normal: "GPT-5.4",
-      summary: "Seed-2.1-Turbo",
-      atomicReview: "DeepSeek-V4-Pro",
-      reasoningEfforts: {
-        normal: "medium",
-        summary: "low",
-        atomicReview: "xhigh",
+    assert.deepEqual(
+      createModelRequestPreferences(loaded.harness, loaded.models, loaded.reasoningEfforts),
+      {
+        harness: "codex",
+        normal: "GPT-5.4",
+        summary: "Seed-2.1-Turbo",
+        atomicReview: "DeepSeek-V4-Pro",
+        reasoningEfforts: {
+          normal: "medium",
+          summary: "low",
+          atomicReview: "xhigh",
+        },
       },
-    });
+    );
     assert.deepEqual(
       createModelRequestPreferences(
+        createDefaultAppConfig().harness,
         createDefaultAppConfig().models,
         createDefaultAppConfig().reasoningEfforts,
       ),
       {
+        harness: "traex",
         normal: "GPT-5.5",
         summary: "GPT-5.4",
         atomicReview: "GPT-5.5",
@@ -169,6 +178,7 @@ test("app config persists selected models and reasoning efforts", () => {
         },
       },
     );
+    assert.equal(JSON.parse(storage.get(APP_CONFIG_STORAGE_KEY) ?? "{}").harness, "codex");
     assert.equal(JSON.parse(storage.get(APP_CONFIG_STORAGE_KEY) ?? "{}").models.normal, "GPT-5.4");
     assert.equal(
       JSON.parse(storage.get(APP_CONFIG_STORAGE_KEY) ?? "{}").reasoningEfforts.normal,

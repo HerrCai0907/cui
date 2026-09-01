@@ -5,6 +5,7 @@ import { TraexModel } from "../../apps/api/src/infrastructure/ai/TraexModel.js";
 import type { TraexProcessRun } from "../../apps/api/src/infrastructure/ai/traexProcess.js";
 
 type ProcessCall = {
+  command?: string;
   args: string[];
   input: string;
 };
@@ -16,7 +17,7 @@ test("createAtomicDiffReview retries with validation feedback when item diff for
   const model = new TraexModel({
     binary: "traex",
     processRunner: (input): TraexProcessRun => {
-      calls.push({ args: input.args, input: input.input });
+      calls.push({ command: input.command, args: input.args, input: input.input });
       diffFilePath ||= extractDiffFilePath(input.input);
 
       return {
@@ -71,7 +72,7 @@ test("uses separate configured models for normal, summary, and atomic review run
         },
       ]),
     processRunner: (input): TraexProcessRun => {
-      calls.push({ args: input.args, input: input.input });
+      calls.push({ command: input.command, args: input.args, input: input.input });
 
       return {
         cancel: () => undefined,
@@ -132,6 +133,88 @@ test("uses separate configured models for normal, summary, and atomic review run
       description: "Default coding model",
       contextWindow: 200000,
     },
+  ]);
+});
+
+test("uses Codex command shape when configured as the AI harness", async () => {
+  const calls: ProcessCall[] = [];
+  const model = new TraexModel({
+    binary: "traex",
+    binaryResolver: (harness) =>
+      harness === "codex"
+        ? {
+            harness,
+            command: "codex",
+            displayName: "Codex",
+            envVar: "CODEX_BIN",
+          }
+        : {
+            harness,
+            command: "traex",
+            displayName: "TraeX",
+            envVar: "TRAEX_BIN",
+          },
+    processRunner: (input): TraexProcessRun => {
+      calls.push({ command: input.command, args: input.args, input: input.input });
+
+      return {
+        cancel: () => undefined,
+        promise: Promise.resolve({
+          content: "Done.",
+          beforeSnapshot: { gitCommit: "", diff: "" },
+          afterSnapshot: { gitCommit: "", diff: "" },
+          rawEvents: [{ type: "session_meta", payload: { id: "codex-session-1" } }],
+        }),
+      };
+    },
+  });
+
+  await model.createSession({
+    workspace: "/tmp/workspace",
+    prompt: "Implement the feature.",
+    models: {
+      harness: "codex",
+      normal: "gpt-5.5",
+      reasoningEfforts: {
+        normal: "high",
+      },
+    },
+  });
+  await model.continueSession({
+    sessionId: "codex-session-1",
+    workspace: "/tmp/workspace",
+    prompt: "Continue.",
+    models: {
+      harness: "codex",
+      normal: "gpt-5.5",
+    },
+  });
+
+  assert.equal(calls[0].command, "codex");
+  assert.deepEqual(calls[0].args, [
+    "exec",
+    "-C",
+    "/tmp/workspace",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "--skip-git-repo-check",
+    "--json",
+    "-c",
+    'model_reasoning_effort="high"',
+    "--model",
+    "gpt-5.5",
+    "-",
+  ]);
+  assert.equal(calls[1].command, "codex");
+  assert.deepEqual(calls[1].args, [
+    "exec",
+    "resume",
+    "codex-session-1",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "--skip-git-repo-check",
+    "--json",
+    "--model",
+    "gpt-5.5",
+    "-",
   ]);
 });
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  createAiHarnessNotFoundError,
   assertTraexBinaryAvailable,
   createTraexNotFoundError,
 } from "../../apps/api/src/infrastructure/ai/traexBinary.js";
@@ -26,4 +27,16 @@ test("TraeX availability check reports ENOENT with the same diagnostic", async (
     () => assertTraexBinaryAvailable("definitely-missing-traex-for-cui-test"),
     /API process PATH:/,
   );
+});
+
+test("Codex not found error points to CODEX_BIN", () => {
+  const error = createAiHarnessNotFoundError({
+    harness: "codex",
+    command: "codex",
+    displayName: "Codex",
+    envVar: "CODEX_BIN",
+  });
+
+  assert.match(error.message, /Codex binary "codex" was not found/);
+  assert.match(error.message, /set CODEX_BIN to the absolute codex path/);
 });

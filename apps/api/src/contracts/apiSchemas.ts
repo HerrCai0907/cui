@@ -91,9 +91,12 @@ export const QueuedPromptSchema = z.object({
 
 export const ChatSessionOriginSchema = z.enum(["chat", "shell"]);
 
+export const AiHarnessSchema = z.enum(["traex", "codex"]);
+
 export const ChatSessionViewSchema = z.object({
   id: z.string(),
   origin: ChatSessionOriginSchema.optional(),
+  aiHarness: AiHarnessSchema.optional(),
   workspace: z.string(),
   title: z.string(),
   summary: z.string().optional(),
@@ -116,6 +119,7 @@ export const ChatSessionListItemSchema = ChatSessionViewSchema.omit({
 
 export const AiModelPreferencesSchema = z
   .object({
+    harness: AiHarnessSchema.optional(),
     normal: z.string().trim().min(1).optional(),
     summary: z.string().trim().min(1).optional(),
     atomicReview: z.string().trim().min(1).optional(),

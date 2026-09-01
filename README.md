@@ -2,7 +2,7 @@
 
 [English](README.en.md) | 简体中文
 
-CUI 是一个面向 coding agents 的协作界面，用来改善人与 AI 共同完成代码任务时的工作流。它把 TRAEX 驱动的编码会话、执行输出、代码审查结果和后续提示词集中在同一个按工作区组织的界面中。
+CUI 是一个面向 coding agents 的协作界面，用来改善人与 AI 共同完成代码任务时的工作流。它把 AI harness 驱动的编码会话、执行输出、代码审查结果和后续提示词集中在同一个按工作区组织的界面中。
 
 ## 功能
 
@@ -12,7 +12,7 @@ CUI 是一个面向 coding agents 的协作界面，用来改善人与 AI 共同
 - 按 assistant 每一轮修改提供 review 入口。
 - Atomic review 可以把一轮 diff 拆成更小、更容易审查的能力单元。
 - 支持在 diff 行内添加 review 评论，并把评论作为后续提示词发送回原会话。
-- 支持分别配置普通回复、会话摘要和 atomic review 使用的模型与 reasoning effort。
+- 支持配置后端 AI harness，以及普通回复、会话摘要和 atomic review 使用的模型与 reasoning effort。
 
 ## 截图
 

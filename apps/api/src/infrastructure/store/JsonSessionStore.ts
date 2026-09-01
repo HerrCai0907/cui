@@ -1,6 +1,7 @@
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { defaultJsonFileDb, type JsonFileDb } from "./JsonFileDb.js";
 import {
+  AiHarness,
   AtomicDiffReview,
   ChatMessage,
   ChatRound,
@@ -277,7 +278,11 @@ export class JsonSessionStore {
     return updatedSession;
   }
 
-  async updateSessionAiThreadId(sessionId: string, aiThreadId: string): Promise<ChatSession> {
+  async updateSessionAiThreadId(
+    sessionId: string,
+    aiThreadId: string,
+    aiHarness: ChatSession["aiHarness"],
+  ): Promise<ChatSession> {
     let updatedSession: ChatSession | undefined;
 
     await this.enqueueWrite(async () => {
@@ -291,6 +296,7 @@ export class JsonSessionStore {
         updatedStoredSession = {
           ...session,
           aiThreadId,
+          ...(aiHarness ? { aiHarness } : {}),
         };
 
         return toStoredSession(updatedStoredSession);
@@ -560,6 +566,7 @@ function toStoredSession(session: ChatSession | StoredSession): StoredSession {
     id: session.id,
     ...(session.origin ? { origin: session.origin } : {}),
     ...(session.aiThreadId ? { aiThreadId: session.aiThreadId } : {}),
+    ...(isAiHarness(session.aiHarness) ? { aiHarness: session.aiHarness } : {}),
     workspace: session.workspace,
     title: session.title,
     summary: session.summary,
@@ -570,6 +577,10 @@ function toStoredSession(session: ChatSession | StoredSession): StoredSession {
       ("currentRound" in session ? session.currentRound : undefined) ??
       ("messages" in session ? getCurrentRoundFromSession(session) : undefined),
   };
+}
+
+function isAiHarness(value: unknown): value is AiHarness {
+  return value === "traex" || value === "codex";
 }
 
 function toSessionIndexEntry(session: StoredSession): ChatSessionIndexEntry {

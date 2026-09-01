@@ -284,6 +284,7 @@ test("session request parsers accept model preferences", () => {
         prompt: "Implement a change",
       },
       models: {
+        harness: "codex",
         normal: "GPT-5.4",
         summary: "Seed-2.1-Turbo",
         atomicReview: "DeepSeek-V4-Pro",
@@ -302,6 +303,7 @@ test("session request parsers accept model preferences", () => {
           prompt: "Implement a change",
         },
         models: {
+          harness: "codex",
           normal: "GPT-5.4",
           summary: "Seed-2.1-Turbo",
           atomicReview: "DeepSeek-V4-Pro",
@@ -368,6 +370,19 @@ test("session request parsers accept model preferences", () => {
         reasoningEfforts: {
           normal: "invalid",
         },
+      },
+    }).ok,
+    false,
+  );
+
+  assert.equal(
+    parseCreateRunBody({
+      type: "assistant_response",
+      input: {
+        prompt: "Implement a change",
+      },
+      models: {
+        harness: "invalid",
       },
     }).ok,
     false,

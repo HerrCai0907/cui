@@ -567,7 +567,11 @@ export class SessionService {
     result
       .then(async (aiResponse) => {
         if (options.bindAiThreadId) {
-          await this.store.updateSessionAiThreadId(run.sessionId, aiResponse.sessionId);
+          await this.store.updateSessionAiThreadId(
+            run.sessionId,
+            aiResponse.sessionId,
+            request.models?.harness,
+          );
         }
 
         const session = await this.runCompletionService.completeRun({
@@ -636,13 +640,18 @@ export class SessionService {
     const aiThreadId = session.aiThreadId;
 
     if (aiThreadId) {
+      const models = {
+        ...request.models,
+        ...(session.aiHarness ? { harness: session.aiHarness } : {}),
+      };
+
       return {
         kind: "continue",
         input: {
           sessionId: aiThreadId,
           workspace,
           prompt: request.prompt,
-          models: request.models,
+          models,
         },
       };
     }

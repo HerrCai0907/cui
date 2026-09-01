@@ -5,11 +5,16 @@ import { join } from "node:path";
 import { GitDiffService, type DiffSnapshot } from "../diff/GitDiffService.js";
 import { parseJsonLine } from "./traexEvents.js";
 import { AiRunCancelledError } from "../../types.js";
-import { createTraexEnv, createTraexNotFoundError } from "./traexBinary.js";
+import {
+  createAiHarnessNotFoundError,
+  createTraexEnv,
+  type AiHarnessBinaryConfig,
+} from "./traexBinary.js";
 import { isInvalidCwdError, PathNotFoundError } from "../../domain/paths/pathValidation.js";
 
 type RunProcessInput = {
   command: string;
+  binaryConfig: AiHarnessBinaryConfig;
   args: string[];
   cwd: string;
   input: string;
@@ -33,6 +38,7 @@ export type TraexProcessRun = {
 
 export function runTraexProcess({
   command,
+  binaryConfig,
   args,
   cwd,
   input,
@@ -81,7 +87,7 @@ export function runTraexProcess({
         void cleanupOutputDir(outputDir);
       };
 
-      mkdtemp(join(tmpdir(), "cui-traex-"))
+      mkdtemp(join(tmpdir(), "cui-ai-"))
         .then((createdOutputDir) => {
           outputDir = createdOutputDir;
           outputPath = join(createdOutputDir, "last-message.txt");
@@ -105,7 +111,7 @@ export function runTraexProcess({
               env: createTraexEnv(),
             });
           } catch (error) {
-            reject(createTraexProcessError(command, error, cwd));
+            reject(createAiProcessError(binaryConfig, error, cwd));
             void cleanupOutputDir(outputDir);
             return;
           }
@@ -118,7 +124,11 @@ export function runTraexProcess({
               if (!settled) {
                 settled = true;
                 killChildProcess(child);
-                reject(new Error(`TraeX command produced no output for ${timeoutMs}ms`));
+                reject(
+                  new Error(
+                    `${binaryConfig.displayName} command produced no output for ${timeoutMs}ms`,
+                  ),
+                );
                 void cleanupOutputDir(outputDir);
               }
             }, timeoutMs);
@@ -162,7 +172,7 @@ export function runTraexProcess({
               reject(
                 cancelRequested
                   ? new AiRunCancelledError()
-                  : createTraexProcessError(command, error, cwd),
+                  : createAiProcessError(binaryConfig, error, cwd),
               );
               void cleanupOutputDir(outputDir);
             }
@@ -195,7 +205,11 @@ export function runTraexProcess({
             }
 
             if (code !== 0) {
-              reject(new Error(`TraeX command exited with ${code}: ${stderr.trim()}`));
+              reject(
+                new Error(
+                  `${binaryConfig.displayName} command exited with ${code}: ${stderr.trim()}`,
+                ),
+              );
               void cleanupOutputDir(outputDir);
               return;
             }
@@ -248,17 +262,21 @@ export function runTraexProcess({
   };
 }
 
-function createTraexProcessError(command: string, error: unknown, cwd: string): Error {
+function createAiProcessError(
+  binaryConfig: AiHarnessBinaryConfig,
+  error: unknown,
+  cwd: string,
+): Error {
   if (isInvalidCwdError(error)) {
     return new PathNotFoundError(cwd);
   }
 
   if (!(error instanceof Error)) {
-    return new Error("TraeX command failed");
+    return new Error(`${binaryConfig.displayName} command failed`);
   }
 
   if (isEnoentError(error)) {
-    return createTraexNotFoundError(command);
+    return createAiHarnessNotFoundError(binaryConfig);
   }
 
   return error;
