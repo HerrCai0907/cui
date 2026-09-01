@@ -1166,7 +1166,7 @@ test("reconnects to a running run after page reload", async ({ page }) => {
         this.url = String(url);
         eventSourceUrls.push(this.url);
 
-        window.setTimeout(() => {
+        window.setTimeout(async () => {
           this.readyState = MockEventSource.OPEN;
           this.dispatchEvent(new Event("open"));
           this.dispatchEvent(
@@ -1177,9 +1177,9 @@ test("reconnects to a running run after page reload", async ({ page }) => {
               }),
             }),
           );
-          void (
+          await (
             window as Window & {
-              __markRunCompleted?: () => void;
+              __markRunCompleted?: () => Promise<void>;
             }
           ).__markRunCompleted?.();
           this.dispatchEvent(

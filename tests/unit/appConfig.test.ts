@@ -24,6 +24,17 @@ test("default app config only shows assistant execution trace messages", () => {
     summary: "",
     atomicReview: "",
   });
+  assert.equal(config.apiBaseUrl, "");
+  assert.deepEqual(config.sshTunnel, {
+    enabled: false,
+    host: "",
+    port: 0,
+    username: "",
+    password: "",
+    localPort: 0,
+    remoteHost: "",
+    remotePort: 0,
+  });
   assert.deepEqual(config.reasoningEfforts, {
     normal: "high",
     summary: "low",
@@ -117,12 +128,21 @@ test("app config persists selected models and reasoning efforts", () => {
     config.reasoningEfforts.normal = "medium";
     config.reasoningEfforts.summary = "low";
     config.reasoningEfforts.atomicReview = "xhigh";
+    config.sshTunnel.enabled = true;
+    config.sshTunnel.host = "server.example";
+    config.sshTunnel.port = 2222;
+    config.sshTunnel.username = "deploy";
+    config.sshTunnel.password = "secret";
+    config.sshTunnel.localPort = 18443;
+    config.sshTunnel.remoteHost = "127.0.0.1";
+    config.sshTunnel.remotePort = 18444;
     saveAppConfig(config);
 
     const loaded = loadAppConfig();
 
     assert.deepEqual(loaded.models, config.models);
     assert.deepEqual(loaded.reasoningEfforts, config.reasoningEfforts);
+    assert.deepEqual(loaded.sshTunnel, config.sshTunnel);
     assert.deepEqual(createModelRequestPreferences(loaded.models, loaded.reasoningEfforts), {
       normal: "GPT-5.4",
       summary: "Seed-2.1-Turbo",
@@ -150,6 +170,10 @@ test("app config persists selected models and reasoning efforts", () => {
     assert.equal(
       JSON.parse(storage.get(APP_CONFIG_STORAGE_KEY) ?? "{}").reasoningEfforts.normal,
       "medium",
+    );
+    assert.equal(
+      JSON.parse(storage.get(APP_CONFIG_STORAGE_KEY) ?? "{}").sshTunnel.host,
+      "server.example",
     );
   } finally {
     Object.defineProperty(globalThis, "window", {

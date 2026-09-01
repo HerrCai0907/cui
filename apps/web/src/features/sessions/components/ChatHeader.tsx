@@ -1,4 +1,4 @@
-import { ArrowLeft, GitBranch } from "lucide-react";
+import { ArrowLeft, GitBranch, Menu } from "lucide-react";
 import type { ApiSession } from "../../../types";
 import type { ReviewRoute } from "../../review/model/reviewRoutes";
 
@@ -7,6 +7,7 @@ type ChatHeaderProps = {
   configOpen: boolean;
   reviewRoute: ReviewRoute | null;
   onCloseReview: () => void;
+  onOpenNavigation: () => void;
 };
 
 export function ChatHeader({
@@ -14,6 +15,7 @@ export function ChatHeader({
   configOpen,
   reviewRoute,
   onCloseReview,
+  onOpenNavigation,
 }: ChatHeaderProps) {
   const gitBranch = activeSession?.gitBranch;
   const sectionLabel = configOpen
@@ -31,6 +33,14 @@ export function ChatHeader({
 
   return (
     <header className="chat-header">
+      <button
+        className="icon-button mobile-navigation-button"
+        type="button"
+        aria-label="Open session menu"
+        onClick={onOpenNavigation}
+      >
+        <Menu size={20} />
+      </button>
       <div className="chat-header-title">
         <span className="section-label">{sectionLabel}</span>
         <h1>{title}</h1>

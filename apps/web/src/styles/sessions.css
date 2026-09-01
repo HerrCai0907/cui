@@ -462,6 +462,9 @@
 
 .chat-area {
   display: grid;
+  width: 100%;
+  max-width: 100%;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 0;
@@ -546,6 +549,7 @@
 
 .message-stream {
   display: flex;
+  min-width: 0;
   min-height: 0;
   flex-direction: column;
   gap: 22px;
@@ -555,6 +559,8 @@
 
 .message {
   display: grid;
+  width: 100%;
+  min-width: 0;
   grid-template-columns: 40px minmax(0, 760px);
   gap: 14px;
   align-items: start;
@@ -584,7 +590,9 @@
 }
 
 .message-body {
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
   border: 1px solid #dce3eb;
   border-radius: 8px;
   background: #ffffff;
@@ -661,11 +669,15 @@
   margin: 0;
   color: #344054;
   line-height: 1.65;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
 .message-content {
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   color: #344054;
   line-height: 1.65;
 }
@@ -719,12 +731,14 @@
   background: #f4f7fa;
   color: #1f2937;
   padding: 0.1em 0.34em;
+  overflow-wrap: anywhere;
   white-space: break-spaces;
 }
 
 .message-link {
   color: #2563eb;
   font-weight: 620;
+  overflow-wrap: anywhere;
   text-decoration: none;
 }
 
@@ -735,12 +749,14 @@
 .message-code-preview {
   position: relative;
   display: inline-flex;
+  max-width: 100%;
   vertical-align: baseline;
 }
 
 .message-code-link {
   display: inline-flex;
   max-width: min(360px, 100%);
+  min-width: 0;
   min-height: 24px;
   align-items: center;
   gap: 5px;
@@ -754,6 +770,7 @@
   font-weight: 650;
   line-height: 1.25;
   text-align: left;
+  overflow-wrap: anywhere;
 }
 
 .message-code-link:hover {
@@ -931,6 +948,8 @@
 }
 
 .message-code-block {
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
   margin: 10px 0;
   overflow-x: auto;
@@ -950,7 +969,8 @@
 
 .message-code-block code {
   display: block;
-  min-width: max-content;
+  width: max-content;
+  min-width: 100%;
   color: #1f2937;
   line-height: 1.55;
   white-space: pre;

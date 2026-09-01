@@ -1,4 +1,6 @@
 .trace-details {
+  min-width: 0;
+  max-width: 100%;
   color: #354458;
 }
 
@@ -60,6 +62,7 @@
 
 .trace-expanded-content {
   display: grid;
+  min-width: 0;
   gap: 10px;
   margin-top: 10px;
   border-top: 1px solid #e2e9e2;
@@ -68,6 +71,7 @@
 
 .trace-list {
   display: grid;
+  min-width: 0;
   max-height: 420px;
   gap: 8px;
   overflow: auto;
@@ -125,6 +129,8 @@
 }
 
 .trace-event pre {
+  min-width: 0;
+  max-width: 100%;
   max-height: 220px;
   overflow: auto;
   margin: 8px 0 0;

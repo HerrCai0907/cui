@@ -6,6 +6,11 @@
   background: #eef2f6;
 }
 
+.mobile-navigation-backdrop,
+.mobile-navigation-button {
+  display: none;
+}
+
 .app-shell.is-collapsed {
   grid-template-columns: 64px minmax(0, 1fr);
 }

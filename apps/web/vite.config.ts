@@ -4,6 +4,7 @@ import { defineConfig } from "vite";
 const apiTarget = `http://localhost:${process.env.CUI_API_PORT ?? 3000}`;
 
 export default defineConfig({
+  base: process.env.CUI_EMBEDDED_BUILD ? "./" : "/",
   plugins: [react()],
   preview: {
     proxy: {

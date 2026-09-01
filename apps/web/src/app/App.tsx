@@ -1,4 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
+import { getAppPath, isEmbeddedAndroidApp, navigateApp } from "../shared/lib/appNavigation";
 import { listModels } from "../features/config/api/modelApi";
 import { ConfigPage } from "../features/config/components/ConfigPage";
 import {
@@ -28,12 +29,14 @@ import type { ApiRound } from "../types";
 const DEFAULT_WORKSPACE = "~";
 
 export function App() {
-  const [configOpen, setConfigOpen] = useState(() => location.pathname === "/config");
+  const initialPath = getAppPath();
+  const [configOpen, setConfigOpen] = useState(() => initialPath === "/config");
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [config, setConfig] = useState<AppConfig>(loadAppConfig);
   const [models, setModels] = useState<ModelOption[]>([]);
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [reviewRoute, setReviewRoute] = useState<ReviewRoute | null>(() =>
-    location.pathname === "/config" ? null : parseReviewRoute(location.pathname),
+    initialPath === "/config" ? null : parseReviewRoute(initialPath),
   );
   const [review, setReview] = useState<ApiRound | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
@@ -66,17 +69,21 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const handlePopState = () => {
-      const nextConfigOpen = location.pathname === "/config";
+    const handleNavigation = () => {
+      const path = getAppPath();
+      const nextConfigOpen = path === "/config";
 
       setConfigOpen(nextConfigOpen);
-      setReviewRoute(nextConfigOpen ? null : parseReviewRoute(location.pathname));
+      setReviewRoute(nextConfigOpen ? null : parseReviewRoute(path));
+      setMobileNavigationOpen(false);
     };
 
-    window.addEventListener("popstate", handlePopState);
+    window.addEventListener("popstate", handleNavigation);
+    window.addEventListener("hashchange", handleNavigation);
 
     return () => {
-      window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("popstate", handleNavigation);
+      window.removeEventListener("hashchange", handleNavigation);
     };
   }, []);
 
@@ -140,9 +147,10 @@ export function App() {
     setReview(null);
     setReviewNavigation(null);
     setReviewNavigationTarget(null);
-    if (location.pathname !== "/") {
-      history.pushState({}, "", "/");
+    if (getAppPath() !== "/") {
+      navigateApp("/");
     }
+    setMobileNavigationOpen(false);
     setReviewError(null);
     sessionController.startNewSession(workspace);
   }
@@ -154,16 +162,18 @@ export function App() {
     setReviewNavigation(null);
     setReviewNavigationTarget(null);
     setReviewError(null);
-    if (location.pathname !== "/") {
-      history.pushState({}, "", "/");
+    if (getAppPath() !== "/") {
+      navigateApp("/");
     }
+    setMobileNavigationOpen(false);
     void sessionController.openSession(sessionId);
   }
 
   function openConfig() {
-    if (location.pathname !== "/config") {
-      history.pushState({}, "", "/config");
+    if (getAppPath() !== "/config") {
+      navigateApp("/config");
     }
+    setMobileNavigationOpen(false);
     setConfigOpen(true);
     setReviewRoute(null);
     setReview(null);
@@ -173,7 +183,15 @@ export function App() {
   }
 
   function openReview(sessionId: string, round: number, mode: ReviewRoute["mode"]) {
-    window.open(createReviewPath(sessionId, round, mode), "_blank", "noopener,noreferrer");
+    const path = createReviewPath(sessionId, round, mode);
+
+    if (isEmbeddedAndroidApp()) {
+      navigateApp(path);
+      setReviewRoute(parseReviewRoute(path));
+      setMobileNavigationOpen(false);
+    } else {
+      window.open(path, "_blank", "noopener,noreferrer");
+    }
   }
 
   function openFullReview() {
@@ -181,11 +199,18 @@ export function App() {
       return;
     }
 
-    window.location.assign(createReviewPath(reviewRoute.sessionId, reviewRoute.round, "full"));
+    const path = createReviewPath(reviewRoute.sessionId, reviewRoute.round, "full");
+
+    if (isEmbeddedAndroidApp()) {
+      navigateApp(path);
+      setReviewRoute(parseReviewRoute(path));
+    } else {
+      window.location.assign(path);
+    }
   }
 
   function closeReview() {
-    history.pushState({}, "", "/");
+    navigateApp("/");
     setConfigOpen(false);
     setReviewRoute(null);
     setReview(null);
@@ -196,7 +221,25 @@ export function App() {
 
   function navigateToReviewTarget(target: ReviewNavigationTarget) {
     setReviewNavigationTarget({ ...target });
+    setMobileNavigationOpen(false);
   }
+
+  useEffect(() => {
+    const androidWindow = window as Window & { __cuiHandleBack?: () => boolean };
+
+    androidWindow.__cuiHandleBack = () => {
+      if (!mobileNavigationOpen) {
+        return false;
+      }
+
+      setMobileNavigationOpen(false);
+      return true;
+    };
+
+    return () => {
+      delete androidWindow.__cuiHandleBack;
+    };
+  }, [mobileNavigationOpen]);
 
   return (
     <main
@@ -208,6 +251,7 @@ export function App() {
         configOpen={configOpen}
         expandedWorkspaces={sessionController.expandedWorkspaces}
         open={sessionController.sidebarOpen}
+        mobileOpen={mobileNavigationOpen}
         pendingDoneSessionIds={sessionController.pendingDoneSessionIds}
         width={sessionController.sidebarWidth}
         runningSessionIds={sessionController.runningSessionIds}
@@ -219,6 +263,7 @@ export function App() {
         visibleSessionCount={sessionController.visibleSessionCount}
         workspaces={sessionController.workspaces}
         onOpenChange={sessionController.setSidebarOpen}
+        onMobileClose={() => setMobileNavigationOpen(false)}
         onWidthChange={sessionController.setSidebarWidth}
         onSessionListModeChange={sessionController.setSessionListMode}
         onSessionPageChange={sessionController.setSessionListPage}
@@ -231,6 +276,14 @@ export function App() {
         reviewNavigationActive={reviewRoute?.mode === "atomic"}
         reviewNavigation={reviewRoute?.mode === "atomic" ? reviewNavigation : null}
       />
+      {mobileNavigationOpen && (
+        <button
+          className="mobile-navigation-backdrop"
+          type="button"
+          aria-label="Close session menu"
+          onClick={() => setMobileNavigationOpen(false)}
+        />
+      )}
 
       <section
         className="chat-area"
@@ -241,6 +294,7 @@ export function App() {
           configOpen={configOpen}
           reviewRoute={reviewRoute}
           onCloseReview={closeReview}
+          onOpenNavigation={() => setMobileNavigationOpen(true)}
         />
 
         {configOpen ? (
