@@ -119,9 +119,9 @@ export function createDefaultAppConfig(): AppConfig {
     apiBaseUrl: getDefaultApiBaseUrl(),
     sshTunnel: createDefaultSshTunnelConfig(),
     models: {
-      normal: "",
-      summary: "",
-      atomicReview: "",
+      normal: "GPT-5.5",
+      summary: "GPT-5.4",
+      atomicReview: "GPT-5.5",
     },
     reasoningEfforts: {
       normal: "high",
@@ -130,7 +130,10 @@ export function createDefaultAppConfig(): AppConfig {
     },
     executionTrace: {
       visibleMessageTypes: Object.fromEntries(
-        EXECUTION_TRACE_MESSAGE_TYPES.map((type) => [type, type === "assistant_message"]),
+        EXECUTION_TRACE_MESSAGE_TYPES.map((type) => [
+          type,
+          type === "assistant_message" || type === "todo_list",
+        ]),
       ) as Record<ExecutionTraceMessageType, boolean>,
     },
   };

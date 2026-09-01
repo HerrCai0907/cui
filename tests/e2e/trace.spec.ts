@@ -88,7 +88,6 @@ test("renders updated todo list items in the execution trace", async ({ page }) 
     rounds: [],
   };
 
-  await showExecutionTraceTypes(page, ["todo_list"]);
   await mockSessions(page, [session]);
   await mockSession(page, session);
 

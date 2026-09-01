@@ -16,13 +16,13 @@ type MemoryStorage = {
   removeItem: (key: string) => void;
 };
 
-test("default app config only shows assistant execution trace messages", () => {
+test("default app config shows assistant messages and todo lists in execution trace", () => {
   const config = createDefaultAppConfig();
 
   assert.deepEqual(config.models, {
-    normal: "",
-    summary: "",
-    atomicReview: "",
+    normal: "GPT-5.5",
+    summary: "GPT-5.4",
+    atomicReview: "GPT-5.5",
   });
   assert.equal(config.apiBaseUrl, "");
   assert.deepEqual(config.sshTunnel, {
@@ -44,7 +44,7 @@ test("default app config only shows assistant execution trace messages", () => {
   assert.equal(config.executionTrace.visibleMessageTypes.command_execution, false);
   assert.equal(config.executionTrace.visibleMessageTypes.reasoning, false);
   assert.equal(config.executionTrace.visibleMessageTypes.file_change, false);
-  assert.equal(config.executionTrace.visibleMessageTypes.todo_list, false);
+  assert.equal(config.executionTrace.visibleMessageTypes.todo_list, true);
   assert.equal(config.executionTrace.visibleMessageTypes.lifecycle, false);
   assert.equal(config.executionTrace.visibleMessageTypes.metadata, false);
   assert.equal(config.executionTrace.visibleMessageTypes.stdout, false);
@@ -159,6 +159,9 @@ test("app config persists selected models and reasoning efforts", () => {
         createDefaultAppConfig().reasoningEfforts,
       ),
       {
+        normal: "GPT-5.5",
+        summary: "GPT-5.4",
+        atomicReview: "GPT-5.5",
         reasoningEfforts: {
           normal: "high",
           summary: "low",
