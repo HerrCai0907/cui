@@ -544,37 +544,31 @@
 
 .review-diff-row-ellipsis {
   background: #f3f6f9;
-  color: #667085;
 }
 
-.review-diff-row-ellipsis code {
-  border-left: 1px solid #edf1f5;
-  padding: 1px 12px;
-}
-
-.review-diff-ellipsis-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  width: 52px;
-  margin-right: 8px;
-}
-
-.review-diff-ellipsis-actions button {
-  display: inline-flex;
+.review-diff-context-expand-button {
+  grid-column: 1 / -1;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border: 1px solid #cfd8e3;
-  border-radius: 6px;
-  background: #ffffff;
+  gap: 6px;
+  width: 100%;
+  min-height: 26px;
+  border: 0;
+  border-top: 1px solid #edf1f5;
+  background: #f3f6f9;
   color: #465668;
+  font: inherit;
   cursor: pointer;
 }
 
-.review-diff-ellipsis-actions button:hover {
-  border-color: #9aa8ba;
+.review-diff-row-ellipsis:first-child .review-diff-context-expand-button {
+  border-top: 0;
+}
+
+.review-diff-context-expand-button:hover,
+.review-diff-context-expand-button:focus-visible {
+  background: #e7edf4;
   color: #243041;
 }
 

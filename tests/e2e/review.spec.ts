@@ -295,6 +295,73 @@ test("expands review diff context by 10 lines in each direction", async ({ page 
   await expect(page.getByText(" const value34 = 34;")).not.toBeVisible();
 });
 
+test("renders middle diff context expansion as two full-width rows without ellipsis text", async ({
+  page,
+}) => {
+  const session = {
+    id: "session-middle-context",
+    workspace: currentWorkspace,
+    title: "Middle context expansion session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [
+      {
+        round: 1,
+        hasChanges: true,
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+  };
+  const contextLines = Array.from(
+    { length: 20 },
+    (_, index) => ` const value${index + 1} = ${index + 1};`,
+  );
+  const diff = [
+    "diff --git a/src/context.ts b/src/context.ts",
+    "--- a/src/context.ts",
+    "+++ b/src/context.ts",
+    "@@ -1,20 +1,20 @@",
+    ...contextLines.slice(0, 3),
+    "-const value4 = 4;",
+    "+const value4 = 40;",
+    ...contextLines.slice(4, 16),
+    "-const value17 = 17;",
+    "+const value17 = 170;",
+    ...contextLines.slice(17),
+  ].join("\n");
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+  await mockRoundReview(page, "session-middle-context", 1, {
+    round: 1,
+    beforeDiff: "",
+    afterDiff: diff,
+    diff,
+    hasChanges: true,
+    createdAt: "2026-08-22T00:00:00.000Z",
+  });
+
+  await page.goto("/ui/sessions/session-middle-context/rounds/1/full_review");
+
+  const expandRows = page.locator(".review-diff-row-ellipsis");
+  await expect(expandRows).toHaveCount(2);
+  await expect(
+    expandRows.nth(0).getByRole("button", { name: "Expand 10 lines down" }),
+  ).toBeVisible();
+  await expect(expandRows.nth(1).getByRole("button", { name: "Expand 10 lines up" })).toBeVisible();
+  await expect(expandRows.filter({ hasText: "..." })).toHaveCount(0);
+
+  const firstRowBox = await expandRows.nth(0).boundingBox();
+  const firstButtonBox = await expandRows
+    .nth(0)
+    .getByRole("button", { name: "Expand 10 lines down" })
+    .boundingBox();
+  expect(firstRowBox).not.toBeNull();
+  expect(firstButtonBox).not.toBeNull();
+  expect(firstButtonBox!.width).toBeGreaterThanOrEqual(firstRowBox!.width - 1);
+});
+
 test("sends all atomic review comments together", async ({ page }) => {
   const session = {
     id: "session-comment",
