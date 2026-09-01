@@ -702,7 +702,11 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
 
     try {
       const workspace = workspaceDraft.trim() || defaultWorkspace;
-      const models = createModelRequestPreferences(config.models, config.reasoningEfforts);
+      const models = createModelRequestPreferences(
+        config.harness,
+        config.models,
+        config.reasoningEfforts,
+      );
       const targetSession =
         activeSession ??
         (await createSession({

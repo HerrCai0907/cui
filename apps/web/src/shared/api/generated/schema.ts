@@ -192,6 +192,8 @@ export interface paths {
                 id: string;
                 /** @enum {string} */
                 origin?: "chat" | "shell";
+                /** @enum {string} */
+                aiHarness?: "traex" | "codex";
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -269,6 +271,8 @@ export interface paths {
                 id: string;
                 /** @enum {string} */
                 origin?: "chat" | "shell";
+                /** @enum {string} */
+                aiHarness?: "traex" | "codex";
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -361,6 +365,8 @@ export interface paths {
                 id: string;
                 /** @enum {string} */
                 origin?: "chat" | "shell";
+                /** @enum {string} */
+                aiHarness?: "traex" | "codex";
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -451,6 +457,8 @@ export interface paths {
                 id: string;
                 /** @enum {string} */
                 origin?: "chat" | "shell";
+                /** @enum {string} */
+                aiHarness?: "traex" | "codex";
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -651,6 +659,8 @@ export interface paths {
                   prompt: string;
                 };
                 models?: {
+                  /** @enum {string} */
+                  harness?: "traex" | "codex";
                   normal?: string;
                   summary?: string;
                   atomicReview?: string;
@@ -695,6 +705,8 @@ export interface paths {
                 id: string;
                 /** @enum {string} */
                 origin?: "chat" | "shell";
+                /** @enum {string} */
+                aiHarness?: "traex" | "codex";
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -805,6 +817,8 @@ export interface paths {
             /** @enum {string} */
             mode?: "atomic";
             models?: {
+              /** @enum {string} */
+              harness?: "traex" | "codex";
               normal?: string;
               summary?: string;
               atomicReview?: string;
@@ -842,6 +856,8 @@ export interface paths {
                 id: string;
                 /** @enum {string} */
                 origin?: "chat" | "shell";
+                /** @enum {string} */
+                aiHarness?: "traex" | "codex";
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -1032,6 +1048,8 @@ export interface paths {
                     id: string;
                     /** @enum {string} */
                     origin?: "chat" | "shell";
+                    /** @enum {string} */
+                    aiHarness?: "traex" | "codex";
                     workspace: string;
                     title: string;
                     summary?: string;
@@ -1080,6 +1098,8 @@ export interface paths {
                     id: string;
                     /** @enum {string} */
                     origin?: "chat" | "shell";
+                    /** @enum {string} */
+                    aiHarness?: "traex" | "codex";
                     workspace: string;
                     title: string;
                     summary?: string;
@@ -1230,6 +1250,8 @@ export interface components {
       id: string;
       /** @enum {string} */
       origin?: "chat" | "shell";
+      /** @enum {string} */
+      aiHarness?: "traex" | "codex";
       workspace: string;
       title: string;
       summary?: string;
@@ -1274,6 +1296,8 @@ export interface components {
       id: string;
       /** @enum {string} */
       origin?: "chat" | "shell";
+      /** @enum {string} */
+      aiHarness?: "traex" | "codex";
       workspace: string;
       title: string;
       summary?: string;
@@ -1305,6 +1329,8 @@ export interface components {
       createdAt: string;
     };
     AiModelPreferences: {
+      /** @enum {string} */
+      harness?: "traex" | "codex";
       normal?: string;
       summary?: string;
       atomicReview?: string;
@@ -1338,6 +1364,8 @@ export interface components {
         id: string;
         /** @enum {string} */
         origin?: "chat" | "shell";
+        /** @enum {string} */
+        aiHarness?: "traex" | "codex";
         workspace: string;
         title: string;
         summary?: string;
@@ -1387,6 +1415,8 @@ export interface components {
             prompt: string;
           };
           models?: {
+            /** @enum {string} */
+            harness?: "traex" | "codex";
             normal?: string;
             summary?: string;
             atomicReview?: string;
@@ -1411,6 +1441,8 @@ export interface components {
       /** @enum {string} */
       mode?: "atomic";
       models?: {
+        /** @enum {string} */
+        harness?: "traex" | "codex";
         normal?: string;
         summary?: string;
         atomicReview?: string;
@@ -1452,6 +1484,8 @@ export interface components {
         id: string;
         /** @enum {string} */
         origin?: "chat" | "shell";
+        /** @enum {string} */
+        aiHarness?: "traex" | "codex";
         workspace: string;
         title: string;
         summary?: string;
@@ -1515,6 +1549,8 @@ export interface components {
             id: string;
             /** @enum {string} */
             origin?: "chat" | "shell";
+            /** @enum {string} */
+            aiHarness?: "traex" | "codex";
             workspace: string;
             title: string;
             summary?: string;
@@ -1563,6 +1599,8 @@ export interface components {
             id: string;
             /** @enum {string} */
             origin?: "chat" | "shell";
+            /** @enum {string} */
+            aiHarness?: "traex" | "codex";
             workspace: string;
             title: string;
             summary?: string;

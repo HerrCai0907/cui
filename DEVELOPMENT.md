@@ -5,13 +5,21 @@ This document covers local development for CUI. User-facing setup and feature sc
 ## Prerequisites
 
 - Node.js with npm
-- A TRAEX-compatible environment available to the API process
+- At least one supported AI harness available to the API process
 
 Install dependencies from the repository root:
 
 ```sh
 npm install
 ```
+
+The API can run assistant sessions through any supported harness. It resolves each harness command
+from its matching environment override when set, otherwise from `PATH`.
+
+Supported command overrides:
+
+- `TRAEX_BIN`
+- `CODEX_BIN`
 
 ## Development Server
 

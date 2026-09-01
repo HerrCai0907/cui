@@ -94,6 +94,7 @@ test("sends configured models when starting a chat session", async ({ page }) =>
 
   const modelChoices = page.getByRole("group", { name: "Model choices" });
 
+  await page.getByRole("combobox", { name: "AI harness" }).selectOption("codex");
   await modelChoices.locator("select").nth(0).selectOption("GPT-5.4");
   await modelChoices.getByLabel("Normal reasoning effort").selectOption("medium");
   await modelChoices.locator("select").nth(2).selectOption("Seed-2.1-Turbo");
@@ -119,6 +120,7 @@ test("sends configured models when starting a chat session", async ({ page }) =>
         prompt: "Use the selected models.",
       },
       models: {
+        harness: "codex",
         normal: "GPT-5.4",
         summary: "Seed-2.1-Turbo",
         atomicReview: "DeepSeek-V4-Pro",

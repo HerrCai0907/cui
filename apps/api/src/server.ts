@@ -1,7 +1,10 @@
 import dotenv from "dotenv";
 import { createApp } from "./app/createApp.js";
 import { TraexModel } from "./infrastructure/ai/TraexModel.js";
-import { assertTraexBinaryAvailable } from "./infrastructure/ai/traexBinary.js";
+import {
+  assertAiHarnessBinaryAvailable,
+  getAiHarnessBinaryConfig,
+} from "./infrastructure/ai/traexBinary.js";
 import { AppLogger } from "./infrastructure/logging/AppLogger.js";
 import { SessionService } from "./domain/sessions/SessionService.js";
 import { JsonSessionStore } from "./infrastructure/store/JsonSessionStore.js";
@@ -16,11 +19,23 @@ const sessionService = new SessionService(aiModel, new JsonSessionStore(), logge
 const codeQueryService = new CodeQueryService();
 const app = createApp({ logger, aiModel, sessionService, codeQueryService });
 
-await assertTraexBinaryAvailable().catch(async (error: unknown) => {
+const harnessAvailability = await Promise.allSettled([
+  assertAiHarnessBinaryAvailable(getAiHarnessBinaryConfig("traex")),
+  assertAiHarnessBinaryAvailable(getAiHarnessBinaryConfig("codex")),
+]);
+
+if (harnessAvailability.every((result) => result.status === "rejected")) {
+  const error = new Error(
+    harnessAvailability
+      .map((result) => (result.status === "rejected" ? String(result.reason) : ""))
+      .filter(Boolean)
+      .join(" "),
+  );
+
   console.error(error);
-  await logger.framework.error("server.traex.unavailable", error);
+  await logger.framework.error("server.ai_harness.unavailable", error);
   process.exit(1);
-});
+}
 
 const server = app.listen(port);
 

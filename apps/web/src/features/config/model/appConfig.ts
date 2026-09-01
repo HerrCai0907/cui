@@ -21,6 +21,10 @@ export const MODEL_PURPOSES = ["normal", "summary", "atomicReview"] as const;
 
 export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
 
+export const AI_HARNESSES = ["traex", "codex"] as const;
+
+export type AiHarness = (typeof AI_HARNESSES)[number];
+
 export type ModelPreferences = Record<ModelPurpose, string>;
 
 export const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh"] as const;
@@ -30,6 +34,7 @@ export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 export type ReasoningEffortPreferences = Record<ModelPurpose, ReasoningEffort>;
 
 export type ModelRequestPreferences = Partial<Record<ModelPurpose, string>> & {
+  harness?: AiHarness;
   reasoningEfforts?: Partial<Record<ModelPurpose, ReasoningEffort>>;
 };
 
@@ -53,6 +58,7 @@ export type SshTunnelConfig = {
 
 export type AppConfig = {
   apiBaseUrl: string;
+  harness: AiHarness;
   sshTunnel: SshTunnelConfig;
   models: ModelPreferences;
   reasoningEfforts: ReasoningEffortPreferences;
@@ -63,6 +69,7 @@ export type AppConfig = {
 
 type StoredAppConfig = {
   version: 1;
+  harness?: AiHarness;
   sshTunnel?: Partial<SshTunnelConfig>;
   models?: Partial<Record<ModelPurpose, string>>;
   reasoningEfforts?: Partial<Record<ModelPurpose, ReasoningEffort>>;
@@ -88,6 +95,11 @@ export const MODEL_PURPOSE_LABELS: Record<ModelPurpose, string> = {
   normal: "Normal",
   summary: "Summary",
   atomicReview: "Atomic Review",
+};
+
+export const AI_HARNESS_LABELS: Record<AiHarness, string> = {
+  traex: "TraeX",
+  codex: "Codex",
 };
 
 export const REASONING_EFFORT_LABELS: Record<ReasoningEffort, string> = {
@@ -117,6 +129,7 @@ export function createDefaultSshTunnelConfig(): SshTunnelConfig {
 export function createDefaultAppConfig(): AppConfig {
   return {
     apiBaseUrl: getDefaultApiBaseUrl(),
+    harness: "traex",
     sshTunnel: createDefaultSshTunnelConfig(),
     models: {
       normal: "GPT-5.5",
@@ -162,6 +175,7 @@ export function loadAppConfig(): AppConfig {
 
     return {
       apiBaseUrl: getDefaultApiBaseUrl(),
+      harness: isAiHarness(parsed.harness) ? parsed.harness : defaultConfig.harness,
       sshTunnel: parseSshTunnelConfig(parsed.sshTunnel),
       models: {
         ...defaultConfig.models,
@@ -192,6 +206,7 @@ export function saveAppConfig(config: AppConfig): void {
   try {
     const storedConfig: StoredAppConfig = {
       version: 1,
+      harness: config.harness,
       sshTunnel: sanitizeSshTunnelConfig(config.sshTunnel),
       models: sanitizeModelPreferences(config.models),
       reasoningEfforts: sanitizeReasoningEffortPreferences(config.reasoningEfforts),
@@ -262,10 +277,14 @@ function sanitizePort(value: unknown, fallback: number): number {
 }
 
 export function createModelRequestPreferences(
+  harness: AiHarness,
   models: ModelPreferences,
   reasoningEfforts: ReasoningEffortPreferences,
 ): ModelRequestPreferences | undefined {
-  const preferences: ModelRequestPreferences = sanitizeModelPreferences(models);
+  const preferences: ModelRequestPreferences = {
+    harness,
+    ...sanitizeModelPreferences(models),
+  };
   const sanitizedReasoningEfforts = sanitizeReasoningEffortPreferences(reasoningEfforts);
 
   if (Object.keys(sanitizedReasoningEfforts).length > 0) {
@@ -409,6 +428,10 @@ function sanitizeReasoningEffortPreferences(
 
 function isReasoningEffort(value: unknown): value is ReasoningEffort {
   return typeof value === "string" && REASONING_EFFORTS.includes(value as ReasoningEffort);
+}
+
+function isAiHarness(value: unknown): value is AiHarness {
+  return typeof value === "string" && AI_HARNESSES.includes(value as AiHarness);
 }
 
 function isFileChangeItem(type: string | undefined): boolean {

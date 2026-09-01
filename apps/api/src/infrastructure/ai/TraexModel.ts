@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { GitDiffService } from "../diff/GitDiffService.js";
 import {
   AiReasoningEffort,
+  AiHarness,
   AiAtomicDiffReviewInput,
   AiContinueSessionInput,
   AiCreateSessionInput,
@@ -27,16 +28,20 @@ import { parseConversationSummary } from "./conversationSummaryParser.js";
 import {
   createTraexEnv,
   createTraexNotFoundError,
+  getAiHarnessBinaryConfig,
   getConfiguredTraexBinary,
+  type AiHarnessBinaryConfig,
 } from "./traexBinary.js";
 import { extractResponseDeltas, extractThreadId, formatRawEvents } from "./traexEvents.js";
 import { runTraexProcess, type TraexProcessRun } from "./traexProcess.js";
 
 type TraexProcessRunner = (input: Parameters<typeof runTraexProcess>[0]) => TraexProcessRun;
 type TraexModelListRunner = () => Promise<unknown>;
+type AiHarnessBinaryResolver = (harness: AiHarness) => AiHarnessBinaryConfig;
 
 type TraexModelOptions = {
   binary?: string;
+  binaryResolver?: AiHarnessBinaryResolver;
   diffService?: GitDiffService;
   modelListRunner?: TraexModelListRunner;
   permissionMode?: string;
@@ -46,6 +51,7 @@ type TraexModelOptions = {
 
 export class TraexModel implements AiModel {
   private readonly binary: string;
+  private readonly binaryResolver: AiHarnessBinaryResolver;
   private readonly diffService: GitDiffService;
   private readonly modelListRunner: TraexModelListRunner;
   private readonly permissionMode: string;
@@ -54,6 +60,15 @@ export class TraexModel implements AiModel {
 
   constructor(options: TraexModelOptions = {}) {
     this.binary = options.binary ?? getConfiguredTraexBinary();
+    this.binaryResolver =
+      options.binaryResolver ??
+      ((harness) =>
+        harness === "traex"
+          ? {
+              ...getAiHarnessBinaryConfig("traex"),
+              command: this.binary,
+            }
+          : getAiHarnessBinaryConfig("codex"));
     this.diffService = options.diffService ?? new GitDiffService();
     this.modelListRunner =
       options.modelListRunner ?? (() => execFileJson(this.binary, ["models", "--json"]));
@@ -74,32 +89,37 @@ export class TraexModel implements AiModel {
   }
 
   async createSession(input: AiCreateSessionInput): Promise<AiResponse> {
-    const args = this.createExecArgs(input.workspace, input.models, "normal");
+    const harness = getModelHarness(input.models);
+    const args = this.createExecArgs(input.workspace, input.models, "normal", harness);
 
-    return this.run(undefined, args, input.prompt, input.workspace);
+    return this.run(undefined, args, input.prompt, input.workspace, true, harness);
   }
 
   createSessionStream(input: AiCreateSessionInput, onEvent: (event: AiRunEvent) => void): AiRun {
-    const args = this.createExecArgs(input.workspace, input.models, "normal");
+    const harness = getModelHarness(input.models);
+    const args = this.createExecArgs(input.workspace, input.models, "normal", harness);
 
-    return this.startRun(undefined, args, input.prompt, input.workspace, true, onEvent);
+    return this.startRun(undefined, args, input.prompt, input.workspace, true, harness, onEvent);
   }
 
   async continueSession(input: AiContinueSessionInput): Promise<AiResponse> {
-    const args = this.createResumeArgs(input.sessionId, input.models, "normal");
+    const harness = getModelHarness(input.models);
+    const args = this.createResumeArgs(input.sessionId, input.models, "normal", harness);
 
-    return this.run(input.sessionId, args, input.prompt, input.workspace);
+    return this.run(input.sessionId, args, input.prompt, input.workspace, true, harness);
   }
 
   async summarizeConversation(input: AiCreateSessionInput): Promise<ConversationSummary> {
-    const args = this.createExecArgs(input.workspace, input.models, "summary");
-    const response = await this.run(undefined, args, input.prompt, input.workspace, false);
+    const harness = getModelHarness(input.models);
+    const args = this.createExecArgs(input.workspace, input.models, "summary", harness);
+    const response = await this.run(undefined, args, input.prompt, input.workspace, false, harness);
 
     return parseConversationSummary(response.content);
   }
 
   async createAtomicDiffReview(input: AiAtomicDiffReviewInput): Promise<AtomicDiffReview> {
-    const createArgs = this.createExecArgs(input.workspace, input.models, "atomicReview");
+    const harness = getModelHarness(input.models);
+    const createArgs = this.createExecArgs(input.workspace, input.models, "atomicReview", harness);
     let response: AiResponse | undefined;
     const diffFile = await createAtomicReviewDiffFile(input.diff);
     const reviewInput = {
@@ -114,6 +134,7 @@ export class TraexModel implements AiModel {
         createAtomicDiffReviewPrompt(reviewInput),
         input.workspace,
         false,
+        harness,
       );
       const parsedItems = parseAtomicDiffReviewItems(response.content);
 
@@ -131,7 +152,7 @@ export class TraexModel implements AiModel {
         try {
           correctionResponse = await this.run(
             response.sessionId,
-            this.createResumeArgs(response.sessionId, input.models, "atomicReview"),
+            this.createResumeArgs(response.sessionId, input.models, "atomicReview", harness),
             createAtomicDiffReviewFormatCorrectionPrompt({
               validationError:
                 error instanceof Error ? error.message : "Atomic diff review format was invalid",
@@ -140,6 +161,7 @@ export class TraexModel implements AiModel {
             }),
             input.workspace,
             false,
+            harness,
           );
           const parsedItems = parseAtomicDiffReviewItems(correctionResponse.content);
 
@@ -177,9 +199,18 @@ export class TraexModel implements AiModel {
     input: AiContinueSessionInput,
     onEvent: (event: AiRunEvent) => void,
   ): AiRun {
-    const args = this.createResumeArgs(input.sessionId, input.models, "normal");
+    const harness = getModelHarness(input.models);
+    const args = this.createResumeArgs(input.sessionId, input.models, "normal", harness);
 
-    return this.startRun(input.sessionId, args, input.prompt, input.workspace, true, onEvent);
+    return this.startRun(
+      input.sessionId,
+      args,
+      input.prompt,
+      input.workspace,
+      true,
+      harness,
+      onEvent,
+    );
   }
 
   private async run(
@@ -188,16 +219,41 @@ export class TraexModel implements AiModel {
     prompt: string,
     workspace: string,
     captureDiff = true,
+    harness: AiHarness,
   ): Promise<AiResponse> {
-    return this.startRun(expectedSessionId, args, prompt, workspace, captureDiff, () => undefined)
-      .result;
+    return this.startRun(
+      expectedSessionId,
+      args,
+      prompt,
+      workspace,
+      captureDiff,
+      harness,
+      () => undefined,
+    ).result;
   }
 
   private createExecArgs(
     workspace: string,
     models: AiModelPreferences | undefined,
     purpose: AiModelPurpose,
+    harness: AiHarness,
   ): string[] {
+    if (harness === "codex") {
+      return this.withModelArg(
+        [
+          "exec",
+          "-C",
+          workspace,
+          "--dangerously-bypass-approvals-and-sandbox",
+          "--skip-git-repo-check",
+          "--json",
+          "-",
+        ],
+        models,
+        purpose,
+      );
+    }
+
     return this.withModelArg(
       [
         "exec",
@@ -218,7 +274,24 @@ export class TraexModel implements AiModel {
     sessionId: string,
     models: AiModelPreferences | undefined,
     purpose: AiModelPurpose,
+    harness: AiHarness,
   ): string[] {
+    if (harness === "codex") {
+      return this.withModelArg(
+        [
+          "exec",
+          "resume",
+          sessionId,
+          "--dangerously-bypass-approvals-and-sandbox",
+          "--skip-git-repo-check",
+          "--json",
+          "-",
+        ],
+        models,
+        purpose,
+      );
+    }
+
     return this.withModelArg(
       [
         "exec",
@@ -278,10 +351,12 @@ export class TraexModel implements AiModel {
     prompt: string,
     workspace: string,
     captureDiff: boolean,
+    harness: AiHarness,
     onEvent: (event: AiRunEvent) => void,
   ): AiRun {
     const sessionIdSignal = createDeferred<string>();
     let observedSessionId = expectedSessionId;
+    const binaryConfig = this.binaryResolver(harness);
 
     if (expectedSessionId) {
       sessionIdSignal.resolve(expectedSessionId);
@@ -289,7 +364,8 @@ export class TraexModel implements AiModel {
     }
 
     const processRun = this.processRunner({
-      command: this.binary,
+      command: binaryConfig.command,
+      binaryConfig,
       args,
       cwd: workspace,
       input: prompt,
@@ -317,7 +393,7 @@ export class TraexModel implements AiModel {
         const sessionId = expectedSessionId ?? observedSessionId ?? extractThreadId(rawEvents);
 
         if (!sessionId) {
-          throw new Error("TraeX did not return a thread id");
+          throw new Error(`${binaryConfig.displayName} did not return a thread id`);
         }
 
         sessionIdSignal.resolve(sessionId);
@@ -361,6 +437,10 @@ function createDeferred<T>() {
   });
 
   return { promise, resolve, reject };
+}
+
+function getModelHarness(models: AiModelPreferences | undefined): AiHarness {
+  return models?.harness === "codex" ? "codex" : "traex";
 }
 
 function execFileJson(command: string, args: string[]): Promise<unknown> {

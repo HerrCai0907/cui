@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Check, KeyRound, RotateCcw, Server } from "lucide-react";
 import {
+  AI_HARNESSES,
+  AI_HARNESS_LABELS,
   DEFAULT_SSH_TUNNEL_CONFIG,
   EXECUTION_TRACE_MESSAGE_TYPES,
   EXECUTION_TRACE_MESSAGE_TYPE_LABELS,
@@ -9,6 +11,7 @@ import {
   REASONING_EFFORTS,
   REASONING_EFFORT_LABELS,
   createDefaultAppConfig,
+  type AiHarness,
   type AppConfig,
   type ExecutionTraceMessageType,
   type ModelOption,
@@ -97,6 +100,13 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
         ...config.reasoningEfforts,
         [purpose]: reasoningEffort,
       },
+    });
+  }
+
+  function setHarness(harness: AiHarness) {
+    onConfigChange({
+      ...config,
+      harness,
     });
   }
 
@@ -274,6 +284,27 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
           </button>
         </div>
 
+        <div className="config-table" role="group" aria-label="AI harness selection">
+          <label className="config-select-row">
+            <span>
+              <strong>AI Harness</strong>
+            </span>
+            <span className="config-select-controls">
+              <select
+                aria-label="AI harness"
+                value={config.harness}
+                onChange={(event) => setHarness(event.target.value as AiHarness)}
+              >
+                {AI_HARNESSES.map((harness) => (
+                  <option value={harness} key={harness}>
+                    {AI_HARNESS_LABELS[harness]}
+                  </option>
+                ))}
+              </select>
+            </span>
+          </label>
+        </div>
+
         <div className="config-table" role="group" aria-label="Model choices">
           {MODEL_PURPOSES.map((purpose) => (
             <label className="config-select-row" key={purpose}>
@@ -285,7 +316,7 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
                   value={config.models[purpose]}
                   onChange={(event) => setModel(purpose, event.target.value)}
                 >
-                  <option value="">TraeX default</option>
+                  <option value="">Harness default</option>
                   {modelOptions.map((model) => (
                     <option value={model.name} key={model.name}>
                       {model.name}

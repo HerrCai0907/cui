@@ -67,14 +67,14 @@ test("keeps only the running session blocked while another run is active", async
   await page.getByPlaceholder("Continue this session...").fill("Run a long task");
   await page.getByRole("button", { name: "Send message" }).click();
 
-  await expect(page.getByText("Waiting for TRAEX...")).toBeVisible();
+  await expect(page.getByText("Waiting for the AI harness...")).toBeVisible();
   await expect(page.getByRole("button", { name: "Stop generation" })).toBeEnabled();
 
   await page.getByRole("button", { name: "Other session" }).click();
 
   await expect(page.getByRole("heading", { name: "Other session" })).toBeVisible();
   await expect(page.getByText("Available session")).toBeVisible();
-  await expect(page.getByText("Waiting for TRAEX...")).not.toBeVisible();
+  await expect(page.getByText("Waiting for the AI harness...")).not.toBeVisible();
   await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
 
   await page.getByRole("button", { name: "New session", exact: true }).click();
@@ -86,7 +86,7 @@ test("keeps only the running session blocked while another run is active", async
   await page.getByRole("button", { name: "Running session" }).click();
 
   await expect(page.getByRole("heading", { name: "Running session" })).toBeVisible();
-  await expect(page.getByText("Waiting for TRAEX...")).toBeVisible();
+  await expect(page.getByText("Waiting for the AI harness...")).toBeVisible();
   await expect(page.getByRole("button", { name: "Stop generation" })).toBeEnabled();
 });
 
@@ -240,7 +240,7 @@ test("stops a running session and restores the send button", async ({ page }) =>
 
   await expect.poll(() => stopRequests).toBe(1);
   await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
-  await expect(page.getByText("Waiting for TRAEX...")).not.toBeVisible();
+  await expect(page.getByText("Waiting for the AI harness...")).not.toBeVisible();
   await expect(page.getByText("Show execution trace")).toBeVisible();
   await expect(page.getByText("1 event / 1 message")).toBeVisible();
   await expect(page.getByText("Trace before stop.")).not.toBeVisible();

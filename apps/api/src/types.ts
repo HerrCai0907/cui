@@ -42,6 +42,7 @@ export type ChatSession = {
   id: string;
   origin?: ChatSessionOrigin;
   aiThreadId?: string;
+  aiHarness?: AiHarness;
   workspace: string;
   title: string;
   summary?: string;
@@ -107,7 +108,10 @@ export type AiModelPurpose = "normal" | "summary" | "atomicReview";
 
 export type AiReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
 
+export type AiHarness = "traex" | "codex";
+
 export type AiModelPreferences = Partial<Record<AiModelPurpose, string>> & {
+  harness?: AiHarness;
   reasoningEfforts?: Partial<Record<AiModelPurpose, AiReasoningEffort>>;
 };
 

@@ -447,7 +447,7 @@ test("createRun streams and stores command output in a shell session", async () 
   }
 });
 
-test("createRun creates a TraeX thread before chatting in an unbound shell session", async () => {
+test("createRun creates an AI thread before chatting in an unbound shell session", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
   const aiModel = new FakeAiModel();
@@ -482,6 +482,7 @@ test("createRun creates a TraeX thread before chatting in an unbound shell sessi
     const submitted = await service.createRun(
       "shell-session-1",
       createAssistantRunRequest("Explain this output.", {
+        harness: "codex",
         normal: "GPT-5.4",
       }),
     );
@@ -502,7 +503,7 @@ test("createRun creates a TraeX thread before chatting in an unbound shell sessi
       progress: "The shell output has been explained.",
     });
     aiModel.resolveRun({
-      sessionId: "traex-thread-1",
+      sessionId: "codex-thread-1",
       content: "It printed hello.",
       rawEvents: [],
     });
@@ -513,7 +514,8 @@ test("createRun creates a TraeX thread before chatting in an unbound shell sessi
     const publicSession = await service.getSessionView("shell-session-1");
 
     assert.equal(storedSession?.id, "shell-session-1");
-    assert.equal(storedSession?.aiThreadId, "traex-thread-1");
+    assert.equal(storedSession?.aiThreadId, "codex-thread-1");
+    assert.equal(storedSession?.aiHarness, "codex");
     assert.equal(publicSession?.id, "shell-session-1");
     assert.equal("aiThreadId" in (publicSession ?? {}), false);
     assert.equal(publicSession?.messages.at(-1)?.content, "It printed hello.");
@@ -522,7 +524,7 @@ test("createRun creates a TraeX thread before chatting in an unbound shell sessi
   }
 });
 
-test("createRun resumes a bound TraeX thread for later shell-session chat", async () => {
+test("createRun resumes a bound Codex thread for later shell-session chat", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
   const aiModel = new FakeAiModel();
@@ -532,7 +534,8 @@ test("createRun resumes a bound TraeX thread for later shell-session chat", asyn
     await store.createSession({
       id: "shell-session-1",
       origin: "shell",
-      aiThreadId: "traex-thread-1",
+      aiThreadId: "codex-thread-1",
+      aiHarness: "codex",
       workspace: cwd,
       title: "$ printf hello",
       summary: "Shell session",
@@ -553,14 +556,15 @@ test("createRun resumes a bound TraeX thread for later shell-session chat", asyn
 
     assert.equal(aiModel.createStreamInputs.length, 0);
     assert.equal(aiModel.continueStreamInputs.length, 1);
-    assert.equal(aiModel.continueStreamInputs[0]?.sessionId, "traex-thread-1");
+    assert.equal(aiModel.continueStreamInputs[0]?.sessionId, "codex-thread-1");
+    assert.equal(aiModel.continueStreamInputs[0]?.models?.harness, "codex");
 
     aiModel.resolveSummary({
       title: "Shell follow-up",
       progress: "The bound thread was resumed.",
     });
     aiModel.resolveRun({
-      sessionId: "traex-thread-1",
+      sessionId: "codex-thread-1",
       content: "Continued.",
       rawEvents: [],
     });
@@ -570,7 +574,7 @@ test("createRun resumes a bound TraeX thread for later shell-session chat", asyn
     const storedSession = await store.getSession("shell-session-1");
 
     assert.equal(storedSession?.id, "shell-session-1");
-    assert.equal(storedSession?.aiThreadId, "traex-thread-1");
+    assert.equal(storedSession?.aiThreadId, "codex-thread-1");
     assert.equal(storedSession?.messages.at(-1)?.content, "Continued.");
   } finally {
     await rm(cwd, { force: true, recursive: true });

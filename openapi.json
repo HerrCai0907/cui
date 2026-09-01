@@ -244,6 +244,10 @@
             "type": "string",
             "enum": ["chat", "shell"]
           },
+          "aiHarness": {
+            "type": "string",
+            "enum": ["traex", "codex"]
+          },
           "workspace": {
             "type": "string"
           },
@@ -386,6 +390,10 @@
             "type": "string",
             "enum": ["chat", "shell"]
           },
+          "aiHarness": {
+            "type": "string",
+            "enum": ["traex", "codex"]
+          },
           "workspace": {
             "type": "string"
           },
@@ -477,6 +485,10 @@
       "AiModelPreferences": {
         "type": "object",
         "properties": {
+          "harness": {
+            "type": "string",
+            "enum": ["traex", "codex"]
+          },
           "normal": {
             "type": "string",
             "minLength": 1
@@ -576,6 +588,10 @@
               "origin": {
                 "type": "string",
                 "enum": ["chat", "shell"]
+              },
+              "aiHarness": {
+                "type": "string",
+                "enum": ["traex", "codex"]
               },
               "workspace": {
                 "type": "string"
@@ -734,6 +750,10 @@
               "models": {
                 "type": "object",
                 "properties": {
+                  "harness": {
+                    "type": "string",
+                    "enum": ["traex", "codex"]
+                  },
                   "normal": {
                     "type": "string",
                     "minLength": 1
@@ -804,6 +824,10 @@
           "models": {
             "type": "object",
             "properties": {
+              "harness": {
+                "type": "string",
+                "enum": ["traex", "codex"]
+              },
               "normal": {
                 "type": "string",
                 "minLength": 1
@@ -909,6 +933,10 @@
               "origin": {
                 "type": "string",
                 "enum": ["chat", "shell"]
+              },
+              "aiHarness": {
+                "type": "string",
+                "enum": ["traex", "codex"]
               },
               "workspace": {
                 "type": "string"
@@ -1098,6 +1126,10 @@
                     "type": "string",
                     "enum": ["chat", "shell"]
                   },
+                  "aiHarness": {
+                    "type": "string",
+                    "enum": ["traex", "codex"]
+                  },
                   "workspace": {
                     "type": "string"
                   },
@@ -1249,6 +1281,10 @@
                   "origin": {
                     "type": "string",
                     "enum": ["chat", "shell"]
+                  },
+                  "aiHarness": {
+                    "type": "string",
+                    "enum": ["traex", "codex"]
                   },
                   "workspace": {
                     "type": "string"
@@ -1671,6 +1707,10 @@
                             "type": "string",
                             "enum": ["chat", "shell"]
                           },
+                          "aiHarness": {
+                            "type": "string",
+                            "enum": ["traex", "codex"]
+                          },
                           "workspace": {
                             "type": "string"
                           },
@@ -1843,6 +1883,10 @@
                         "origin": {
                           "type": "string",
                           "enum": ["chat", "shell"]
+                        },
+                        "aiHarness": {
+                          "type": "string",
+                          "enum": ["traex", "codex"]
                         },
                         "workspace": {
                           "type": "string"
@@ -2032,6 +2076,10 @@
                         "origin": {
                           "type": "string",
                           "enum": ["chat", "shell"]
+                        },
+                        "aiHarness": {
+                          "type": "string",
+                          "enum": ["traex", "codex"]
                         },
                         "workspace": {
                           "type": "string"
@@ -2235,6 +2283,10 @@
                         "origin": {
                           "type": "string",
                           "enum": ["chat", "shell"]
+                        },
+                        "aiHarness": {
+                          "type": "string",
+                          "enum": ["traex", "codex"]
                         },
                         "workspace": {
                           "type": "string"
@@ -2678,6 +2730,10 @@
                       "models": {
                         "type": "object",
                         "properties": {
+                          "harness": {
+                            "type": "string",
+                            "enum": ["traex", "codex"]
+                          },
                           "normal": {
                             "type": "string",
                             "minLength": 1
@@ -2782,6 +2838,10 @@
                         "origin": {
                           "type": "string",
                           "enum": ["chat", "shell"]
+                        },
+                        "aiHarness": {
+                          "type": "string",
+                          "enum": ["traex", "codex"]
                         },
                         "workspace": {
                           "type": "string"
@@ -3009,6 +3069,10 @@
                   "models": {
                     "type": "object",
                     "properties": {
+                      "harness": {
+                        "type": "string",
+                        "enum": ["traex", "codex"]
+                      },
                       "normal": {
                         "type": "string",
                         "minLength": 1
@@ -3089,6 +3153,10 @@
                         "origin": {
                           "type": "string",
                           "enum": ["chat", "shell"]
+                        },
+                        "aiHarness": {
+                          "type": "string",
+                          "enum": ["traex", "codex"]
                         },
                         "workspace": {
                           "type": "string"
@@ -3408,6 +3476,10 @@
                               "type": "string",
                               "enum": ["chat", "shell"]
                             },
+                            "aiHarness": {
+                              "type": "string",
+                              "enum": ["traex", "codex"]
+                            },
                             "workspace": {
                               "type": "string"
                             },
@@ -3559,6 +3631,10 @@
                             "origin": {
                               "type": "string",
                               "enum": ["chat", "shell"]
+                            },
+                            "aiHarness": {
+                              "type": "string",
+                              "enum": ["traex", "codex"]
                             },
                             "workspace": {
                               "type": "string"

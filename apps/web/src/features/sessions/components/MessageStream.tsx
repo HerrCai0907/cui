@@ -47,7 +47,7 @@ export function MessageStream({
     >
       {!activeSession && (
         <div className="empty-state">
-          <h2>Start a TRAEX-backed AI session</h2>
+          <h2>Start an AI harness-backed session</h2>
           <p>
             Pick a workspace path, type the initial prompt, and the backend will create a persistent
             session.
@@ -73,7 +73,7 @@ export function MessageStream({
       ))}
 
       {queuedPrompts.length > 0 && <QueuedPromptList queuedPrompts={queuedPrompts} />}
-      {blocked && <p className="loading-line">Waiting for TRAEX...</p>}
+      {blocked && <p className="loading-line">Waiting for the AI harness...</p>}
       {error && <p className="error-line">{error}</p>}
     </div>
   );
