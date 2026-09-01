@@ -90,6 +90,7 @@ android {
 }
 
 dependencies {
+    implementation("androidx.activity:activity:1.13.0")
     implementation("com.github.mwiede:jsch:0.2.25")
 }
 
