@@ -16,6 +16,7 @@ import {
 import { toSessionSummary } from "../model/sessionSummaries";
 import { parseRunStreamEvent } from "../model/runStream";
 import type { SessionSummary } from "../../../types";
+import { resolveApiUrl } from "../../../shared/api/apiBaseUrl";
 
 type UseRunStreamInput = {
   activeSessionRef: MutableRefObject<ApiSession | null>;
@@ -84,7 +85,7 @@ export function useRunStream({
 
     eventSourceRefs.current.get(sessionId)?.close();
 
-    const eventSource = new EventSource(`/api/v1/runs/${runId}/events`);
+    const eventSource = new EventSource(resolveApiUrl(`/api/v1/runs/${runId}/events`));
     eventSourceRefs.current.set(sessionId, eventSource);
     runIdRefs.current.set(sessionId, runId);
     const streamingTraceMessageId = `stream-${runId}-trace`;

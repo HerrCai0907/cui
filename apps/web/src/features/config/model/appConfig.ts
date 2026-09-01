@@ -1,4 +1,5 @@
 import type { ExecutionTraceEvent, ExecutionTraceItem } from "../../../types";
+import { getDefaultApiBaseUrl } from "../../../shared/api/apiBaseUrl";
 
 export const APP_CONFIG_STORAGE_KEY = "cui:app-config:v1";
 
@@ -39,7 +40,20 @@ export type ModelOption = {
   contextWindow?: number;
 };
 
+export type SshTunnelConfig = {
+  enabled: boolean;
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  localPort: number;
+  remoteHost: string;
+  remotePort: number;
+};
+
 export type AppConfig = {
+  apiBaseUrl: string;
+  sshTunnel: SshTunnelConfig;
   models: ModelPreferences;
   reasoningEfforts: ReasoningEffortPreferences;
   executionTrace: {
@@ -49,6 +63,7 @@ export type AppConfig = {
 
 type StoredAppConfig = {
   version: 1;
+  sshTunnel?: Partial<SshTunnelConfig>;
   models?: Partial<Record<ModelPurpose, string>>;
   reasoningEfforts?: Partial<Record<ModelPurpose, ReasoningEffort>>;
   executionTrace?: {
@@ -84,8 +99,25 @@ export const REASONING_EFFORT_LABELS: Record<ReasoningEffort, string> = {
   xhigh: "XHigh",
 };
 
+export const DEFAULT_SSH_TUNNEL_CONFIG: SshTunnelConfig = {
+  enabled: false,
+  host: "",
+  port: 0,
+  username: "",
+  password: "",
+  localPort: 0,
+  remoteHost: "",
+  remotePort: 0,
+};
+
+export function createDefaultSshTunnelConfig(): SshTunnelConfig {
+  return { ...DEFAULT_SSH_TUNNEL_CONFIG };
+}
+
 export function createDefaultAppConfig(): AppConfig {
   return {
+    apiBaseUrl: getDefaultApiBaseUrl(),
+    sshTunnel: createDefaultSshTunnelConfig(),
     models: {
       normal: "",
       summary: "",
@@ -126,6 +158,8 @@ export function loadAppConfig(): AppConfig {
     }
 
     return {
+      apiBaseUrl: getDefaultApiBaseUrl(),
+      sshTunnel: parseSshTunnelConfig(parsed.sshTunnel),
       models: {
         ...defaultConfig.models,
         ...parseModelPreferences(parsed.models),
@@ -155,6 +189,7 @@ export function saveAppConfig(config: AppConfig): void {
   try {
     const storedConfig: StoredAppConfig = {
       version: 1,
+      sshTunnel: sanitizeSshTunnelConfig(config.sshTunnel),
       models: sanitizeModelPreferences(config.models),
       reasoningEfforts: sanitizeReasoningEffortPreferences(config.reasoningEfforts),
       executionTrace: {
@@ -167,6 +202,60 @@ export function saveAppConfig(config: AppConfig): void {
   } catch {
     // App config persistence is local browser state only.
   }
+}
+
+function parseSshTunnelConfig(value: unknown): SshTunnelConfig {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return createDefaultSshTunnelConfig();
+  }
+
+  const config = value as Partial<SshTunnelConfig>;
+
+  return sanitizeSshTunnelConfig({
+    enabled:
+      typeof config.enabled === "boolean" ? config.enabled : DEFAULT_SSH_TUNNEL_CONFIG.enabled,
+    host: typeof config.host === "string" ? config.host : DEFAULT_SSH_TUNNEL_CONFIG.host,
+    port: config.port,
+    username:
+      typeof config.username === "string" ? config.username : DEFAULT_SSH_TUNNEL_CONFIG.username,
+    password:
+      typeof config.password === "string" ? config.password : DEFAULT_SSH_TUNNEL_CONFIG.password,
+    localPort: config.localPort,
+    remoteHost:
+      typeof config.remoteHost === "string"
+        ? config.remoteHost
+        : DEFAULT_SSH_TUNNEL_CONFIG.remoteHost,
+    remotePort: config.remotePort,
+  });
+}
+
+function sanitizeSshTunnelConfig(config: Partial<SshTunnelConfig>): SshTunnelConfig {
+  return {
+    enabled: config.enabled ?? DEFAULT_SSH_TUNNEL_CONFIG.enabled,
+    host: sanitizeNonEmptyString(config.host, DEFAULT_SSH_TUNNEL_CONFIG.host),
+    port: sanitizePort(config.port, DEFAULT_SSH_TUNNEL_CONFIG.port),
+    username: typeof config.username === "string" ? config.username.trim() : "",
+    password: typeof config.password === "string" ? config.password : "",
+    localPort: sanitizePort(config.localPort, DEFAULT_SSH_TUNNEL_CONFIG.localPort),
+    remoteHost: sanitizeNonEmptyString(config.remoteHost, DEFAULT_SSH_TUNNEL_CONFIG.remoteHost),
+    remotePort: sanitizePort(config.remotePort, DEFAULT_SSH_TUNNEL_CONFIG.remotePort),
+  };
+}
+
+function sanitizeNonEmptyString(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function sanitizePort(value: unknown, fallback: number): number {
+  if (value === 0 && fallback === 0) {
+    return 0;
+  }
+
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 65535) {
+    return fallback;
+  }
+
+  return value;
 }
 
 export function createModelRequestPreferences(

@@ -32,6 +32,7 @@ import {
 
 type SessionSidebarProps = {
   open: boolean;
+  mobileOpen?: boolean;
   width: number;
   workspaces: Record<string, SessionSummary[]>;
   expandedWorkspaces: Set<string>;
@@ -48,6 +49,7 @@ type SessionSidebarProps = {
   reviewNavigation?: ReviewNavigation | null;
   reviewNavigationActive?: boolean;
   onOpenChange: (open: boolean) => void;
+  onMobileClose?: () => void;
   onWidthChange: (width: number) => void;
   onSessionListModeChange: (mode: SessionListMode) => void;
   onSessionPageChange: (page: number) => void;
@@ -61,6 +63,7 @@ type SessionSidebarProps = {
 
 export function SessionSidebar({
   open,
+  mobileOpen = false,
   width,
   workspaces,
   expandedWorkspaces,
@@ -77,6 +80,7 @@ export function SessionSidebar({
   reviewNavigation,
   reviewNavigationActive,
   onOpenChange,
+  onMobileClose,
   onWidthChange,
   onSessionListModeChange,
   onSessionPageChange,
@@ -87,6 +91,7 @@ export function SessionSidebar({
   onNavigateReview,
   onOpenConfig,
 }: SessionSidebarProps) {
+  const contentVisible = open || mobileOpen;
   const workspaceGroups = groupWorkspacesForDisplay(workspaces);
   const resizeHandleRef = useRef<HTMLDivElement | null>(null);
   const resizeStartRef = useRef({ pointerId: 0, startX: 0, startWidth: width });
@@ -147,9 +152,12 @@ export function SessionSidebar({
   }
 
   return (
-    <aside className={`sidebar ${resizing ? "is-resizing" : ""}`} aria-label="Workspace sessions">
+    <aside
+      className={`sidebar ${resizing ? "is-resizing" : ""} ${mobileOpen ? "is-mobile-open" : ""}`}
+      aria-label="Workspace sessions"
+    >
       <div className="sidebar-header">
-        {open && (
+        {contentVisible && (
           <div>
             <strong>Coding Assistant</strong>
           </div>
@@ -157,15 +165,15 @@ export function SessionSidebar({
         <button
           className="icon-button"
           type="button"
-          aria-label={open ? "Collapse sidebar" : "Expand sidebar"}
-          title={open ? "Collapse sidebar" : "Expand sidebar"}
-          onClick={() => onOpenChange(!open)}
+          aria-label={contentVisible ? "Collapse sidebar" : "Expand sidebar"}
+          title={contentVisible ? "Collapse sidebar" : "Expand sidebar"}
+          onClick={() => (mobileOpen ? onMobileClose?.() : onOpenChange(!open))}
         >
-          {open ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+          {contentVisible ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
         </button>
       </div>
 
-      {open && (
+      {contentVisible && (
         <>
           {reviewNavigationActive ? (
             <ReviewNavigationTree
@@ -263,7 +271,7 @@ export function SessionSidebar({
           )}
         </>
       )}
-      {open && (
+      {open && !mobileOpen && (
         <div
           className="sidebar-resize-handle"
           ref={resizeHandleRef}

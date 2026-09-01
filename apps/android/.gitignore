@@ -1,0 +1,8 @@
+.gradle/
+.idea/
+build/
+app/build/
+app/src/main/assets/www/
+local.properties
+*.iml
+gdb.env
