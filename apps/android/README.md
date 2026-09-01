@@ -44,3 +44,8 @@ Required tunnel settings:
 Enter the fields, then tap **Apply**. When the tunnel is connected, all CUI REST and SSE requests
 go to `http://localhost:<local-port>` on the Android device and are forwarded over SSH to
 `<remote-host>:<remote-port>` from the SSH server.
+
+While the app is in the foreground and the screen is on, it checks the tunnel periodically and
+automatically reconnects a dropped SSH session with a retry delay capped at 30 seconds. Tunnel
+checks and reconnect attempts pause when the app is not in use and resume immediately when the app
+returns to the foreground.
