@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -30,8 +31,12 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Properties;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 public final class MainActivity extends Activity {
     private static final String APP_URL = "file:///android_asset/www/index.html";
@@ -147,6 +152,22 @@ public final class MainActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (sshTunnelBridge != null) {
+            sshTunnelBridge.setActivityResumed(true);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        if (sshTunnelBridge != null) {
+            sshTunnelBridge.setActivityResumed(false);
+        }
+        super.onPause();
+    }
+
+    @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
         webView.evaluateJavascript(
@@ -183,9 +204,21 @@ public final class MainActivity extends Activity {
         private static final String PREFS_NAME = "cui_ssh_tunnel";
         private static final String CONFIG_KEY = "config";
         private static final int CONFIG_VERSION = 2;
+        private static final int SSH_KEEP_ALIVE_INTERVAL_MILLIS = 10_000;
+        private static final int SSH_KEEP_ALIVE_COUNT_MAX = 2;
+        private static final long HEALTH_CHECK_INTERVAL_MILLIS = 15_000;
+        private static final long MAX_RECONNECT_DELAY_MILLIS = 30_000;
 
-        private final ExecutorService executor = Executors.newSingleThreadExecutor();
+        private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
         private final SharedPreferences preferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        private final PowerManager powerManager = getSystemService(PowerManager.class);
+        private final Object schedulingLock = new Object();
+        private final AtomicLong configGeneration = new AtomicLong();
+        private final Object sessionLock = new Object();
+        private volatile boolean activityResumed;
+        private volatile boolean closed;
+        private ScheduledFuture<?> maintenanceFuture;
+        private int reconnectAttempt;
         private Session session;
         private volatile TunnelStatus status = new TunnelStatus(false, "SSH tunnel is not connected.");
 
@@ -217,15 +250,19 @@ public final class MainActivity extends Activity {
             }
 
             preferences.edit().putString(CONFIG_KEY, config.toJson()).apply();
+            long generation = configGeneration.incrementAndGet();
 
             if (!config.enabled) {
-                disconnect();
                 status = new TunnelStatus(false, "SSH tunnel is disabled.");
+                cancelMaintenance();
+                execute(() -> disconnectIfCurrent(generation));
                 return status.toJson();
             }
 
             status = new TunnelStatus(false, "Connecting to SSH tunnel...");
-            executor.execute(() -> connect(config));
+            reconnectAttempt = 0;
+            disconnect();
+            scheduleMaintenance(0);
             return status.toJson();
         }
 
@@ -261,17 +298,72 @@ public final class MainActivity extends Activity {
             }
 
             if (config.isReady()) {
-                final TunnelConfig startConfig = config;
-                executor.execute(() -> connect(startConfig));
+                status = new TunnelStatus(false, "Waiting to connect to SSH tunnel...");
+                scheduleMaintenance(0);
+            }
+        }
+
+        void setActivityResumed(boolean resumed) {
+            activityResumed = resumed;
+
+            if (resumed) {
+                scheduleMaintenance(0);
+            } else {
+                cancelMaintenance();
             }
         }
 
         void close() {
+            closed = true;
+            configGeneration.incrementAndGet();
+            cancelMaintenance();
             disconnect();
             executor.shutdownNow();
         }
 
-        private void connect(TunnelConfig config) {
+        private void maintainTunnel() {
+            if (!isAppInUse()) {
+                return;
+            }
+
+            TunnelConfig config = loadCurrentConfig();
+
+            if (!config.isReady()) {
+                disconnect();
+                status = config.enabled
+                        ? new TunnelStatus(false, "Complete the SSH tunnel configuration first.")
+                        : new TunnelStatus(false, "SSH tunnel is disabled.");
+                return;
+            }
+
+            long generation = configGeneration.get();
+
+            if (isSessionConnected()) {
+                try {
+                    verifyApiHealth(config.localPort);
+                    if (generation != configGeneration.get()) {
+                        return;
+                    }
+                    reconnectAttempt = 0;
+                    scheduleMaintenance(HEALTH_CHECK_INTERVAL_MILLIS);
+                    return;
+                } catch (IOException reason) {
+                    if (generation != configGeneration.get()) {
+                        return;
+                    }
+                    Log.w(LOG_TAG, "SSH tunnel health check failed; reconnecting", reason);
+                    disconnect();
+                    status = new TunnelStatus(
+                            false,
+                            "SSH tunnel connection was lost. Reconnecting..."
+                    );
+                }
+            }
+
+            connect(config, generation);
+        }
+
+        private void connect(TunnelConfig config, long generation) {
             disconnect();
 
             if (!config.isReady()) {
@@ -279,15 +371,19 @@ public final class MainActivity extends Activity {
                 return;
             }
 
+            Session nextSession = null;
+
             try {
                 Log.i(LOG_TAG, "Starting SSH tunnel connection.");
                 JSch jsch = new JSch();
-                Session nextSession = jsch.getSession(config.username, config.host, config.port);
+                nextSession = jsch.getSession(config.username, config.host, config.port);
                 nextSession.setPassword(config.password);
                 Properties sessionConfig = new Properties();
                 sessionConfig.put("StrictHostKeyChecking", "no");
                 sessionConfig.put("PreferredAuthentications", "password,keyboard-interactive,publickey");
                 nextSession.setConfig(sessionConfig);
+                nextSession.setServerAliveInterval(SSH_KEEP_ALIVE_INTERVAL_MILLIS);
+                nextSession.setServerAliveCountMax(SSH_KEEP_ALIVE_COUNT_MAX);
                 nextSession.connect(15_000);
                 nextSession.setPortForwardingL(
                         "localhost",
@@ -295,8 +391,18 @@ public final class MainActivity extends Activity {
                         config.remoteHost,
                         config.remotePort
                 );
-                session = nextSession;
                 verifyApiHealth(config.localPort);
+
+                if (!isAppInUse() || generation != configGeneration.get()) {
+                    nextSession.disconnect();
+                    return;
+                }
+
+                synchronized (sessionLock) {
+                    session = nextSession;
+                }
+                nextSession = null;
+                reconnectAttempt = 0;
                 status = new TunnelStatus(
                         true,
                         "SSH tunnel and API health check passed: localhost:" + config.localPort
@@ -304,14 +410,103 @@ public final class MainActivity extends Activity {
                 );
                 Log.i(LOG_TAG, "SSH tunnel connected and API health check passed.");
                 webView.post(webView::reload);
+                scheduleMaintenance(HEALTH_CHECK_INTERVAL_MILLIS);
             } catch (IOException reason) {
-                disconnect();
                 Log.w(LOG_TAG, "SSH tunnel API validation failed", reason);
-                status = new TunnelStatus(false, "SSH tunnel API validation failed: " + reason.getMessage());
+                scheduleReconnectIfCurrent(
+                        generation,
+                        "SSH tunnel API validation failed: " + reason.getMessage()
+                );
             } catch (JSchException | LinkageError | RuntimeException reason) {
-                disconnect();
                 Log.w(LOG_TAG, "SSH tunnel failed", reason);
-                status = new TunnelStatus(false, "SSH tunnel failed: " + reason.getMessage());
+                scheduleReconnectIfCurrent(
+                        generation,
+                        "SSH tunnel failed: " + reason.getMessage()
+                );
+            } finally {
+                if (nextSession != null) {
+                    nextSession.disconnect();
+                }
+            }
+        }
+
+        private void scheduleReconnect(String failureMessage) {
+            disconnect();
+
+            if (!isAppInUse()) {
+                status = new TunnelStatus(false, failureMessage);
+                return;
+            }
+
+            long delayMillis = Math.min(
+                    1_000L << Math.min(reconnectAttempt, 5),
+                    MAX_RECONNECT_DELAY_MILLIS
+            );
+            reconnectAttempt += 1;
+            status = new TunnelStatus(
+                    false,
+                    failureMessage + " Retrying in " + (delayMillis / 1_000) + "s."
+            );
+            scheduleMaintenance(delayMillis);
+        }
+
+        private void scheduleReconnectIfCurrent(long generation, String failureMessage) {
+            if (generation == configGeneration.get()) {
+                scheduleReconnect(failureMessage);
+            }
+        }
+
+        private void scheduleMaintenance(long delayMillis) {
+            synchronized (schedulingLock) {
+                if (!isAppInUse()) {
+                    return;
+                }
+
+                if (maintenanceFuture != null) {
+                    maintenanceFuture.cancel(false);
+                }
+
+                try {
+                    maintenanceFuture = executor.schedule(
+                            this::maintainTunnel,
+                            delayMillis,
+                            TimeUnit.MILLISECONDS
+                    );
+                } catch (RejectedExecutionException ignored) {
+                    // The activity is already being destroyed.
+                }
+            }
+        }
+
+        private void cancelMaintenance() {
+            synchronized (schedulingLock) {
+                if (maintenanceFuture != null) {
+                    maintenanceFuture.cancel(false);
+                    maintenanceFuture = null;
+                }
+            }
+        }
+
+        private void execute(Runnable task) {
+            try {
+                executor.execute(task);
+            } catch (RejectedExecutionException ignored) {
+                // The activity is already being destroyed.
+            }
+        }
+
+        private boolean isAppInUse() {
+            return !closed
+                    && activityResumed
+                    && powerManager != null
+                    && powerManager.isInteractive();
+        }
+
+        private TunnelConfig loadCurrentConfig() {
+            try {
+                return TunnelConfig.fromStoredJson(loadSshTunnelConfig());
+            } catch (JSONException ignored) {
+                return defaultConfig();
             }
         }
 
@@ -353,9 +548,23 @@ public final class MainActivity extends Activity {
         }
 
         private void disconnect() {
-            if (session != null) {
-                session.disconnect();
-                session = null;
+            synchronized (sessionLock) {
+                if (session != null) {
+                    session.disconnect();
+                    session = null;
+                }
+            }
+        }
+
+        private void disconnectIfCurrent(long generation) {
+            if (generation == configGeneration.get()) {
+                disconnect();
+            }
+        }
+
+        private boolean isSessionConnected() {
+            synchronized (sessionLock) {
+                return session != null && session.isConnected();
             }
         }
 
