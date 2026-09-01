@@ -361,7 +361,7 @@
           "isRunning": {
             "type": "boolean"
           },
-          "runningTurnId": {
+          "runningRunId": {
             "type": "string"
           }
         },
@@ -440,7 +440,7 @@
           "isRunning": {
             "type": "boolean"
           },
-          "runningTurnId": {
+          "runningRunId": {
             "type": "string"
           }
         },
@@ -553,9 +553,253 @@
             "type": "string",
             "minLength": 1
           },
-          "prompt": {
+          "origin": {
+            "type": "string",
+            "enum": ["chat", "shell"]
+          },
+          "title": {
             "type": "string",
             "minLength": 1
+          }
+        },
+        "required": ["workspace"]
+      },
+      "CreateSessionResponse": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "origin": {
+                "type": "string",
+                "enum": ["chat", "shell"]
+              },
+              "workspace": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              },
+              "doneAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": ["assistant", "user"]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["response", "trace"]
+                    },
+                    "round": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": ["id", "role", "content", "createdAt"]
+                }
+              },
+              "rounds": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "round": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "hasChanges": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "atomicReviewStatus": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": ["ready"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["failed"]
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["round", "hasChanges", "createdAt"]
+                }
+              },
+              "queuedPrompts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": ["chat", "shell"]
+                    },
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": ["id", "mode", "prompt", "createdAt"]
+                }
+              },
+              "currentRound": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "gitBranch": {
+                "type": "string"
+              },
+              "isRunning": {
+                "type": "boolean"
+              },
+              "runningRunId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "workspace",
+              "title",
+              "createdAt",
+              "updatedAt",
+              "messages",
+              "currentRound",
+              "isRunning"
+            ]
+          }
+        },
+        "required": ["session"]
+      },
+      "CreateRunRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["assistant_response"]
+              },
+              "input": {
+                "type": "object",
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["prompt"]
+              },
+              "models": {
+                "type": "object",
+                "properties": {
+                  "normal": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "summary": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "atomicReview": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reasoningEfforts": {
+                    "type": "object",
+                    "properties": {
+                      "normal": {
+                        "type": "string",
+                        "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                      },
+                      "summary": {
+                        "type": "string",
+                        "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                      },
+                      "atomicReview": {
+                        "type": "string",
+                        "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": ["type", "input"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["shell_command"]
+              },
+              "input": {
+                "type": "object",
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["command"]
+              }
+            },
+            "required": ["type", "input"],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "CreateRoundReviewRunRequest": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": ["atomic"]
           },
           "models": {
             "type": "object",
@@ -594,77 +838,31 @@
             "additionalProperties": false
           }
         },
-        "required": ["workspace", "prompt"]
+        "additionalProperties": false
       },
-      "ContinueSessionRequest": {
+      "Run": {
         "type": "object",
         "properties": {
-          "prompt": {
-            "type": "string",
-            "minLength": 1
+          "id": {
+            "type": "string"
           },
-          "models": {
-            "type": "object",
-            "properties": {
-              "normal": {
-                "type": "string",
-                "minLength": 1
-              },
-              "summary": {
-                "type": "string",
-                "minLength": 1
-              },
-              "atomicReview": {
-                "type": "string",
-                "minLength": 1
-              },
-              "reasoningEfforts": {
-                "type": "object",
-                "properties": {
-                  "normal": {
-                    "type": "string",
-                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
-                  },
-                  "summary": {
-                    "type": "string",
-                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
-                  },
-                  "atomicReview": {
-                    "type": "string",
-                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
-                  }
-                },
-                "additionalProperties": false
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "required": ["prompt"]
-      },
-      "CreateShellSessionRequest": {
-        "type": "object",
-        "properties": {
-          "workspace": {
-            "type": "string",
-            "minLength": 1
+          "sessionId": {
+            "type": "string"
           },
-          "command": {
+          "type": {
             "type": "string",
-            "minLength": 1
+            "enum": ["assistant_response", "shell_command", "round_review"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["queued", "running", "succeeded", "failed", "cancelled"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         },
-        "required": ["workspace", "command"]
-      },
-      "RunShellCommandRequest": {
-        "type": "object",
-        "properties": {
-          "command": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": ["command"]
+        "required": ["id", "sessionId", "type", "status"]
       },
       "UpdateSessionRequest": {
         "type": "object",
@@ -675,16 +873,32 @@
         },
         "required": ["done"]
       },
-      "SubmittedTurnResponse": {
+      "SubmittedRunResponse": {
         "type": "object",
         "properties": {
-          "status": {
-            "type": "string",
-            "enum": ["ok"]
-          },
-          "disposition": {
-            "type": "string",
-            "enum": ["started", "queued"]
+          "run": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "sessionId": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["assistant_response", "shell_command", "round_review"]
+              },
+              "status": {
+                "type": "string",
+                "enum": ["queued", "running", "succeeded", "failed", "cancelled"]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": ["id", "sessionId", "type", "status"]
           },
           "session": {
             "type": "object",
@@ -813,7 +1027,7 @@
               "isRunning": {
                 "type": "boolean"
               },
-              "runningTurnId": {
+              "runningRunId": {
                 "type": "string"
               }
             },
@@ -827,15 +1041,9 @@
               "currentRound",
               "isRunning"
             ]
-          },
-          "turnId": {
-            "type": "string"
-          },
-          "queuedPromptId": {
-            "type": "string"
           }
         },
-        "required": ["status", "session"]
+        "required": ["run", "session"]
       },
       "OkResponse": {
         "type": "object",
@@ -847,14 +1055,14 @@
         },
         "required": ["status"]
       },
-      "TurnStreamEvent": {
+      "RunStreamEvent": {
         "oneOf": [
           {
             "type": "object",
             "properties": {
               "type": {
                 "type": "string",
-                "enum": ["delta"]
+                "enum": ["run.output.delta"]
               },
               "text": {
                 "type": "string"
@@ -867,7 +1075,7 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": ["raw"]
+                "enum": ["run.trace"]
               },
               "event": {}
             },
@@ -1007,7 +1215,7 @@
                   "isRunning": {
                     "type": "boolean"
                   },
-                  "runningTurnId": {
+                  "runningRunId": {
                     "type": "string"
                   }
                 },
@@ -1030,7 +1238,7 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": ["done"]
+                "enum": ["run.succeeded"]
               },
               "session": {
                 "type": "object",
@@ -1159,7 +1367,7 @@
                   "isRunning": {
                     "type": "boolean"
                   },
-                  "runningTurnId": {
+                  "runningRunId": {
                     "type": "string"
                   }
                 },
@@ -1182,7 +1390,7 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": ["failed"]
+                "enum": ["run.failed"]
               },
               "error": {
                 "type": "string"
@@ -1195,7 +1403,7 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": ["cancelled"]
+                "enum": ["run.cancelled"]
               }
             },
             "required": ["type"]
@@ -1234,7 +1442,7 @@
     "parameters": {}
   },
   "paths": {
-    "/api/health": {
+    "/api/v1/health": {
       "get": {
         "summary": "Get API health",
         "responses": {
@@ -1266,7 +1474,7 @@
         }
       }
     },
-    "/api/code": {
+    "/api/v1/source-files/content": {
       "get": {
         "summary": "Get source code from a file path and optional line range",
         "parameters": [
@@ -1377,7 +1585,7 @@
         }
       }
     },
-    "/api/models": {
+    "/api/v1/models": {
       "get": {
         "summary": "List available AI models",
         "responses": {
@@ -1419,7 +1627,7 @@
         }
       }
     },
-    "/api/sessions": {
+    "/api/v1/sessions": {
       "get": {
         "summary": "List sessions",
         "parameters": [
@@ -1517,7 +1725,7 @@
                           "isRunning": {
                             "type": "boolean"
                           },
-                          "runningTurnId": {
+                          "runningRunId": {
                             "type": "string"
                           }
                         },
@@ -1592,7 +1800,7 @@
         }
       },
       "post": {
-        "summary": "Create a session and start its first turn",
+        "summary": "Create a session",
         "requestBody": {
           "required": true,
           "content": {
@@ -1604,68 +1812,28 @@
                     "type": "string",
                     "minLength": 1
                   },
-                  "prompt": {
+                  "origin": {
+                    "type": "string",
+                    "enum": ["chat", "shell"]
+                  },
+                  "title": {
                     "type": "string",
                     "minLength": 1
-                  },
-                  "models": {
-                    "type": "object",
-                    "properties": {
-                      "normal": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "summary": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "atomicReview": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "reasoningEfforts": {
-                        "type": "object",
-                        "properties": {
-                          "normal": {
-                            "type": "string",
-                            "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
-                          },
-                          "summary": {
-                            "type": "string",
-                            "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
-                          },
-                          "atomicReview": {
-                            "type": "string",
-                            "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
-                          }
-                        },
-                        "additionalProperties": false
-                      }
-                    },
-                    "additionalProperties": false
                   }
                 },
-                "required": ["workspace", "prompt"]
+                "required": ["workspace"]
               }
             }
           }
         },
         "responses": {
-          "202": {
-            "description": "The turn was accepted and started.",
+          "201": {
+            "description": "The session was created.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": ["ok"]
-                    },
-                    "disposition": {
-                      "type": "string",
-                      "enum": ["started", "queued"]
-                    },
                     "session": {
                       "type": "object",
                       "properties": {
@@ -1793,7 +1961,7 @@
                         "isRunning": {
                           "type": "boolean"
                         },
-                        "runningTurnId": {
+                        "runningRunId": {
                           "type": "string"
                         }
                       },
@@ -1807,15 +1975,9 @@
                         "currentRound",
                         "isRunning"
                       ]
-                    },
-                    "turnId": {
-                      "type": "string"
-                    },
-                    "queuedPromptId": {
-                      "type": "string"
                     }
                   },
-                  "required": ["status", "session"]
+                  "required": ["session"]
                 }
               }
             }
@@ -1835,256 +1997,11 @@
                 }
               }
             }
-          },
-          "409": {
-            "description": "Error response.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["error"]
-                }
-              }
-            }
           }
         }
       }
     },
-    "/api/shell-sessions": {
-      "post": {
-        "summary": "Create a session and run its first shell command",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "workspace": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "command": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "required": ["workspace", "command"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "202": {
-            "description": "The shell command was accepted and started.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": ["ok"]
-                    },
-                    "disposition": {
-                      "type": "string",
-                      "enum": ["started", "queued"]
-                    },
-                    "session": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string"
-                        },
-                        "origin": {
-                          "type": "string",
-                          "enum": ["chat", "shell"]
-                        },
-                        "workspace": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        },
-                        "summary": {
-                          "type": "string"
-                        },
-                        "doneAt": {
-                          "type": "string",
-                          "format": "date-time"
-                        },
-                        "createdAt": {
-                          "type": "string",
-                          "format": "date-time"
-                        },
-                        "updatedAt": {
-                          "type": "string",
-                          "format": "date-time"
-                        },
-                        "messages": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string"
-                              },
-                              "role": {
-                                "type": "string",
-                                "enum": ["assistant", "user"]
-                              },
-                              "kind": {
-                                "type": "string",
-                                "enum": ["response", "trace"]
-                              },
-                              "round": {
-                                "type": "integer",
-                                "exclusiveMinimum": 0
-                              },
-                              "content": {
-                                "type": "string"
-                              },
-                              "createdAt": {
-                                "type": "string",
-                                "format": "date-time"
-                              }
-                            },
-                            "required": ["id", "role", "content", "createdAt"]
-                          }
-                        },
-                        "rounds": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "round": {
-                                "type": "integer",
-                                "exclusiveMinimum": 0
-                              },
-                              "hasChanges": {
-                                "type": "boolean"
-                              },
-                              "createdAt": {
-                                "type": "string",
-                                "format": "date-time"
-                              },
-                              "atomicReviewStatus": {
-                                "anyOf": [
-                                  {
-                                    "type": "string",
-                                    "enum": ["ready"]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": ["failed"]
-                                  }
-                                ]
-                              }
-                            },
-                            "required": ["round", "hasChanges", "createdAt"]
-                          }
-                        },
-                        "queuedPrompts": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string"
-                              },
-                              "mode": {
-                                "type": "string",
-                                "enum": ["chat", "shell"]
-                              },
-                              "prompt": {
-                                "type": "string"
-                              },
-                              "createdAt": {
-                                "type": "string",
-                                "format": "date-time"
-                              }
-                            },
-                            "required": ["id", "mode", "prompt", "createdAt"]
-                          }
-                        },
-                        "currentRound": {
-                          "type": "integer",
-                          "minimum": 0
-                        },
-                        "gitBranch": {
-                          "type": "string"
-                        },
-                        "isRunning": {
-                          "type": "boolean"
-                        },
-                        "runningTurnId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "workspace",
-                        "title",
-                        "createdAt",
-                        "updatedAt",
-                        "messages",
-                        "currentRound",
-                        "isRunning"
-                      ]
-                    },
-                    "turnId": {
-                      "type": "string"
-                    },
-                    "queuedPromptId": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["status", "session"]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Error response.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["error"]
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Error response.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["error"]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/sessions/{sessionId}": {
+    "/api/v1/sessions/{sessionId}": {
       "get": {
         "summary": "Get a session",
         "parameters": [
@@ -2233,7 +2150,7 @@
                         "isRunning": {
                           "type": "boolean"
                         },
-                        "runningTurnId": {
+                        "runningRunId": {
                           "type": "string"
                         }
                       },
@@ -2436,7 +2353,7 @@
                         "isRunning": {
                           "type": "boolean"
                         },
-                        "runningTurnId": {
+                        "runningRunId": {
                           "type": "string"
                         }
                       },
@@ -2492,7 +2409,7 @@
         }
       }
     },
-    "/api/sessions/{sessionId}/rounds/{round}/review": {
+    "/api/v1/sessions/{sessionId}/rounds/{round}/review": {
       "get": {
         "summary": "Get a round review",
         "parameters": [
@@ -2513,33 +2430,6 @@
             "required": true,
             "name": "round",
             "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "enum": ["atomic", "full"]
-            },
-            "required": false,
-            "name": "mode",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "required": false,
-            "name": "atomicReviewModel",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
-            },
-            "required": false,
-            "name": "atomicReviewReasoningEffort",
-            "in": "query"
           }
         ],
         "responses": {
@@ -2748,9 +2638,9 @@
         }
       }
     },
-    "/api/sessions/{sessionId}/messages": {
+    "/api/v1/sessions/{sessionId}/runs": {
       "post": {
-        "summary": "Continue a session with a user prompt",
+        "summary": "Create a run in a session",
         "parameters": [
           {
             "schema": {
@@ -2767,11 +2657,354 @@
           "content": {
             "application/json": {
               "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": ["assistant_response"]
+                      },
+                      "input": {
+                        "type": "object",
+                        "properties": {
+                          "prompt": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": ["prompt"]
+                      },
+                      "models": {
+                        "type": "object",
+                        "properties": {
+                          "normal": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "summary": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "atomicReview": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "reasoningEfforts": {
+                            "type": "object",
+                            "properties": {
+                              "normal": {
+                                "type": "string",
+                                "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                              },
+                              "summary": {
+                                "type": "string",
+                                "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                              },
+                              "atomicReview": {
+                                "type": "string",
+                                "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": ["type", "input"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": ["shell_command"]
+                      },
+                      "input": {
+                        "type": "object",
+                        "properties": {
+                          "command": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": ["command"]
+                      }
+                    },
+                    "required": ["type", "input"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The run was accepted and either started or queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "run": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "sessionId": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": ["assistant_response", "shell_command", "round_review"]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["queued", "running", "succeeded", "failed", "cancelled"]
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": ["id", "sessionId", "type", "status"]
+                    },
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "origin": {
+                          "type": "string",
+                          "enum": ["chat", "shell"]
+                        },
+                        "workspace": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "doneAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "messages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "role": {
+                                "type": "string",
+                                "enum": ["assistant", "user"]
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": ["response", "trace"]
+                              },
+                              "round": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "content": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": ["id", "role", "content", "createdAt"]
+                          }
+                        },
+                        "rounds": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "round": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "hasChanges": {
+                                "type": "boolean"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "atomicReviewStatus": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": ["ready"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["failed"]
+                                  }
+                                ]
+                              }
+                            },
+                            "required": ["round", "hasChanges", "createdAt"]
+                          }
+                        },
+                        "queuedPrompts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "mode": {
+                                "type": "string",
+                                "enum": ["chat", "shell"]
+                              },
+                              "prompt": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": ["id", "mode", "prompt", "createdAt"]
+                          }
+                        },
+                        "currentRound": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "gitBranch": {
+                          "type": "string"
+                        },
+                        "isRunning": {
+                          "type": "boolean"
+                        },
+                        "runningRunId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "workspace",
+                        "title",
+                        "createdAt",
+                        "updatedAt",
+                        "messages",
+                        "currentRound",
+                        "isRunning"
+                      ]
+                    }
+                  },
+                  "required": ["run", "session"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{sessionId}/rounds/{round}/review-runs": {
+      "post": {
+        "summary": "Create a round review run",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "sessionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "required": true,
+            "name": "round",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
                 "type": "object",
                 "properties": {
-                  "prompt": {
+                  "mode": {
                     "type": "string",
-                    "minLength": 1
+                    "enum": ["atomic"]
                   },
                   "models": {
                     "type": "object",
@@ -2810,26 +3043,42 @@
                     "additionalProperties": false
                   }
                 },
-                "required": ["prompt"]
+                "additionalProperties": false
               }
             }
           }
         },
         "responses": {
           "202": {
-            "description": "The continuation turn was accepted and either started or queued.",
+            "description": "The review run was accepted.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": ["ok"]
-                    },
-                    "disposition": {
-                      "type": "string",
-                      "enum": ["started", "queued"]
+                    "run": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "sessionId": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": ["assistant_response", "shell_command", "round_review"]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["queued", "running", "succeeded", "failed", "cancelled"]
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": ["id", "sessionId", "type", "status"]
                     },
                     "session": {
                       "type": "object",
@@ -2958,7 +3207,7 @@
                         "isRunning": {
                           "type": "boolean"
                         },
-                        "runningTurnId": {
+                        "runningRunId": {
                           "type": "string"
                         }
                       },
@@ -2972,15 +3221,9 @@
                         "currentRound",
                         "isRunning"
                       ]
-                    },
-                    "turnId": {
-                      "type": "string"
-                    },
-                    "queuedPromptId": {
-                      "type": "string"
                     }
                   },
-                  "required": ["status", "session"]
+                  "required": ["run", "session"]
                 }
               }
             }
@@ -3036,9 +3279,9 @@
         }
       }
     },
-    "/api/sessions/{sessionId}/shell": {
+    "/api/v1/runs/{runId}/cancellation": {
       "post": {
-        "summary": "Run a shell command in a session workspace",
+        "summary": "Cancel a run",
         "parameters": [
           {
             "schema": {
@@ -3046,265 +3289,13 @@
               "minLength": 1
             },
             "required": true,
-            "name": "sessionId",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "command": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "required": ["command"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "202": {
-            "description": "The shell command was accepted and either started or queued.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": ["ok"]
-                    },
-                    "disposition": {
-                      "type": "string",
-                      "enum": ["started", "queued"]
-                    },
-                    "session": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string"
-                        },
-                        "origin": {
-                          "type": "string",
-                          "enum": ["chat", "shell"]
-                        },
-                        "workspace": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        },
-                        "summary": {
-                          "type": "string"
-                        },
-                        "doneAt": {
-                          "type": "string",
-                          "format": "date-time"
-                        },
-                        "createdAt": {
-                          "type": "string",
-                          "format": "date-time"
-                        },
-                        "updatedAt": {
-                          "type": "string",
-                          "format": "date-time"
-                        },
-                        "messages": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string"
-                              },
-                              "role": {
-                                "type": "string",
-                                "enum": ["assistant", "user"]
-                              },
-                              "kind": {
-                                "type": "string",
-                                "enum": ["response", "trace"]
-                              },
-                              "round": {
-                                "type": "integer",
-                                "exclusiveMinimum": 0
-                              },
-                              "content": {
-                                "type": "string"
-                              },
-                              "createdAt": {
-                                "type": "string",
-                                "format": "date-time"
-                              }
-                            },
-                            "required": ["id", "role", "content", "createdAt"]
-                          }
-                        },
-                        "rounds": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "round": {
-                                "type": "integer",
-                                "exclusiveMinimum": 0
-                              },
-                              "hasChanges": {
-                                "type": "boolean"
-                              },
-                              "createdAt": {
-                                "type": "string",
-                                "format": "date-time"
-                              },
-                              "atomicReviewStatus": {
-                                "anyOf": [
-                                  {
-                                    "type": "string",
-                                    "enum": ["ready"]
-                                  },
-                                  {
-                                    "type": "string",
-                                    "enum": ["failed"]
-                                  }
-                                ]
-                              }
-                            },
-                            "required": ["round", "hasChanges", "createdAt"]
-                          }
-                        },
-                        "queuedPrompts": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string"
-                              },
-                              "mode": {
-                                "type": "string",
-                                "enum": ["chat", "shell"]
-                              },
-                              "prompt": {
-                                "type": "string"
-                              },
-                              "createdAt": {
-                                "type": "string",
-                                "format": "date-time"
-                              }
-                            },
-                            "required": ["id", "mode", "prompt", "createdAt"]
-                          }
-                        },
-                        "currentRound": {
-                          "type": "integer",
-                          "minimum": 0
-                        },
-                        "gitBranch": {
-                          "type": "string"
-                        },
-                        "isRunning": {
-                          "type": "boolean"
-                        },
-                        "runningTurnId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "workspace",
-                        "title",
-                        "createdAt",
-                        "updatedAt",
-                        "messages",
-                        "currentRound",
-                        "isRunning"
-                      ]
-                    },
-                    "turnId": {
-                      "type": "string"
-                    },
-                    "queuedPromptId": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["status", "session"]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Error response.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["error"]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Error response.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["error"]
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Error response.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["error"]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/sessions/{sessionId}/stop": {
-      "post": {
-        "summary": "Stop the running turn for a session",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "required": true,
-            "name": "sessionId",
+            "name": "runId",
             "in": "path"
           }
         ],
         "responses": {
           "202": {
-            "description": "The running turn was cancelled.",
+            "description": "The running run was cancelled.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3355,9 +3346,9 @@
         }
       }
     },
-    "/api/turns/{turnId}/events": {
+    "/api/v1/runs/{runId}/events": {
       "get": {
-        "summary": "Stream turn events",
+        "summary": "Stream run events",
         "parameters": [
           {
             "schema": {
@@ -3365,13 +3356,13 @@
               "minLength": 1
             },
             "required": true,
-            "name": "turnId",
+            "name": "runId",
             "in": "path"
           }
         ],
         "responses": {
           "200": {
-            "description": "Server-sent event stream. Each event payload matches TurnStreamEvent.",
+            "description": "Server-sent event stream. Each event payload matches RunStreamEvent.",
             "content": {
               "text/event-stream": {
                 "schema": {
@@ -3381,7 +3372,7 @@
                       "properties": {
                         "type": {
                           "type": "string",
-                          "enum": ["delta"]
+                          "enum": ["run.output.delta"]
                         },
                         "text": {
                           "type": "string"
@@ -3394,7 +3385,7 @@
                       "properties": {
                         "type": {
                           "type": "string",
-                          "enum": ["raw"]
+                          "enum": ["run.trace"]
                         },
                         "event": {}
                       },
@@ -3534,7 +3525,7 @@
                             "isRunning": {
                               "type": "boolean"
                             },
-                            "runningTurnId": {
+                            "runningRunId": {
                               "type": "string"
                             }
                           },
@@ -3557,7 +3548,7 @@
                       "properties": {
                         "type": {
                           "type": "string",
-                          "enum": ["done"]
+                          "enum": ["run.succeeded"]
                         },
                         "session": {
                           "type": "object",
@@ -3686,7 +3677,7 @@
                             "isRunning": {
                               "type": "boolean"
                             },
-                            "runningTurnId": {
+                            "runningRunId": {
                               "type": "string"
                             }
                           },
@@ -3709,7 +3700,7 @@
                       "properties": {
                         "type": {
                           "type": "string",
-                          "enum": ["failed"]
+                          "enum": ["run.failed"]
                         },
                         "error": {
                           "type": "string"
@@ -3722,7 +3713,7 @@
                       "properties": {
                         "type": {
                           "type": "string",
-                          "enum": ["cancelled"]
+                          "enum": ["run.cancelled"]
                         }
                       },
                       "required": ["type"]

@@ -7,9 +7,7 @@ import { createAssistantMessages } from "./sessionMessages.js";
 import { toSessionView } from "./sessionViews.js";
 import { createSessionInputTranscript } from "./transcripts.js";
 
-export type TurnCompletionKind = "create" | "continue";
-
-export class TurnCompletionService {
+export class RunCompletionService {
   constructor(
     private readonly store: JsonSessionStore,
     private readonly logger: AppLogger,
@@ -17,8 +15,7 @@ export class TurnCompletionService {
     private readonly atomicReviewService: AtomicReviewService,
   ) {}
 
-  async completeTurn(input: {
-    kind: TurnCompletionKind;
+  async completeRun(input: {
     workspace: string;
     prompt: string;
     aiResponse: AiRunResult;
@@ -48,7 +45,7 @@ export class TurnCompletionService {
       });
     }
 
-    await this.logCompletedTurn(input);
+    await this.logCompletedRun(input);
 
     return toSessionView(updatedSession);
   }
@@ -75,24 +72,19 @@ export class TurnCompletionService {
       );
   }
 
-  private async logCompletedTurn(input: {
-    kind: TurnCompletionKind;
+  private async logCompletedRun(input: {
     workspace: string;
     prompt: string;
     aiResponse: AiRunResult;
   }): Promise<void> {
-    const sessionEvent = input.kind === "create" ? "session.created" : "session.continued";
-    const frameworkEvent =
-      input.kind === "create" ? "session.create.completed" : "session.continue.completed";
-
-    await this.logger.session(input.aiResponse.sessionId).info(sessionEvent, {
+    await this.logger.session(input.aiResponse.sessionId).info("run.assistant.completed", {
       sessionId: input.aiResponse.sessionId,
       workspace: input.workspace,
       prompt: input.prompt,
       response: input.aiResponse.content,
       rawEvents: input.aiResponse.rawEvents,
     });
-    await this.logger.framework.info(frameworkEvent, {
+    await this.logger.framework.info("run.assistant.completed", {
       sessionId: input.aiResponse.sessionId,
       workspace: input.workspace,
     });

@@ -1,20 +1,18 @@
 import { Router } from "express";
 import type { SessionService } from "../../domain/sessions/SessionService.js";
 import {
-  parseCreateShellSessionBody,
-  parseContinueSessionBody,
+  parseCreateRoundReviewRunBody,
+  parseCreateRunBody,
   parseCreateSessionBody,
   parseListSessionsQuery,
   parseRoundReviewParams,
-  parseRoundReviewQuery,
-  parseRunShellCommandBody,
   parseUpdateSessionBody,
 } from "../validation/requestParsers.js";
 
 export function createSessionRouter(sessionService: SessionService): Router {
   const router = Router();
 
-  router.get("/api/sessions", async (request, response, next) => {
+  router.get("/api/v1/sessions", async (request, response, next) => {
     try {
       const parsed = parseListSessionsQuery(request.query);
 
@@ -29,7 +27,7 @@ export function createSessionRouter(sessionService: SessionService): Router {
     }
   });
 
-  router.get("/api/sessions/:sessionId", async (request, response, next) => {
+  router.get("/api/v1/sessions/:sessionId", async (request, response, next) => {
     try {
       const session = await sessionService.getSessionView(request.params.sessionId);
 
@@ -44,59 +42,35 @@ export function createSessionRouter(sessionService: SessionService): Router {
     }
   });
 
-  router.get("/api/sessions/:sessionId/rounds/:round/review", async (request, response, next) => {
-    try {
-      const parsedParams = parseRoundReviewParams(request.params);
+  router.get(
+    "/api/v1/sessions/:sessionId/rounds/:round/review",
+    async (request, response, next) => {
+      try {
+        const parsedParams = parseRoundReviewParams(request.params);
 
-      if (!parsedParams.ok) {
-        response.status(400).json({ error: parsedParams.error });
-        return;
+        if (!parsedParams.ok) {
+          response.status(400).json({ error: parsedParams.error });
+          return;
+        }
+
+        const review = await sessionService.getRoundReview(
+          parsedParams.value.sessionId,
+          parsedParams.value.round,
+        );
+
+        if (!review) {
+          response.status(404).json({ error: "Round review not found" });
+          return;
+        }
+
+        response.json({ review });
+      } catch (error) {
+        next(error);
       }
+    },
+  );
 
-      const parsedQuery = parseRoundReviewQuery(request.query);
-
-      if (!parsedQuery.ok) {
-        response.status(400).json({ error: parsedQuery.error });
-        return;
-      }
-
-      const includeAtomicReview = parsedQuery.value.mode !== "full";
-      const models =
-        parsedQuery.value.atomicReviewModel || parsedQuery.value.atomicReviewReasoningEffort
-          ? {
-              ...(parsedQuery.value.atomicReviewModel
-                ? { atomicReview: parsedQuery.value.atomicReviewModel }
-                : {}),
-              ...(parsedQuery.value.atomicReviewReasoningEffort
-                ? {
-                    reasoningEfforts: {
-                      atomicReview: parsedQuery.value.atomicReviewReasoningEffort,
-                    },
-                  }
-                : {}),
-            }
-          : undefined;
-      const review = await sessionService.getRoundReview(
-        parsedParams.value.sessionId,
-        parsedParams.value.round,
-        {
-          includeAtomicReview,
-          models,
-        },
-      );
-
-      if (!review) {
-        response.status(404).json({ error: "Round review not found" });
-        return;
-      }
-
-      response.json({ review });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.patch("/api/sessions/:sessionId", async (request, response, next) => {
+  router.patch("/api/v1/sessions/:sessionId", async (request, response, next) => {
     try {
       const parsed = parseUpdateSessionBody(request.body);
 
@@ -113,7 +87,7 @@ export function createSessionRouter(sessionService: SessionService): Router {
     }
   });
 
-  router.post("/api/sessions", async (request, response, next) => {
+  router.post("/api/v1/sessions", async (request, response, next) => {
     try {
       const parsed = parseCreateSessionBody(request.body);
 
@@ -122,79 +96,61 @@ export function createSessionRouter(sessionService: SessionService): Router {
         return;
       }
 
-      const submittedTurn = await sessionService.beginCreateSession(parsed.value);
+      const session = await sessionService.createSessionContainer(parsed.value);
 
-      response.status(202).json({ status: "ok", ...submittedTurn });
+      response.status(201).json({ session });
     } catch (error) {
       next(error);
     }
   });
 
-  router.post("/api/shell-sessions", async (request, response, next) => {
+  router.post("/api/v1/sessions/:sessionId/runs", async (request, response, next) => {
     try {
-      const parsed = parseCreateShellSessionBody(request.body);
+      const parsed = parseCreateRunBody(request.body);
 
       if (!parsed.ok) {
         response.status(400).json({ error: parsed.error });
         return;
       }
 
-      const submittedTurn = await sessionService.beginCreateShellSession(parsed.value);
+      const submittedRun = await sessionService.createRun(request.params.sessionId, parsed.value);
 
-      response.status(202).json({ status: "ok", ...submittedTurn });
+      response.status(202).json(submittedRun);
     } catch (error) {
       next(error);
     }
   });
 
-  router.post("/api/sessions/:sessionId/messages", async (request, response, next) => {
-    try {
-      const parsed = parseContinueSessionBody(request.body);
+  router.post(
+    "/api/v1/sessions/:sessionId/rounds/:round/review-runs",
+    async (request, response, next) => {
+      try {
+        const parsedParams = parseRoundReviewParams(request.params);
 
-      if (!parsed.ok) {
-        response.status(400).json({ error: parsed.error });
-        return;
+        if (!parsedParams.ok) {
+          response.status(400).json({ error: parsedParams.error });
+          return;
+        }
+
+        const parsed = parseCreateRoundReviewRunBody(request.body);
+
+        if (!parsed.ok) {
+          response.status(400).json({ error: parsed.error });
+          return;
+        }
+
+        const submittedRun = await sessionService.createRoundReviewRun(
+          parsedParams.value.sessionId,
+          parsedParams.value.round,
+          parsed.value,
+        );
+
+        response.status(202).json(submittedRun);
+      } catch (error) {
+        next(error);
       }
-
-      const submittedTurn = await sessionService.beginContinueSession(
-        request.params.sessionId,
-        parsed.value,
-      );
-
-      response.status(202).json({ status: "ok", ...submittedTurn });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post("/api/sessions/:sessionId/shell", async (request, response, next) => {
-    try {
-      const parsed = parseRunShellCommandBody(request.body);
-
-      if (!parsed.ok) {
-        response.status(400).json({ error: parsed.error });
-        return;
-      }
-
-      const submittedTurn = await sessionService.beginRunShellCommand(
-        request.params.sessionId,
-        parsed.value,
-      );
-
-      response.status(202).json({ status: "ok", ...submittedTurn });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post("/api/sessions/:sessionId/stop", async (request, response, next) => {
-    try {
-      await sessionService.cancelRunningTurn(request.params.sessionId);
-      response.status(202).json({ status: "ok" });
-    } catch (error) {
-      next(error);
-    }
-  });
+    },
+  );
 
   return router;
 }

@@ -1,12 +1,12 @@
 import type { ChatSessionView } from "../../types.js";
 
-export type TurnStreamEvent =
+export type RunStreamEvent =
   | {
-      type: "delta";
+      type: "run.output.delta";
       text: string;
     }
   | {
-      type: "raw";
+      type: "run.trace";
       event: unknown;
     }
   | {
@@ -14,13 +14,13 @@ export type TurnStreamEvent =
       session: ChatSessionView;
     }
   | {
-      type: "done";
+      type: "run.succeeded";
       session: ChatSessionView;
     }
   | {
-      type: "failed";
+      type: "run.failed";
       error: string;
     }
   | {
-      type: "cancelled";
+      type: "run.cancelled";
     };

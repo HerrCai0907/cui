@@ -1,14 +1,12 @@
 import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createModelRequestPreferences, type AppConfig } from "../../config/model/appConfig";
 import {
-  continueSession,
-  createShellSession,
+  cancelRun,
+  createRun,
   createSession,
   getSession,
   listSessions,
   type SessionListPage,
-  runShellCommand,
-  stopSession,
   updateSession,
 } from "../api/sessionsApi";
 import {
@@ -28,7 +26,7 @@ import {
   type SessionListMode,
   type SessionSidebarBrowserState,
 } from "../model/sessionBrowserState";
-import { useTurnStream } from "./useTurnStream";
+import { useRunStream } from "./useRunStream";
 import type { ApiSession, ApiSessionListItem, SessionSummary } from "../../../types";
 
 type OpenSessionOptions = {
@@ -110,7 +108,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   const shouldStickToMessageBottomRef = useRef(true);
   const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const runningSessionIdsRef = useRef<Set<string>>(runningSessionIds);
-  const runningTurnIdBySessionIdRef = useRef<Map<string, string>>(new Map());
+  const runningRunIdBySessionIdRef = useRef<Map<string, string>>(new Map());
   const submittingSessionIdsRef = useRef<Set<string>>(submittingSessionIds);
   const activeSessionRunning = activeSession ? runningSessionIds.has(activeSession.id) : false;
   const activeSessionSubmitting = activeSession
@@ -173,9 +171,9 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       sessions,
     ],
   );
-  const { applyLocalTurnOverlay, closeTurnStream, streamTurn } = useTurnStream({
+  const { applyLocalRunOverlay, closeRunStream, streamRun } = useRunStream({
     activeSessionRef,
-    onTurnSettled: (sessionId) => {
+    onRunSettled: (sessionId) => {
       void refreshSessions();
     },
     refreshSessions,
@@ -352,41 +350,54 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
 
       const loadedSessions = mergeCachedSessionPages();
       const currentActiveSession = activeSessionRef.current;
-      const previousActiveSessionRunningTurnId = currentActiveSession
-        ? runningTurnIdBySessionIdRef.current.get(currentActiveSession.id)
+      const previousActiveSessionRunningRunId = currentActiveSession
+        ? runningRunIdBySessionIdRef.current.get(currentActiveSession.id)
         : undefined;
       const locallyRunningSessionIds = new Set(runningSessionIdsRef.current);
-      const localRunningTurnIds = new Map(runningTurnIdBySessionIdRef.current);
+      const localRunningRunIds = new Map(runningRunIdBySessionIdRef.current);
       const nextRunningSessionIds = new Set(
         loadedSessions
-          .filter((session) => session.isRunning ?? session.runningTurnId)
+          .filter((session) => session.isRunning ?? session.runningRunId)
           .map((session) => session.id),
       );
-      const nextRunningTurnIds = new Map(
+      const nextRunningRunIds = new Map(
         loadedSessions
-          .filter((session) => session.runningTurnId)
-          .map((session) => [session.id, session.runningTurnId!]),
+          .filter((session) => session.runningRunId)
+          .map((session) => [session.id, session.runningRunId!]),
       );
 
       locallyRunningSessionIds.forEach((sessionId) => nextRunningSessionIds.add(sessionId));
-      localRunningTurnIds.forEach((turnId, sessionId) => {
-        if (!nextRunningTurnIds.has(sessionId)) {
-          nextRunningTurnIds.set(sessionId, turnId);
+      localRunningRunIds.forEach((runId, sessionId) => {
+        if (!nextRunningRunIds.has(sessionId)) {
+          nextRunningRunIds.set(sessionId, runId);
         }
       });
 
-      const sessionSummaries = loadedSessions.map((session) => ({
-        ...session,
-        ...toSessionSummary(session),
-        isRunning: nextRunningSessionIds.has(session.id),
-      }));
+      const previousSummariesById = new Map(sessions.map((session) => [session.id, session]));
+      const sessionSummaries = loadedSessions
+        .map((session) => ({
+          ...session,
+          ...toSessionSummary(session),
+          isRunning: nextRunningSessionIds.has(session.id),
+        }))
+        .map((session) => {
+          const previousSummary = previousSummariesById.get(session.id);
+
+          return {
+            ...session,
+            hasUnreadRound:
+              currentActiveSession?.id === session.id
+                ? false
+                : session.hasUnreadRound || Boolean(previousSummary?.hasUnreadRound),
+          };
+        });
 
       replaceCachedSessions(sessionSummaries);
       pruneSessionAttention(sessionSummaries);
       setSessionPage(loadedPage.pagination.page);
       setSessionPagination(loadedPage.pagination);
       runningSessionIdsRef.current = nextRunningSessionIds;
-      runningTurnIdBySessionIdRef.current = nextRunningTurnIds;
+      runningRunIdBySessionIdRef.current = nextRunningRunIds;
       setRunningSessionIds(nextRunningSessionIds);
 
       const nextActiveSessionSummary =
@@ -413,8 +424,8 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
             persist: Boolean(restoredSession),
             recordAttention: false,
           });
-          if (fallbackSession.runningTurnId) {
-            streamTurn(fallbackSession.id, fallbackSession.runningTurnId);
+          if (fallbackSession.runningRunId) {
+            streamRun(fallbackSession.id, fallbackSession.runningRunId);
           }
           void restoreInitialSession(fallbackSession.id, Boolean(restoredSession), {
             showError: false,
@@ -422,8 +433,8 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
         }
       } else if (nextActiveSessionSummary && currentActiveSession) {
         const shouldLoadFullActiveSession =
-          nextActiveSessionSummary.runningTurnId &&
-          nextActiveSessionSummary.runningTurnId !== previousActiveSessionRunningTurnId;
+          nextActiveSessionSummary.runningRunId &&
+          nextActiveSessionSummary.runningRunId !== previousActiveSessionRunningRunId;
         const nextActiveSession = shouldLoadFullActiveSession
           ? await getSession(currentActiveSession.id)
           : {
@@ -439,7 +450,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
               gitBranch: nextActiveSessionSummary.gitBranch ?? currentActiveSession.gitBranch,
               queuedPrompts: nextActiveSessionSummary.queuedPrompts,
               isRunning: nextActiveSessionSummary.isRunning,
-              runningTurnId: nextActiveSessionSummary.runningTurnId,
+              runningRunId: nextActiveSessionSummary.runningRunId,
             };
 
         if (refreshSessionsRequestIdRef.current !== requestId) {
@@ -449,8 +460,8 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
         const visibleSession = applyLocalSessionState(nextActiveSession);
 
         setCurrentActiveSession(visibleSession);
-        if (visibleSession.runningTurnId) {
-          streamTurn(visibleSession.id, visibleSession.runningTurnId);
+        if (visibleSession.runningRunId) {
+          streamRun(visibleSession.id, visibleSession.runningRunId);
         }
       }
 
@@ -484,8 +495,8 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
         persist,
         recordAttention: false,
       });
-      if (session.runningTurnId) {
-        streamTurn(session.id, session.runningTurnId);
+      if (session.runningRunId) {
+        streamRun(session.id, session.runningRunId);
       }
     } catch (reason) {
       if (options.showError ?? true) {
@@ -607,9 +618,9 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       setCurrentActiveSession(session);
       setWorkspaceDraft(session.workspace);
       expandWorkspace(session.workspace);
-      if (session.runningTurnId) {
-        setRunningTurn(session.id, session.runningTurnId);
-        streamTurn(session.id, session.runningTurnId);
+      if (session.runningRunId) {
+        setRunningRun(session.id, session.runningRunId);
+        streamRun(session.id, session.runningRunId);
       }
     } catch (reason) {
       if (openSessionRequestIdRef.current !== requestId) {
@@ -666,21 +677,26 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     try {
       const workspace = workspaceDraft.trim() || defaultWorkspace;
       const models = createModelRequestPreferences(config.models, config.reasoningEfforts);
-      const data =
+      const targetSession =
+        activeSession ??
+        (await createSession({
+          workspace,
+          origin: mode,
+          title: mode === "shell" ? `$ ${trimmed}` : trimmed,
+        }));
+      const data = await createRun(
+        targetSession.id,
         mode === "shell"
-          ? activeSession
-            ? await runShellCommand(activeSession.id, { command: trimmed })
-            : await createShellSession({
-                workspace,
-                command: trimmed,
-              })
-          : activeSession
-            ? await continueSession(activeSession.id, { prompt: trimmed, models })
-            : await createSession({
-                workspace,
-                prompt: trimmed,
-                models,
-              });
+          ? {
+              type: "shell_command",
+              input: { command: trimmed },
+            }
+          : {
+              type: "assistant_response",
+              input: { prompt: trimmed },
+              models,
+            },
+      );
 
       recordSessionAttention(data.session);
       if (submittedSessionId) {
@@ -697,9 +713,9 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
 
       expandWorkspace(data.session.workspace);
       void refreshSessions();
-      if (data.disposition !== "queued" && data.turnId) {
-        setRunningTurn(data.session.id, data.turnId);
-        streamTurn(data.session.id, data.turnId);
+      if (data.run.status !== "queued") {
+        setRunningRun(data.session.id, data.run.id);
+        streamRun(data.session.id, data.run.id);
       }
       return true;
     } catch (reason) {
@@ -730,7 +746,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   async function stopActiveSession() {
     const currentSession = activeSessionRef.current;
     const sessionId = currentSession?.id;
-    const runningTurnId = currentSession?.runningTurnId;
+    const runningRunId = currentSession?.runningRunId;
 
     if (!sessionId || !runningSessionIds.has(sessionId) || stoppingSessionIds.has(sessionId)) {
       return;
@@ -740,9 +756,13 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     setStoppingSession(sessionId, true);
 
     try {
-      await stopSession(sessionId);
-      closeTurnStream(sessionId, runningTurnId, { preserveOverlay: true });
-      clearRunningTurn(sessionId, runningTurnId);
+      if (!runningRunId) {
+        return;
+      }
+
+      await cancelRun(runningRunId);
+      closeRunStream(sessionId, runningRunId, { preserveOverlay: true });
+      clearRunningRun(sessionId, runningRunId);
       await refreshSessions();
     } catch (reason) {
       if (activeSessionRef.current?.id === sessionId) {
@@ -835,7 +855,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     options: SetCurrentActiveSessionOptions = {},
   ) {
     const previousSession = activeSessionRef.current;
-    const visibleSession = session ? applyLocalTurnOverlay(session) : null;
+    const visibleSession = session ? applyLocalRunOverlay(session) : null;
 
     if (previousSession && previousSession.id !== visibleSession?.id) {
       setLastSeenRound(previousSession.id, getCurrentRound(previousSession));
@@ -854,7 +874,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
                 doneAt: visibleSession.doneAt,
                 currentRound: getCurrentRound(visibleSession),
                 queuedPrompts: visibleSession.queuedPrompts,
-                isRunning: visibleSession.isRunning ?? Boolean(visibleSession.runningTurnId),
+                isRunning: visibleSession.isRunning ?? Boolean(visibleSession.runningRunId),
                 hasUnreadRound: false,
               }
             : summary,
@@ -869,11 +889,11 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     }
   }
 
-  function setRunningSession(sessionId: string, running: boolean, turnId?: string) {
-    if (!running && turnId) {
-      const currentTurnId = runningTurnIdBySessionIdRef.current.get(sessionId);
+  function setRunningSession(sessionId: string, running: boolean, runId?: string) {
+    if (!running && runId) {
+      const currentRunId = runningRunIdBySessionIdRef.current.get(sessionId);
 
-      if (currentTurnId && currentTurnId !== turnId) {
+      if (currentRunId && currentRunId !== runId) {
         return;
       }
     }
@@ -884,7 +904,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       next.add(sessionId);
     } else {
       next.delete(sessionId);
-      runningTurnIdBySessionIdRef.current.delete(sessionId);
+      runningRunIdBySessionIdRef.current.delete(sessionId);
     }
 
     runningSessionIdsRef.current = next;
@@ -896,15 +916,15 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     );
   }
 
-  function setRunningTurn(sessionId: string, turnId: string) {
-    runningTurnIdBySessionIdRef.current.set(sessionId, turnId);
+  function setRunningRun(sessionId: string, runId: string) {
+    runningRunIdBySessionIdRef.current.set(sessionId, runId);
     setRunningSession(sessionId, true);
   }
 
-  function clearRunningTurn(sessionId: string, turnId?: string) {
-    const currentTurnId = runningTurnIdBySessionIdRef.current.get(sessionId);
+  function clearRunningRun(sessionId: string, runId?: string) {
+    const currentRunId = runningRunIdBySessionIdRef.current.get(sessionId);
 
-    if (turnId && currentTurnId && currentTurnId !== turnId) {
+    if (runId && currentRunId && currentRunId !== runId) {
       return;
     }
 
@@ -925,33 +945,33 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   }
 
   function applyLocalSessionState(session: ApiSession): ApiSession {
-    const localTurnId = runningTurnIdBySessionIdRef.current.get(session.id);
-    const sessionWithTurnOverlay = applyLocalTurnOverlay(session);
+    const localRunId = runningRunIdBySessionIdRef.current.get(session.id);
+    const sessionWithRunOverlay = applyLocalRunOverlay(session);
 
-    if (!localTurnId) {
-      return sessionWithTurnOverlay;
+    if (!localRunId) {
+      return sessionWithRunOverlay;
     }
 
     const currentSession = activeSessionRef.current;
 
     if (currentSession?.id !== session.id) {
       return {
-        ...sessionWithTurnOverlay,
+        ...sessionWithRunOverlay,
         isRunning: true,
-        runningTurnId: localTurnId,
+        runningRunId: localRunId,
       };
     }
 
     return {
-      ...sessionWithTurnOverlay,
-      doneAt: sessionWithTurnOverlay.doneAt,
+      ...sessionWithRunOverlay,
+      doneAt: sessionWithRunOverlay.doneAt,
       currentRound: Math.max(
         currentSession.currentRound ?? 0,
-        sessionWithTurnOverlay.currentRound ?? 0,
+        sessionWithRunOverlay.currentRound ?? 0,
       ),
-      gitBranch: sessionWithTurnOverlay.gitBranch ?? currentSession.gitBranch,
+      gitBranch: sessionWithRunOverlay.gitBranch ?? currentSession.gitBranch,
       isRunning: true,
-      runningTurnId: localTurnId,
+      runningRunId: localRunId,
     };
   }
 
@@ -1156,7 +1176,7 @@ function createSessionShell(session: ApiSessionListItem): ApiSession {
     currentRound: session.currentRound,
     gitBranch: session.gitBranch,
     isRunning: session.isRunning,
-    runningTurnId: session.runningTurnId,
+    runningRunId: session.runningRunId,
   };
 }
 

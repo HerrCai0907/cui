@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  createSubmittedRunResponse,
   currentWorkspace,
   fulfillJson,
   mockRoundReview,
@@ -323,7 +324,7 @@ test("sends all atomic review comments together", async ({ page }) => {
       },
     ],
     isRunning: true,
-    runningTurnId: "turn-comment",
+    runningRunId: "run-comment",
   };
   const diff = [
     "diff --git a/src/example.ts b/src/example.ts",
@@ -387,17 +388,13 @@ test("sends all atomic review comments together", async ({ page }) => {
       ],
     },
   });
-  await page.route("**/api/sessions/session-comment/messages", async (route) => {
-    const body = route.request().postDataJSON() as { prompt: string };
+  await page.route("**/api/v1/sessions/session-comment/runs", async (route) => {
+    const body = route.request().postDataJSON() as { input: { prompt: string } };
 
-    submittedPrompt = body.prompt;
-    await fulfillJson(route, {
-      status: "ok",
-      session: startedSession,
-      turnId: "turn-comment",
-    });
+    submittedPrompt = body.input.prompt;
+    await fulfillJson(route, createSubmittedRunResponse(startedSession, "run-comment"));
   });
-  await page.route("**/api/turns/turn-comment/events", async () => {
+  await page.route("**/api/v1/runs/run-comment/events", async () => {
     // Keep the stream open so the review send flow can switch back to the session view.
   });
 

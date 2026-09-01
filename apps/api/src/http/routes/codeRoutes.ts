@@ -12,7 +12,7 @@ import { parseCodeRangeQuery } from "../validation/requestParsers.js";
 export function createCodeRouter(codeQueryService: CodeQueryService): Router {
   const router = Router();
 
-  router.get("/api/code", async (request, response, next) => {
+  router.get("/api/v1/source-files/content", async (request, response, next) => {
     try {
       const parsed = parseCodeRangeQuery(request.query);
 

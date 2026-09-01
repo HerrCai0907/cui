@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-import { currentWorkspace, fulfillJson, mockSession, mockSessions } from "./helpers";
+import {
+  createSubmittedRunResponse,
+  currentWorkspace,
+  fulfillJson,
+  mockSession,
+  mockSessions,
+} from "./helpers";
 
 test("loads the new session screen without browser errors", async ({ page }) => {
   const browserErrors: string[] = [];
@@ -19,7 +25,7 @@ test("loads the new session screen without browser errors", async ({ page }) => 
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "New session" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "New session" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "New session", exact: true })).toBeVisible();
   await expect(page.getByLabel("Workspace path")).toHaveValue("~");
   await expect(page.getByPlaceholder("Start with an initial prompt...")).toBeVisible();
   await expect(page.getByLabel("Send message")).toBeVisible();
@@ -44,18 +50,22 @@ test("sends configured models when starting a chat session", async ({ page }) =>
     rounds: [],
     currentRound: 0,
     isRunning: true,
-    runningTurnId: "turn-models",
+    runningRunId: "run-models",
   };
-  let requestBody: unknown;
+  let createSessionBody: unknown;
+  let createRunBody: unknown;
 
   await mockSessions(page, []);
-  await page.route("**/api/sessions", async (route) => {
+  await page.route("**/api/v1/sessions", async (route) => {
     if (route.request().method() === "POST") {
-      requestBody = route.request().postDataJSON();
+      createSessionBody = route.request().postDataJSON();
       await fulfillJson(route, {
-        status: "ok",
-        session: startedSession,
-        turnId: "turn-models",
+        session: {
+          ...startedSession,
+          messages: [],
+          isRunning: false,
+          runningRunId: undefined,
+        },
       });
       return;
     }
@@ -72,7 +82,11 @@ test("sends configured models when starting a chat session", async ({ page }) =>
       },
     });
   });
-  await page.route("**/api/turns/turn-models/events", async () => {
+  await page.route("**/api/v1/sessions/session-models/runs", async (route) => {
+    createRunBody = route.request().postDataJSON();
+    await fulfillJson(route, createSubmittedRunResponse(startedSession, "run-models"));
+  });
+  await page.route("**/api/v1/runs/run-models/events", async () => {
     // Keep the stream open so the submitted session remains visible.
   });
 
@@ -91,10 +105,19 @@ test("sends configured models when starting a chat session", async ({ page }) =>
   await page.getByRole("button", { name: "Send message" }).click();
 
   await expect
-    .poll(() => requestBody)
+    .poll(() => createSessionBody)
     .toEqual({
       workspace: "~",
-      prompt: "Use the selected models.",
+      origin: "chat",
+      title: "Use the selected models.",
+    });
+  await expect
+    .poll(() => createRunBody)
+    .toEqual({
+      type: "assistant_response",
+      input: {
+        prompt: "Use the selected models.",
+      },
       models: {
         normal: "GPT-5.4",
         summary: "Seed-2.1-Turbo",
@@ -127,20 +150,36 @@ test("sends a shell command on a single Enter key press", async ({ page }) => {
     rounds: [],
     currentRound: 0,
     isRunning: true,
-    runningTurnId: "turn-shell-enter",
+    runningRunId: "run-shell-enter",
   };
-  let requestBody: unknown;
+  let createSessionBody: unknown;
+  let createRunBody: unknown;
 
   await mockSessions(page, []);
-  await page.route("**/api/shell-sessions", async (route) => {
-    requestBody = route.request().postDataJSON();
+  await page.route("**/api/v1/sessions", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+
+    createSessionBody = route.request().postDataJSON();
     await fulfillJson(route, {
-      status: "ok",
-      session: startedSession,
-      turnId: "turn-shell-enter",
+      session: {
+        ...startedSession,
+        messages: [],
+        isRunning: false,
+        runningRunId: undefined,
+      },
     });
   });
-  await page.route("**/api/turns/turn-shell-enter/events", async () => {
+  await page.route("**/api/v1/sessions/shell-session-enter/runs", async (route) => {
+    createRunBody = route.request().postDataJSON();
+    await fulfillJson(
+      route,
+      createSubmittedRunResponse(startedSession, "run-shell-enter", { type: "shell_command" }),
+    );
+  });
+  await page.route("**/api/v1/runs/run-shell-enter/events", async () => {
     // Keep the stream open so the submitted session remains visible.
   });
 
@@ -153,10 +192,19 @@ test("sends a shell command on a single Enter key press", async ({ page }) => {
   await composer.press("Enter");
 
   await expect
-    .poll(() => requestBody)
+    .poll(() => createSessionBody)
     .toEqual({
       workspace: "~",
-      command: "pwd",
+      origin: "shell",
+      title: "$ pwd",
+    });
+  await expect
+    .poll(() => createRunBody)
+    .toEqual({
+      type: "shell_command",
+      input: {
+        command: "pwd",
+      },
     });
 });
 
@@ -200,6 +248,7 @@ test("starts a new session from any workspace row", async ({ page }) => {
   await mockSession(page, otherWorkspaceSession);
 
   await page.goto("/");
+  await page.getByRole("button", { name: "More" }).click();
 
   await expect(
     page.getByRole("button", { name: "New session in /Users/bytedance/cui" }),
@@ -242,6 +291,8 @@ test("reuses the composer draft between new and existing sessions", async ({ pag
   await page.getByRole("button", { name: "New session", exact: true }).click();
   await page.getByPlaceholder("Start with an initial prompt...").fill(draft);
 
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("button", { name: currentWorkspace, exact: true }).click();
   await page.getByRole("button", { name: "Existing session" }).click();
 
   await expect(page.getByRole("heading", { name: "Existing session" })).toBeVisible();
@@ -259,7 +310,7 @@ test("restores the last opened session after a browser refresh", async ({ page }
     workspace: currentWorkspace,
     title: "First session",
     createdAt: "2026-08-22T00:00:00.000Z",
-    updatedAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:02.000Z",
     messages: [
       {
         id: "message-1",
@@ -400,7 +451,7 @@ test("supports expandable assistant code previews", async ({ page }) => {
 
   await mockSessions(page, [session]);
   await mockSession(page, session);
-  await page.route("**/api/code?**", async (route) => {
+  await page.route("**/api/v1/source-files/content?**", async (route) => {
     const url = new URL(route.request().url());
     const startLine = Number(url.searchParams.get("startLine"));
     const endLine = Number(url.searchParams.get("endLine"));
@@ -478,7 +529,7 @@ test("supports assistant code previews for local markdown links outside the work
 
   await mockSessions(page, [session]);
   await mockSession(page, session);
-  await page.route("**/api/code?**", async (route) => {
+  await page.route("**/api/v1/source-files/content?**", async (route) => {
     const url = new URL(route.request().url());
 
     expect(url.searchParams.get("filePath")).toBe(filePath);

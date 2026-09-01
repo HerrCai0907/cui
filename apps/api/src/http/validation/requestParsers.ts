@@ -1,13 +1,11 @@
 import type { z } from "zod";
 import {
   CodeRangeQuerySchema,
-  ContinueSessionRequestSchema,
-  CreateShellSessionRequestSchema,
+  CreateRoundReviewRunRequestSchema,
+  CreateRunRequestSchema,
   CreateSessionRequestSchema,
   ListSessionsQuerySchema,
   RoundReviewParamsSchema,
-  RoundReviewQuerySchema,
-  RunShellCommandRequestSchema,
   UpdateSessionRequestSchema,
 } from "../../contracts/apiSchemas.js";
 
@@ -19,22 +17,16 @@ export function parseCreateSessionBody(
   return parseWithSchema(CreateSessionRequestSchema, body);
 }
 
-export function parseCreateShellSessionBody(
+export function parseCreateRunBody(
   body: unknown,
-): ParsedBody<z.infer<typeof CreateShellSessionRequestSchema>> {
-  return parseWithSchema(CreateShellSessionRequestSchema, body);
+): ParsedBody<z.infer<typeof CreateRunRequestSchema>> {
+  return parseWithSchema(CreateRunRequestSchema, body);
 }
 
-export function parseContinueSessionBody(
+export function parseCreateRoundReviewRunBody(
   body: unknown,
-): ParsedBody<z.infer<typeof ContinueSessionRequestSchema>> {
-  return parseWithSchema(ContinueSessionRequestSchema, body);
-}
-
-export function parseRunShellCommandBody(
-  body: unknown,
-): ParsedBody<z.infer<typeof RunShellCommandRequestSchema>> {
-  return parseWithSchema(RunShellCommandRequestSchema, body);
+): ParsedBody<z.infer<typeof CreateRoundReviewRunRequestSchema>> {
+  return parseWithSchema(CreateRoundReviewRunRequestSchema, body);
 }
 
 export function parseUpdateSessionBody(
@@ -53,12 +45,6 @@ export function parseRoundReviewParams(
   params: unknown,
 ): ParsedBody<z.infer<typeof RoundReviewParamsSchema>> {
   return parseWithSchema(RoundReviewParamsSchema, params);
-}
-
-export function parseRoundReviewQuery(
-  query: unknown,
-): ParsedBody<z.infer<typeof RoundReviewQuerySchema>> {
-  return parseWithSchema(RoundReviewQuerySchema, query);
 }
 
 function parseWithSchema<T extends z.ZodType>(schema: T, input: unknown): ParsedBody<z.infer<T>> {

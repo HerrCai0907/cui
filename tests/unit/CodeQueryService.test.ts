@@ -13,7 +13,7 @@ import {
 } from "../../apps/api/src/domain/code/CodeQueryService.js";
 import {
   parseCodeRangeQuery,
-  parseContinueSessionBody,
+  parseCreateRunBody,
   parseCreateSessionBody,
 } from "../../apps/api/src/http/validation/requestParsers.js";
 
@@ -264,7 +264,25 @@ test("session request parsers accept model preferences", () => {
   assert.deepEqual(
     parseCreateSessionBody({
       workspace: "/tmp/workspace",
-      prompt: "Implement a change",
+      title: "Implementation session",
+      origin: "chat",
+    }),
+    {
+      ok: true,
+      value: {
+        workspace: "/tmp/workspace",
+        title: "Implementation session",
+        origin: "chat",
+      },
+    },
+  );
+
+  assert.deepEqual(
+    parseCreateRunBody({
+      type: "assistant_response",
+      input: {
+        prompt: "Implement a change",
+      },
       models: {
         normal: "GPT-5.4",
         summary: "Seed-2.1-Turbo",
@@ -279,8 +297,10 @@ test("session request parsers accept model preferences", () => {
     {
       ok: true,
       value: {
-        workspace: "/tmp/workspace",
-        prompt: "Implement a change",
+        type: "assistant_response",
+        input: {
+          prompt: "Implement a change",
+        },
         models: {
           normal: "GPT-5.4",
           summary: "Seed-2.1-Turbo",
@@ -296,8 +316,11 @@ test("session request parsers accept model preferences", () => {
   );
 
   assert.deepEqual(
-    parseContinueSessionBody({
-      prompt: "Continue the work",
+    parseCreateRunBody({
+      type: "assistant_response",
+      input: {
+        prompt: "Continue the work",
+      },
       models: {
         normal: "GPT-5.6-Sol",
         reasoningEfforts: {
@@ -308,7 +331,10 @@ test("session request parsers accept model preferences", () => {
     {
       ok: true,
       value: {
-        prompt: "Continue the work",
+        type: "assistant_response",
+        input: {
+          prompt: "Continue the work",
+        },
         models: {
           normal: "GPT-5.6-Sol",
           reasoningEfforts: {
@@ -320,9 +346,11 @@ test("session request parsers accept model preferences", () => {
   );
 
   assert.equal(
-    parseCreateSessionBody({
-      workspace: "/tmp/workspace",
-      prompt: "Implement a change",
+    parseCreateRunBody({
+      type: "assistant_response",
+      input: {
+        prompt: "Implement a change",
+      },
       models: {
         summary: "",
       },
@@ -331,9 +359,11 @@ test("session request parsers accept model preferences", () => {
   );
 
   assert.equal(
-    parseCreateSessionBody({
-      workspace: "/tmp/workspace",
-      prompt: "Implement a change",
+    parseCreateRunBody({
+      type: "assistant_response",
+      input: {
+        prompt: "Implement a change",
+      },
       models: {
         reasoningEfforts: {
           normal: "invalid",

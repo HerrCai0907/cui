@@ -99,10 +99,7 @@ export function App() {
 
     setReviewLoading(true);
     setReviewError(null);
-    getRoundReview(reviewRoute.sessionId, reviewRoute.round, reviewRoute.mode, {
-      atomicReviewModel: config.models.atomicReview || undefined,
-      atomicReviewReasoningEffort: config.reasoningEfforts.atomicReview,
-    })
+    getRoundReview(reviewRoute.sessionId, reviewRoute.round)
       .then((loadedReview) => {
         if (!cancelled) {
           setReview(loadedReview);

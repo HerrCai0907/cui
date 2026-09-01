@@ -22,13 +22,33 @@ export async function fulfillJson(route: Route, body: unknown) {
   });
 }
 
+export function createSubmittedRunResponse(
+  session: MockSession,
+  runId: string,
+  options: {
+    status?: "queued" | "running";
+    type?: "assistant_response" | "shell_command" | "round_review";
+  } = {},
+) {
+  return {
+    run: {
+      id: runId,
+      sessionId: session.id,
+      type: options.type ?? "assistant_response",
+      status: options.status ?? "running",
+      createdAt: "2026-08-22T00:00:00.000Z",
+    },
+    session,
+  };
+}
+
 export async function mockSessions(page: Page, sessions: SessionSource) {
   await mockModels(page);
-  await page.route("**/api/sessions**", async (route) => {
+  await page.route("**/api/v1/sessions**", async (route) => {
     const url = new URL(route.request().url());
+    const currentSessions = typeof sessions === "function" ? sessions() : sessions;
 
-    if (route.request().method() === "GET" && url.pathname === "/api/sessions") {
-      const currentSessions = typeof sessions === "function" ? sessions() : sessions;
+    if (route.request().method() === "GET" && url.pathname === "/api/v1/sessions") {
       const pageNumber = Math.max(1, Number(url.searchParams.get("page")) || 1);
       const pageSize = Math.max(
         1,
@@ -55,12 +75,24 @@ export async function mockSessions(page: Page, sessions: SessionSource) {
       return;
     }
 
+    const sessionMatch = url.pathname.match(/^\/api\/v1\/sessions\/([^/]+)$/);
+
+    if (route.request().method() === "GET" && sessionMatch) {
+      const sessionId = decodeURIComponent(sessionMatch[1] ?? "");
+      const session = currentSessions.find((current) => current.id === sessionId);
+
+      if (session) {
+        await fulfillJson(route, { session });
+        return;
+      }
+    }
+
     await route.fallback();
   });
 }
 
 export async function mockModels(page: Page) {
-  await page.route("**/api/models", async (route) => {
+  await page.route("**/api/v1/models", async (route) => {
     await fulfillJson(route, {
       models: [
         {
@@ -87,7 +119,7 @@ export async function mockModels(page: Page) {
 }
 
 export async function mockSession(page: Page, session: MockSession) {
-  await page.route(`**/api/sessions/${session.id}`, async (route) => {
+  await page.route(`**/api/v1/sessions/${session.id}`, async (route) => {
     await fulfillJson(route, { session });
   });
 }
@@ -97,7 +129,7 @@ export async function mockSessionById(
   sessionId: string,
   session: MockSession | (() => MockSession),
 ) {
-  await page.route(`**/api/sessions/${sessionId}`, async (route) => {
+  await page.route(`**/api/v1/sessions/${sessionId}`, async (route) => {
     await fulfillJson(route, {
       session: typeof session === "function" ? session() : session,
     });
@@ -110,7 +142,7 @@ export async function mockRoundReview(
   round: number,
   review: unknown,
 ) {
-  await page.route(`**/api/sessions/${sessionId}/rounds/${round}/review**`, async (route) => {
+  await page.route(`**/api/v1/sessions/${sessionId}/rounds/${round}/review**`, async (route) => {
     await fulfillJson(route, { review });
   });
 }

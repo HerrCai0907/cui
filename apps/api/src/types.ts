@@ -59,7 +59,7 @@ export type ChatSessionView = Omit<ChatSession, "aiThreadId" | "rounds" | "queue
   currentRound: number;
   gitBranch?: string;
   isRunning: boolean;
-  runningTurnId?: string;
+  runningRunId?: string;
 };
 
 export type ChatSessionIndexEntry = Omit<
@@ -73,7 +73,7 @@ export type ChatSessionIndexEntry = Omit<
 export type ChatSessionListItem = ChatSessionIndexEntry & {
   gitBranch?: string;
   isRunning: boolean;
-  runningTurnId?: string;
+  runningRunId?: string;
 };
 
 export type SessionListPagination = {

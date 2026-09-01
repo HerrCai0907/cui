@@ -1,9 +1,10 @@
 import type express from "express";
 import type { AppLogger } from "../../infrastructure/logging/AppLogger.js";
 import {
+  RoundReviewNotFoundError,
+  RunNotFoundError,
   SessionBusyError,
   SessionNotFoundError,
-  SessionNotRunningError,
 } from "../../domain/sessions/SessionService.js";
 import {
   InvalidPathError,
@@ -25,13 +26,18 @@ export function createErrorHandler(logger: AppLogger): express.ErrorRequestHandl
       return;
     }
 
-    if (error instanceof SessionBusyError) {
-      response.status(409).json({ error: "Session already has a running turn" });
+    if (error instanceof RunNotFoundError) {
+      response.status(404).json({ error: "Run not found" });
       return;
     }
 
-    if (error instanceof SessionNotRunningError) {
-      response.status(409).json({ error: "Session does not have a running turn" });
+    if (error instanceof RoundReviewNotFoundError) {
+      response.status(404).json({ error: "Round review not found" });
+      return;
+    }
+
+    if (error instanceof SessionBusyError) {
+      response.status(409).json({ error: "Session already has a running run" });
       return;
     }
 

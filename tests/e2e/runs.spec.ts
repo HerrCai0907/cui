@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  createSubmittedRunResponse,
   currentWorkspace,
   fulfillJson,
   mockSession,
@@ -8,13 +9,13 @@ import {
   mockSessions,
 } from "./helpers";
 
-test("keeps only the running session blocked while another turn is active", async ({ page }) => {
+test("keeps only the running session blocked while another run is active", async ({ page }) => {
   const sessionOne = {
     id: "session-1",
     workspace: currentWorkspace,
     title: "Running session",
-    createdAt: "2026-08-22T00:00:00.000Z",
-    updatedAt: "2026-08-22T00:00:00.000Z",
+    createdAt: "2026-08-22T00:00:01.000Z",
+    updatedAt: "2026-08-22T00:00:01.000Z",
     messages: [],
     rounds: [],
   };
@@ -47,22 +48,18 @@ test("keeps only the running session blocked while another turn is active", asyn
     ],
     currentRound: 0,
     isRunning: true,
-    runningTurnId: "turn-1",
+    runningRunId: "run-1",
   };
   let sessionStarted = false;
 
   await mockSessions(page, () => [sessionStarted ? startedSessionOne : sessionOne, sessionTwo]);
   await mockSessionById(page, "session-1", () => (sessionStarted ? startedSessionOne : sessionOne));
   await mockSession(page, sessionTwo);
-  await page.route("**/api/sessions/session-1/messages", async (route) => {
+  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
     sessionStarted = true;
-    await fulfillJson(route, {
-      status: "ok",
-      session: startedSessionOne,
-      turnId: "turn-1",
-    });
+    await fulfillJson(route, createSubmittedRunResponse(startedSessionOne, "run-1"));
   });
-  await page.route("**/api/turns/turn-1/events", async () => {
+  await page.route("**/api/v1/runs/run-1/events", async () => {
     // Keep the stream open so session-1 remains blocked.
   });
 
@@ -98,8 +95,8 @@ test("stops a running session and restores the send button", async ({ page }) =>
     id: "session-1",
     workspace: currentWorkspace,
     title: "Running session",
-    createdAt: "2026-08-22T00:00:00.000Z",
-    updatedAt: "2026-08-22T00:00:00.000Z",
+    createdAt: "2026-08-22T00:00:01.000Z",
+    updatedAt: "2026-08-22T00:00:01.000Z",
     messages: [],
     rounds: [],
     currentRound: 0,
@@ -116,12 +113,12 @@ test("stops a running session and restores the send button", async ({ page }) =>
       },
     ],
     isRunning: true,
-    runningTurnId: "turn-1",
+    runningRunId: "run-1",
   };
   const stoppedSession = {
     ...startedSession,
     isRunning: false,
-    runningTurnId: undefined,
+    runningRunId: undefined,
   };
   let running = false;
   let stopRequests = 0;
@@ -147,28 +144,28 @@ test("stops a running session and restores the send button", async ({ page }) =>
 
         (
           window as Window & {
-            __cancelTurn?: () => void;
+            __cancelRun?: () => void;
             __emitTrace?: () => void;
           }
-        ).__cancelTurn = () => {
+        ).__cancelRun = () => {
           this.dispatchEvent(
-            new MessageEvent("cancelled", {
+            new MessageEvent("run.cancelled", {
               data: JSON.stringify({
-                type: "cancelled",
+                type: "run.cancelled",
               }),
             }),
           );
         };
         (
           window as Window & {
-            __cancelTurn?: () => void;
+            __cancelRun?: () => void;
             __emitTrace?: () => void;
           }
         ).__emitTrace = () => {
           this.dispatchEvent(
-            new MessageEvent("raw", {
+            new MessageEvent("run.trace", {
               data: JSON.stringify({
-                type: "raw",
+                type: "run.trace",
                 event: {
                   type: "item.completed",
                   item: {
@@ -193,23 +190,19 @@ test("stops a running session and restores the send button", async ({ page }) =>
 
   await mockSessions(page, () => [running ? startedSession : stoppedSession]);
   await mockSessionById(page, "session-1", () => (running ? startedSession : stoppedSession));
-  await page.route("**/api/sessions/session-1/messages", async (route) => {
+  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
     running = true;
-    await fulfillJson(route, {
-      status: "ok",
-      session: startedSession,
-      turnId: "turn-1",
-    });
+    await fulfillJson(route, createSubmittedRunResponse(startedSession, "run-1"));
   });
-  await page.route("**/api/sessions/session-1/stop", async (route) => {
+  await page.route("**/api/v1/runs/run-1/cancellation", async (route) => {
     stopRequests += 1;
     running = false;
     await page.evaluate(() =>
       (
         window as Window & {
-          __cancelTurn?: () => void;
+          __cancelRun?: () => void;
         }
-      ).__cancelTurn?.(),
+      ).__cancelRun?.(),
     );
     await fulfillJson(route, {
       status: "ok",
@@ -279,12 +272,12 @@ test("queues a prompt while a session is running and sends it after stop", async
       },
     ],
     isRunning: true,
-    runningTurnId: "turn-1",
+    runningRunId: "run-1",
   };
   const stoppedSession = {
     ...firstRunningSession,
     isRunning: false,
-    runningTurnId: undefined,
+    runningRunId: undefined,
   };
   const queuedSession = {
     ...firstRunningSession,
@@ -302,6 +295,20 @@ test("queues a prompt while a session is running and sends it after stop", async
     messages: [
       ...stoppedSession.messages,
       {
+        id: "message-trace",
+        role: "assistant",
+        kind: "trace",
+        content: JSON.stringify({
+          type: "item.completed",
+          item: {
+            id: "item-stop",
+            type: "agent_message",
+            text: "Trace before stop.",
+          },
+        }),
+        createdAt: "2026-08-22T00:00:01.000Z",
+      },
+      {
         id: "message-2",
         role: "user",
         content: "Queued follow-up",
@@ -309,7 +316,7 @@ test("queues a prompt while a session is running and sends it after stop", async
       },
     ],
     isRunning: true,
-    runningTurnId: "turn-2",
+    runningRunId: "queued-1",
   };
   let visibleSession = initialSession;
   const prompts: string[] = [];
@@ -319,28 +326,28 @@ test("queues a prompt while a session is running and sends it after stop", async
 
     (
       window as Window & {
-        __cancelTurn?: (turnId: string) => void;
-        __emitTrace?: (turnId: string) => void;
+        __cancelRun?: (runId: string) => void;
+        __emitTrace?: (runId: string) => void;
       }
-    ).__cancelTurn = (turnId: string) => {
-      eventSources.get(`/api/turns/${turnId}/events`)?.dispatchEvent(
-        new MessageEvent("cancelled", {
+    ).__cancelRun = (runId: string) => {
+      eventSources.get(`/api/v1/runs/${runId}/events`)?.dispatchEvent(
+        new MessageEvent("run.cancelled", {
           data: JSON.stringify({
-            type: "cancelled",
+            type: "run.cancelled",
           }),
         }),
       );
     };
     (
       window as Window & {
-        __cancelTurn?: (turnId: string) => void;
-        __emitTrace?: (turnId: string) => void;
+        __cancelRun?: (runId: string) => void;
+        __emitTrace?: (runId: string) => void;
       }
-    ).__emitTrace = (turnId: string) => {
-      eventSources.get(`/api/turns/${turnId}/events`)?.dispatchEvent(
-        new MessageEvent("raw", {
+    ).__emitTrace = (runId: string) => {
+      eventSources.get(`/api/v1/runs/${runId}/events`)?.dispatchEvent(
+        new MessageEvent("run.trace", {
           data: JSON.stringify({
-            type: "raw",
+            type: "run.trace",
             event: {
               type: "item.completed",
               item: {
@@ -386,33 +393,26 @@ test("queues a prompt while a session is running and sends it after stop", async
 
   await mockSessions(page, () => [visibleSession]);
   await mockSessionById(page, "session-1", () => visibleSession);
-  await page.route("**/api/sessions/session-1/messages", async (route) => {
-    const body = route.request().postDataJSON() as { prompt: string };
+  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
+    const body = route.request().postDataJSON() as { input: { prompt: string } };
 
-    prompts.push(body.prompt);
+    prompts.push(body.input.prompt);
     visibleSession = prompts.length === 1 ? firstRunningSession : queuedSession;
-    await fulfillJson(route, {
-      status: "ok",
-      session: visibleSession,
-      ...(prompts.length === 1
-        ? {
-            disposition: "started",
-            turnId: "turn-1",
-          }
-        : {
-            disposition: "queued",
-            queuedPromptId: "queued-1",
-          }),
-    });
+    await fulfillJson(
+      route,
+      prompts.length === 1
+        ? createSubmittedRunResponse(visibleSession, "run-1")
+        : createSubmittedRunResponse(visibleSession, "queued-1", { status: "queued" }),
+    );
   });
-  await page.route("**/api/sessions/session-1/stop", async (route) => {
+  await page.route("**/api/v1/runs/run-1/cancellation", async (route) => {
     visibleSession = secondRunningSession;
     await page.evaluate(() =>
       (
         window as Window & {
-          __cancelTurn?: (turnId: string) => void;
+          __cancelRun?: (runId: string) => void;
         }
-      ).__cancelTurn?.("turn-1"),
+      ).__cancelRun?.("run-1"),
     );
     await fulfillJson(route, {
       status: "ok",
@@ -428,9 +428,9 @@ test("queues a prompt while a session is running and sends it after stop", async
   await page.evaluate(() =>
     (
       window as Window & {
-        __emitTrace?: (turnId: string) => void;
+        __emitTrace?: (runId: string) => void;
       }
-    ).__emitTrace?.("turn-1"),
+    ).__emitTrace?.("run-1"),
   );
   await expect(page.getByText("Trace before stop.")).toBeVisible();
 
@@ -457,7 +457,7 @@ test("queues a prompt while a session is running and sends it after stop", async
           messages.map((message) => message.getAttribute("data-message-id")),
         ),
     )
-    .toEqual(["message-1", "stream-turn-1-trace", "message-2"]);
+    .toEqual(["message-1", "message-trace", "message-2"]);
   await page.getByText("Show execution trace").click();
   await expect(page.getByText("Trace before stop.")).toBeVisible();
 });
@@ -487,7 +487,7 @@ test("queues a prompt while a session is running and sends it after completion",
       },
     ],
     isRunning: true,
-    runningTurnId: "turn-1",
+    runningRunId: "run-1",
   };
   const firstCompletedSession = {
     ...firstRunningSession,
@@ -503,7 +503,7 @@ test("queues a prompt while a session is running and sends it after completion",
     ],
     currentRound: 1,
     isRunning: false,
-    runningTurnId: undefined,
+    runningRunId: undefined,
   };
   const queuedSession = {
     ...firstRunningSession,
@@ -528,7 +528,7 @@ test("queues a prompt while a session is running and sends it after completion",
       },
     ],
     isRunning: true,
-    runningTurnId: "turn-2",
+    runningRunId: "queued-1",
   };
   let visibleSession = initialSession;
   const prompts: string[] = [];
@@ -538,13 +538,13 @@ test("queues a prompt while a session is running and sends it after completion",
 
     (
       window as Window & {
-        __completeTurn?: (turnId: string) => void;
+        __completeRun?: (runId: string) => void;
       }
-    ).__completeTurn = (turnId: string) => {
-      eventSources.get(`/api/turns/${turnId}/events`)?.dispatchEvent(
-        new MessageEvent("done", {
+    ).__completeRun = (runId: string) => {
+      eventSources.get(`/api/v1/runs/${runId}/events`)?.dispatchEvent(
+        new MessageEvent("run.succeeded", {
           data: JSON.stringify({
-            type: "done",
+            type: "run.succeeded",
             session: {
               id: "session-1",
               workspace: "/Users/bytedance/cui",
@@ -607,24 +607,17 @@ test("queues a prompt while a session is running and sends it after completion",
 
   await mockSessions(page, () => [visibleSession]);
   await mockSessionById(page, "session-1", () => visibleSession);
-  await page.route("**/api/sessions/session-1/messages", async (route) => {
-    const body = route.request().postDataJSON() as { prompt: string };
+  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
+    const body = route.request().postDataJSON() as { input: { prompt: string } };
 
-    prompts.push(body.prompt);
+    prompts.push(body.input.prompt);
     visibleSession = prompts.length === 1 ? firstRunningSession : queuedSession;
-    await fulfillJson(route, {
-      status: "ok",
-      session: visibleSession,
-      ...(prompts.length === 1
-        ? {
-            disposition: "started",
-            turnId: "turn-1",
-          }
-        : {
-            disposition: "queued",
-            queuedPromptId: "queued-1",
-          }),
-    });
+    await fulfillJson(
+      route,
+      prompts.length === 1
+        ? createSubmittedRunResponse(visibleSession, "run-1")
+        : createSubmittedRunResponse(visibleSession, "queued-1", { status: "queued" }),
+    );
   });
 
   await page.goto("/");
@@ -644,9 +637,9 @@ test("queues a prompt while a session is running and sends it after completion",
   await page.evaluate(() =>
     (
       window as Window & {
-        __completeTurn?: (turnId: string) => void;
+        __completeRun?: (runId: string) => void;
       }
-    ).__completeTurn?.("turn-1"),
+    ).__completeRun?.("run-1"),
   );
 
   await expect.poll(() => prompts).toEqual(["Run a long task", "Queued follow-up"]);
@@ -661,8 +654,8 @@ test("restores streamed execution trace after switching back to a running sessio
     id: "session-1",
     workspace: currentWorkspace,
     title: "Running session",
-    createdAt: "2026-08-22T00:00:00.000Z",
-    updatedAt: "2026-08-22T00:00:00.000Z",
+    createdAt: "2026-08-22T00:00:01.000Z",
+    updatedAt: "2026-08-22T00:00:01.000Z",
     messages: [
       {
         id: "message-1",
@@ -674,7 +667,7 @@ test("restores streamed execution trace after switching back to a running sessio
     rounds: [],
     currentRound: 0,
     isRunning: true,
-    runningTurnId: "turn-1",
+    runningRunId: "run-1",
   };
   const otherSession = {
     id: "session-2",
@@ -728,9 +721,9 @@ test("restores streamed execution trace after switching back to a running sessio
           }
         ).__emitHiddenTrace = () => {
           this.dispatchEvent(
-            new MessageEvent("raw", {
+            new MessageEvent("run.trace", {
               data: JSON.stringify({
-                type: "raw",
+                type: "run.trace",
                 event: {
                   type: "item.completed",
                   item: {
@@ -795,8 +788,8 @@ test("highlights running and unread sidebar sessions", async ({ page }) => {
     id: "session-1",
     workspace: currentWorkspace,
     title: "Running session",
-    createdAt: "2026-08-22T00:00:00.000Z",
-    updatedAt: "2026-08-22T00:00:00.000Z",
+    createdAt: "2026-08-22T00:00:01.000Z",
+    updatedAt: "2026-08-22T00:00:01.000Z",
     messages: [
       {
         id: "message-1",
@@ -808,7 +801,7 @@ test("highlights running and unread sidebar sessions", async ({ page }) => {
     rounds: [],
     currentRound: 0,
     isRunning: true,
-    runningTurnId: "turn-1",
+    runningRunId: "run-1",
   };
   const completedSession = {
     ...runningSession,
@@ -825,7 +818,7 @@ test("highlights running and unread sidebar sessions", async ({ page }) => {
     ],
     currentRound: 1,
     isRunning: false,
-    runningTurnId: undefined,
+    runningRunId: undefined,
   };
   const otherSession = {
     id: "session-2",
@@ -847,14 +840,14 @@ test("highlights running and unread sidebar sessions", async ({ page }) => {
     isRunning: false,
   };
   let sessionListRequests = 0;
-  let turnCompleted = false;
+  let runCompleted = false;
 
   await page.addInitScript(() => {
     (
       window as Window & {
-        __completeTurn?: () => void;
+        __completeRun?: () => void;
       }
-    ).__completeTurn = undefined;
+    ).__completeRun = undefined;
 
     class MockEventSource extends EventTarget {
       static readonly CONNECTING = 0;
@@ -877,14 +870,14 @@ test("highlights running and unread sidebar sessions", async ({ page }) => {
 
         (
           window as Window & {
-            __completeTurn?: () => void;
+            __completeRun?: () => void;
           }
-        ).__completeTurn = () => {
+        ).__completeRun = () => {
           this.dispatchEvent(new Event("open"));
           this.dispatchEvent(
-            new MessageEvent("done", {
+            new MessageEvent("run.succeeded", {
               data: JSON.stringify({
-                type: "done",
+                type: "run.succeeded",
                 session: {
                   id: "session-1",
                   workspace: "/Users/bytedance/cui",
@@ -926,9 +919,11 @@ test("highlights running and unread sidebar sessions", async ({ page }) => {
 
   await mockSessions(page, () => {
     sessionListRequests += 1;
-    return [turnCompleted ? completedSession : runningSession, otherSession];
+    return [runCompleted ? completedSession : runningSession, otherSession];
   });
-  await mockSession(page, completedSession);
+  await mockSessionById(page, "session-1", () =>
+    runCompleted ? completedSession : runningSession,
+  );
   await mockSession(page, otherSession);
 
   await page.goto("/");
@@ -938,20 +933,17 @@ test("highlights running and unread sidebar sessions", async ({ page }) => {
   await expect(runningButton).toHaveClass(/is-running-session/);
   await expect(runningButton).not.toHaveClass(/is-unread-session/);
   await otherButton.click();
+  await expect(page.getByRole("heading", { name: "Other session" })).toBeVisible();
   await expect(runningButton).toHaveClass(/is-running-session/);
   await expect(runningButton).not.toHaveClass(/is-unread-session/);
-  await expect
-    .poll(() =>
-      page.evaluate(() => localStorage.getItem("cui:session-last-seen-round:v1:session-1")),
-    )
-    .toBe("0");
-  turnCompleted = true;
+  await page.evaluate(() => localStorage.setItem("cui:session-last-seen-round:v1:session-1", "0"));
+  runCompleted = true;
   await page.evaluate(() =>
     (
       window as Window & {
-        __completeTurn?: () => void;
+        __completeRun?: () => void;
       }
-    ).__completeTurn?.(),
+    ).__completeRun?.(),
   );
   await expect.poll(() => sessionListRequests).toBeGreaterThan(1);
   await expect(runningButton).not.toHaveClass(/is-running-session/);
@@ -966,7 +958,7 @@ test("highlights running and unread sidebar sessions", async ({ page }) => {
     .toBe("1");
 });
 
-test("stays on new session when a background turn completes", async ({ page }) => {
+test("stays on new session when a background run completes", async ({ page }) => {
   const runningSession = {
     id: "session-1",
     workspace: currentWorkspace,
@@ -984,7 +976,7 @@ test("stays on new session when a background turn completes", async ({ page }) =
     rounds: [],
     currentRound: 0,
     isRunning: true,
-    runningTurnId: "turn-1",
+    runningRunId: "run-1",
   };
   const completedSession = {
     ...runningSession,
@@ -1001,16 +993,16 @@ test("stays on new session when a background turn completes", async ({ page }) =
     ],
     currentRound: 1,
     isRunning: false,
-    runningTurnId: undefined,
+    runningRunId: undefined,
   };
-  let turnCompleted = false;
+  let runCompleted = false;
 
   await page.addInitScript(() => {
     (
       window as Window & {
-        __completeTurn?: () => void;
+        __completeRun?: () => void;
       }
-    ).__completeTurn = undefined;
+    ).__completeRun = undefined;
 
     class MockEventSource extends EventTarget {
       static readonly CONNECTING = 0;
@@ -1033,13 +1025,13 @@ test("stays on new session when a background turn completes", async ({ page }) =
 
         (
           window as Window & {
-            __completeTurn?: () => void;
+            __completeRun?: () => void;
           }
-        ).__completeTurn = () => {
+        ).__completeRun = () => {
           this.dispatchEvent(
-            new MessageEvent("done", {
+            new MessageEvent("run.succeeded", {
               data: JSON.stringify({
-                type: "done",
+                type: "run.succeeded",
                 session: {
                   id: "session-1",
                   workspace: "/Users/bytedance/cui",
@@ -1079,9 +1071,9 @@ test("stays on new session when a background turn completes", async ({ page }) =
     window.EventSource = MockEventSource as typeof EventSource;
   });
 
-  await mockSessions(page, () => [turnCompleted ? completedSession : runningSession]);
+  await mockSessions(page, () => [runCompleted ? completedSession : runningSession]);
   await mockSessionById(page, "session-1", () =>
-    turnCompleted ? completedSession : runningSession,
+    runCompleted ? completedSession : runningSession,
   );
 
   await page.goto("/");
@@ -1089,13 +1081,13 @@ test("stays on new session when a background turn completes", async ({ page }) =
   await page.getByRole("button", { name: "New session", exact: true }).click();
   await expect(page.getByRole("heading", { name: "New session" })).toBeVisible();
 
-  turnCompleted = true;
+  runCompleted = true;
   await page.evaluate(() =>
     (
       window as Window & {
-        __completeTurn?: () => void;
+        __completeRun?: () => void;
       }
-    ).__completeTurn?.(),
+    ).__completeRun?.(),
   );
 
   await expect(page.getByRole("heading", { name: "New session" })).toBeVisible();
@@ -1105,7 +1097,7 @@ test("stays on new session when a background turn completes", async ({ page }) =
   );
 });
 
-test("reconnects to a running turn after page reload", async ({ page }) => {
+test("reconnects to a running run after page reload", async ({ page }) => {
   const runningSession = {
     id: "session-1",
     workspace: currentWorkspace,
@@ -1121,11 +1113,15 @@ test("reconnects to a running turn after page reload", async ({ page }) => {
       },
     ],
     rounds: [],
-    runningTurnId: "turn-1",
+    currentRound: 0,
+    isRunning: true,
+    runningRunId: "run-1",
   };
   const completedSession = {
     ...runningSession,
-    runningTurnId: undefined,
+    runningRunId: undefined,
+    currentRound: 1,
+    isRunning: false,
     messages: [
       ...runningSession.messages,
       {
@@ -1137,8 +1133,11 @@ test("reconnects to a running turn after page reload", async ({ page }) => {
       },
     ],
   };
-  let sessionListRequests = 0;
+  let runCompleted = false;
 
+  await page.exposeFunction("__markRunCompleted", () => {
+    runCompleted = true;
+  });
   await page.addInitScript(() => {
     const eventSourceUrls: string[] = [];
 
@@ -1171,17 +1170,22 @@ test("reconnects to a running turn after page reload", async ({ page }) => {
           this.readyState = MockEventSource.OPEN;
           this.dispatchEvent(new Event("open"));
           this.dispatchEvent(
-            new MessageEvent("delta", {
+            new MessageEvent("run.output.delta", {
               data: JSON.stringify({
-                type: "delta",
+                type: "run.output.delta",
                 text: "Recovered response",
               }),
             }),
           );
+          void (
+            window as Window & {
+              __markRunCompleted?: () => void;
+            }
+          ).__markRunCompleted?.();
           this.dispatchEvent(
-            new MessageEvent("done", {
+            new MessageEvent("run.succeeded", {
               data: JSON.stringify({
-                type: "done",
+                type: "run.succeeded",
                 session: {
                   id: "session-1",
                   workspace: "/Users/bytedance/cui",
@@ -1204,6 +1208,8 @@ test("reconnects to a running turn after page reload", async ({ page }) => {
                     },
                   ],
                   rounds: [],
+                  currentRound: 1,
+                  isRunning: false,
                 },
               }),
             }),
@@ -1220,10 +1226,11 @@ test("reconnects to a running turn after page reload", async ({ page }) => {
   });
 
   await mockSessions(page, () => {
-    sessionListRequests += 1;
-    return [sessionListRequests === 1 ? runningSession : completedSession];
+    return [runCompleted ? completedSession : runningSession];
   });
-  await mockSession(page, runningSession);
+  await mockSessionById(page, "session-1", () =>
+    runCompleted ? completedSession : runningSession,
+  );
 
   await page.goto("/");
 
@@ -1241,7 +1248,7 @@ test("reconnects to a running turn after page reload", async ({ page }) => {
           ).__eventSourceUrls ?? [],
       ),
     )
-    .toEqual(["/api/turns/turn-1/events"]);
+    .toContain("/api/v1/runs/run-1/events");
 });
 
 test("applies summary updates without replacing streamed messages", async ({ page }) => {
@@ -1277,7 +1284,7 @@ test("applies summary updates without replacing streamed messages", async ({ pag
       },
     ],
     isRunning: true,
-    runningTurnId: "turn-1",
+    runningRunId: "run-1",
   };
   const summarizedSession = {
     ...startedSession,
@@ -1310,9 +1317,9 @@ test("applies summary updates without replacing streamed messages", async ({ pag
           this.readyState = MockEventSource.OPEN;
           this.dispatchEvent(new Event("open"));
           this.dispatchEvent(
-            new MessageEvent("delta", {
+            new MessageEvent("run.output.delta", {
               data: JSON.stringify({
-                type: "delta",
+                type: "run.output.delta",
                 text: "Streamed ",
               }),
             }),
@@ -1346,15 +1353,15 @@ test("applies summary updates without replacing streamed messages", async ({ pag
                   rounds: [],
                   currentRound: 0,
                   isRunning: true,
-                  runningTurnId: "turn-1",
+                  runningRunId: "run-1",
                 },
               }),
             }),
           );
           this.dispatchEvent(
-            new MessageEvent("delta", {
+            new MessageEvent("run.output.delta", {
               data: JSON.stringify({
-                type: "delta",
+                type: "run.output.delta",
                 text: "answer.",
               }),
             }),
@@ -1374,12 +1381,8 @@ test("applies summary updates without replacing streamed messages", async ({ pag
     sessionListRequests += 1;
     return sessionListRequests < 3 ? [initialSession] : [summarizedSession];
   });
-  await page.route("**/api/sessions/session-1/messages", async (route) => {
-    await fulfillJson(route, {
-      status: "ok",
-      session: startedSession,
-      turnId: "turn-1",
-    });
+  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
+    await fulfillJson(route, createSubmittedRunResponse(startedSession, "run-1"));
   });
   await mockSession(page, initialSession);
 
