@@ -52,6 +52,7 @@ const DONE_MARK_VISIBLE_DURATION_MS = 800;
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 48;
 const EMPTY_QUEUED_PROMPTS: QueuedPromptView[] = [];
 const SESSION_PAGE_SIZE = 30;
+const SIDEBAR_SESSION_REFRESH_INTERVAL_MS = 10_000;
 
 type SessionPagination = SessionListPage["pagination"];
 
@@ -101,6 +102,8 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   const autoRestoreSessionRef = useRef(true);
   const sessionPageCacheRef = useRef<Map<number, CachedSessionPage>>(new Map());
   const refreshSessionsRequestIdRef = useRef(0);
+  const refreshSidebarSessionsRef = useRef<() => void>(() => undefined);
+  const sidebarRefreshInFlightRef = useRef(false);
   const openSessionRequestIdRef = useRef(0);
   const lastEnterKeyDownRef = useRef<number | null>(null);
   const messageStreamRef = useRef<HTMLDivElement | null>(null);
@@ -187,6 +190,29 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
 
   useEffect(() => {
     void refreshSessions();
+  }, []);
+
+  useEffect(() => {
+    refreshSidebarSessionsRef.current = () => {
+      if (sessionPageLoading || sidebarRefreshInFlightRef.current) {
+        return;
+      }
+
+      sidebarRefreshInFlightRef.current = true;
+      void refreshSessions(sessionPage, { showLoading: false }).finally(() => {
+        sidebarRefreshInFlightRef.current = false;
+      });
+    };
+  });
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      refreshSidebarSessionsRef.current();
+    }, SIDEBAR_SESSION_REFRESH_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   useEffect(() => {
