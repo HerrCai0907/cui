@@ -32,8 +32,8 @@ export type SessionSummary = {
   hasUnreadRound: boolean;
 };
 
-export type SubmittedTurn = components["schemas"]["SubmittedTurnResponse"];
-export type TurnStreamEvent = components["schemas"]["TurnStreamEvent"];
+export type SubmittedRun = components["schemas"]["SubmittedRunResponse"];
+export type RunStreamEvent = components["schemas"]["RunStreamEvent"];
 
 export type ExecutionTraceEvent =
   | ThreadStartedTraceEvent

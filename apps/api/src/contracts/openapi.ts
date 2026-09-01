@@ -8,8 +8,9 @@ import {
   AiModelPreferencesSchema,
   CodeRangeQuerySchema,
   CodeRangeResponseSchema,
-  ContinueSessionRequestSchema,
-  CreateShellSessionRequestSchema,
+  CreateRoundReviewRunRequestSchema,
+  CreateRunRequestSchema,
+  CreateSessionResponseSchema,
   CreateSessionRequestSchema,
   ErrorResponseSchema,
   GetRoundReviewResponseSchema,
@@ -21,12 +22,11 @@ import {
   OkResponseSchema,
   QueuedPromptSchema,
   RoundReviewParamsSchema,
-  RoundReviewQuerySchema,
-  RunShellCommandRequestSchema,
+  RunSchema,
   SessionIdParamsSchema,
-  SubmittedTurnResponseSchema,
-  TurnIdParamsSchema,
-  TurnStreamEventSchema,
+  SubmittedRunResponseSchema,
+  RunIdParamsSchema,
+  RunStreamEventSchema,
   UpdateSessionRequestSchema,
 } from "./apiSchemas.js";
 
@@ -43,13 +43,14 @@ registry.register("QueuedPrompt", QueuedPromptSchema);
 registry.register("AiModelPreferences", AiModelPreferencesSchema);
 registry.register("CodeRangeResponse", CodeRangeResponseSchema);
 registry.register("CreateSessionRequest", CreateSessionRequestSchema);
-registry.register("ContinueSessionRequest", ContinueSessionRequestSchema);
-registry.register("CreateShellSessionRequest", CreateShellSessionRequestSchema);
-registry.register("RunShellCommandRequest", RunShellCommandRequestSchema);
+registry.register("CreateSessionResponse", CreateSessionResponseSchema);
+registry.register("CreateRunRequest", CreateRunRequestSchema);
+registry.register("CreateRoundReviewRunRequest", CreateRoundReviewRunRequestSchema);
+registry.register("Run", RunSchema);
 registry.register("UpdateSessionRequest", UpdateSessionRequestSchema);
-registry.register("SubmittedTurnResponse", SubmittedTurnResponseSchema);
+registry.register("SubmittedRunResponse", SubmittedRunResponseSchema);
 registry.register("OkResponse", OkResponseSchema);
-registry.register("TurnStreamEvent", TurnStreamEventSchema);
+registry.register("RunStreamEvent", RunStreamEventSchema);
 registry.register("ListModelsResponse", ListModelsResponseSchema);
 
 const errorResponse = {
@@ -63,7 +64,7 @@ const errorResponse = {
 
 registry.registerPath({
   method: "get",
-  path: "/api/health",
+  path: "/api/v1/health",
   summary: "Get API health",
   responses: {
     200: {
@@ -79,7 +80,7 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/code",
+  path: "/api/v1/source-files/content",
   summary: "Get source code from a file path and optional line range",
   request: {
     query: CodeRangeQuerySchema,
@@ -100,7 +101,7 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/models",
+  path: "/api/v1/models",
   summary: "List available AI models",
   responses: {
     200: {
@@ -116,7 +117,7 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/sessions",
+  path: "/api/v1/sessions",
   summary: "List sessions",
   request: {
     query: ListSessionsQuerySchema,
@@ -136,8 +137,8 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/sessions",
-  summary: "Create a session and start its first turn",
+  path: "/api/v1/sessions",
+  summary: "Create a session",
   request: {
     body: {
       required: true,
@@ -149,50 +150,21 @@ registry.registerPath({
     },
   },
   responses: {
-    202: {
-      description: "The turn was accepted and started.",
+    201: {
+      description: "The session was created.",
       content: {
         "application/json": {
-          schema: SubmittedTurnResponseSchema,
+          schema: CreateSessionResponseSchema,
         },
       },
     },
     400: errorResponse,
-    409: errorResponse,
-  },
-});
-
-registry.registerPath({
-  method: "post",
-  path: "/api/shell-sessions",
-  summary: "Create a session and run its first shell command",
-  request: {
-    body: {
-      required: true,
-      content: {
-        "application/json": {
-          schema: CreateShellSessionRequestSchema,
-        },
-      },
-    },
-  },
-  responses: {
-    202: {
-      description: "The shell command was accepted and started.",
-      content: {
-        "application/json": {
-          schema: SubmittedTurnResponseSchema,
-        },
-      },
-    },
-    400: errorResponse,
-    409: errorResponse,
   },
 });
 
 registry.registerPath({
   method: "get",
-  path: "/api/sessions/{sessionId}",
+  path: "/api/v1/sessions/{sessionId}",
   summary: "Get a session",
   request: {
     params: SessionIdParamsSchema,
@@ -212,7 +184,7 @@ registry.registerPath({
 
 registry.registerPath({
   method: "patch",
-  path: "/api/sessions/{sessionId}",
+  path: "/api/v1/sessions/{sessionId}",
   summary: "Update session metadata",
   request: {
     params: SessionIdParamsSchema,
@@ -241,11 +213,10 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/sessions/{sessionId}/rounds/{round}/review",
+  path: "/api/v1/sessions/{sessionId}/rounds/{round}/review",
   summary: "Get a round review",
   request: {
     params: RoundReviewParamsSchema,
-    query: RoundReviewQuerySchema,
   },
   responses: {
     200: {
@@ -263,25 +234,25 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/sessions/{sessionId}/messages",
-  summary: "Continue a session with a user prompt",
+  path: "/api/v1/sessions/{sessionId}/runs",
+  summary: "Create a run in a session",
   request: {
     params: SessionIdParamsSchema,
     body: {
       required: true,
       content: {
         "application/json": {
-          schema: ContinueSessionRequestSchema,
+          schema: CreateRunRequestSchema,
         },
       },
     },
   },
   responses: {
     202: {
-      description: "The continuation turn was accepted and either started or queued.",
+      description: "The run was accepted and either started or queued.",
       content: {
         "application/json": {
-          schema: SubmittedTurnResponseSchema,
+          schema: SubmittedRunResponseSchema,
         },
       },
     },
@@ -293,25 +264,25 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/sessions/{sessionId}/shell",
-  summary: "Run a shell command in a session workspace",
+  path: "/api/v1/sessions/{sessionId}/rounds/{round}/review-runs",
+  summary: "Create a round review run",
   request: {
-    params: SessionIdParamsSchema,
+    params: RoundReviewParamsSchema,
     body: {
       required: true,
       content: {
         "application/json": {
-          schema: RunShellCommandRequestSchema,
+          schema: CreateRoundReviewRunRequestSchema,
         },
       },
     },
   },
   responses: {
     202: {
-      description: "The shell command was accepted and either started or queued.",
+      description: "The review run was accepted.",
       content: {
         "application/json": {
-          schema: SubmittedTurnResponseSchema,
+          schema: SubmittedRunResponseSchema,
         },
       },
     },
@@ -323,14 +294,14 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/api/sessions/{sessionId}/stop",
-  summary: "Stop the running turn for a session",
+  path: "/api/v1/runs/{runId}/cancellation",
+  summary: "Cancel a run",
   request: {
-    params: SessionIdParamsSchema,
+    params: RunIdParamsSchema,
   },
   responses: {
     202: {
-      description: "The running turn was cancelled.",
+      description: "The running run was cancelled.",
       content: {
         "application/json": {
           schema: OkResponseSchema,
@@ -344,17 +315,17 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/api/turns/{turnId}/events",
-  summary: "Stream turn events",
+  path: "/api/v1/runs/{runId}/events",
+  summary: "Stream run events",
   request: {
-    params: TurnIdParamsSchema,
+    params: RunIdParamsSchema,
   },
   responses: {
     200: {
-      description: "Server-sent event stream. Each event payload matches TurnStreamEvent.",
+      description: "Server-sent event stream. Each event payload matches RunStreamEvent.",
       content: {
         "text/event-stream": {
-          schema: TurnStreamEventSchema,
+          schema: RunStreamEventSchema,
         },
       },
     },

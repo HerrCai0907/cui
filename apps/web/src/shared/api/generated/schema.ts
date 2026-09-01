@@ -4,7 +4,7 @@
  */
 
 export interface paths {
-  "/api/health": {
+  "/api/v1/health": {
     parameters: {
       query?: never;
       header?: never;
@@ -47,7 +47,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/code": {
+  "/api/v1/source-files/content": {
     parameters: {
       query?: never;
       header?: never;
@@ -118,7 +118,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/models": {
+  "/api/v1/models": {
     parameters: {
       query?: never;
       header?: never;
@@ -161,7 +161,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/sessions": {
+  "/api/v1/sessions": {
     parameters: {
       query?: never;
       header?: never;
@@ -212,7 +212,7 @@ export interface paths {
                 currentRound: number;
                 gitBranch?: string;
                 isRunning: boolean;
-                runningTurnId?: string;
+                runningRunId?: string;
               }[];
               pagination: {
                 page: number;
@@ -239,7 +239,7 @@ export interface paths {
       };
     };
     put?: never;
-    /** Create a session and start its first turn */
+    /** Create a session */
     post: {
       parameters: {
         query?: never;
@@ -251,35 +251,20 @@ export interface paths {
         content: {
           "application/json": {
             workspace: string;
-            prompt: string;
-            models?: {
-              normal?: string;
-              summary?: string;
-              atomicReview?: string;
-              reasoningEfforts?: {
-                /** @enum {string} */
-                normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
-                /** @enum {string} */
-                summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
-                /** @enum {string} */
-                atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
-              };
-            };
+            /** @enum {string} */
+            origin?: "chat" | "shell";
+            title?: string;
           };
         };
       };
       responses: {
-        /** @description The turn was accepted and started. */
-        202: {
+        /** @description The session was created. */
+        201: {
           headers: {
             [name: string]: unknown;
           };
           content: {
             "application/json": {
-              /** @enum {string} */
-              status: "ok";
-              /** @enum {string} */
-              disposition?: "started" | "queued";
               session: {
                 id: string;
                 /** @enum {string} */
@@ -322,26 +307,13 @@ export interface paths {
                 currentRound: number;
                 gitBranch?: string;
                 isRunning: boolean;
-                runningTurnId?: string;
+                runningRunId?: string;
               };
-              turnId?: string;
-              queuedPromptId?: string;
             };
           };
         };
         /** @description Error response. */
         400: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": {
-              error: string;
-            };
-          };
-        };
-        /** @description Error response. */
-        409: {
           headers: {
             [name: string]: unknown;
           };
@@ -359,123 +331,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/shell-sessions": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Create a session and run its first shell command */
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody: {
-        content: {
-          "application/json": {
-            workspace: string;
-            command: string;
-          };
-        };
-      };
-      responses: {
-        /** @description The shell command was accepted and started. */
-        202: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": {
-              /** @enum {string} */
-              status: "ok";
-              /** @enum {string} */
-              disposition?: "started" | "queued";
-              session: {
-                id: string;
-                /** @enum {string} */
-                origin?: "chat" | "shell";
-                workspace: string;
-                title: string;
-                summary?: string;
-                /** Format: date-time */
-                doneAt?: string;
-                /** Format: date-time */
-                createdAt: string;
-                /** Format: date-time */
-                updatedAt: string;
-                messages: {
-                  id: string;
-                  /** @enum {string} */
-                  role: "assistant" | "user";
-                  /** @enum {string} */
-                  kind?: "response" | "trace";
-                  round?: number;
-                  content: string;
-                  /** Format: date-time */
-                  createdAt: string;
-                }[];
-                rounds?: {
-                  round: number;
-                  hasChanges: boolean;
-                  /** Format: date-time */
-                  createdAt: string;
-                  atomicReviewStatus?: "ready" | "failed";
-                }[];
-                queuedPrompts?: {
-                  id: string;
-                  /** @enum {string} */
-                  mode: "chat" | "shell";
-                  prompt: string;
-                  /** Format: date-time */
-                  createdAt: string;
-                }[];
-                currentRound: number;
-                gitBranch?: string;
-                isRunning: boolean;
-                runningTurnId?: string;
-              };
-              turnId?: string;
-              queuedPromptId?: string;
-            };
-          };
-        };
-        /** @description Error response. */
-        400: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": {
-              error: string;
-            };
-          };
-        };
-        /** @description Error response. */
-        409: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": {
-              error: string;
-            };
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/sessions/{sessionId}": {
+  "/api/v1/sessions/{sessionId}": {
     parameters: {
       query?: never;
       header?: never;
@@ -543,7 +399,7 @@ export interface paths {
                 currentRound: number;
                 gitBranch?: string;
                 isRunning: boolean;
-                runningTurnId?: string;
+                runningRunId?: string;
               };
             };
           };
@@ -633,7 +489,7 @@ export interface paths {
                 currentRound: number;
                 gitBranch?: string;
                 isRunning: boolean;
-                runningTurnId?: string;
+                runningRunId?: string;
               };
             };
           };
@@ -664,7 +520,7 @@ export interface paths {
     };
     trace?: never;
   };
-  "/api/sessions/{sessionId}/rounds/{round}/review": {
+  "/api/v1/sessions/{sessionId}/rounds/{round}/review": {
     parameters: {
       query?: never;
       header?: never;
@@ -674,11 +530,7 @@ export interface paths {
     /** Get a round review */
     get: {
       parameters: {
-        query?: {
-          mode?: "atomic" | "full";
-          atomicReviewModel?: string;
-          atomicReviewReasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
-        };
+        query?: never;
         header?: never;
         path: {
           sessionId: string;
@@ -770,7 +622,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/sessions/{sessionId}/messages": {
+  "/api/v1/sessions/{sessionId}/runs": {
     parameters: {
       query?: never;
       header?: never;
@@ -779,7 +631,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Continue a session with a user prompt */
+    /** Create a run in a session */
     post: {
       parameters: {
         query?: never;
@@ -791,8 +643,167 @@ export interface paths {
       };
       requestBody: {
         content: {
+          "application/json":
+            | {
+                /** @enum {string} */
+                type: "assistant_response";
+                input: {
+                  prompt: string;
+                };
+                models?: {
+                  normal?: string;
+                  summary?: string;
+                  atomicReview?: string;
+                  reasoningEfforts?: {
+                    /** @enum {string} */
+                    normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+                    /** @enum {string} */
+                    summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+                    /** @enum {string} */
+                    atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+                  };
+                };
+              }
+            | {
+                /** @enum {string} */
+                type: "shell_command";
+                input: {
+                  command: string;
+                };
+              };
+        };
+      };
+      responses: {
+        /** @description The run was accepted and either started or queued. */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              run: {
+                id: string;
+                sessionId: string;
+                /** @enum {string} */
+                type: "assistant_response" | "shell_command" | "round_review";
+                /** @enum {string} */
+                status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+                /** Format: date-time */
+                createdAt?: string;
+              };
+              session: {
+                id: string;
+                /** @enum {string} */
+                origin?: "chat" | "shell";
+                workspace: string;
+                title: string;
+                summary?: string;
+                /** Format: date-time */
+                doneAt?: string;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                updatedAt: string;
+                messages: {
+                  id: string;
+                  /** @enum {string} */
+                  role: "assistant" | "user";
+                  /** @enum {string} */
+                  kind?: "response" | "trace";
+                  round?: number;
+                  content: string;
+                  /** Format: date-time */
+                  createdAt: string;
+                }[];
+                rounds?: {
+                  round: number;
+                  hasChanges: boolean;
+                  /** Format: date-time */
+                  createdAt: string;
+                  atomicReviewStatus?: "ready" | "failed";
+                }[];
+                queuedPrompts?: {
+                  id: string;
+                  /** @enum {string} */
+                  mode: "chat" | "shell";
+                  prompt: string;
+                  /** Format: date-time */
+                  createdAt: string;
+                }[];
+                currentRound: number;
+                gitBranch?: string;
+                isRunning: boolean;
+                runningRunId?: string;
+              };
+            };
+          };
+        };
+        /** @description Error response. */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+        /** @description Error response. */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+        /** @description Error response. */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/sessions/{sessionId}/rounds/{round}/review-runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create a round review run */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          sessionId: string;
+          round: number;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
           "application/json": {
-            prompt: string;
+            /** @enum {string} */
+            mode?: "atomic";
             models?: {
               normal?: string;
               summary?: string;
@@ -810,17 +821,23 @@ export interface paths {
         };
       };
       responses: {
-        /** @description The continuation turn was accepted and either started or queued. */
+        /** @description The review run was accepted. */
         202: {
           headers: {
             [name: string]: unknown;
           };
           content: {
             "application/json": {
-              /** @enum {string} */
-              status: "ok";
-              /** @enum {string} */
-              disposition?: "started" | "queued";
+              run: {
+                id: string;
+                sessionId: string;
+                /** @enum {string} */
+                type: "assistant_response" | "shell_command" | "round_review";
+                /** @enum {string} */
+                status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+                /** Format: date-time */
+                createdAt?: string;
+              };
               session: {
                 id: string;
                 /** @enum {string} */
@@ -863,10 +880,8 @@ export interface paths {
                 currentRound: number;
                 gitBranch?: string;
                 isRunning: boolean;
-                runningTurnId?: string;
+                runningRunId?: string;
               };
-              turnId?: string;
-              queuedPromptId?: string;
             };
           };
         };
@@ -911,7 +926,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/sessions/{sessionId}/shell": {
+  "/api/v1/runs/{runId}/cancellation": {
     parameters: {
       query?: never;
       header?: never;
@@ -920,147 +935,19 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Run a shell command in a session workspace */
+    /** Cancel a run */
     post: {
       parameters: {
         query?: never;
         header?: never;
         path: {
-          sessionId: string;
-        };
-        cookie?: never;
-      };
-      requestBody: {
-        content: {
-          "application/json": {
-            command: string;
-          };
-        };
-      };
-      responses: {
-        /** @description The shell command was accepted and either started or queued. */
-        202: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": {
-              /** @enum {string} */
-              status: "ok";
-              /** @enum {string} */
-              disposition?: "started" | "queued";
-              session: {
-                id: string;
-                /** @enum {string} */
-                origin?: "chat" | "shell";
-                workspace: string;
-                title: string;
-                summary?: string;
-                /** Format: date-time */
-                doneAt?: string;
-                /** Format: date-time */
-                createdAt: string;
-                /** Format: date-time */
-                updatedAt: string;
-                messages: {
-                  id: string;
-                  /** @enum {string} */
-                  role: "assistant" | "user";
-                  /** @enum {string} */
-                  kind?: "response" | "trace";
-                  round?: number;
-                  content: string;
-                  /** Format: date-time */
-                  createdAt: string;
-                }[];
-                rounds?: {
-                  round: number;
-                  hasChanges: boolean;
-                  /** Format: date-time */
-                  createdAt: string;
-                  atomicReviewStatus?: "ready" | "failed";
-                }[];
-                queuedPrompts?: {
-                  id: string;
-                  /** @enum {string} */
-                  mode: "chat" | "shell";
-                  prompt: string;
-                  /** Format: date-time */
-                  createdAt: string;
-                }[];
-                currentRound: number;
-                gitBranch?: string;
-                isRunning: boolean;
-                runningTurnId?: string;
-              };
-              turnId?: string;
-              queuedPromptId?: string;
-            };
-          };
-        };
-        /** @description Error response. */
-        400: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": {
-              error: string;
-            };
-          };
-        };
-        /** @description Error response. */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": {
-              error: string;
-            };
-          };
-        };
-        /** @description Error response. */
-        409: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": {
-              error: string;
-            };
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/sessions/{sessionId}/stop": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Stop the running turn for a session */
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          sessionId: string;
+          runId: string;
         };
         cookie?: never;
       };
       requestBody?: never;
       responses: {
-        /** @description The running turn was cancelled. */
+        /** @description The running run was cancelled. */
         202: {
           headers: {
             [name: string]: unknown;
@@ -1102,26 +989,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/turns/{turnId}/events": {
+  "/api/v1/runs/{runId}/events": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** Stream turn events */
+    /** Stream run events */
     get: {
       parameters: {
         query?: never;
         header?: never;
         path: {
-          turnId: string;
+          runId: string;
         };
         cookie?: never;
       };
       requestBody?: never;
       responses: {
-        /** @description Server-sent event stream. Each event payload matches TurnStreamEvent. */
+        /** @description Server-sent event stream. Each event payload matches RunStreamEvent. */
         200: {
           headers: {
             [name: string]: unknown;
@@ -1130,12 +1017,12 @@ export interface paths {
             "text/event-stream":
               | {
                   /** @enum {string} */
-                  type: "delta";
+                  type: "run.output.delta";
                   text: string;
                 }
               | {
                   /** @enum {string} */
-                  type: "raw";
+                  type: "run.trace";
                   event?: unknown;
                 }
               | {
@@ -1183,12 +1070,12 @@ export interface paths {
                     currentRound: number;
                     gitBranch?: string;
                     isRunning: boolean;
-                    runningTurnId?: string;
+                    runningRunId?: string;
                   };
                 }
               | {
                   /** @enum {string} */
-                  type: "done";
+                  type: "run.succeeded";
                   session: {
                     id: string;
                     /** @enum {string} */
@@ -1231,17 +1118,17 @@ export interface paths {
                     currentRound: number;
                     gitBranch?: string;
                     isRunning: boolean;
-                    runningTurnId?: string;
+                    runningRunId?: string;
                   };
                 }
               | {
                   /** @enum {string} */
-                  type: "failed";
+                  type: "run.failed";
                   error: string;
                 }
               | {
                   /** @enum {string} */
-                  type: "cancelled";
+                  type: "run.cancelled";
                 };
           };
         };
@@ -1381,7 +1268,7 @@ export interface components {
       currentRound: number;
       gitBranch?: string;
       isRunning: boolean;
-      runningTurnId?: string;
+      runningRunId?: string;
     };
     ChatSessionListItem: {
       id: string;
@@ -1407,7 +1294,7 @@ export interface components {
       currentRound: number;
       gitBranch?: string;
       isRunning: boolean;
-      runningTurnId?: string;
+      runningRunId?: string;
     };
     QueuedPrompt: {
       id: string;
@@ -1442,52 +1329,11 @@ export interface components {
     };
     CreateSessionRequest: {
       workspace: string;
-      prompt: string;
-      models?: {
-        normal?: string;
-        summary?: string;
-        atomicReview?: string;
-        reasoningEfforts?: {
-          /** @enum {string} */
-          normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
-          /** @enum {string} */
-          summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
-          /** @enum {string} */
-          atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
-        };
-      };
-    };
-    ContinueSessionRequest: {
-      prompt: string;
-      models?: {
-        normal?: string;
-        summary?: string;
-        atomicReview?: string;
-        reasoningEfforts?: {
-          /** @enum {string} */
-          normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
-          /** @enum {string} */
-          summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
-          /** @enum {string} */
-          atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
-        };
-      };
-    };
-    CreateShellSessionRequest: {
-      workspace: string;
-      command: string;
-    };
-    RunShellCommandRequest: {
-      command: string;
-    };
-    UpdateSessionRequest: {
-      done: boolean;
-    };
-    SubmittedTurnResponse: {
       /** @enum {string} */
-      status: "ok";
-      /** @enum {string} */
-      disposition?: "started" | "queued";
+      origin?: "chat" | "shell";
+      title?: string;
+    };
+    CreateSessionResponse: {
       session: {
         id: string;
         /** @enum {string} */
@@ -1530,24 +1376,136 @@ export interface components {
         currentRound: number;
         gitBranch?: string;
         isRunning: boolean;
-        runningTurnId?: string;
+        runningRunId?: string;
       };
-      turnId?: string;
-      queuedPromptId?: string;
+    };
+    CreateRunRequest:
+      | {
+          /** @enum {string} */
+          type: "assistant_response";
+          input: {
+            prompt: string;
+          };
+          models?: {
+            normal?: string;
+            summary?: string;
+            atomicReview?: string;
+            reasoningEfforts?: {
+              /** @enum {string} */
+              normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+              /** @enum {string} */
+              summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+              /** @enum {string} */
+              atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+            };
+          };
+        }
+      | {
+          /** @enum {string} */
+          type: "shell_command";
+          input: {
+            command: string;
+          };
+        };
+    CreateRoundReviewRunRequest: {
+      /** @enum {string} */
+      mode?: "atomic";
+      models?: {
+        normal?: string;
+        summary?: string;
+        atomicReview?: string;
+        reasoningEfforts?: {
+          /** @enum {string} */
+          normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+          /** @enum {string} */
+          summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+          /** @enum {string} */
+          atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+        };
+      };
+    };
+    Run: {
+      id: string;
+      sessionId: string;
+      /** @enum {string} */
+      type: "assistant_response" | "shell_command" | "round_review";
+      /** @enum {string} */
+      status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+      /** Format: date-time */
+      createdAt?: string;
+    };
+    UpdateSessionRequest: {
+      done: boolean;
+    };
+    SubmittedRunResponse: {
+      run: {
+        id: string;
+        sessionId: string;
+        /** @enum {string} */
+        type: "assistant_response" | "shell_command" | "round_review";
+        /** @enum {string} */
+        status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+        /** Format: date-time */
+        createdAt?: string;
+      };
+      session: {
+        id: string;
+        /** @enum {string} */
+        origin?: "chat" | "shell";
+        workspace: string;
+        title: string;
+        summary?: string;
+        /** Format: date-time */
+        doneAt?: string;
+        /** Format: date-time */
+        createdAt: string;
+        /** Format: date-time */
+        updatedAt: string;
+        messages: {
+          id: string;
+          /** @enum {string} */
+          role: "assistant" | "user";
+          /** @enum {string} */
+          kind?: "response" | "trace";
+          round?: number;
+          content: string;
+          /** Format: date-time */
+          createdAt: string;
+        }[];
+        rounds?: {
+          round: number;
+          hasChanges: boolean;
+          /** Format: date-time */
+          createdAt: string;
+          atomicReviewStatus?: "ready" | "failed";
+        }[];
+        queuedPrompts?: {
+          id: string;
+          /** @enum {string} */
+          mode: "chat" | "shell";
+          prompt: string;
+          /** Format: date-time */
+          createdAt: string;
+        }[];
+        currentRound: number;
+        gitBranch?: string;
+        isRunning: boolean;
+        runningRunId?: string;
+      };
     };
     OkResponse: {
       /** @enum {string} */
       status: "ok";
     };
-    TurnStreamEvent:
+    RunStreamEvent:
       | {
           /** @enum {string} */
-          type: "delta";
+          type: "run.output.delta";
           text: string;
         }
       | {
           /** @enum {string} */
-          type: "raw";
+          type: "run.trace";
           event?: unknown;
         }
       | {
@@ -1595,12 +1553,12 @@ export interface components {
             currentRound: number;
             gitBranch?: string;
             isRunning: boolean;
-            runningTurnId?: string;
+            runningRunId?: string;
           };
         }
       | {
           /** @enum {string} */
-          type: "done";
+          type: "run.succeeded";
           session: {
             id: string;
             /** @enum {string} */
@@ -1643,17 +1601,17 @@ export interface components {
             currentRound: number;
             gitBranch?: string;
             isRunning: boolean;
-            runningTurnId?: string;
+            runningRunId?: string;
           };
         }
       | {
           /** @enum {string} */
-          type: "failed";
+          type: "run.failed";
           error: string;
         }
       | {
           /** @enum {string} */
-          type: "cancelled";
+          type: "run.cancelled";
         };
     ListModelsResponse: {
       models: {

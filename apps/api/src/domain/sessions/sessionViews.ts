@@ -7,18 +7,18 @@ import type {
 
 export type SessionViewOptions = {
   gitBranch?: string;
-  runningTurnId?: string;
+  runningRunId?: string;
 };
 
 export function toSessionView(
   session: ChatSession,
-  optionsOrRunningTurnId?: SessionViewOptions | string,
+  optionsOrRunningRunId?: SessionViewOptions | string,
 ): ChatSessionView {
   const { aiThreadId: _aiThreadId, ...publicSession } = session;
   const options =
-    typeof optionsOrRunningTurnId === "string"
-      ? { runningTurnId: optionsOrRunningTurnId }
-      : (optionsOrRunningTurnId ?? {});
+    typeof optionsOrRunningRunId === "string"
+      ? { runningRunId: optionsOrRunningRunId }
+      : (optionsOrRunningRunId ?? {});
   const roundSummaries =
     session.rounds?.map(({ round, hasChanges, createdAt, atomicReview }) => ({
       round,
@@ -40,25 +40,25 @@ export function toSessionView(
     queuedPrompts,
     currentRound: getCurrentRound(session),
     ...(options.gitBranch ? { gitBranch: options.gitBranch } : {}),
-    isRunning: Boolean(options.runningTurnId),
-    ...(options.runningTurnId ? { runningTurnId: options.runningTurnId } : {}),
+    isRunning: Boolean(options.runningRunId),
+    ...(options.runningRunId ? { runningRunId: options.runningRunId } : {}),
   };
 }
 
 export function toSessionListItem(
   session: ChatSessionIndexEntry,
-  optionsOrRunningTurnId?: SessionViewOptions | string,
+  optionsOrRunningRunId?: SessionViewOptions | string,
 ): ChatSessionListItem {
   const options =
-    typeof optionsOrRunningTurnId === "string"
-      ? { runningTurnId: optionsOrRunningTurnId }
-      : (optionsOrRunningTurnId ?? {});
+    typeof optionsOrRunningRunId === "string"
+      ? { runningRunId: optionsOrRunningRunId }
+      : (optionsOrRunningRunId ?? {});
 
   return {
     ...session,
     ...(options.gitBranch ? { gitBranch: options.gitBranch } : {}),
-    isRunning: Boolean(options.runningTurnId),
-    ...(options.runningTurnId ? { runningTurnId: options.runningTurnId } : {}),
+    isRunning: Boolean(options.runningRunId),
+    ...(options.runningRunId ? { runningRunId: options.runningRunId } : {}),
   };
 }
 

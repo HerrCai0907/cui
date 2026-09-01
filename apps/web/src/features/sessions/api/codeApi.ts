@@ -1,8 +1,9 @@
 import { fetchJson } from "../../../shared/api/fetchJson";
 import type { paths } from "../../../shared/api/generated/schema";
 
-type GetCodeQuery = paths["/api/code"]["get"]["parameters"]["query"];
-type GetCodeResponse = paths["/api/code"]["get"]["responses"][200]["content"]["application/json"];
+type GetCodeQuery = paths["/api/v1/source-files/content"]["get"]["parameters"]["query"];
+type GetCodeResponse =
+  paths["/api/v1/source-files/content"]["get"]["responses"][200]["content"]["application/json"];
 
 export type CodeRangeResult = GetCodeResponse;
 
@@ -14,5 +15,5 @@ export async function getCodeRange(query: GetCodeQuery): Promise<CodeRangeResult
     params.set("endLine", String(query.endLine));
   }
 
-  return fetchJson<GetCodeResponse>(`/api/code?${params.toString()}`);
+  return fetchJson<GetCodeResponse>(`/api/v1/source-files/content?${params.toString()}`);
 }

@@ -14,8 +14,7 @@ import {
 } from "../../types.js";
 import { JsonSessionStore } from "../../infrastructure/store/JsonSessionStore.js";
 import { AppLogger } from "../../infrastructure/logging/AppLogger.js";
-import { createAssistantMessages, createMessage } from "./sessionMessages.js";
-import { createTitle } from "./sessionTitles.js";
+import { createMessage } from "./sessionMessages.js";
 import { toSessionListItem, toSessionView } from "./sessionViews.js";
 import {
   createRoundInputTranscript,
@@ -23,17 +22,16 @@ import {
   getRoundAssistantOutput,
   getRoundExecutionTrace,
 } from "./transcripts.js";
-import { TurnRegistry, type RunningTurn } from "../turns/TurnRegistry.js";
-import type { TurnStreamEvent } from "../turns/turnEvents.js";
+import { RunRegistry, type RunningRun } from "../runs/RunRegistry.js";
+import type { RunStreamEvent } from "../runs/runEvents.js";
 import { RoundService } from "../reviews/RoundService.js";
 import { AtomicReviewService } from "../reviews/AtomicReviewService.js";
 import { SessionSummaryService } from "./SessionSummaryService.js";
-import { TurnCompletionService } from "./TurnCompletionService.js";
+import { RunCompletionService } from "./RunCompletionService.js";
 import type {
-  ContinueSessionRequestContract,
-  CreateShellSessionRequestContract,
+  CreateRunRequestContract,
   CreateSessionRequestContract,
-  RunShellCommandRequestContract,
+  CreateRoundReviewRunRequestContract,
   UpdateSessionRequestContract,
 } from "../../contracts/apiSchemas.js";
 import { GitDiffService } from "../../infrastructure/diff/GitDiffService.js";
@@ -44,15 +42,13 @@ import {
 import { formatRawEvents } from "../../infrastructure/ai/traexEvents.js";
 import { assertExistingDirectory } from "../paths/pathValidation.js";
 
-export type { TurnStreamEvent } from "../turns/turnEvents.js";
+export type { RunStreamEvent } from "../runs/runEvents.js";
 
 export type CreateSessionRequest = CreateSessionRequestContract;
 
-export type ContinueSessionRequest = ContinueSessionRequestContract;
+export type CreateRunRequest = CreateRunRequestContract;
 
-export type CreateShellSessionRequest = CreateShellSessionRequestContract;
-
-export type RunShellCommandRequest = RunShellCommandRequestContract;
+export type CreateRoundReviewRunRequest = CreateRoundReviewRunRequestContract;
 
 export type UpdateSessionRequest = UpdateSessionRequestContract;
 
@@ -61,18 +57,45 @@ export type ListSessionViewsOptions = {
   pageSize?: number;
 };
 
-export type SubmittedTurn = {
+export type SubmittedRun = {
+  run: {
+    id: string;
+    sessionId: string;
+    type: "assistant_response" | "shell_command" | "round_review";
+    status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+    createdAt?: string;
+  };
   session: ChatSessionView;
-} & (
-  | {
-      disposition: "started";
-      turnId: string;
-    }
-  | {
-      disposition: "queued";
-      queuedPromptId: string;
-    }
-);
+};
+
+function toRunningSubmittedRun(run: RunningRun, session: ChatSessionView): SubmittedRun {
+  return {
+    run: {
+      id: run.id,
+      sessionId: run.sessionId,
+      type: run.type,
+      status: "running",
+      createdAt: run.createdAt,
+    },
+    session,
+  };
+}
+
+function toQueuedSubmittedRun(input: {
+  queuedPrompt: QueuedPrompt;
+  session: ChatSessionView;
+}): SubmittedRun {
+  return {
+    run: {
+      id: input.queuedPrompt.id,
+      sessionId: input.session.id,
+      type: input.queuedPrompt.mode === "shell" ? "shell_command" : "assistant_response",
+      status: "queued",
+      createdAt: input.queuedPrompt.createdAt,
+    },
+    session: input.session,
+  };
+}
 
 type QueuedPromptInput =
   | {
@@ -85,8 +108,22 @@ type QueuedPromptInput =
       prompt: string;
     };
 
+type AssistantRunInput = {
+  prompt: string;
+  models?: AiModelPreferences;
+};
+
+type ShellCommandRunInput = {
+  command: string;
+};
+
+type StartRunOptions = {
+  runId?: string;
+  createdAt?: string;
+};
+
 export class SessionService {
-  private readonly turnRegistry = new TurnRegistry();
+  private readonly runRegistry = new RunRegistry();
   private readonly sessionOperationQueues = new Map<string, Promise<void>>();
 
   constructor(
@@ -96,7 +133,7 @@ export class SessionService {
     private readonly roundService = new RoundService(),
     private readonly atomicReviewService = new AtomicReviewService(aiModel, logger),
     private readonly sessionSummaryService = new SessionSummaryService(aiModel, store, logger),
-    private readonly turnCompletionService = new TurnCompletionService(
+    private readonly runCompletionService = new RunCompletionService(
       store,
       logger,
       roundService,
@@ -122,7 +159,7 @@ export class SessionService {
         page.sessions.map(async (session) =>
           toSessionListItem(session, {
             gitBranch: await this.getWorkspaceBranch(session.workspace, branchByWorkspace),
-            runningTurnId: this.turnRegistry.getRunningTurnIdForSession(session.id),
+            runningRunId: this.runRegistry.getRunningRunIdForSession(session.id),
           }),
         ),
       ),
@@ -139,6 +176,33 @@ export class SessionService {
     return session ? this.toSessionView(session) : undefined;
   }
 
+  async createSessionContainer(request: CreateSessionRequest): Promise<ChatSessionView> {
+    const workspace = await assertExistingDirectory(request.workspace);
+    const now = new Date().toISOString();
+    const sessionId = randomUUID();
+    const origin = request.origin ?? "chat";
+    const session: ChatSession = {
+      id: sessionId,
+      origin,
+      workspace,
+      title: request.title ?? "Untitled session",
+      summary: origin === "shell" ? "Shell session" : "",
+      createdAt: now,
+      updatedAt: now,
+      messages: [],
+    };
+
+    const createdSession = await this.store.createSession(session);
+
+    await this.logger.framework.info("session.container.created", {
+      sessionId,
+      workspace,
+      origin,
+    });
+
+    return this.toSessionView(createdSession);
+  }
+
   async updateSession(sessionId: string, request: UpdateSessionRequest): Promise<ChatSessionView> {
     const session = await this.store.getSession(sessionId);
 
@@ -152,11 +216,7 @@ export class SessionService {
     return this.toSessionView(updatedSession);
   }
 
-  async getRoundReview(
-    sessionId: string,
-    round: number,
-    options: { includeAtomicReview?: boolean; models?: AiModelPreferences } = {},
-  ): Promise<ChatRound | undefined> {
+  async getRoundReview(sessionId: string, round: number): Promise<ChatRound | undefined> {
     const session = await this.store.getSession(sessionId);
 
     if (!session) {
@@ -171,8 +231,101 @@ export class SessionService {
 
     review = this.roundService.refreshRoundDiff(review);
 
-    if ((options.includeAtomicReview ?? true) && review.hasChanges && !review.atomicReview) {
-      const atomicReview = await this.atomicReviewService.createAtomicDiffReview({
+    return review;
+  }
+
+  private async submitAssistantRun(
+    sessionId: string,
+    request: Extract<CreateRunRequest, { type: "assistant_response" }>,
+  ): Promise<SubmittedRun> {
+    const submittedRun = await this.enqueueSessionOperation(sessionId, async () => {
+      await this.logger.framework.info("run.assistant.started", {
+        sessionId,
+        promptLength: request.input.prompt.length,
+      });
+      const session = await this.getExistingSession(sessionId, "run.assistant.not_found");
+
+      if (this.shouldQueuePrompt(session)) {
+        return this.enqueuePrompt(sessionId, {
+          mode: "chat",
+          prompt: request.input.prompt,
+          models: request.models,
+        });
+      }
+
+      return this.startAssistantRun(session, {
+        prompt: request.input.prompt,
+        models: request.models,
+      });
+    });
+
+    if (submittedRun.run.status === "queued") {
+      this.scheduleNextQueuedPrompt(sessionId);
+    }
+
+    return submittedRun;
+  }
+
+  private async submitShellCommandRun(
+    sessionId: string,
+    request: Extract<CreateRunRequest, { type: "shell_command" }>,
+  ): Promise<SubmittedRun> {
+    const submittedRun = await this.enqueueSessionOperation(sessionId, async () => {
+      await this.logger.framework.info("shell.command.started", {
+        sessionId,
+        commandLength: request.input.command.length,
+      });
+      const session = await this.getExistingSession(sessionId, "shell.command.not_found");
+
+      if (this.shouldQueuePrompt(session)) {
+        return this.enqueuePrompt(sessionId, {
+          mode: "shell",
+          prompt: request.input.command,
+        });
+      }
+
+      return this.startShellCommandRun(session, {
+        command: request.input.command,
+      });
+    });
+
+    if (submittedRun.run.status === "queued") {
+      this.scheduleNextQueuedPrompt(sessionId);
+    }
+
+    return submittedRun;
+  }
+
+  async createRun(sessionId: string, request: CreateRunRequest): Promise<SubmittedRun> {
+    if (request.type === "shell_command") {
+      return this.submitShellCommandRun(sessionId, request);
+    }
+
+    return this.submitAssistantRun(sessionId, request);
+  }
+
+  async createRoundReviewRun(
+    sessionId: string,
+    round: number,
+    request: CreateRoundReviewRunRequest,
+  ): Promise<SubmittedRun> {
+    const session = await this.getExistingSession(sessionId, "round.review.not_found");
+    const review = session.rounds?.find((current) => current.round === round);
+
+    if (!review) {
+      throw new RoundReviewNotFoundError(sessionId, round);
+    }
+
+    if (this.runRegistry.isSessionActive(sessionId)) {
+      throw new SessionBusyError(sessionId);
+    }
+
+    const runningRun = this.runRegistry.createRunningRun(sessionId, "round_review", () => {
+      // Atomic review generation is not currently cancellable.
+    });
+
+    void this.atomicReviewService
+      .createAtomicDiffReview({
         sessionId,
         workspace: session.workspace,
         prompt: createRoundInputTranscript(session, round),
@@ -182,310 +335,58 @@ export class SessionService {
           trace: getRoundExecutionTrace(session, round),
           rawEvents: [],
         },
-        round: review,
-        models: options.models,
-      });
-
-      review = await this.store.updateRoundAtomicReview(sessionId, round, atomicReview);
-      review = this.roundService.refreshRoundDiff(review);
-    }
-
-    return review;
-  }
-
-  async createSession(request: CreateSessionRequest): Promise<ChatSession> {
-    const workspace = await assertExistingDirectory(request.workspace);
-
-    await this.logger.framework.info("session.create.started", {
-      workspace,
-      promptLength: request.prompt.length,
-    });
-    const aiResponse = await this.aiModel.createSession({
-      workspace,
-      prompt: request.prompt,
-      models: request.models,
-    });
-    const sessionId = aiResponse.sessionId;
-    const now = new Date().toISOString();
-    const userMessage = createMessage("user", request.prompt);
-    const round = this.roundService.createRound(aiResponse, 1);
-    const assistantMessages = createAssistantMessages(aiResponse, round);
-    const session: ChatSession = {
-      id: sessionId,
-      origin: "chat",
-      aiThreadId: sessionId,
-      workspace,
-      title: createTitle(request.prompt),
-      summary: "",
-      createdAt: now,
-      updatedAt: now,
-      messages: [userMessage, ...assistantMessages],
-      ...(round ? { rounds: [round] } : {}),
-    };
-
-    await this.logger.session(sessionId).info("session.created", {
-      sessionId,
-      workspace,
-      prompt: request.prompt,
-      response: aiResponse.content,
-      rawEvents: aiResponse.rawEvents,
-    });
-    await this.logger.framework.info("session.create.completed", {
-      sessionId,
-      workspace,
-    });
-
-    const createdSession = await this.store.createSession(session);
-    if (round?.hasChanges) {
-      this.scheduleAtomicReview({
-        sessionId,
-        workspace,
-        prompt: request.prompt,
-        aiResponse,
-        round,
+        round: this.roundService.refreshRoundDiff(review),
         models: request.models,
-      });
-    }
+      })
+      .then(async (atomicReview) => {
+        await this.store.updateRoundAtomicReview(sessionId, round, atomicReview);
+        const updatedSession = await this.getExistingSession(sessionId, "round.review.not_found");
 
-    return this.sessionSummaryService.refreshSessionSummary(createdSession, request.models);
+        this.runRegistry.emitRunEvent(runningRun, {
+          type: "run.succeeded",
+          session: await this.toSessionView(updatedSession),
+        });
+      })
+      .catch((error: unknown) => {
+        void this.logger.framework.error("round.review.failed", {
+          sessionId,
+          round,
+          error,
+        });
+        this.runRegistry.emitRunEvent(runningRun, {
+          type: "run.failed",
+          error: error instanceof Error ? error.message : "Round review failed",
+        });
+      });
+
+    return toRunningSubmittedRun(runningRun, await this.toSessionView(session, runningRun.id));
   }
 
-  async beginCreateSession(request: CreateSessionRequest): Promise<SubmittedTurn> {
-    const workspace = await assertExistingDirectory(request.workspace);
-    const normalizedRequest = { ...request, workspace };
-
-    await this.logger.framework.info("session.create.started", {
-      workspace,
-      promptLength: request.prompt.length,
-    });
-    const bufferedEvents: TurnStreamEvent[] = [];
-    let runningTurn: RunningTurn | undefined;
-    const run = this.aiModel.createSessionStream(normalizedRequest, (event) => {
-      handleAiRunEvent(event, (streamEvent) => {
-        if (runningTurn) {
-          this.turnRegistry.emitTurnEvent(runningTurn, streamEvent);
-        } else {
-          bufferedEvents.push(streamEvent);
-        }
-      });
-    });
-    const sessionId = await run.sessionId;
-
-    if (this.turnRegistry.isSessionActive(sessionId)) {
-      throw new SessionBusyError(sessionId);
+  async hasKnownRun(runId: string): Promise<boolean> {
+    if (this.runRegistry.hasRunningRun(runId)) {
+      return true;
     }
 
-    const now = new Date().toISOString();
-    const userMessage = createMessage("user", request.prompt);
-    const session: ChatSession = {
-      id: sessionId,
-      origin: "chat",
-      aiThreadId: sessionId,
-      workspace,
-      title: createTitle(request.prompt),
-      summary: "",
-      createdAt: now,
-      updatedAt: now,
-      messages: [userMessage],
-    };
+    const sessions = await this.store.listSessions();
 
-    const createdSession = await this.store.createSession(session);
-    runningTurn = this.turnRegistry.createRunningTurn(sessionId, run.cancel);
-    const summaryPromise = this.refreshSessionSummaryFromUserInput(
-      createdSession,
-      runningTurn,
-      request.models,
+    return sessions.some((session) =>
+      session.queuedPrompts?.some((queuedPrompt) => queuedPrompt.id === runId),
     );
-    bufferedEvents.forEach((event) => this.turnRegistry.emitTurnEvent(runningTurn!, event));
-    this.finishCreateSession(normalizedRequest, run.result, runningTurn, summaryPromise);
-
-    return {
-      disposition: "started",
-      session: await this.toSessionView(createdSession, runningTurn.id),
-      turnId: runningTurn.id,
-    };
   }
 
-  async beginCreateShellSession(request: CreateShellSessionRequest): Promise<SubmittedTurn> {
-    const workspace = await assertExistingDirectory(request.workspace);
+  async cancelRun(runId: string): Promise<void> {
+    const run = this.runRegistry.getRunningRun(runId);
 
-    await this.logger.framework.info("shell.session.create.started", {
-      workspace,
-      commandLength: request.command.length,
-    });
-
-    const sessionId = randomUUID();
-    const now = new Date().toISOString();
-    const userMessage = createMessage("user", request.command);
-    const session: ChatSession = {
-      id: sessionId,
-      origin: "shell",
-      workspace,
-      title: createShellTitle(request.command),
-      summary: "Shell session",
-      createdAt: now,
-      updatedAt: now,
-      messages: [userMessage],
-    };
-
-    const createdSession = await this.store.createSession(session);
-    const shellRun = this.startShellRun({
-      sessionId,
-      workspace,
-      command: request.command,
-    });
-
-    await this.logger.framework.info("shell.session.create.accepted", {
-      sessionId,
-      workspace,
-    });
-
-    return {
-      disposition: "started",
-      session: await this.toSessionView(createdSession, shellRun.turn.id),
-      turnId: shellRun.turn.id,
-    };
-  }
-
-  async continueSession(sessionId: string, request: ContinueSessionRequest): Promise<ChatSession> {
-    await this.logger.framework.info("session.continue.started", {
-      sessionId,
-      promptLength: request.prompt.length,
-    });
-    const session = await this.store.getSession(sessionId);
-
-    if (!session) {
-      await this.logger.framework.warn("session.continue.not_found", {
-        sessionId,
-      });
-      throw new SessionNotFoundError(sessionId);
+    if (!run) {
+      throw new RunNotFoundError(runId);
     }
 
-    const workspace = await assertExistingDirectory(session.workspace);
-    const runInput = this.createChatRunInput(session, request, workspace);
-    const aiResponse =
-      runInput.kind === "continue"
-        ? await this.aiModel.continueSession(runInput.input)
-        : await this.aiModel.createSession(runInput.input);
-    const localAiResponse = {
-      ...aiResponse,
-      sessionId,
-    };
-    const userMessage = createMessage("user", request.prompt);
-    const round = this.roundService.createNextRound(session, localAiResponse);
-    const reviewPrompt = round?.hasChanges
-      ? createSessionInputTranscript(session, request.prompt)
-      : undefined;
-    const assistantMessages = createAssistantMessages(localAiResponse, round);
-
-    await this.logger.session(sessionId).info("session.continued", {
-      sessionId,
-      workspace,
-      prompt: request.prompt,
-      response: localAiResponse.content,
-      rawEvents: localAiResponse.rawEvents,
-    });
-    await this.logger.framework.info("session.continue.completed", {
-      sessionId,
-      workspace,
-    });
-
-    if (runInput.kind === "create") {
-      await this.store.updateSessionAiThreadId(sessionId, aiResponse.sessionId);
-    }
-
-    const updatedSession = await this.store.appendRoundAndMessages(sessionId, round, [
-      userMessage,
-      ...assistantMessages,
-    ]);
-    if (round?.hasChanges && reviewPrompt) {
-      this.scheduleAtomicReview({
-        sessionId,
-        workspace,
-        prompt: reviewPrompt,
-        aiResponse: localAiResponse,
-        round,
-        models: request.models,
-      });
-    }
-
-    return this.sessionSummaryService.refreshSessionSummary(updatedSession, request.models);
+    run.cancel();
+    await Promise.race([run.completion, delay(5000)]);
   }
 
-  async beginContinueSession(
-    sessionId: string,
-    request: ContinueSessionRequest,
-  ): Promise<SubmittedTurn> {
-    const submittedTurn = await this.enqueueSessionOperation(sessionId, async () => {
-      await this.logger.framework.info("session.continue.started", {
-        sessionId,
-        promptLength: request.prompt.length,
-      });
-      const session = await this.getExistingSession(sessionId, "session.continue.not_found");
-
-      if (this.shouldQueuePrompt(session)) {
-        return this.enqueuePrompt(sessionId, {
-          mode: "chat",
-          prompt: request.prompt,
-          models: request.models,
-        });
-      }
-
-      return this.startContinueSession(session, request);
-    });
-
-    if (submittedTurn.disposition === "queued") {
-      this.scheduleNextQueuedPrompt(sessionId);
-    }
-
-    return submittedTurn;
-  }
-
-  async beginRunShellCommand(
-    sessionId: string,
-    request: RunShellCommandRequest,
-  ): Promise<SubmittedTurn> {
-    const submittedTurn = await this.enqueueSessionOperation(sessionId, async () => {
-      await this.logger.framework.info("shell.command.started", {
-        sessionId,
-        commandLength: request.command.length,
-      });
-      const session = await this.getExistingSession(sessionId, "shell.command.not_found");
-
-      if (this.shouldQueuePrompt(session)) {
-        return this.enqueuePrompt(sessionId, {
-          mode: "shell",
-          prompt: request.command,
-        });
-      }
-
-      return this.startRunShellCommand(session, request);
-    });
-
-    if (submittedTurn.disposition === "queued") {
-      this.scheduleNextQueuedPrompt(sessionId);
-    }
-
-    return submittedTurn;
-  }
-
-  hasRunningTurn(turnId: string): boolean {
-    return this.turnRegistry.hasRunningTurn(turnId);
-  }
-
-  async cancelRunningTurn(sessionId: string): Promise<void> {
-    const turn = this.turnRegistry.getRunningTurnForSession(sessionId);
-
-    if (!turn) {
-      throw new SessionNotRunningError(sessionId);
-    }
-
-    turn.cancel();
-    await Promise.race([turn.completion, delay(5000)]);
-  }
-
-  subscribeToTurn(turnId: string, onEvent: (event: TurnStreamEvent) => void): () => void {
-    return this.turnRegistry.subscribeToTurn(turnId, onEvent);
+  subscribeToRun(runId: string, onEvent: (event: RunStreamEvent) => void): () => void {
+    return this.runRegistry.subscribeToRun(runId, onEvent);
   }
 
   async resumeQueuedPrompts(): Promise<void> {
@@ -496,19 +397,20 @@ export class SessionService {
       .forEach((session) => this.scheduleNextQueuedPrompt(session.id));
   }
 
-  private async startContinueSession(
+  private async startAssistantRun(
     session: ChatSession,
-    request: ContinueSessionRequest,
-  ): Promise<SubmittedTurn> {
+    request: AssistantRunInput,
+    options: StartRunOptions = {},
+  ): Promise<SubmittedRun> {
     const workspace = await assertExistingDirectory(session.workspace);
     const userMessage = createMessage("user", request.prompt);
     const updatedSession = await this.store.appendMessages(session.id, [userMessage]);
-    const bufferedEvents: TurnStreamEvent[] = [];
-    let runningTurn: RunningTurn | undefined;
+    const bufferedEvents: RunStreamEvent[] = [];
+    let runningRun: RunningRun | undefined;
     const onAiRunEvent = (event: AiRunEvent) => {
       handleAiRunEvent(event, (streamEvent) => {
-        if (runningTurn) {
-          this.turnRegistry.emitTurnEvent(runningTurn, streamEvent);
+        if (runningRun) {
+          this.runRegistry.emitRunEvent(runningRun, streamEvent);
         } else {
           bufferedEvents.push(streamEvent);
         }
@@ -524,29 +426,32 @@ export class SessionService {
       void run.sessionId.catch(() => undefined);
     }
 
-    runningTurn = this.turnRegistry.createRunningTurn(session.id, run.cancel);
+    runningRun = this.runRegistry.createRunningRun(session.id, "assistant_response", run.cancel, {
+      runId: options.runId,
+      createdAt: options.createdAt,
+    });
     const summaryPromise = this.refreshSessionSummaryFromUserInput(
       updatedSession,
-      runningTurn,
+      runningRun,
       request.models,
     );
 
-    bufferedEvents.forEach((event) => this.turnRegistry.emitTurnEvent(runningTurn!, event));
-    this.finishContinueSession(request, run.result, runningTurn, workspace, summaryPromise, {
+    bufferedEvents.forEach((event) => this.runRegistry.emitRunEvent(runningRun!, event));
+    this.finishAssistantRun(request, run.result, runningRun, workspace, summaryPromise, {
       bindAiThreadId: runInput.kind === "create",
     });
 
-    return {
-      disposition: "started",
-      session: await this.toSessionView(updatedSession, runningTurn.id),
-      turnId: runningTurn.id,
-    };
+    return toRunningSubmittedRun(
+      runningRun,
+      await this.toSessionView(updatedSession, runningRun.id),
+    );
   }
 
-  private async startRunShellCommand(
+  private async startShellCommandRun(
     session: ChatSession,
-    request: RunShellCommandRequest,
-  ): Promise<SubmittedTurn> {
+    request: ShellCommandRunInput,
+    options: StartRunOptions = {},
+  ): Promise<SubmittedRun> {
     const workspace = await assertExistingDirectory(session.workspace);
     const userMessage = createMessage("user", request.command);
     const updatedSession = await this.store.appendMessages(session.id, [userMessage]);
@@ -554,16 +459,17 @@ export class SessionService {
       sessionId: session.id,
       workspace,
       command: request.command,
+      runId: options.runId,
+      createdAt: options.createdAt,
     });
 
-    return {
-      disposition: "started",
-      session: await this.toSessionView(updatedSession, shellRun.turn.id),
-      turnId: shellRun.turn.id,
-    };
+    return toRunningSubmittedRun(
+      shellRun.run,
+      await this.toSessionView(updatedSession, shellRun.run.id),
+    );
   }
 
-  private async enqueuePrompt(sessionId: string, input: QueuedPromptInput): Promise<SubmittedTurn> {
+  private async enqueuePrompt(sessionId: string, input: QueuedPromptInput): Promise<SubmittedRun> {
     const queuedPrompt: QueuedPrompt = {
       id: randomUUID(),
       mode: input.mode,
@@ -579,16 +485,15 @@ export class SessionService {
       mode: queuedPrompt.mode,
     });
 
-    return {
-      disposition: "queued",
-      queuedPromptId: queuedPrompt.id,
+    return toQueuedSubmittedRun({
+      queuedPrompt,
       session: await this.toSessionView(updatedSession),
-    };
+    });
   }
 
   private scheduleNextQueuedPrompt(sessionId: string): void {
     void this.enqueueSessionOperation(sessionId, async () => {
-      if (this.turnRegistry.isSessionActive(sessionId)) {
+      if (this.runRegistry.isSessionActive(sessionId)) {
         return;
       }
 
@@ -605,16 +510,24 @@ export class SessionService {
       });
 
       const session = await this.getExistingSession(sessionId, "session.queue.not_found");
+      const runOptions = {
+        runId: queuedPrompt.id,
+        createdAt: queuedPrompt.createdAt,
+      };
 
       if (queuedPrompt.mode === "shell") {
-        await this.startRunShellCommand(session, { command: queuedPrompt.prompt });
+        await this.startShellCommandRun(session, { command: queuedPrompt.prompt }, runOptions);
         return;
       }
 
-      await this.startContinueSession(session, {
-        prompt: queuedPrompt.prompt,
-        models: queuedPrompt.models,
-      });
+      await this.startAssistantRun(
+        session,
+        {
+          prompt: queuedPrompt.prompt,
+          models: queuedPrompt.models,
+        },
+        runOptions,
+      );
     }).catch((error: unknown) => {
       void this.logger.framework.error("session.queue.failed", {
         sessionId,
@@ -624,9 +537,7 @@ export class SessionService {
   }
 
   private shouldQueuePrompt(session: ChatSession): boolean {
-    return (
-      this.turnRegistry.isSessionActive(session.id) || (session.queuedPrompts?.length ?? 0) > 0
-    );
+    return this.runRegistry.isSessionActive(session.id) || (session.queuedPrompts?.length ?? 0) > 0;
   }
 
   private async getExistingSession(
@@ -645,57 +556,10 @@ export class SessionService {
     return session;
   }
 
-  private finishCreateSession(
-    request: CreateSessionRequest,
+  private finishAssistantRun(
+    request: AssistantRunInput,
     result: Promise<AiRunResult>,
-    turn: RunningTurn,
-    summaryPromise: Promise<ChatSession>,
-  ): void {
-    result
-      .then(async (aiResponse) => {
-        const session = await this.turnCompletionService.completeTurn({
-          kind: "create",
-          workspace: request.workspace,
-          prompt: request.prompt,
-          aiResponse,
-          models: request.models,
-        });
-        const latestSession =
-          (await this.waitForInputSummary(summaryPromise, turn.sessionId)) ?? session;
-
-        this.turnRegistry.emitTurnEvent(turn, {
-          type: "done",
-          session: latestSession,
-        });
-        this.scheduleNextQueuedPrompt(turn.sessionId);
-      })
-      .catch(async (error: unknown) => {
-        if (error instanceof AiRunCancelledError) {
-          void this.logger.framework.info("session.create.cancelled", {
-            sessionId: turn.sessionId,
-          });
-          await this.persistCancelledTrace(turn);
-          this.turnRegistry.emitTurnEvent(turn, { type: "cancelled" });
-          this.scheduleNextQueuedPrompt(turn.sessionId);
-          return;
-        }
-
-        void this.logger.framework.error("session.create.failed", {
-          sessionId: turn.sessionId,
-          error,
-        });
-        this.turnRegistry.emitTurnEvent(turn, {
-          type: "failed",
-          error: error instanceof Error ? error.message : "Session creation failed",
-        });
-        this.scheduleNextQueuedPrompt(turn.sessionId);
-      });
-  }
-
-  private finishContinueSession(
-    request: ContinueSessionRequest,
-    result: Promise<AiRunResult>,
-    turn: RunningTurn,
+    run: RunningRun,
     workspace: string,
     summaryPromise: Promise<ChatSession>,
     options: { bindAiThreadId?: boolean } = {},
@@ -703,54 +567,53 @@ export class SessionService {
     result
       .then(async (aiResponse) => {
         if (options.bindAiThreadId) {
-          await this.store.updateSessionAiThreadId(turn.sessionId, aiResponse.sessionId);
+          await this.store.updateSessionAiThreadId(run.sessionId, aiResponse.sessionId);
         }
 
-        const session = await this.turnCompletionService.completeTurn({
-          kind: "continue",
+        const session = await this.runCompletionService.completeRun({
           workspace,
           prompt: request.prompt,
           aiResponse: {
             ...aiResponse,
-            sessionId: turn.sessionId,
+            sessionId: run.sessionId,
           },
           models: request.models,
         });
         const latestSession =
-          (await this.waitForInputSummary(summaryPromise, turn.sessionId)) ?? session;
+          (await this.waitForInputSummary(summaryPromise, run.sessionId)) ?? session;
 
-        this.turnRegistry.emitTurnEvent(turn, {
-          type: "done",
+        this.runRegistry.emitRunEvent(run, {
+          type: "run.succeeded",
           session: latestSession,
         });
-        this.scheduleNextQueuedPrompt(turn.sessionId);
+        this.scheduleNextQueuedPrompt(run.sessionId);
       })
       .catch(async (error: unknown) => {
         if (error instanceof AiRunCancelledError) {
-          void this.logger.framework.info("session.continue.cancelled", {
-            sessionId: turn.sessionId,
+          void this.logger.framework.info("run.assistant.cancelled", {
+            sessionId: run.sessionId,
           });
-          await this.persistCancelledTrace(turn);
-          this.turnRegistry.emitTurnEvent(turn, { type: "cancelled" });
-          this.scheduleNextQueuedPrompt(turn.sessionId);
+          await this.persistCancelledTrace(run);
+          this.runRegistry.emitRunEvent(run, { type: "run.cancelled" });
+          this.scheduleNextQueuedPrompt(run.sessionId);
           return;
         }
 
-        void this.logger.framework.error("session.continue.failed", {
-          sessionId: turn.sessionId,
+        void this.logger.framework.error("run.assistant.failed", {
+          sessionId: run.sessionId,
           error,
         });
-        this.turnRegistry.emitTurnEvent(turn, {
-          type: "failed",
-          error: error instanceof Error ? error.message : "Session continuation failed",
+        this.runRegistry.emitRunEvent(run, {
+          type: "run.failed",
+          error: error instanceof Error ? error.message : "Assistant run failed",
         });
-        this.scheduleNextQueuedPrompt(turn.sessionId);
+        this.scheduleNextQueuedPrompt(run.sessionId);
       });
   }
 
   private createChatRunInput(
     session: ChatSession,
-    request: ContinueSessionRequest,
+    request: AssistantRunInput,
     workspace: string,
   ):
     | {
@@ -770,7 +633,7 @@ export class SessionService {
           models?: AiModelPreferences;
         };
       } {
-    const aiThreadId = session.aiThreadId ?? inferAiThreadId(session);
+    const aiThreadId = session.aiThreadId;
 
     if (aiThreadId) {
       return {
@@ -794,14 +657,20 @@ export class SessionService {
     };
   }
 
-  private startShellRun(input: { sessionId: string; workspace: string; command: string }): {
-    turn: RunningTurn;
+  private startShellRun(input: {
+    sessionId: string;
+    workspace: string;
+    command: string;
+    runId?: string;
+    createdAt?: string;
+  }): {
+    run: RunningRun;
   } {
-    let turn: RunningTurn | undefined;
-    const bufferedEvents: TurnStreamEvent[] = [];
-    const emit = (event: TurnStreamEvent) => {
-      if (turn) {
-        this.turnRegistry.emitTurnEvent(turn, event);
+    let run: RunningRun | undefined;
+    const bufferedEvents: RunStreamEvent[] = [];
+    const emit = (event: RunStreamEvent) => {
+      if (run) {
+        this.runRegistry.emitRunEvent(run, event);
       } else {
         bufferedEvents.push(event);
       }
@@ -811,7 +680,7 @@ export class SessionService {
       onEvent: (event) => {
         if (event.type === "started") {
           emit({
-            type: "raw",
+            type: "run.trace",
             event: createShellTraceEvent("item.started", input.command, {
               status: "in_progress",
             }),
@@ -819,15 +688,18 @@ export class SessionService {
           return;
         }
 
-        emit({ type: "delta", text: event.text });
+        emit({ type: "run.output.delta", text: event.text });
       },
     });
 
-    turn = this.turnRegistry.createRunningTurn(input.sessionId, shellRun.cancel);
-    bufferedEvents.forEach((event) => this.turnRegistry.emitTurnEvent(turn!, event));
-    this.finishShellRun(input, shellRun.result, turn);
+    run = this.runRegistry.createRunningRun(input.sessionId, "shell_command", shellRun.cancel, {
+      runId: input.runId,
+      createdAt: input.createdAt,
+    });
+    bufferedEvents.forEach((event) => this.runRegistry.emitRunEvent(run!, event));
+    this.finishShellRun(input, shellRun.result, run);
 
-    return { turn };
+    return { run };
   }
 
   private finishShellRun(
@@ -837,7 +709,7 @@ export class SessionService {
       command: string;
     },
     result: Promise<ShellCommandResult>,
-    turn: RunningTurn,
+    run: RunningRun,
   ): void {
     result
       .then(async (shellResult) => {
@@ -857,8 +729,8 @@ export class SessionService {
           output: shellResult.output,
         });
 
-        this.turnRegistry.emitTurnEvent(turn, {
-          type: "raw",
+        this.runRegistry.emitRunEvent(run, {
+          type: "run.trace",
           event: completedTraceEvent,
         });
 
@@ -888,22 +760,22 @@ export class SessionService {
 
         const sessionView = await this.toSessionView(updatedSession);
 
-        this.turnRegistry.emitTurnEvent(turn, {
-          type: "done",
+        this.runRegistry.emitRunEvent(run, {
+          type: "run.succeeded",
           session: sessionView,
         });
-        this.scheduleNextQueuedPrompt(turn.sessionId);
+        this.scheduleNextQueuedPrompt(run.sessionId);
       })
       .catch((error: unknown) => {
         void this.logger.framework.error("shell.command.failed", {
           sessionId: input.sessionId,
           error,
         });
-        this.turnRegistry.emitTurnEvent(turn, {
-          type: "failed",
+        this.runRegistry.emitRunEvent(run, {
+          type: "run.failed",
           error: error instanceof Error ? error.message : "Shell command failed",
         });
-        this.scheduleNextQueuedPrompt(turn.sessionId);
+        this.scheduleNextQueuedPrompt(run.sessionId);
       });
   }
 
@@ -927,16 +799,16 @@ export class SessionService {
 
   private refreshSessionSummaryFromUserInput(
     session: ChatSession,
-    turn?: RunningTurn,
+    run?: RunningRun,
     models?: AiModelPreferences,
   ): Promise<ChatSession> {
     return this.sessionSummaryService
       .refreshSessionSummary(session, models)
       .then(async (updatedSession) => {
-        if (turn && !turn.completed && updatedSession !== session) {
-          this.turnRegistry.emitTurnEvent(turn, {
+        if (run && !run.completed && updatedSession !== session) {
+          this.runRegistry.emitRunEvent(run, {
             type: "session.updated",
-            session: await this.toSessionView(updatedSession, turn.id),
+            session: await this.toSessionView(updatedSession, run.id),
           });
         }
 
@@ -955,9 +827,9 @@ export class SessionService {
     return latestSession ? this.toSessionView(latestSession) : undefined;
   }
 
-  private async persistCancelledTrace(turn: RunningTurn): Promise<void> {
-    const rawEvents = turn.events.flatMap(({ event }) =>
-      event.type === "raw" ? [event.event] : [],
+  private async persistCancelledTrace(run: RunningRun): Promise<void> {
+    const rawEvents = run.events.flatMap(({ event }) =>
+      event.type === "run.trace" ? [event.event] : [],
     );
 
     if (rawEvents.length === 0) {
@@ -965,12 +837,12 @@ export class SessionService {
     }
 
     try {
-      await this.store.appendMessages(turn.sessionId, [
+      await this.store.appendMessages(run.sessionId, [
         createMessage("assistant", formatRawEvents(rawEvents), "trace"),
       ]);
     } catch (error) {
-      void this.logger.session(turn.sessionId).warn("session.cancelled_trace.persist_failed", {
-        sessionId: turn.sessionId,
+      void this.logger.session(run.sessionId).warn("session.cancelled_trace.persist_failed", {
+        sessionId: run.sessionId,
         error,
       });
     }
@@ -978,11 +850,11 @@ export class SessionService {
 
   private async toSessionView(
     session: ChatSession,
-    runningTurnId = this.turnRegistry.getRunningTurnIdForSession(session.id),
+    runningRunId = this.runRegistry.getRunningRunIdForSession(session.id),
   ): Promise<ChatSessionView> {
     return toSessionView(session, {
       gitBranch: await this.getWorkspaceBranch(session.workspace),
-      runningTurnId,
+      runningRunId,
     });
   }
 
@@ -1039,15 +911,18 @@ export class SessionBusyError extends Error {
   }
 }
 
-export class SessionNotRunningError extends Error {
-  constructor(sessionId: string) {
-    super(`Session is not running: ${sessionId}`);
-    this.name = "SessionNotRunningError";
+export class RunNotFoundError extends Error {
+  constructor(runId: string) {
+    super(`Run not found: ${runId}`);
+    this.name = "RunNotFoundError";
   }
 }
 
-function createShellTitle(command: string): string {
-  return createTitle(`$ ${command}`);
+export class RoundReviewNotFoundError extends Error {
+  constructor(sessionId: string, round: number) {
+    super(`Round review not found: ${sessionId}:${round}`);
+    this.name = "RoundReviewNotFoundError";
+  }
 }
 
 function createShellTraceEvent(
@@ -1072,28 +947,6 @@ function createShellTraceEvent(
   };
 }
 
-function inferAiThreadId(session: ChatSession): string | undefined {
-  if (session.origin === "shell") {
-    return undefined;
-  }
-
-  if (session.origin === "chat") {
-    return session.id;
-  }
-
-  return isLegacyShellSession(session) ? undefined : session.id;
-}
-
-function isLegacyShellSession(session: ChatSession): boolean {
-  const [firstMessage] = session.messages;
-
-  return (
-    session.summary === "Shell session" &&
-    session.title.startsWith("$ ") &&
-    firstMessage?.role === "user"
-  );
-}
-
 function formatShellCommandOutput(command: string, result: ShellCommandResult): string {
   const status =
     result.signal === "SIGTERM"
@@ -1116,14 +969,14 @@ function hashShellCommand(command: string): string {
   return hash.toString(16);
 }
 
-function handleAiRunEvent(event: AiRunEvent, emit: (event: TurnStreamEvent) => void): void {
+function handleAiRunEvent(event: AiRunEvent, emit: (event: RunStreamEvent) => void): void {
   if (event.type === "delta") {
-    emit({ type: "delta", text: event.text });
+    emit({ type: "run.output.delta", text: event.text });
     return;
   }
 
   if (event.type === "raw") {
-    emit({ type: "raw", event: event.event });
+    emit({ type: "run.trace", event: event.event });
   }
 }
 

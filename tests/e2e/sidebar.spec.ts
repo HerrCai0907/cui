@@ -115,10 +115,10 @@ test("pages through sessions in More", async ({ page }) => {
   const requestedSessionPages: number[] = [];
 
   await mockSessions(page, sessions);
-  await page.route("**/api/sessions**", async (route) => {
+  await page.route("**/api/v1/sessions**", async (route) => {
     const url = new URL(route.request().url());
 
-    if (route.request().method() === "GET" && url.pathname === "/api/sessions") {
+    if (route.request().method() === "GET" && url.pathname === "/api/v1/sessions") {
       requestedSessionPages.push(Number(url.searchParams.get("page")) || 1);
     }
 
@@ -162,7 +162,7 @@ test("marks a session done and removes it from Active after feedback", async ({ 
   let doneAt: string | undefined;
 
   await mockSessions(page, () => sessions.map((session) => ({ ...session, doneAt })));
-  await page.route("**/api/sessions/session-1", async (route) => {
+  await page.route("**/api/v1/sessions/session-1", async (route) => {
     if (route.request().method() === "PATCH") {
       expect(route.request().postDataJSON()).toEqual({ done: true });
       doneAt = "2026-08-22T00:00:10.000Z";

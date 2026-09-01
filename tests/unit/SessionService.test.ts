@@ -20,7 +20,7 @@ import type {
 } from "../../apps/api/src/types.js";
 import { AiRunCancelledError } from "../../apps/api/src/types.js";
 
-test("beginContinueSession refreshes summary after user input and before turn completion", async () => {
+test("createRun refreshes summary after user input and before run completion", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
   const aiModel = new FakeAiModel();
@@ -29,6 +29,7 @@ test("beginContinueSession refreshes summary after user input and before turn co
   try {
     await store.createSession({
       id: "session-1",
+      aiThreadId: "traex-thread-1",
       workspace: cwd,
       title: "Initial title",
       summary: "",
@@ -46,16 +47,16 @@ test("beginContinueSession refreshes summary after user input and before turn co
       rounds: [],
     });
 
-    const submitted = await service.beginContinueSession("session-1", {
-      prompt: "Explain when the summary should run.",
-      models: {
+    const submitted = await service.createRun(
+      "session-1",
+      createAssistantRunRequest("Explain when the summary should run.", {
         normal: "GPT-5.4",
         summary: "Seed-2.1-Turbo",
-      },
-    });
+      }),
+    );
     const events: unknown[] = [];
 
-    service.subscribeToTurn(submitted.turnId, (event) => {
+    service.subscribeToRun(submitted.run.id, (event) => {
       events.push(event);
     });
 
@@ -65,9 +66,10 @@ test("beginContinueSession refreshes summary after user input and before turn co
       summary: "Seed-2.1-Turbo",
     });
     assert.match(aiModel.summaryPrompts[0], /用户：Explain when the summary should run\./);
+    assert.equal(aiModel.continueStreamInputs[0]?.sessionId, "traex-thread-1");
 
     aiModel.resolveRun({
-      sessionId: "session-1",
+      sessionId: "traex-thread-1",
       content: "Done.",
       rawEvents: [],
     });
@@ -78,7 +80,7 @@ test("beginContinueSession refreshes summary after user input and before turn co
 
     aiModel.resolveSummary({
       title: "Summary timing",
-      progress: "The latest user input is summarized before the turn finishes.",
+      progress: "The latest user input is summarized before the run finishes.",
     });
     await waitFor(() => events.length === 2);
 
@@ -89,7 +91,7 @@ test("beginContinueSession refreshes summary after user input and before turn co
     });
     assert.deepEqual(
       events.map((event) => eventType(event)),
-      ["session.updated", "done"],
+      ["session.updated", "run.succeeded"],
     );
     assert.equal(await getStoredTitle(store), "Summary timing");
 
@@ -101,7 +103,7 @@ test("beginContinueSession refreshes summary after user input and before turn co
   }
 });
 
-test("beginContinueSession completes without waiting for atomic review generation", async () => {
+test("createRun completes without waiting for atomic review generation", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
   const aiModel = new FakeAiModel();
@@ -110,6 +112,7 @@ test("beginContinueSession completes without waiting for atomic review generatio
   try {
     await store.createSession({
       id: "session-1",
+      aiThreadId: "traex-thread-1",
       workspace: cwd,
       title: "Initial title",
       summary: "",
@@ -119,15 +122,15 @@ test("beginContinueSession completes without waiting for atomic review generatio
       rounds: [],
     });
 
-    const submitted = await service.beginContinueSession("session-1", {
-      prompt: "Change the value.",
-      models: {
+    const submitted = await service.createRun(
+      "session-1",
+      createAssistantRunRequest("Change the value.", {
         atomicReview: "DeepSeek-V4-Pro",
-      },
-    });
+      }),
+    );
     const events: unknown[] = [];
 
-    service.subscribeToTurn(submitted.turnId, (event) => {
+    service.subscribeToRun(submitted.run.id, (event) => {
       events.push(event);
     });
     aiModel.resolveSummary({
@@ -135,7 +138,7 @@ test("beginContinueSession completes without waiting for atomic review generatio
       progress: "The user asked for a value change.",
     });
     aiModel.resolveRun({
-      sessionId: "session-1",
+      sessionId: "traex-thread-1",
       content: "Done.",
       gitDiff: {
         beforeDiff: "",
@@ -183,7 +186,7 @@ test("beginContinueSession completes without waiting for atomic review generatio
   }
 });
 
-test("cancelRunningTurn stops an active stream and emits a cancellation event", async () => {
+test("cancelRun stops an active stream and emits a cancellation event", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
   const aiModel = new FakeAiModel();
@@ -192,6 +195,7 @@ test("cancelRunningTurn stops an active stream and emits a cancellation event", 
   try {
     await store.createSession({
       id: "session-1",
+      aiThreadId: "traex-thread-1",
       workspace: cwd,
       title: "Initial title",
       summary: "",
@@ -201,12 +205,13 @@ test("cancelRunningTurn stops an active stream and emits a cancellation event", 
       rounds: [],
     });
 
-    const submitted = await service.beginContinueSession("session-1", {
-      prompt: "Run until stopped.",
-    });
+    const submitted = await service.createRun(
+      "session-1",
+      createAssistantRunRequest("Run until stopped."),
+    );
     const events: unknown[] = [];
 
-    service.subscribeToTurn(submitted.turnId, (event) => {
+    service.subscribeToRun(submitted.run.id, (event) => {
       events.push(event);
     });
 
@@ -218,11 +223,11 @@ test("cancelRunningTurn stops an active stream and emits a cancellation event", 
         text: "Trace before stop.",
       },
     });
-    await service.cancelRunningTurn("session-1");
+    await service.cancelRun(submitted.run.id);
 
     assert.equal(aiModel.cancelled, true);
     assert.equal(
-      events.some((event) => eventType(event) === "cancelled"),
+      events.some((event) => eventType(event) === "run.cancelled"),
       true,
     );
     const session = await service.getSessionView("session-1");
@@ -235,7 +240,7 @@ test("cancelRunningTurn stops an active stream and emits a cancellation event", 
   }
 });
 
-test("beginContinueSession queues prompts while a session is running", async () => {
+test("createRun queues prompts while a session is running", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
   const aiModel = new FakeAiModel();
@@ -244,6 +249,7 @@ test("beginContinueSession queues prompts while a session is running", async () 
   try {
     await store.createSession({
       id: "session-1",
+      aiThreadId: "traex-thread-1",
       workspace: cwd,
       title: "Initial title",
       summary: "",
@@ -253,21 +259,26 @@ test("beginContinueSession queues prompts while a session is running", async () 
       rounds: [],
     });
 
-    const firstTurn = await service.beginContinueSession("session-1", {
-      prompt: "Run a long task.",
-      models: {
+    const firstRun = await service.createRun(
+      "session-1",
+      createAssistantRunRequest("Run a long task.", {
         normal: "GPT-5.4",
-      },
-    });
-    const queuedTurn = await service.beginContinueSession("session-1", {
-      prompt: "Queued follow-up.",
-      models: {
+      }),
+    );
+    const queuedRun = await service.createRun(
+      "session-1",
+      createAssistantRunRequest("Queued follow-up.", {
         normal: "DeepSeek-V4-Pro",
-      },
+      }),
+    );
+    const queuedRunEvents: unknown[] = [];
+
+    service.subscribeToRun(queuedRun.run.id, (event) => {
+      queuedRunEvents.push(event);
     });
 
-    assert.equal(firstTurn.disposition, "started");
-    assert.equal(queuedTurn.disposition, "queued");
+    assert.equal(firstRun.run.status, "running");
+    assert.equal(queuedRun.run.status, "queued");
     assert.equal(aiModel.continueStreamInputs.length, 1);
     assert.equal(aiModel.continueStreamInputs[0]?.prompt, "Run a long task.");
 
@@ -282,7 +293,7 @@ test("beginContinueSession queues prompts while a session is running", async () 
       })),
       [
         {
-          id: queuedTurn.queuedPromptId,
+          id: queuedRun.run.id,
           mode: "chat",
           prompt: "Queued follow-up.",
           models: {
@@ -298,10 +309,10 @@ test("beginContinueSession queues prompts while a session is running", async () 
 
     aiModel.resolveSummary({
       title: "First summary",
-      progress: "The first turn is summarized.",
+      progress: "The first run is summarized.",
     });
     aiModel.resolveRun({
-      sessionId: "session-1",
+      sessionId: "traex-thread-1",
       content: "First response.",
       rawEvents: [],
     });
@@ -309,11 +320,36 @@ test("beginContinueSession queues prompts while a session is running", async () 
     await waitFor(() => aiModel.continueStreamInputs.length === 2);
 
     assert.equal(aiModel.continueStreamInputs[1]?.prompt, "Queued follow-up.");
+    assert.equal(aiModel.continueStreamInputs[1]?.sessionId, "traex-thread-1");
     assert.deepEqual(aiModel.continueStreamInputs[1]?.models, {
       normal: "DeepSeek-V4-Pro",
     });
     assert.equal((await store.getSession("session-1"))?.queuedPrompts?.length ?? 0, 0);
     assert.equal((await service.getSessionView("session-1"))?.isRunning, true);
+
+    aiModel.resolveSummary(
+      {
+        title: "Second summary",
+        progress: "The queued run is summarized.",
+      },
+      1,
+    );
+    aiModel.resolveRun(
+      {
+        sessionId: "traex-thread-1",
+        content: "Second response.",
+        rawEvents: [],
+      },
+      1,
+    );
+
+    await waitFor(() => queuedRunEvents.some(isDoneEvent));
+
+    assert.equal((await service.getSessionView("session-1"))?.isRunning, false);
+    assert.equal(
+      queuedRunEvents.find(isDoneEvent)?.session.messages.at(-1)?.content,
+      "Second response.",
+    );
   } finally {
     await rm(cwd, { force: true, recursive: true });
   }
@@ -328,6 +364,7 @@ test("resumeQueuedPrompts starts persisted queued prompts", async () => {
   try {
     await store.createSession({
       id: "session-1",
+      aiThreadId: "traex-thread-1",
       workspace: cwd,
       title: "Initial title",
       summary: "",
@@ -352,6 +389,7 @@ test("resumeQueuedPrompts starts persisted queued prompts", async () => {
     await waitFor(() => aiModel.continueStreamInputs.length === 1);
 
     assert.equal(aiModel.continueStreamInputs[0]?.prompt, "Persisted follow-up.");
+    assert.equal(aiModel.continueStreamInputs[0]?.sessionId, "traex-thread-1");
     assert.deepEqual(aiModel.continueStreamInputs[0]?.models, {
       normal: "GPT-5.4",
     });
@@ -366,43 +404,50 @@ test("resumeQueuedPrompts starts persisted queued prompts", async () => {
   }
 });
 
-test("beginCreateShellSession streams and stores command output", async () => {
+test("createRun streams and stores command output in a shell session", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
   const aiModel = new FakeAiModel();
   const service = new SessionService(aiModel, store, createSilentLogger());
 
   try {
-    const submitted = await service.beginCreateShellSession({
+    const session = await service.createSessionContainer({
       workspace: cwd,
-      command: 'printf "hello\\n"',
+      origin: "shell",
+      title: '$ printf "hello\\n"',
+    });
+    const submitted = await service.createRun(session.id, {
+      type: "shell_command",
+      input: {
+        command: 'printf "hello\\n"',
+      },
     });
     const events: unknown[] = [];
 
-    service.subscribeToTurn(submitted.turnId, (event) => {
+    service.subscribeToRun(submitted.run.id, (event) => {
       events.push(event);
     });
 
     await waitFor(() => events.some(isDoneEvent));
 
     const doneEvent = events.find(isDoneEvent);
-    const session = await store.getSession(doneEvent!.session.id);
+    const storedSession = await store.getSession(doneEvent!.session.id);
 
     assert.equal(doneEvent?.session.title, '$ printf "hello\\n"');
-    assert.equal(session?.messages.length, 3);
-    assert.equal(session?.messages[0]?.role, "user");
-    assert.equal(session?.messages[0]?.content, 'printf "hello\\n"');
-    assert.equal(session?.messages[1]?.kind, "trace");
-    assert.match(session?.messages[1]?.content ?? "", /command_execution/);
-    assert.equal(session?.messages[2]?.kind, "response");
-    assert.match(session?.messages[2]?.content ?? "", /hello/);
-    assert.match(session?.messages[2]?.content ?? "", /Status: completed/);
+    assert.equal(storedSession?.messages.length, 3);
+    assert.equal(storedSession?.messages[0]?.role, "user");
+    assert.equal(storedSession?.messages[0]?.content, 'printf "hello\\n"');
+    assert.equal(storedSession?.messages[1]?.kind, "trace");
+    assert.match(storedSession?.messages[1]?.content ?? "", /command_execution/);
+    assert.equal(storedSession?.messages[2]?.kind, "response");
+    assert.match(storedSession?.messages[2]?.content ?? "", /hello/);
+    assert.match(storedSession?.messages[2]?.content ?? "", /Status: completed/);
   } finally {
     await rm(cwd, { force: true, recursive: true });
   }
 });
 
-test("beginContinueSession creates a TraeX thread before chatting in a shell session", async () => {
+test("createRun creates a TraeX thread before chatting in an unbound shell session", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
   const aiModel = new FakeAiModel();
@@ -434,15 +479,15 @@ test("beginContinueSession creates a TraeX thread before chatting in a shell ses
       ],
     });
 
-    const submitted = await service.beginContinueSession("shell-session-1", {
-      prompt: "Explain this output.",
-      models: {
+    const submitted = await service.createRun(
+      "shell-session-1",
+      createAssistantRunRequest("Explain this output.", {
         normal: "GPT-5.4",
-      },
-    });
+      }),
+    );
     const events: unknown[] = [];
 
-    service.subscribeToTurn(submitted.turnId, (event) => {
+    service.subscribeToRun(submitted.run.id, (event) => {
       events.push(event);
     });
 
@@ -477,7 +522,7 @@ test("beginContinueSession creates a TraeX thread before chatting in a shell ses
   }
 });
 
-test("beginContinueSession resumes a bound TraeX thread for later shell-session chat", async () => {
+test("createRun resumes a bound TraeX thread for later shell-session chat", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
   const aiModel = new FakeAiModel();
@@ -496,12 +541,13 @@ test("beginContinueSession resumes a bound TraeX thread for later shell-session 
       messages: [],
     });
 
-    const submitted = await service.beginContinueSession("shell-session-1", {
-      prompt: "Follow up.",
-    });
+    const submitted = await service.createRun(
+      "shell-session-1",
+      createAssistantRunRequest("Follow up."),
+    );
     const events: unknown[] = [];
 
-    service.subscribeToTurn(submitted.turnId, (event) => {
+    service.subscribeToRun(submitted.run.id, (event) => {
       events.push(event);
     });
 
@@ -531,7 +577,7 @@ test("beginContinueSession resumes a bound TraeX thread for later shell-session 
   }
 });
 
-test("beginContinueSession treats legacy shell sessions as unbound TraeX threads", async () => {
+test("createRun creates a TraeX thread for any session without a bound TraeX thread", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
   const aiModel = new FakeAiModel();
@@ -555,12 +601,13 @@ test("beginContinueSession treats legacy shell sessions as unbound TraeX threads
       ],
     });
 
-    const submitted = await service.beginContinueSession("legacy-shell-session-1", {
-      prompt: "Explain this.",
-    });
+    const submitted = await service.createRun(
+      "legacy-shell-session-1",
+      createAssistantRunRequest("Explain this."),
+    );
     const events: unknown[] = [];
 
-    service.subscribeToTurn(submitted.turnId, (event) => {
+    service.subscribeToRun(submitted.run.id, (event) => {
       events.push(event);
     });
 
@@ -587,20 +634,24 @@ test("beginContinueSession treats legacy shell sessions as unbound TraeX threads
   }
 });
 
-test("beginCreateSession expands home workspace before calling the model", async () => {
+test("createSessionContainer expands home workspace before creating a run", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
   const aiModel = new FakeAiModel();
   const service = new SessionService(aiModel, store, createSilentLogger());
 
   try {
-    const submitted = await service.beginCreateSession({
+    const session = await service.createSessionContainer({
       workspace: "~",
-      prompt: "Use my home directory.",
+      title: "Use my home directory.",
     });
+    const submitted = await service.createRun(
+      session.id,
+      createAssistantRunRequest("Use my home directory."),
+    );
     const events: unknown[] = [];
 
-    service.subscribeToTurn(submitted.turnId, (event) => {
+    service.subscribeToRun(submitted.run.id, (event) => {
       events.push(event);
     });
 
@@ -611,7 +662,7 @@ test("beginCreateSession expands home workspace before calling the model", async
       progress: "The home workspace was accepted.",
     });
     aiModel.resolveRun({
-      sessionId: submitted.session.id,
+      sessionId: "created-session-1",
       content: "Done.",
       rawEvents: [],
     });
@@ -621,7 +672,7 @@ test("beginCreateSession expands home workspace before calling the model", async
   }
 });
 
-test("beginCreateSession rejects missing workspaces before calling the model", async () => {
+test("createSessionContainer rejects missing workspaces before calling the model", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
   const aiModel = new FakeAiModel();
@@ -630,9 +681,8 @@ test("beginCreateSession rejects missing workspaces before calling the model", a
   try {
     await assert.rejects(
       () =>
-        service.beginCreateSession({
+        service.createSessionContainer({
           workspace: join(cwd, "missing"),
-          prompt: "This should fail before TraeX.",
         }),
       PathNotFoundError,
     );
@@ -814,10 +864,10 @@ function eventType(event: unknown): string | undefined {
 }
 
 function isDoneEvent(event: unknown): event is {
-  type: "done";
+  type: "run.succeeded";
   session: { title: string; messages: Array<{ content: string }> };
 } {
-  return isEventWithType(event) && event.type === "done";
+  return isEventWithType(event) && event.type === "run.succeeded";
 }
 
 function isEventWithType(event: unknown): event is { type: string } {
@@ -828,4 +878,12 @@ function isEventWithType(event: unknown): event is { type: string } {
 
 async function getStoredTitle(store: JsonSessionStore): Promise<string | undefined> {
   return (await store.getSession("session-1"))?.title;
+}
+
+function createAssistantRunRequest(prompt: string, models?: AiModelPreferences) {
+  return {
+    type: "assistant_response" as const,
+    input: { prompt },
+    ...(models ? { models } : {}),
+  };
 }

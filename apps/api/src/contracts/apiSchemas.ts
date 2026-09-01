@@ -106,7 +106,7 @@ export const ChatSessionViewSchema = z.object({
   currentRound: z.number().int().nonnegative(),
   gitBranch: z.string().optional(),
   isRunning: z.boolean(),
-  runningTurnId: z.string().optional(),
+  runningRunId: z.string().optional(),
 });
 
 export const ChatSessionListItemSchema = ChatSessionViewSchema.omit({
@@ -139,23 +139,40 @@ export const AiModelInfoSchema = z.object({
 
 export const CreateSessionRequestSchema = z.object({
   workspace: nonEmptyStringSchema,
-  prompt: nonEmptyStringSchema,
-  models: AiModelPreferencesSchema.optional(),
+  origin: ChatSessionOriginSchema.optional(),
+  title: z.string().trim().min(1).optional(),
 });
 
-export const ContinueSessionRequestSchema = z.object({
-  prompt: nonEmptyStringSchema,
-  models: AiModelPreferencesSchema.optional(),
-});
+export const CreateAssistantRunRequestSchema = z
+  .object({
+    type: z.literal("assistant_response"),
+    input: z.object({
+      prompt: nonEmptyStringSchema,
+    }),
+    models: AiModelPreferencesSchema.optional(),
+  })
+  .strict();
 
-export const CreateShellSessionRequestSchema = z.object({
-  workspace: nonEmptyStringSchema,
-  command: nonEmptyStringSchema,
-});
+export const CreateShellCommandRunRequestSchema = z
+  .object({
+    type: z.literal("shell_command"),
+    input: z.object({
+      command: nonEmptyStringSchema,
+    }),
+  })
+  .strict();
 
-export const RunShellCommandRequestSchema = z.object({
-  command: nonEmptyStringSchema,
-});
+export const CreateRunRequestSchema = z.discriminatedUnion("type", [
+  CreateAssistantRunRequestSchema,
+  CreateShellCommandRunRequestSchema,
+]);
+
+export const CreateRoundReviewRunRequestSchema = z
+  .object({
+    mode: z.enum(["atomic"]).optional(),
+    models: AiModelPreferencesSchema.optional(),
+  })
+  .strict();
 
 export const UpdateSessionRequestSchema = z.object({
   done: z.boolean(),
@@ -228,12 +245,21 @@ export const CodeRangeResponseSchema = z.object({
   lines: z.array(CodeLineSchema),
 });
 
-export const SubmittedTurnResponseSchema = z.object({
-  status: z.literal("ok"),
-  disposition: z.enum(["started", "queued"]).optional(),
+export const RunSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  type: z.enum(["assistant_response", "shell_command", "round_review"]),
+  status: z.enum(["queued", "running", "succeeded", "failed", "cancelled"]),
+  createdAt: z.string().datetime().optional(),
+});
+
+export const CreateSessionResponseSchema = z.object({
   session: ChatSessionViewSchema,
-  turnId: z.string().optional(),
-  queuedPromptId: z.string().optional(),
+});
+
+export const SubmittedRunResponseSchema = z.object({
+  run: RunSchema,
+  session: ChatSessionViewSchema,
 });
 
 export const OkResponseSchema = z.object({
@@ -273,25 +299,17 @@ export const RoundReviewParamsSchema = z.object({
   round: z.coerce.number().int().positive(),
 });
 
-export const RoundReviewQuerySchema = z.object({
-  mode: z.enum(["atomic", "full"]).optional(),
-  atomicReviewModel: z.string().trim().min(1).optional(),
-  atomicReviewReasoningEffort: z
-    .enum(["none", "minimal", "low", "medium", "high", "xhigh"])
-    .optional(),
+export const RunIdParamsSchema = z.object({
+  runId: z.string().min(1),
 });
 
-export const TurnIdParamsSchema = z.object({
-  turnId: z.string().min(1),
-});
-
-export const TurnStreamEventSchema = z.discriminatedUnion("type", [
+export const RunStreamEventSchema = z.discriminatedUnion("type", [
   z.object({
-    type: z.literal("delta"),
+    type: z.literal("run.output.delta"),
     text: z.string(),
   }),
   z.object({
-    type: z.literal("raw"),
+    type: z.literal("run.trace"),
     event: z.unknown(),
   }),
   z.object({
@@ -299,22 +317,21 @@ export const TurnStreamEventSchema = z.discriminatedUnion("type", [
     session: ChatSessionViewSchema,
   }),
   z.object({
-    type: z.literal("done"),
+    type: z.literal("run.succeeded"),
     session: ChatSessionViewSchema,
   }),
   z.object({
-    type: z.literal("failed"),
+    type: z.literal("run.failed"),
     error: z.string(),
   }),
   z.object({
-    type: z.literal("cancelled"),
+    type: z.literal("run.cancelled"),
   }),
 ]);
 
 export type CreateSessionRequestContract = z.infer<typeof CreateSessionRequestSchema>;
-export type ContinueSessionRequestContract = z.infer<typeof ContinueSessionRequestSchema>;
-export type CreateShellSessionRequestContract = z.infer<typeof CreateShellSessionRequestSchema>;
-export type RunShellCommandRequestContract = z.infer<typeof RunShellCommandRequestSchema>;
+export type CreateRunRequestContract = z.infer<typeof CreateRunRequestSchema>;
+export type CreateRoundReviewRunRequestContract = z.infer<typeof CreateRoundReviewRunRequestSchema>;
 export type UpdateSessionRequestContract = z.infer<typeof UpdateSessionRequestSchema>;
 export type ListSessionsQueryContract = z.infer<typeof ListSessionsQuerySchema>;
 export type CodeRangeRequestContract = z.infer<typeof CodeRangeQuerySchema>;
