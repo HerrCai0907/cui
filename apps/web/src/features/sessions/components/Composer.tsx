@@ -36,6 +36,16 @@ export function Composer({
       return;
     }
 
+    if (shellMode) {
+      event.preventDefault();
+      lastEnterKeyDownRef.current = null;
+
+      if (!disabled && draft.trim()) {
+        event.currentTarget.form?.requestSubmit();
+      }
+      return;
+    }
+
     const previousEnterKeyDown = lastEnterKeyDownRef.current;
 
     lastEnterKeyDownRef.current = event.timeStamp;
