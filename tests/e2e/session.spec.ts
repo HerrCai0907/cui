@@ -108,6 +108,58 @@ test("sends configured models when starting a chat session", async ({ page }) =>
     });
 });
 
+test("sends a shell command on a single Enter key press", async ({ page }) => {
+  const startedSession = {
+    id: "shell-session-enter",
+    origin: "shell",
+    workspace: currentWorkspace,
+    title: "Shell session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-1",
+        role: "user",
+        content: "pwd",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    rounds: [],
+    currentRound: 0,
+    isRunning: true,
+    runningTurnId: "turn-shell-enter",
+  };
+  let requestBody: unknown;
+
+  await mockSessions(page, []);
+  await page.route("**/api/shell-sessions", async (route) => {
+    requestBody = route.request().postDataJSON();
+    await fulfillJson(route, {
+      status: "ok",
+      session: startedSession,
+      turnId: "turn-shell-enter",
+    });
+  });
+  await page.route("**/api/turns/turn-shell-enter/events", async () => {
+    // Keep the stream open so the submitted session remains visible.
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Enable shell mode" }).click();
+
+  const composer = page.getByPlaceholder("Run a shell command...");
+
+  await composer.fill("pwd");
+  await composer.press("Enter");
+
+  await expect
+    .poll(() => requestBody)
+    .toEqual({
+      workspace: "~",
+      command: "pwd",
+    });
+});
+
 test("starts a new session from any workspace row", async ({ page }) => {
   const currentWorkspaceSession = {
     id: "session-1",
