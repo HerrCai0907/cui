@@ -557,6 +557,23 @@
   padding: 28px min(7vw, 92px);
 }
 
+.load-older-messages-button {
+  align-self: center;
+  border: 1px solid #d6e2ee;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #445161;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 8px 12px;
+}
+
+.load-older-messages-button:disabled {
+  cursor: default;
+  opacity: 0.68;
+}
+
 .message {
   display: grid;
   width: 100%;

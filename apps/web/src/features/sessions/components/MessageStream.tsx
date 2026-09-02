@@ -14,9 +14,12 @@ type MessageStreamProps = {
   config: AppConfig;
   error: string | null;
   expandedTraceIds: Set<string>;
+  hasOlderMessages: boolean;
   messageStreamRef: RefObject<HTMLDivElement | null>;
+  olderMessagesLoading: boolean;
   queuedPrompts: QueuedPromptView[];
   workspaceDraft: string;
+  onLoadOlderMessages: () => void;
   onOpenReview: (sessionId: string, round: number, mode: "atomic" | "full") => void;
   onScroll: () => void;
   onTraceExpandedChange: (messageId: string, open: boolean) => void;
@@ -29,9 +32,12 @@ export function MessageStream({
   config,
   error,
   expandedTraceIds,
+  hasOlderMessages,
   messageStreamRef,
+  olderMessagesLoading,
   queuedPrompts,
   workspaceDraft,
+  onLoadOlderMessages,
   onOpenReview,
   onScroll,
   onTraceExpandedChange,
@@ -58,6 +64,17 @@ export function MessageStream({
             onChange={(event) => onWorkspaceDraftChange(event.target.value)}
           />
         </div>
+      )}
+
+      {activeSession && (hasOlderMessages || olderMessagesLoading) && (
+        <button
+          className="load-older-messages-button"
+          type="button"
+          disabled={olderMessagesLoading}
+          onClick={onLoadOlderMessages}
+        >
+          {olderMessagesLoading ? "Loading earlier messages..." : "Load earlier messages"}
+        </button>
       )}
 
       {activeSession?.messages.map((message) => (

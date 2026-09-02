@@ -312,6 +312,14 @@ export interface paths {
                 gitBranch?: string;
                 isRunning: boolean;
                 runningRunId?: string;
+                messagePageInfo?: {
+                  total: number;
+                  returned: number;
+                  hasMoreBefore: boolean;
+                  hasMoreAfter: boolean;
+                  oldestMessageId?: string;
+                  newestMessageId?: string;
+                };
               };
             };
           };
@@ -345,7 +353,10 @@ export interface paths {
     /** Get a session */
     get: {
       parameters: {
-        query?: never;
+        query?: {
+          messageWindow?: "tail";
+          messageLimit?: number | null;
+        };
         header?: never;
         path: {
           sessionId: string;
@@ -406,6 +417,14 @@ export interface paths {
                 gitBranch?: string;
                 isRunning: boolean;
                 runningRunId?: string;
+                messagePageInfo?: {
+                  total: number;
+                  returned: number;
+                  hasMoreBefore: boolean;
+                  hasMoreAfter: boolean;
+                  oldestMessageId?: string;
+                  newestMessageId?: string;
+                };
               };
             };
           };
@@ -498,6 +517,14 @@ export interface paths {
                 gitBranch?: string;
                 isRunning: boolean;
                 runningRunId?: string;
+                messagePageInfo?: {
+                  total: number;
+                  returned: number;
+                  hasMoreBefore: boolean;
+                  hasMoreAfter: boolean;
+                  oldestMessageId?: string;
+                  newestMessageId?: string;
+                };
               };
             };
           };
@@ -526,6 +553,89 @@ export interface paths {
         };
       };
     };
+    trace?: never;
+  };
+  "/api/v1/sessions/{sessionId}/messages": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get a page of session messages */
+    get: {
+      parameters: {
+        query?: {
+          beforeMessageId?: string;
+          limit?: number;
+        };
+        header?: never;
+        path: {
+          sessionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description A page of session messages. */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              messages: {
+                id: string;
+                /** @enum {string} */
+                role: "assistant" | "user";
+                /** @enum {string} */
+                kind?: "response" | "trace";
+                round?: number;
+                content: string;
+                /** Format: date-time */
+                createdAt: string;
+              }[];
+              pageInfo: {
+                total: number;
+                returned: number;
+                hasMoreBefore: boolean;
+                hasMoreAfter: boolean;
+                oldestMessageId?: string;
+                newestMessageId?: string;
+              };
+            };
+          };
+        };
+        /** @description Error response. */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+        /** @description Error response. */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/api/v1/sessions/{sessionId}/rounds/{round}/review": {
@@ -746,6 +856,14 @@ export interface paths {
                 gitBranch?: string;
                 isRunning: boolean;
                 runningRunId?: string;
+                messagePageInfo?: {
+                  total: number;
+                  returned: number;
+                  hasMoreBefore: boolean;
+                  hasMoreAfter: boolean;
+                  oldestMessageId?: string;
+                  newestMessageId?: string;
+                };
               };
             };
           };
@@ -897,6 +1015,14 @@ export interface paths {
                 gitBranch?: string;
                 isRunning: boolean;
                 runningRunId?: string;
+                messagePageInfo?: {
+                  total: number;
+                  returned: number;
+                  hasMoreBefore: boolean;
+                  hasMoreAfter: boolean;
+                  oldestMessageId?: string;
+                  newestMessageId?: string;
+                };
               };
             };
           };
@@ -1089,6 +1215,14 @@ export interface paths {
                     gitBranch?: string;
                     isRunning: boolean;
                     runningRunId?: string;
+                    messagePageInfo?: {
+                      total: number;
+                      returned: number;
+                      hasMoreBefore: boolean;
+                      hasMoreAfter: boolean;
+                      oldestMessageId?: string;
+                      newestMessageId?: string;
+                    };
                   };
                 }
               | {
@@ -1139,6 +1273,14 @@ export interface paths {
                     gitBranch?: string;
                     isRunning: boolean;
                     runningRunId?: string;
+                    messagePageInfo?: {
+                      total: number;
+                      returned: number;
+                      hasMoreBefore: boolean;
+                      hasMoreAfter: boolean;
+                      oldestMessageId?: string;
+                      newestMessageId?: string;
+                    };
                   };
                 }
               | {
@@ -1291,6 +1433,14 @@ export interface components {
       gitBranch?: string;
       isRunning: boolean;
       runningRunId?: string;
+      messagePageInfo?: {
+        total: number;
+        returned: number;
+        hasMoreBefore: boolean;
+        hasMoreAfter: boolean;
+        oldestMessageId?: string;
+        newestMessageId?: string;
+      };
     };
     ChatSessionListItem: {
       id: string;
@@ -1319,6 +1469,14 @@ export interface components {
       gitBranch?: string;
       isRunning: boolean;
       runningRunId?: string;
+    };
+    MessagePageInfo: {
+      total: number;
+      returned: number;
+      hasMoreBefore: boolean;
+      hasMoreAfter: boolean;
+      oldestMessageId?: string;
+      newestMessageId?: string;
     };
     QueuedPrompt: {
       id: string;
@@ -1405,6 +1563,14 @@ export interface components {
         gitBranch?: string;
         isRunning: boolean;
         runningRunId?: string;
+        messagePageInfo?: {
+          total: number;
+          returned: number;
+          hasMoreBefore: boolean;
+          hasMoreAfter: boolean;
+          oldestMessageId?: string;
+          newestMessageId?: string;
+        };
       };
     };
     CreateRunRequest:
@@ -1525,6 +1691,14 @@ export interface components {
         gitBranch?: string;
         isRunning: boolean;
         runningRunId?: string;
+        messagePageInfo?: {
+          total: number;
+          returned: number;
+          hasMoreBefore: boolean;
+          hasMoreAfter: boolean;
+          oldestMessageId?: string;
+          newestMessageId?: string;
+        };
       };
     };
     OkResponse: {
@@ -1590,6 +1764,14 @@ export interface components {
             gitBranch?: string;
             isRunning: boolean;
             runningRunId?: string;
+            messagePageInfo?: {
+              total: number;
+              returned: number;
+              hasMoreBefore: boolean;
+              hasMoreAfter: boolean;
+              oldestMessageId?: string;
+              newestMessageId?: string;
+            };
           };
         }
       | {
@@ -1640,6 +1822,14 @@ export interface components {
             gitBranch?: string;
             isRunning: boolean;
             runningRunId?: string;
+            messagePageInfo?: {
+              total: number;
+              returned: number;
+              hasMoreBefore: boolean;
+              hasMoreAfter: boolean;
+              oldestMessageId?: string;
+              newestMessageId?: string;
+            };
           };
         }
       | {

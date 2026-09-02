@@ -4,6 +4,8 @@ import {
   parseCreateRoundReviewRunBody,
   parseCreateRunBody,
   parseCreateSessionBody,
+  parseGetSessionMessagesQuery,
+  parseGetSessionQuery,
   parseListSessionsQuery,
   parseRoundReviewParams,
   parseUpdateSessionBody,
@@ -29,7 +31,14 @@ export function createSessionRouter(sessionService: SessionService): Router {
 
   router.get("/api/v1/sessions/:sessionId", async (request, response, next) => {
     try {
-      const session = await sessionService.getSessionView(request.params.sessionId);
+      const parsed = parseGetSessionQuery(request.query);
+
+      if (!parsed.ok) {
+        response.status(400).json({ error: parsed.error });
+        return;
+      }
+
+      const session = await sessionService.getSessionView(request.params.sessionId, parsed.value);
 
       if (!session) {
         response.status(404).json({ error: "Session not found" });
@@ -37,6 +46,28 @@ export function createSessionRouter(sessionService: SessionService): Router {
       }
 
       response.json({ session });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/v1/sessions/:sessionId/messages", async (request, response, next) => {
+    try {
+      const parsed = parseGetSessionMessagesQuery(request.query);
+
+      if (!parsed.ok) {
+        response.status(400).json({ error: parsed.error });
+        return;
+      }
+
+      const page = await sessionService.getSessionMessages(request.params.sessionId, parsed.value);
+
+      if (!page) {
+        response.status(404).json({ error: "Session not found" });
+        return;
+      }
+
+      response.json(page);
     } catch (error) {
       next(error);
     }

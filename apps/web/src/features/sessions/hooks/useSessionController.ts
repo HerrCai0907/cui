@@ -5,6 +5,7 @@ import {
   createRun,
   createSession,
   getSession,
+  getSessionMessages,
   listSessions,
   type SessionListPage,
   updateSession,
@@ -50,7 +51,10 @@ export type QueuedPromptView = {
 const LAST_ACTIVE_SESSION_STORAGE_KEY = "cui:last-active-session-id:v1";
 const DONE_MARK_VISIBLE_DURATION_MS = 800;
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 48;
+const AUTO_LOAD_OLDER_MESSAGES_THRESHOLD_PX = 32;
 const EMPTY_QUEUED_PROMPTS: QueuedPromptView[] = [];
+const ACTIVE_SESSION_MESSAGE_LIMIT = 80;
+const OLDER_SESSION_MESSAGES_LIMIT = 80;
 const SESSION_PAGE_SIZE = 30;
 const SIDEBAR_SESSION_REFRESH_INTERVAL_MS = 10_000;
 
@@ -88,6 +92,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   );
   const [sessionPageLoading, setSessionPageLoading] = useState(false);
   const [activeSession, setActiveSession] = useState<ApiSession | null>(null);
+  const [olderMessagesLoading, setOlderMessagesLoading] = useState(false);
   const [draft, setDraft] = useState("");
   const [composerMode, setComposerMode] = useState<ComposerMode>("chat");
   const [workspaceDraft, setWorkspaceDraft] = useState(defaultWorkspace);
@@ -109,6 +114,12 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   const messageStreamRef = useRef<HTMLDivElement | null>(null);
   const lastScrolledSessionIdRef = useRef<string | null>(null);
   const shouldStickToMessageBottomRef = useRef(true);
+  const preserveMessageScrollRef = useRef<{
+    sessionId: string;
+    scrollHeight: number;
+    scrollTop: number;
+  } | null>(null);
+  const olderMessagesLoadingRef = useRef(false);
   const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const runningSessionIdsRef = useRef<Set<string>>(runningSessionIds);
   const runningRunIdBySessionIdRef = useRef<Map<string, string>>(new Map());
@@ -235,6 +246,17 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
 
     if (!messageStream || !activeSession) {
       lastScrolledSessionIdRef.current = activeSession?.id ?? null;
+      return;
+    }
+
+    const preservedScroll = preserveMessageScrollRef.current;
+
+    if (preservedScroll?.sessionId === activeSession.id) {
+      messageStream.scrollTop =
+        preservedScroll.scrollTop + (messageStream.scrollHeight - preservedScroll.scrollHeight);
+      preserveMessageScrollRef.current = null;
+      shouldStickToMessageBottomRef.current = false;
+      lastScrolledSessionIdRef.current = activeSession.id;
       return;
     }
 
@@ -517,7 +539,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     options: { showError?: boolean } = {},
   ) {
     try {
-      const session = await getSession(sessionId);
+      const session = await getActiveSessionWindow(sessionId);
 
       setCurrentActiveSession(applyLocalSessionState(session), {
         persist,
@@ -638,7 +660,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     }
 
     try {
-      const session = await getSession(sessionId);
+      const session = await getActiveSessionWindow(sessionId);
       if (openSessionRequestIdRef.current !== requestId) {
         return;
       }
@@ -656,6 +678,57 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       }
 
       setError(reason instanceof Error ? reason.message : "Failed to open session");
+    }
+  }
+
+  async function loadOlderActiveSessionMessages() {
+    const currentSession = activeSessionRef.current;
+    const pageInfo = currentSession?.messagePageInfo;
+    const oldestMessageId = pageInfo?.oldestMessageId;
+
+    if (
+      !currentSession ||
+      !pageInfo?.hasMoreBefore ||
+      !oldestMessageId ||
+      olderMessagesLoadingRef.current
+    ) {
+      return;
+    }
+
+    const messageStream = messageStreamRef.current;
+
+    preserveMessageScrollRef.current = messageStream
+      ? {
+          sessionId: currentSession.id,
+          scrollHeight: messageStream.scrollHeight,
+          scrollTop: messageStream.scrollTop,
+        }
+      : null;
+    olderMessagesLoadingRef.current = true;
+    setOlderMessagesLoading(true);
+    setError(null);
+
+    try {
+      const olderPage = await getSessionMessages(currentSession.id, {
+        beforeMessageId: oldestMessageId,
+        limit: OLDER_SESSION_MESSAGES_LIMIT,
+      });
+
+      if (activeSessionRef.current?.id !== currentSession.id) {
+        return;
+      }
+
+      setCurrentActiveSession(mergeOlderMessages(activeSessionRef.current, olderPage), {
+        recordAttention: false,
+      });
+    } catch (reason) {
+      if (activeSessionRef.current?.id === currentSession.id) {
+        setError(reason instanceof Error ? reason.message : "Failed to load older messages");
+      }
+      preserveMessageScrollRef.current = null;
+    } finally {
+      olderMessagesLoadingRef.current = false;
+      setOlderMessagesLoading(false);
     }
   }
 
@@ -880,6 +953,9 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     }
 
     shouldStickToMessageBottomRef.current = isScrolledNearBottom(messageStream);
+    if (messageStream.scrollTop <= AUTO_LOAD_OLDER_MESSAGES_THRESHOLD_PX) {
+      void loadOlderActiveSessionMessages();
+    }
   }
 
   function setCurrentActiveSession(
@@ -887,7 +963,11 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     options: SetCurrentActiveSessionOptions = {},
   ) {
     const previousSession = activeSessionRef.current;
-    const visibleSession = session ? applyLocalRunOverlay(session) : null;
+    const mergedSession =
+      session && previousSession?.id === session.id
+        ? mergeIncomingSessionMessages(previousSession, session)
+        : session;
+    const visibleSession = mergedSession ? applyLocalRunOverlay(mergedSession) : null;
 
     if (previousSession && previousSession.id !== visibleSession?.id) {
       setLastSeenRound(previousSession.id, getCurrentRound(previousSession));
@@ -1085,12 +1165,15 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     error,
     expandedTraceIds,
     expandedWorkspaces,
+    hasOlderMessages: Boolean(activeSession?.messagePageInfo?.hasMoreBefore),
     lastEnterKeyDownRef,
     messageStreamRef,
     handleMessageStreamScroll,
+    loadOlderActiveSessionMessages,
     refreshSessions,
     openSession,
     markSessionDone,
+    olderMessagesLoading,
     pendingDoneSessionIds,
     runningSessionIds,
     setDraft,
@@ -1191,6 +1274,74 @@ function toCachedSessionListItem(session: ApiSession | ApiSessionListItem): Cach
   return {
     ...session,
     ...toSessionSummary(session),
+  };
+}
+
+function getActiveSessionWindow(sessionId: string): Promise<ApiSession> {
+  return getSession(sessionId, {
+    messageWindow: "tail",
+    messageLimit: ACTIVE_SESSION_MESSAGE_LIMIT,
+  });
+}
+
+function mergeOlderMessages(
+  currentSession: ApiSession | null,
+  olderPage: Awaited<ReturnType<typeof getSessionMessages>>,
+): ApiSession | null {
+  if (!currentSession) {
+    return currentSession;
+  }
+
+  const existingMessageIds = new Set(currentSession.messages.map((message) => message.id));
+  const olderMessages = olderPage.messages.filter((message) => !existingMessageIds.has(message.id));
+  const messages = [...olderMessages, ...currentSession.messages];
+  const oldestMessageId = messages[0]?.id;
+  const newestMessageId = messages.at(-1)?.id;
+
+  return {
+    ...currentSession,
+    messages,
+    messagePageInfo: {
+      ...olderPage.pageInfo,
+      returned: messages.length,
+      hasMoreAfter: currentSession.messagePageInfo?.hasMoreAfter ?? false,
+      ...(oldestMessageId ? { oldestMessageId } : {}),
+      ...(newestMessageId ? { newestMessageId } : {}),
+    },
+  };
+}
+
+function mergeIncomingSessionMessages(
+  currentSession: ApiSession,
+  incomingSession: ApiSession,
+): ApiSession {
+  if (!incomingSession.messagePageInfo) {
+    return incomingSession;
+  }
+
+  const incomingMessageIds = new Set(incomingSession.messages.map((message) => message.id));
+  const preservedMessages = currentSession.messages.filter(
+    (message) => !message.id.startsWith("stream-") && !incomingMessageIds.has(message.id),
+  );
+  const messages = [...preservedMessages, ...incomingSession.messages];
+  const oldestMessageId = messages[0]?.id;
+  const newestMessageId = messages.at(-1)?.id;
+  const hasPreservedOlderMessages =
+    oldestMessageId !== undefined &&
+    oldestMessageId !== incomingSession.messagePageInfo.oldestMessageId;
+
+  return {
+    ...incomingSession,
+    messages,
+    messagePageInfo: {
+      ...incomingSession.messagePageInfo,
+      returned: messages.length,
+      hasMoreBefore: hasPreservedOlderMessages
+        ? (currentSession.messagePageInfo?.hasMoreBefore ?? false)
+        : incomingSession.messagePageInfo.hasMoreBefore,
+      ...(oldestMessageId ? { oldestMessageId } : {}),
+      ...(newestMessageId ? { newestMessageId } : {}),
+    },
   };
 }
 

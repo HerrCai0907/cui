@@ -61,6 +61,21 @@ export type ChatSessionView = Omit<ChatSession, "aiThreadId" | "rounds" | "queue
   gitBranch?: string;
   isRunning: boolean;
   runningRunId?: string;
+  messagePageInfo?: MessagePageInfo;
+};
+
+export type MessagePageInfo = {
+  total: number;
+  returned: number;
+  hasMoreBefore: boolean;
+  hasMoreAfter: boolean;
+  oldestMessageId?: string;
+  newestMessageId?: string;
+};
+
+export type ChatSessionMessagesPage = {
+  messages: ChatMessage[];
+  pageInfo: MessagePageInfo;
 };
 
 export type ChatSessionIndexEntry = Omit<
