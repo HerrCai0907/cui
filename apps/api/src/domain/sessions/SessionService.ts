@@ -430,14 +430,14 @@ export class SessionService {
       runId: options.runId,
       createdAt: options.createdAt,
     });
-    const summaryPromise = this.refreshSessionSummaryFromUserInput(
+    const inputSummaryPromise = this.refreshSessionSummary(
       updatedSession,
       runningRun,
       request.models,
     );
 
     bufferedEvents.forEach((event) => this.runRegistry.emitRunEvent(runningRun!, event));
-    this.finishAssistantRun(request, run.result, runningRun, workspace, summaryPromise, {
+    this.finishAssistantRun(request, run.result, runningRun, workspace, inputSummaryPromise, {
       bindAiThreadId: runInput.kind === "create",
     });
 
@@ -561,7 +561,7 @@ export class SessionService {
     result: Promise<AiRunResult>,
     run: RunningRun,
     workspace: string,
-    summaryPromise: Promise<ChatSession>,
+    inputSummaryPromise: Promise<ChatSession>,
     options: { bindAiThreadId?: boolean } = {},
   ): void {
     result
@@ -583,12 +583,15 @@ export class SessionService {
           },
           models: request.models,
         });
-        const latestSession =
-          (await this.waitForInputSummary(summaryPromise, run.sessionId)) ?? session;
+        await inputSummaryPromise;
+        const completedSession = await this.store.getSession(run.sessionId);
+        const latestSession = completedSession
+          ? await this.refreshSessionSummary(completedSession, run, request.models)
+          : undefined;
 
         this.runRegistry.emitRunEvent(run, {
           type: "run.succeeded",
-          session: latestSession,
+          session: latestSession ? await this.toSessionView(latestSession, run.id) : session,
         });
         this.scheduleNextQueuedPrompt(run.sessionId);
       })
@@ -806,7 +809,7 @@ export class SessionService {
     return result;
   }
 
-  private refreshSessionSummaryFromUserInput(
+  private refreshSessionSummary(
     session: ChatSession,
     run?: RunningRun,
     models?: AiModelPreferences,
@@ -823,17 +826,6 @@ export class SessionService {
 
         return updatedSession;
       });
-  }
-
-  private async waitForInputSummary(
-    summaryPromise: Promise<ChatSession>,
-    sessionId: string,
-  ): Promise<ChatSessionView | undefined> {
-    await summaryPromise;
-
-    const latestSession = await this.store.getSession(sessionId);
-
-    return latestSession ? this.toSessionView(latestSession) : undefined;
   }
 
   private async persistCancelledTrace(run: RunningRun): Promise<void> {
