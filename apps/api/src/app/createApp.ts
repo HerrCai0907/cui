@@ -5,6 +5,7 @@ import { createOpenApiDocument } from "../contracts/openapi.js";
 import type { SessionService } from "../domain/sessions/SessionService.js";
 import type { CodeQueryService } from "../domain/code/CodeQueryService.js";
 import { createErrorHandler } from "../http/middleware/errorHandler.js";
+import { createJsonEtagMiddleware } from "../http/middleware/jsonEtag.js";
 import { createRequestLogger } from "../http/middleware/requestLogger.js";
 import { createCodeRouter } from "../http/routes/codeRoutes.js";
 import { createHealthRouter } from "../http/routes/healthRoutes.js";
@@ -21,9 +22,10 @@ export function createApp(input: {
 }): express.Express {
   const app = express();
 
-  app.use(cors());
+  app.use(cors({ exposedHeaders: ["ETag"] }));
   app.use(express.json());
   app.use(createRequestLogger(input.logger));
+  app.use(createJsonEtagMiddleware());
   app.get("/api/v1/openapi.json", (_request, response) => {
     response.json(createOpenApiDocument());
   });

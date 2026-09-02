@@ -357,7 +357,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
 
   async function refreshSessions(
     page = sessionPage,
-    options: { force?: boolean; showLoading?: boolean } = {},
+    options: { force?: boolean; showLoading?: boolean; warmNeighbors?: boolean } = {},
   ) {
     const requestId = refreshSessionsRequestIdRef.current + 1;
     const showLoading = options.showLoading ?? true;
@@ -491,11 +491,13 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
         }
       }
 
-      void warmSessionPageNeighbors(loadedPage.pagination).then(() => {
-        if (refreshSessionsRequestIdRef.current === requestId) {
-          setSessions(mergeCachedSessionPages());
-        }
-      });
+      if (options.warmNeighbors ?? false) {
+        void warmSessionPageNeighbors(loadedPage.pagination).then(() => {
+          if (refreshSessionsRequestIdRef.current === requestId) {
+            setSessions(mergeCachedSessionPages());
+          }
+        });
+      }
     } catch (reason) {
       if (refreshSessionsRequestIdRef.current !== requestId) {
         return;
@@ -532,7 +534,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   }
 
   async function setSessionListPage(page: number) {
-    await refreshSessions(page, { force: false });
+    await refreshSessions(page, { force: false, warmNeighbors: true });
   }
 
   async function loadSessionPage(
