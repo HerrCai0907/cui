@@ -296,6 +296,16 @@ export function App() {
           onCloseReview={closeReview}
           onOpenNavigation={() => setMobileNavigationOpen(true)}
         />
+        {sessionController.notification && (
+          <div
+            className={`session-notification is-${sessionController.notification.tone}`}
+            role="status"
+            aria-label={sessionController.notification.message}
+            aria-live="polite"
+          >
+            {sessionController.notification.message}
+          </div>
+        )}
 
         {configOpen ? (
           <ConfigPage
