@@ -48,8 +48,15 @@ export type QueuedPromptView = {
   createdAt: string;
 };
 
+export type SessionNotification = {
+  id: string;
+  message: string;
+  tone: "success" | "error";
+};
+
 const LAST_ACTIVE_SESSION_STORAGE_KEY = "cui:last-active-session-id:v1";
 const DONE_MARK_VISIBLE_DURATION_MS = 800;
+const SESSION_NOTIFICATION_VISIBLE_DURATION_MS = 4_000;
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 48;
 const AUTO_LOAD_OLDER_MESSAGES_THRESHOLD_PX = 32;
 const EMPTY_QUEUED_PROMPTS: QueuedPromptView[] = [];
@@ -59,6 +66,7 @@ const SESSION_PAGE_SIZE = 30;
 const SIDEBAR_SESSION_REFRESH_INTERVAL_MS = 10_000;
 
 type SessionPagination = SessionListPage["pagination"];
+type AtomicReviewStatus = NonNullable<ApiSession["rounds"]>[number]["atomicReviewStatus"];
 
 type CachedSessionListItem = ApiSessionListItem & SessionSummary;
 
@@ -103,7 +111,10 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   const [creatingSession, setCreatingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedTraceIds, setExpandedTraceIds] = useState<Set<string>>(() => new Set());
+  const [notification, setNotification] = useState<SessionNotification | null>(null);
   const activeSessionRef = useRef<ApiSession | null>(null);
+  const atomicReviewStatusByRoundRef = useRef<Map<number, AtomicReviewStatus>>(new Map());
+  const notificationTimeoutRef = useRef<number | null>(null);
   const autoRestoreSessionRef = useRef(true);
   const sessionPageCacheRef = useRef<Map<number, CachedSessionPage>>(new Map());
   const refreshSessionsRequestIdRef = useRef(0);
@@ -201,6 +212,14 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
 
   useEffect(() => {
     void refreshSessions();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (notificationTimeoutRef.current !== null) {
+        window.clearTimeout(notificationTimeoutRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -481,8 +500,9 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
         }
       } else if (nextActiveSessionSummary && currentActiveSession) {
         const shouldLoadFullActiveSession =
-          nextActiveSessionSummary.runningRunId &&
-          nextActiveSessionSummary.runningRunId !== previousActiveSessionRunningRunId;
+          (nextActiveSessionSummary.runningRunId &&
+            nextActiveSessionSummary.runningRunId !== previousActiveSessionRunningRunId) ||
+          hasPendingAtomicReview(currentActiveSession);
         const nextActiveSession = shouldLoadFullActiveSession
           ? await getSession(currentActiveSession.id)
           : {
@@ -973,6 +993,8 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       setLastSeenRound(previousSession.id, getCurrentRound(previousSession));
     }
 
+    syncAtomicReviewNotification(previousSession, visibleSession);
+
     if (visibleSession) {
       setLastSeenRound(visibleSession.id, getCurrentRound(visibleSession));
       if (options.recordAttention ?? true) {
@@ -999,6 +1021,52 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     if (visibleSession && (options.persist ?? true)) {
       writeLastActiveSessionId(visibleSession.id);
     }
+  }
+
+  function syncAtomicReviewNotification(
+    previousSession: ApiSession | null,
+    visibleSession: ApiSession | null,
+  ) {
+    if (!visibleSession || previousSession?.id !== visibleSession.id) {
+      atomicReviewStatusByRoundRef.current = createAtomicReviewStatusMap(visibleSession);
+      return;
+    }
+
+    const previousStatuses = atomicReviewStatusByRoundRef.current;
+    const nextStatuses = createAtomicReviewStatusMap(visibleSession);
+
+    visibleSession.rounds?.forEach((round) => {
+      if (!round.hasChanges || !round.atomicReviewStatus) {
+        return;
+      }
+
+      if (!previousStatuses.has(round.round) || previousStatuses.get(round.round) !== undefined) {
+        return;
+      }
+
+      showNotification({
+        id: `${visibleSession.id}:${round.round}:${round.atomicReviewStatus}:${Date.now()}`,
+        message:
+          round.atomicReviewStatus === "ready"
+            ? `Round ${round.round} atomic review is ready.`
+            : `Round ${round.round} atomic review failed.`,
+        tone: round.atomicReviewStatus === "ready" ? "success" : "error",
+      });
+    });
+
+    atomicReviewStatusByRoundRef.current = nextStatuses;
+  }
+
+  function showNotification(nextNotification: SessionNotification) {
+    if (notificationTimeoutRef.current !== null) {
+      window.clearTimeout(notificationTimeoutRef.current);
+    }
+
+    setNotification(nextNotification);
+    notificationTimeoutRef.current = window.setTimeout(() => {
+      setNotification((current) => (current?.id === nextNotification.id ? null : current));
+      notificationTimeoutRef.current = null;
+    }, SESSION_NOTIFICATION_VISIBLE_DURATION_MS);
   }
 
   function setRunningSession(sessionId: string, running: boolean, runId?: string) {
@@ -1174,6 +1242,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     openSession,
     markSessionDone,
     olderMessagesLoading,
+    notification,
     pendingDoneSessionIds,
     runningSessionIds,
     setDraft,
@@ -1383,6 +1452,14 @@ function isSameNumberRecord(left: Record<string, number>, right: Record<string, 
 function hasPendingAtomicReview(session: ApiSession | null): boolean {
   return Boolean(
     session?.rounds?.some((round) => round.hasChanges && round.atomicReviewStatus === undefined),
+  );
+}
+
+function createAtomicReviewStatusMap(session: ApiSession | null): Map<number, AtomicReviewStatus> {
+  return new Map(
+    session?.rounds
+      ?.filter((round) => round.hasChanges)
+      .map((round) => [round.round, round.atomicReviewStatus]) ?? [],
   );
 }
 

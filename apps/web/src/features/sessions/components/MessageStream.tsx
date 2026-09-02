@@ -1,4 +1,4 @@
-import { ClipboardList, FileDiff, ListChecks, Terminal } from "lucide-react";
+import { ClipboardList, FileDiff, ListChecks, LoaderCircle, Terminal } from "lucide-react";
 import type { RefObject } from "react";
 import { TraceView } from "../../trace/components/TraceView";
 import { formatMessageTime } from "../../../shared/lib/dates";
@@ -143,6 +143,7 @@ function MessageItem({
       : undefined;
   const hasReviewDiff = Boolean(reviewRound);
   const hasAtomicReview = Boolean(reviewRound?.atomicReviewStatus);
+  const atomicReviewPending = hasReviewDiff && !reviewRound?.atomicReviewStatus;
 
   return (
     <article
@@ -171,6 +172,17 @@ function MessageItem({
                     <FileDiff size={14} />
                     Atomic review
                   </button>
+                )}
+                {atomicReviewPending && (
+                  <span
+                    className="review-pending-indicator"
+                    role="status"
+                    aria-label={`Round ${message.round} atomic review is running`}
+                    title="Atomic review is running"
+                  >
+                    <LoaderCircle size={14} aria-hidden="true" />
+                    Atomic review
+                  </span>
                 )}
                 <button
                   className="review-button"

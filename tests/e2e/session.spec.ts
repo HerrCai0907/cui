@@ -5,6 +5,7 @@ import {
   currentWorkspace,
   fulfillJson,
   mockSession,
+  mockSessionById,
   mockSessions,
 } from "./helpers";
 
@@ -661,6 +662,64 @@ test("shows full review separately from completed atomic review in assistant mes
     /\/ui\/sessions\/session-review-buttons\/rounds\/2\/atomic_review$/,
   );
   await atomicReviewPopup.close();
+});
+
+test("shows pending atomic review status and notifies when it completes", async ({ page }) => {
+  let reviewReady = false;
+  const session = {
+    id: "session-atomic-review-notification",
+    workspace: currentWorkspace,
+    title: "Atomic review notification session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    currentRound: 1,
+    isRunning: false,
+    messages: [
+      {
+        id: "message-1",
+        role: "assistant",
+        kind: "response",
+        round: 1,
+        content: "Changed the files.",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    rounds: [
+      {
+        round: 1,
+        hasChanges: true,
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+  };
+  const getSessionState = () => ({
+    ...session,
+    updatedAt: reviewReady ? "2026-08-22T00:00:03.000Z" : session.updatedAt,
+    rounds: [
+      {
+        ...session.rounds[0],
+        ...(reviewReady ? { atomicReviewStatus: "ready" } : {}),
+      },
+    ],
+  });
+
+  await mockSessions(page, () => [getSessionState()]);
+  await mockSessionById(page, session.id, getSessionState);
+
+  await page.goto("/");
+
+  const reviewGroup = page.getByLabel("Round 1 reviews");
+  await expect(
+    reviewGroup.getByRole("status", { name: "Round 1 atomic review is running" }),
+  ).toBeVisible();
+  await expect(reviewGroup.getByRole("button", { name: "Atomic review" })).toHaveCount(0);
+
+  reviewReady = true;
+
+  await expect(page.getByRole("status", { name: "Round 1 atomic review is ready." })).toBeVisible({
+    timeout: 5000,
+  });
+  await expect(reviewGroup.getByRole("button", { name: "Atomic review" })).toBeVisible();
 });
 
 test("keeps the current scroll position while pending atomic review refreshes", async ({
