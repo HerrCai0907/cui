@@ -6,6 +6,8 @@ type ListSessionsResponse =
   paths["/api/v1/sessions"]["get"]["responses"][200]["content"]["application/json"];
 type GetSessionResponse =
   paths["/api/v1/sessions/{sessionId}"]["get"]["responses"][200]["content"]["application/json"];
+type GetSessionMessagesResponse =
+  paths["/api/v1/sessions/{sessionId}/messages"]["get"]["responses"][200]["content"]["application/json"];
 type CreateSessionRequest =
   paths["/api/v1/sessions"]["post"]["requestBody"]["content"]["application/json"];
 type CreateSessionResponse =
@@ -23,6 +25,17 @@ type CancelRunResponse =
 
 export type SessionListPage = ListSessionsResponse;
 export type CreateRunInput = CreateRunRequest;
+export type SessionMessagesPage = GetSessionMessagesResponse;
+
+export type GetSessionOptions = {
+  messageWindow?: "tail";
+  messageLimit?: number;
+};
+
+export type GetSessionMessagesOptions = {
+  beforeMessageId?: string;
+  limit?: number;
+};
 
 export async function listSessions(page = 1, pageSize = 30): Promise<SessionListPage> {
   const params = new URLSearchParams({
@@ -34,12 +47,47 @@ export async function listSessions(page = 1, pageSize = 30): Promise<SessionList
   return data;
 }
 
-export async function getSession(sessionId: string): Promise<ApiSession> {
+export async function getSession(
+  sessionId: string,
+  options: GetSessionOptions = {},
+): Promise<ApiSession> {
+  const params = new URLSearchParams();
+
+  if (options.messageWindow) {
+    params.set("messageWindow", options.messageWindow);
+  }
+
+  if (options.messageLimit !== undefined) {
+    params.set("messageLimit", String(options.messageLimit));
+  }
+
+  const query = params.toString();
   const data = await fetchJson<GetSessionResponse>(
-    `/api/v1/sessions/${encodeURIComponent(sessionId)}`,
+    `/api/v1/sessions/${encodeURIComponent(sessionId)}${query ? `?${query}` : ""}`,
   );
 
   return data.session;
+}
+
+export async function getSessionMessages(
+  sessionId: string,
+  options: GetSessionMessagesOptions = {},
+): Promise<SessionMessagesPage> {
+  const params = new URLSearchParams();
+
+  if (options.beforeMessageId) {
+    params.set("beforeMessageId", options.beforeMessageId);
+  }
+
+  if (options.limit !== undefined) {
+    params.set("limit", String(options.limit));
+  }
+
+  const query = params.toString();
+
+  return fetchJson<GetSessionMessagesResponse>(
+    `/api/v1/sessions/${encodeURIComponent(sessionId)}/messages${query ? `?${query}` : ""}`,
+  );
 }
 
 export async function createSession(input: CreateSessionRequest): Promise<ApiSession> {

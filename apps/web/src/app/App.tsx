@@ -328,9 +328,12 @@ export function App() {
               config={config}
               error={sessionController.error}
               expandedTraceIds={sessionController.expandedTraceIds}
+              hasOlderMessages={sessionController.hasOlderMessages}
               messageStreamRef={sessionController.messageStreamRef}
+              olderMessagesLoading={sessionController.olderMessagesLoading}
               queuedPrompts={sessionController.activeSessionQueuedPrompts}
               workspaceDraft={sessionController.workspaceDraft}
+              onLoadOlderMessages={sessionController.loadOlderActiveSessionMessages}
               onOpenReview={openReview}
               onScroll={sessionController.handleMessageStreamScroll}
               onTraceExpandedChange={sessionController.setTraceExpanded}

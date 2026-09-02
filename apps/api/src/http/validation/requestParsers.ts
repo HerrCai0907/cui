@@ -4,6 +4,8 @@ import {
   CreateRoundReviewRunRequestSchema,
   CreateRunRequestSchema,
   CreateSessionRequestSchema,
+  GetSessionMessagesQuerySchema,
+  GetSessionQuerySchema,
   ListSessionsQuerySchema,
   RoundReviewParamsSchema,
   UpdateSessionRequestSchema,
@@ -39,6 +41,18 @@ export function parseListSessionsQuery(
   query: unknown,
 ): ParsedBody<z.infer<typeof ListSessionsQuerySchema>> {
   return parseWithSchema(ListSessionsQuerySchema, query);
+}
+
+export function parseGetSessionQuery(
+  query: unknown,
+): ParsedBody<z.infer<typeof GetSessionQuerySchema>> {
+  return parseWithSchema(GetSessionQuerySchema, query);
+}
+
+export function parseGetSessionMessagesQuery(
+  query: unknown,
+): ParsedBody<z.infer<typeof GetSessionMessagesQuerySchema>> {
+  return parseWithSchema(GetSessionMessagesQuerySchema, query);
 }
 
 export function parseRoundReviewParams(

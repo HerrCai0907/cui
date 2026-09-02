@@ -93,6 +93,15 @@ export const ChatSessionOriginSchema = z.enum(["chat", "shell"]);
 
 export const AiHarnessSchema = z.enum(["traex", "codex"]);
 
+export const MessagePageInfoSchema = z.object({
+  total: z.number().int().nonnegative(),
+  returned: z.number().int().nonnegative(),
+  hasMoreBefore: z.boolean(),
+  hasMoreAfter: z.boolean(),
+  oldestMessageId: z.string().optional(),
+  newestMessageId: z.string().optional(),
+});
+
 export const ChatSessionViewSchema = z.object({
   id: z.string(),
   origin: ChatSessionOriginSchema.optional(),
@@ -110,10 +119,12 @@ export const ChatSessionViewSchema = z.object({
   gitBranch: z.string().optional(),
   isRunning: z.boolean(),
   runningRunId: z.string().optional(),
+  messagePageInfo: MessagePageInfoSchema.optional(),
 });
 
 export const ChatSessionListItemSchema = ChatSessionViewSchema.omit({
   messages: true,
+  messagePageInfo: true,
   rounds: true,
 });
 
@@ -193,6 +204,26 @@ export const ListSessionsQuerySchema = z.object({
     .int("pageSize must be a positive integer")
     .positive("pageSize must be a positive integer")
     .max(100, "pageSize must be less than or equal to 100")
+    .optional(),
+});
+
+export const GetSessionQuerySchema = z.object({
+  messageWindow: z.enum(["tail"]).optional(),
+  messageLimit: z.coerce
+    .number("messageLimit must be a non-negative integer")
+    .int("messageLimit must be a non-negative integer")
+    .nonnegative("messageLimit must be a non-negative integer")
+    .max(500, "messageLimit must be less than or equal to 500")
+    .optional(),
+});
+
+export const GetSessionMessagesQuerySchema = z.object({
+  beforeMessageId: z.string().trim().min(1).optional(),
+  limit: z.coerce
+    .number("limit must be a positive integer")
+    .int("limit must be a positive integer")
+    .positive("limit must be a positive integer")
+    .max(500, "limit must be less than or equal to 500")
     .optional(),
 });
 
@@ -290,6 +321,11 @@ export const GetSessionResponseSchema = z.object({
   session: ChatSessionViewSchema,
 });
 
+export const GetSessionMessagesResponseSchema = z.object({
+  messages: z.array(ChatMessageSchema),
+  pageInfo: MessagePageInfoSchema,
+});
+
 export const GetRoundReviewResponseSchema = z.object({
   review: ChatRoundSchema,
 });
@@ -338,5 +374,7 @@ export type CreateRunRequestContract = z.infer<typeof CreateRunRequestSchema>;
 export type CreateRoundReviewRunRequestContract = z.infer<typeof CreateRoundReviewRunRequestSchema>;
 export type UpdateSessionRequestContract = z.infer<typeof UpdateSessionRequestSchema>;
 export type ListSessionsQueryContract = z.infer<typeof ListSessionsQuerySchema>;
+export type GetSessionQueryContract = z.infer<typeof GetSessionQuerySchema>;
+export type GetSessionMessagesQueryContract = z.infer<typeof GetSessionMessagesQuerySchema>;
 export type CodeRangeRequestContract = z.infer<typeof CodeRangeQuerySchema>;
 export type CodeRangeResponseContract = z.infer<typeof CodeRangeResponseSchema>;

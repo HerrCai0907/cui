@@ -6,6 +6,7 @@ import {
   AiRunResult,
   AiRunCancelledError,
   ChatRound,
+  ChatSessionMessagesPage,
   ChatSession,
   ChatSessionListItem,
   ChatSessionView,
@@ -15,7 +16,12 @@ import {
 import { JsonSessionStore } from "../../infrastructure/store/JsonSessionStore.js";
 import { AppLogger } from "../../infrastructure/logging/AppLogger.js";
 import { createMessage } from "./sessionMessages.js";
-import { toSessionListItem, toSessionView } from "./sessionViews.js";
+import {
+  createSessionMessagesPage,
+  toSessionListItem,
+  toSessionView,
+  type SessionMessageWindowOptions,
+} from "./sessionViews.js";
 import {
   createRoundInputTranscript,
   createSessionInputTranscript,
@@ -32,6 +38,8 @@ import type {
   CreateRunRequestContract,
   CreateSessionRequestContract,
   CreateRoundReviewRunRequestContract,
+  GetSessionMessagesQueryContract,
+  GetSessionQueryContract,
   UpdateSessionRequestContract,
 } from "../../contracts/apiSchemas.js";
 import { GitDiffService } from "../../infrastructure/diff/GitDiffService.js";
@@ -56,6 +64,12 @@ export type ListSessionViewsOptions = {
   page?: number;
   pageSize?: number;
 };
+
+export type GetSessionViewOptions = GetSessionQueryContract;
+
+export type GetSessionMessagesOptions = GetSessionMessagesQueryContract;
+
+const SESSION_MESSAGE_WINDOW_LIMIT = 80;
 
 export type SubmittedRun = {
   run: {
@@ -122,6 +136,19 @@ type StartRunOptions = {
   createdAt?: string;
 };
 
+function toSessionMessageWindowOptions(
+  options: GetSessionViewOptions,
+): SessionMessageWindowOptions | undefined {
+  if (options.messageWindow === undefined && options.messageLimit === undefined) {
+    return undefined;
+  }
+
+  return {
+    window: options.messageWindow,
+    limit: options.messageLimit,
+  };
+}
+
 export class SessionService {
   private readonly runRegistry = new RunRegistry();
   private readonly sessionOperationQueues = new Map<string, Promise<void>>();
@@ -170,10 +197,29 @@ export class SessionService {
     return this.store.getSession(sessionId);
   }
 
-  async getSessionView(sessionId: string): Promise<ChatSessionView | undefined> {
+  async getSessionView(
+    sessionId: string,
+    options: GetSessionViewOptions = {},
+  ): Promise<ChatSessionView | undefined> {
     const session = await this.store.getSession(sessionId);
 
-    return session ? this.toSessionView(session) : undefined;
+    return session
+      ? this.toSessionView(session, undefined, toSessionMessageWindowOptions(options))
+      : undefined;
+  }
+
+  async getSessionMessages(
+    sessionId: string,
+    options: GetSessionMessagesOptions = {},
+  ): Promise<ChatSessionMessagesPage | undefined> {
+    const session = await this.store.getSession(sessionId);
+
+    return session
+      ? createSessionMessagesPage(session.messages, {
+          beforeMessageId: options.beforeMessageId,
+          limit: options.limit,
+        })
+      : undefined;
   }
 
   async createSessionContainer(request: CreateSessionRequest): Promise<ChatSessionView> {
@@ -213,7 +259,7 @@ export class SessionService {
     const doneAt = request.done ? new Date().toISOString() : undefined;
     const updatedSession = await this.store.updateSessionDoneAt(sessionId, doneAt);
 
-    return this.toSessionView(updatedSession);
+    return this.toWindowedSessionView(updatedSession);
   }
 
   async getRoundReview(sessionId: string, round: number): Promise<ChatRound | undefined> {
@@ -344,7 +390,7 @@ export class SessionService {
 
         this.runRegistry.emitRunEvent(runningRun, {
           type: "run.succeeded",
-          session: await this.toSessionView(updatedSession),
+          session: await this.toWindowedSessionView(updatedSession),
         });
       })
       .catch((error: unknown) => {
@@ -443,7 +489,7 @@ export class SessionService {
 
     return toRunningSubmittedRun(
       runningRun,
-      await this.toSessionView(updatedSession, runningRun.id),
+      await this.toWindowedSessionView(updatedSession, runningRun.id),
     );
   }
 
@@ -465,7 +511,7 @@ export class SessionService {
 
     return toRunningSubmittedRun(
       shellRun.run,
-      await this.toSessionView(updatedSession, shellRun.run.id),
+      await this.toWindowedSessionView(updatedSession, shellRun.run.id),
     );
   }
 
@@ -487,7 +533,7 @@ export class SessionService {
 
     return toQueuedSubmittedRun({
       queuedPrompt,
-      session: await this.toSessionView(updatedSession),
+      session: await this.toWindowedSessionView(updatedSession),
     });
   }
 
@@ -591,7 +637,9 @@ export class SessionService {
 
         this.runRegistry.emitRunEvent(run, {
           type: "run.succeeded",
-          session: latestSession ? await this.toSessionView(latestSession, run.id) : session,
+          session: latestSession
+            ? await this.toWindowedSessionView(latestSession, run.id)
+            : session,
         });
         this.scheduleNextQueuedPrompt(run.sessionId);
       })
@@ -770,7 +818,7 @@ export class SessionService {
           workspace: input.workspace,
         });
 
-        const sessionView = await this.toSessionView(updatedSession);
+        const sessionView = await this.toWindowedSessionView(updatedSession);
 
         this.runRegistry.emitRunEvent(run, {
           type: "run.succeeded",
@@ -820,7 +868,7 @@ export class SessionService {
         if (run && !run.completed && updatedSession !== session) {
           this.runRegistry.emitRunEvent(run, {
             type: "session.updated",
-            session: await this.toSessionView(updatedSession, run.id),
+            session: await this.toWindowedSessionView(updatedSession, run.id),
           });
         }
 
@@ -852,10 +900,22 @@ export class SessionService {
   private async toSessionView(
     session: ChatSession,
     runningRunId = this.runRegistry.getRunningRunIdForSession(session.id),
+    messages?: SessionMessageWindowOptions,
   ): Promise<ChatSessionView> {
     return toSessionView(session, {
       gitBranch: await this.getWorkspaceBranch(session.workspace),
+      messages,
       runningRunId,
+    });
+  }
+
+  private async toWindowedSessionView(
+    session: ChatSession,
+    runningRunId = this.runRegistry.getRunningRunIdForSession(session.id),
+  ): Promise<ChatSessionView> {
+    return this.toSessionView(session, runningRunId, {
+      window: "tail",
+      limit: SESSION_MESSAGE_WINDOW_LIMIT,
     });
   }
 

@@ -13,6 +13,9 @@ import {
   CreateSessionResponseSchema,
   CreateSessionRequestSchema,
   ErrorResponseSchema,
+  GetSessionMessagesQuerySchema,
+  GetSessionMessagesResponseSchema,
+  GetSessionQuerySchema,
   GetRoundReviewResponseSchema,
   GetSessionResponseSchema,
   HealthResponseSchema,
@@ -39,6 +42,7 @@ registry.register("ChatRoundSummary", ChatRoundSummarySchema);
 registry.register("ChatRound", ChatRoundSchema);
 registry.register("ChatSessionView", ChatSessionViewSchema);
 registry.register("ChatSessionListItem", ChatSessionListItemSchema);
+registry.register("MessagePageInfo", GetSessionMessagesResponseSchema.shape.pageInfo);
 registry.register("QueuedPrompt", QueuedPromptSchema);
 registry.register("AiModelPreferences", AiModelPreferencesSchema);
 registry.register("CodeRangeResponse", CodeRangeResponseSchema);
@@ -168,6 +172,7 @@ registry.registerPath({
   summary: "Get a session",
   request: {
     params: SessionIdParamsSchema,
+    query: GetSessionQuerySchema,
   },
   responses: {
     200: {
@@ -178,6 +183,28 @@ registry.registerPath({
         },
       },
     },
+    404: errorResponse,
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/v1/sessions/{sessionId}/messages",
+  summary: "Get a page of session messages",
+  request: {
+    params: SessionIdParamsSchema,
+    query: GetSessionMessagesQuerySchema,
+  },
+  responses: {
+    200: {
+      description: "A page of session messages.",
+      content: {
+        "application/json": {
+          schema: GetSessionMessagesResponseSchema,
+        },
+      },
+    },
+    400: errorResponse,
     404: errorResponse,
   },
 });
