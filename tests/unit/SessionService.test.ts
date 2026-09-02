@@ -20,7 +20,7 @@ import type {
 } from "../../apps/api/src/types.js";
 import { AiRunCancelledError } from "../../apps/api/src/types.js";
 
-test("createRun refreshes summary after user input and before run completion", async () => {
+test("createRun refreshes summary after user input and assistant response", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
   const aiModel = new FakeAiModel();
@@ -66,32 +66,48 @@ test("createRun refreshes summary after user input and before run completion", a
       summary: "Seed-2.1-Turbo",
     });
     assert.match(aiModel.summaryPrompts[0], /用户：Explain when the summary should run\./);
+    assert.doesNotMatch(aiModel.summaryPrompts[0], /助手：Done\./);
     assert.equal(aiModel.continueStreamInputs[0]?.sessionId, "traex-thread-1");
+
+    aiModel.resolveSummary({
+      title: "User input summary",
+      progress: "The latest user input has been summarized.",
+    });
+    await waitFor(() => events.length === 1);
 
     aiModel.resolveRun({
       sessionId: "traex-thread-1",
       content: "Done.",
       rawEvents: [],
     });
-    await flushPromises();
+    await waitFor(() => aiModel.summaryPrompts.length === 2);
 
-    assert.equal(aiModel.summaryPrompts.length, 1);
+    assert.equal(aiModel.summaryPrompts.length, 2);
+    assert.deepEqual(aiModel.summaryModels[1], {
+      normal: "GPT-5.4",
+      summary: "Seed-2.1-Turbo",
+    });
+    assert.match(aiModel.summaryPrompts[1], /用户：Explain when the summary should run\./);
+    assert.match(aiModel.summaryPrompts[1], /助手：Done\./);
     assert.equal(events.some(isDoneEvent), false);
 
-    aiModel.resolveSummary({
-      title: "Summary timing",
-      progress: "The latest user input is summarized before the run finishes.",
-    });
-    await waitFor(() => events.length === 2);
+    aiModel.resolveSummary(
+      {
+        title: "Summary timing",
+        progress: "The completed turn is summarized before the run finishes.",
+      },
+      1,
+    );
+    await waitFor(() => events.length === 3);
 
-    assert.equal(aiModel.summaryPrompts.length, 1);
+    assert.equal(aiModel.summaryPrompts.length, 2);
     assert.deepEqual(aiModel.runModels[0], {
       normal: "GPT-5.4",
       summary: "Seed-2.1-Turbo",
     });
     assert.deepEqual(
       events.map((event) => eventType(event)),
-      ["session.updated", "run.succeeded"],
+      ["session.updated", "session.updated", "run.succeeded"],
     );
     assert.equal(await getStoredTitle(store), "Summary timing");
 
@@ -133,9 +149,10 @@ test("createRun completes without waiting for atomic review generation", async (
     service.subscribeToRun(submitted.run.id, (event) => {
       events.push(event);
     });
+    await waitFor(() => aiModel.summaryPrompts.length === 1);
     aiModel.resolveSummary({
-      title: "Changed value",
-      progress: "The user asked for a value change.",
+      title: "Input summary",
+      progress: "The input was summarized.",
     });
     aiModel.resolveRun({
       sessionId: "traex-thread-1",
@@ -153,6 +170,14 @@ test("createRun completes without waiting for atomic review generation", async (
       },
       rawEvents: [],
     });
+    await waitFor(() => aiModel.summaryPrompts.length === 2);
+    aiModel.resolveSummary(
+      {
+        title: "Changed value",
+        progress: "The user asked for a value change.",
+      },
+      1,
+    );
 
     await waitFor(() => events.some(isDoneEvent));
 
@@ -307,6 +332,7 @@ test("createRun queues prompts while a session is running", async () => {
       ["Run a long task."],
     );
 
+    await waitFor(() => aiModel.summaryPrompts.length === 1);
     aiModel.resolveSummary({
       title: "First summary",
       progress: "The first run is summarized.",
@@ -316,6 +342,14 @@ test("createRun queues prompts while a session is running", async () => {
       content: "First response.",
       rawEvents: [],
     });
+    await waitFor(() => aiModel.summaryPrompts.length === 2);
+    aiModel.resolveSummary(
+      {
+        title: "First response summary",
+        progress: "The first response is summarized.",
+      },
+      1,
+    );
 
     await waitFor(() => aiModel.continueStreamInputs.length === 2);
 
@@ -327,12 +361,13 @@ test("createRun queues prompts while a session is running", async () => {
     assert.equal((await store.getSession("session-1"))?.queuedPrompts?.length ?? 0, 0);
     assert.equal((await service.getSessionView("session-1"))?.isRunning, true);
 
+    await waitFor(() => aiModel.summaryPrompts.length === 3);
     aiModel.resolveSummary(
       {
-        title: "Second summary",
-        progress: "The queued run is summarized.",
+        title: "Second input summary",
+        progress: "The queued input is summarized.",
       },
-      1,
+      2,
     );
     aiModel.resolveRun(
       {
@@ -341,6 +376,14 @@ test("createRun queues prompts while a session is running", async () => {
         rawEvents: [],
       },
       1,
+    );
+    await waitFor(() => aiModel.summaryPrompts.length === 4);
+    aiModel.resolveSummary(
+      {
+        title: "Second response summary",
+        progress: "The queued response is summarized.",
+      },
+      3,
     );
 
     await waitFor(() => queuedRunEvents.some(isDoneEvent));
@@ -498,15 +541,24 @@ test("createRun creates an AI thread before chatting in an unbound shell session
     assert.match(aiModel.createStreamInputs[0]?.prompt ?? "", /助手：\$ printf hello/);
     assert.match(aiModel.createStreamInputs[0]?.prompt ?? "", /用户：Explain this output\./);
 
+    await waitFor(() => aiModel.summaryPrompts.length === 1);
     aiModel.resolveSummary({
-      title: "Shell explained",
-      progress: "The shell output has been explained.",
+      title: "Shell input",
+      progress: "The shell follow-up input has been summarized.",
     });
     aiModel.resolveRun({
       sessionId: "codex-thread-1",
       content: "It printed hello.",
       rawEvents: [],
     });
+    await waitFor(() => aiModel.summaryPrompts.length === 2);
+    aiModel.resolveSummary(
+      {
+        title: "Shell explained",
+        progress: "The shell output has been explained.",
+      },
+      1,
+    );
 
     await waitFor(() => events.some(isDoneEvent));
 
@@ -559,15 +611,24 @@ test("createRun resumes a bound Codex thread for later shell-session chat", asyn
     assert.equal(aiModel.continueStreamInputs[0]?.sessionId, "codex-thread-1");
     assert.equal(aiModel.continueStreamInputs[0]?.models?.harness, "codex");
 
+    await waitFor(() => aiModel.summaryPrompts.length === 1);
     aiModel.resolveSummary({
-      title: "Shell follow-up",
-      progress: "The bound thread was resumed.",
+      title: "Shell follow-up input",
+      progress: "The bound thread input was summarized.",
     });
     aiModel.resolveRun({
       sessionId: "codex-thread-1",
       content: "Continued.",
       rawEvents: [],
     });
+    await waitFor(() => aiModel.summaryPrompts.length === 2);
+    aiModel.resolveSummary(
+      {
+        title: "Shell follow-up",
+        progress: "The bound thread was resumed.",
+      },
+      1,
+    );
 
     await waitFor(() => events.some(isDoneEvent));
 
@@ -618,15 +679,24 @@ test("createRun creates a TraeX thread for any session without a bound TraeX thr
     assert.equal(aiModel.createStreamInputs.length, 1);
     assert.equal(aiModel.continueStreamInputs.length, 0);
 
+    await waitFor(() => aiModel.summaryPrompts.length === 1);
     aiModel.resolveSummary({
-      title: "Legacy shell",
-      progress: "The legacy shell session was rebound.",
+      title: "Legacy input",
+      progress: "The legacy shell input was summarized.",
     });
     aiModel.resolveRun({
       sessionId: "traex-thread-legacy",
       content: "Explained.",
       rawEvents: [],
     });
+    await waitFor(() => aiModel.summaryPrompts.length === 2);
+    aiModel.resolveSummary(
+      {
+        title: "Legacy shell",
+        progress: "The legacy shell session was rebound.",
+      },
+      1,
+    );
 
     await waitFor(() => events.some(isDoneEvent));
 
@@ -661,15 +731,24 @@ test("createSessionContainer expands home workspace before creating a run", asyn
 
     assert.equal(aiModel.createStreamInputs[0]?.workspace, homedir());
     assert.equal(submitted.session.workspace, homedir());
+    await waitFor(() => aiModel.summaryPrompts.length === 1);
     aiModel.resolveSummary({
-      title: "Home workspace",
-      progress: "The home workspace was accepted.",
+      title: "Home input",
+      progress: "The home workspace input was summarized.",
     });
     aiModel.resolveRun({
       sessionId: "created-session-1",
       content: "Done.",
       rawEvents: [],
     });
+    await waitFor(() => aiModel.summaryPrompts.length === 2);
+    aiModel.resolveSummary(
+      {
+        title: "Home workspace",
+        progress: "The home workspace was accepted.",
+      },
+      1,
+    );
     await waitFor(() => events.some(isDoneEvent));
   } finally {
     await rm(cwd, { force: true, recursive: true });
