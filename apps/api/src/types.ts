@@ -168,6 +168,7 @@ export type AiAtomicDiffReviewInput = {
   assistantOutput: string;
   diff: string;
   diffFilePath?: string;
+  executionTraceFilePath?: string;
   models?: AiModelPreferences;
 };
 

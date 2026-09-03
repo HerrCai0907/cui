@@ -22,7 +22,8 @@ export function createAtomicDiffReviewPrompt(input: AiAtomicDiffReviewInput): st
     "8. 如果原子能力涉及类或接口，intent 必须说明该类或接口的作用，并逐一概括不同 method 的功能。",
     "9. 只基于输入材料，不要编造文件或行为。",
     "10. 输入 diff 已保存为本地文件。请读取该文件获取完整 diff，不要要求用户重新提供 diff 内容。",
-    "11. 只输出 JSON，不要输出 Markdown、代码围栏或额外解释。",
+    "11. 执行 trace 已保存为本地文件。如需理解执行过程，请读取该文件，不要要求用户重新提供 trace 内容。",
+    "12. 只输出 JSON，不要输出 Markdown、代码围栏或额外解释。",
     "",
     "输出 JSON schema：",
     "{",
@@ -56,10 +57,6 @@ export function createAtomicDiffReviewPrompt(input: AiAtomicDiffReviewInput): st
     input.sessionInput,
     "</SESSION_INPUT>",
     "",
-    "<EXECUTION_TRACE>",
-    input.executionTrace || "无",
-    "</EXECUTION_TRACE>",
-    "",
     "<ASSISTANT_OUTPUT>",
     input.assistantOutput || "无",
     "</ASSISTANT_OUTPUT>",
@@ -67,6 +64,10 @@ export function createAtomicDiffReviewPrompt(input: AiAtomicDiffReviewInput): st
     "<DIFF_FILE>",
     input.diffFilePath || "无",
     "</DIFF_FILE>",
+    "",
+    "<EXECUTION_TRACE_FILE>",
+    input.executionTraceFilePath || "无",
+    "</EXECUTION_TRACE_FILE>",
   ].join("\n");
 }
 

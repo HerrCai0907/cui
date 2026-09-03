@@ -13,17 +13,21 @@ type ProcessCall = {
 test("createAtomicDiffReview retries with validation feedback when item diff format is invalid", async () => {
   const calls: ProcessCall[] = [];
   let diffFilePath = "";
+  let executionTraceFilePath = "";
   let diffFileContent = "";
+  let executionTraceFileContent = "";
   const model = new TraexModel({
     binary: "traex",
     processRunner: (input): TraexProcessRun => {
       calls.push({ command: input.command, args: input.args, input: input.input });
       diffFilePath ||= extractDiffFilePath(input.input);
+      executionTraceFilePath ||= extractExecutionTraceFilePath(input.input);
 
       return {
         cancel: () => undefined,
         promise: (async () => {
           diffFileContent ||= await readFile(diffFilePath, "utf8");
+          executionTraceFileContent ||= await readFile(executionTraceFilePath, "utf8");
 
           return {
             content: calls.length === 1 ? invalidAtomicReviewResponse : validAtomicReviewResponse,
@@ -41,7 +45,7 @@ test("createAtomicDiffReview retries with validation feedback when item diff for
     originalSessionId: "session-1",
     round: 1,
     sessionInput: "Update sidebar state.",
-    executionTrace: "",
+    executionTrace: "large trace payload with TOOL_OUTPUT_123",
     assistantOutput: "Done.",
     diff: validDiff,
   });
@@ -49,13 +53,17 @@ test("createAtomicDiffReview retries with validation feedback when item diff for
   assert.equal(review.status, "ready");
   assert.equal(calls.length, 2);
   assert.equal(diffFileContent, validDiff);
+  assert.equal(executionTraceFileContent, "large trace payload with TOOL_OUTPUT_123");
   assert.doesNotMatch(calls[0].input, /SIDEBAR_STATE_STORAGE_KEY/);
+  assert.doesNotMatch(calls[0].input, /TOOL_OUTPUT_123/);
   assert.match(calls[0].input, new RegExp(escapeRegExp(diffFilePath)));
+  assert.match(calls[0].input, new RegExp(escapeRegExp(executionTraceFilePath)));
   assert.deepEqual(calls[1].args.slice(0, 3), ["exec", "resume", "analysis-session-1"]);
   assert.match(calls[1].input, new RegExp(escapeRegExp(diffFilePath)));
   assert.match(calls[1].input, /invalid hunk header \"@@\"/);
   assert.match(calls[1].input, /不要输出 Markdown/);
   await assert.rejects(() => readFile(diffFilePath, "utf8"));
+  await assert.rejects(() => readFile(executionTraceFilePath, "utf8"));
 });
 
 test("uses separate configured models for normal, summary, and atomic review runs", async () => {
@@ -270,6 +278,14 @@ function extractDiffFilePath(input: string): string {
   const match = /<DIFF_FILE>\n(.+)\n<\/DIFF_FILE>/.exec(input);
 
   assert.ok(match, "expected atomic review prompt to include a diff file path");
+
+  return match[1];
+}
+
+function extractExecutionTraceFilePath(input: string): string {
+  const match = /<EXECUTION_TRACE_FILE>\n(.+)\n<\/EXECUTION_TRACE_FILE>/.exec(input);
+
+  assert.ok(match, "expected atomic review prompt to include an execution trace file path");
 
   return match[1];
 }

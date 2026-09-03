@@ -121,10 +121,14 @@ export class TraexModel implements AiModel {
     const harness = getModelHarness(input.models);
     const createArgs = this.createExecArgs(input.workspace, input.models, "atomicReview", harness);
     let response: AiResponse | undefined;
-    const diffFile = await createAtomicReviewDiffFile(input.diff);
+    const inputFiles = await createAtomicReviewInputFiles({
+      diff: input.diff,
+      executionTrace: input.executionTrace,
+    });
     const reviewInput = {
       ...input,
-      diffFilePath: diffFile.path,
+      diffFilePath: inputFiles.diffPath,
+      executionTraceFilePath: inputFiles.executionTracePath,
     };
 
     try {
@@ -157,7 +161,7 @@ export class TraexModel implements AiModel {
               validationError:
                 error instanceof Error ? error.message : "Atomic diff review format was invalid",
               previousResponse: response.content,
-              diffFilePath: diffFile.path,
+              diffFilePath: inputFiles.diffPath,
             }),
             input.workspace,
             false,
@@ -191,7 +195,7 @@ export class TraexModel implements AiModel {
         error: error instanceof Error ? error.message : "Failed to create atomic diff review",
       };
     } finally {
-      await cleanupAtomicReviewDiffFile(diffFile.directory);
+      await cleanupAtomicReviewInputFiles(inputFiles.directory);
     }
   }
 
@@ -497,17 +501,22 @@ function parseTraexModelInfo(value: unknown): AiModelInfo {
   };
 }
 
-async function createAtomicReviewDiffFile(
-  diff: string,
-): Promise<{ directory: string; path: string }> {
+async function createAtomicReviewInputFiles(input: {
+  diff: string;
+  executionTrace: string;
+}): Promise<{ directory: string; diffPath: string; executionTracePath: string }> {
   const directory = await mkdtemp(join(tmpdir(), "cui-atomic-review-"));
-  const path = join(directory, "round.diff");
+  const diffPath = join(directory, "round.diff");
+  const executionTracePath = join(directory, "execution-trace.jsonl");
 
-  await writeFile(path, diff || "无", "utf8");
+  await Promise.all([
+    writeFile(diffPath, input.diff || "无", "utf8"),
+    writeFile(executionTracePath, input.executionTrace || "无", "utf8"),
+  ]);
 
-  return { directory, path };
+  return { directory, diffPath, executionTracePath };
 }
 
-async function cleanupAtomicReviewDiffFile(directory: string): Promise<void> {
+async function cleanupAtomicReviewInputFiles(directory: string): Promise<void> {
   await rm(directory, { force: true, recursive: true });
 }
