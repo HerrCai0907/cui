@@ -356,6 +356,7 @@ export interface paths {
         query?: {
           messageWindow?: "tail";
           messageLimit?: number | null;
+          traceMessageTypes?: string | string[];
         };
         header?: never;
         path: {
@@ -568,6 +569,7 @@ export interface paths {
         query?: {
           beforeMessageId?: string;
           limit?: number;
+          traceMessageTypes?: string | string[];
         };
         header?: never;
         path: {
@@ -1141,7 +1143,9 @@ export interface paths {
     /** Stream run events */
     get: {
       parameters: {
-        query?: never;
+        query?: {
+          traceMessageTypes?: string | string[];
+        };
         header?: never;
         path: {
           runId: string;

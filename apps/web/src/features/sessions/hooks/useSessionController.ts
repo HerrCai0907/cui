@@ -1,5 +1,10 @@
 import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { createModelRequestPreferences, type AppConfig } from "../../config/model/appConfig";
+import {
+  createModelRequestPreferences,
+  getVisibleExecutionTraceMessageTypes,
+  type ExecutionTraceMessageType,
+  type AppConfig,
+} from "../../config/model/appConfig";
 import {
   cancelRun,
   createRun,
@@ -60,7 +65,7 @@ const SESSION_NOTIFICATION_VISIBLE_DURATION_MS = 4_000;
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 48;
 const AUTO_LOAD_OLDER_MESSAGES_THRESHOLD_PX = 32;
 const EMPTY_QUEUED_PROMPTS: QueuedPromptView[] = [];
-const ACTIVE_SESSION_MESSAGE_LIMIT = 80;
+const ACTIVE_SESSION_MESSAGE_LIMIT = 2;
 const OLDER_SESSION_MESSAGES_LIMIT = 80;
 const SESSION_PAGE_SIZE = 30;
 const SIDEBAR_SESSION_REFRESH_INTERVAL_MS = 10_000;
@@ -165,6 +170,10 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       ),
     [activeSession?.workspace, defaultWorkspace, workspaceDraft],
   );
+  const traceMessageTypes = useMemo(
+    () => getVisibleExecutionTraceMessageTypes(config),
+    [config.executionTrace.visibleMessageTypes],
+  );
   const sidebarSessionPartition = useMemo(
     () =>
       partitionActiveSessionsForSidebar(
@@ -202,6 +211,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       void refreshSessions();
     },
     refreshSessions,
+    traceMessageTypes,
     setActiveSession,
     setCurrentActiveSession,
     setError,
@@ -258,6 +268,16 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       window.clearInterval(intervalId);
     };
   }, [activeSession?.id, activeSession?.rounds, activeSessionQueuedPrompts.length]);
+
+  useEffect(() => {
+    const currentSession = activeSessionRef.current;
+
+    if (!currentSession) {
+      return;
+    }
+
+    void openSession(currentSession.id, { resetError: false });
+  }, [traceMessageTypes]);
 
   useLayoutEffect(() => {
     const messageStream = messageStreamRef.current;
@@ -504,7 +524,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
             nextActiveSessionSummary.runningRunId !== previousActiveSessionRunningRunId) ||
           hasPendingAtomicReview(currentActiveSession);
         const nextActiveSession = shouldLoadFullActiveSession
-          ? await getSession(currentActiveSession.id)
+          ? await getActiveSessionWindow(currentActiveSession.id, traceMessageTypes)
           : {
               ...currentActiveSession,
               title: nextActiveSessionSummary.title,
@@ -559,7 +579,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     options: { showError?: boolean } = {},
   ) {
     try {
-      const session = await getActiveSessionWindow(sessionId);
+      const session = await getActiveSessionWindow(sessionId, traceMessageTypes);
 
       setCurrentActiveSession(applyLocalSessionState(session), {
         persist,
@@ -680,7 +700,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     }
 
     try {
-      const session = await getActiveSessionWindow(sessionId);
+      const session = await getActiveSessionWindow(sessionId, traceMessageTypes);
       if (openSessionRequestIdRef.current !== requestId) {
         return;
       }
@@ -732,6 +752,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       const olderPage = await getSessionMessages(currentSession.id, {
         beforeMessageId: oldestMessageId,
         limit: OLDER_SESSION_MESSAGES_LIMIT,
+        traceMessageTypes,
       });
 
       if (activeSessionRef.current?.id !== currentSession.id) {
@@ -1346,10 +1367,14 @@ function toCachedSessionListItem(session: ApiSession | ApiSessionListItem): Cach
   };
 }
 
-function getActiveSessionWindow(sessionId: string): Promise<ApiSession> {
+function getActiveSessionWindow(
+  sessionId: string,
+  traceMessageTypes: ExecutionTraceMessageType[],
+): Promise<ApiSession> {
   return getSession(sessionId, {
     messageWindow: "tail",
     messageLimit: ACTIVE_SESSION_MESSAGE_LIMIT,
+    traceMessageTypes,
   });
 }
 

@@ -63,6 +63,74 @@ test("createSessionMessagesPage returns an empty page for an unknown cursor", ()
   });
 });
 
+test("createSessionMessagesPage filters trace content by message type", () => {
+  const page = createSessionMessagesPage(
+    [
+      createMessages(1)[0],
+      {
+        id: "trace-message",
+        role: "assistant",
+        kind: "trace",
+        content: [
+          JSON.stringify({
+            type: "item.completed",
+            item: { id: "assistant", type: "agent_message", text: "visible assistant" },
+          }),
+          JSON.stringify({
+            type: "item.completed",
+            item: { id: "command", type: "command_execution", command: "hidden command" },
+          }),
+          JSON.stringify({
+            type: "item.updated",
+            item: { id: "todo", type: "todo_list", items: [{ text: "visible todo" }] },
+          }),
+          JSON.stringify({ type: "turn.completed" }),
+          "plain stdout",
+        ].join("\n"),
+        createdAt: "2026-01-01T00:01:00.000Z",
+      },
+    ],
+    {
+      traceMessageTypes: ["assistant_message", "todo_list"],
+    },
+  );
+
+  assert.deepEqual(page.messages[1]?.content.split("\n"), [
+    JSON.stringify({
+      type: "item.completed",
+      item: { id: "assistant", type: "agent_message", text: "visible assistant" },
+    }),
+    JSON.stringify({
+      type: "item.updated",
+      item: { id: "todo", type: "todo_list", items: [{ text: "visible todo" }] },
+    }),
+  ]);
+});
+
+test("createSessionMessagesPage keeps full trace content when no trace filter is requested", () => {
+  const traceContent = [
+    JSON.stringify({
+      type: "item.completed",
+      item: { id: "assistant", type: "agent_message", text: "visible assistant" },
+    }),
+    JSON.stringify({
+      type: "item.completed",
+      item: { id: "command", type: "command_execution", command: "visible command" },
+    }),
+  ].join("\n");
+  const page = createSessionMessagesPage([
+    {
+      id: "trace-message",
+      role: "assistant",
+      kind: "trace",
+      content: traceContent,
+      createdAt: "2026-01-01T00:01:00.000Z",
+    },
+  ]);
+
+  assert.equal(page.messages[0]?.content, traceContent);
+});
+
 function createSession(messageCount: number): ChatSession {
   return {
     id: "session-1",

@@ -1,5 +1,6 @@
 import { fetchJson } from "../../../shared/api/fetchJson";
 import type { paths } from "../../../shared/api/generated/schema";
+import type { ExecutionTraceMessageType } from "../../config/model/appConfig";
 import type { ApiSession, ApiSessionListItem, SubmittedRun } from "../../../types";
 
 type ListSessionsResponse =
@@ -30,11 +31,13 @@ export type SessionMessagesPage = GetSessionMessagesResponse;
 export type GetSessionOptions = {
   messageWindow?: "tail";
   messageLimit?: number;
+  traceMessageTypes?: ExecutionTraceMessageType[];
 };
 
 export type GetSessionMessagesOptions = {
   beforeMessageId?: string;
   limit?: number;
+  traceMessageTypes?: ExecutionTraceMessageType[];
 };
 
 export async function listSessions(page = 1, pageSize = 30): Promise<SessionListPage> {
@@ -61,6 +64,10 @@ export async function getSession(
     params.set("messageLimit", String(options.messageLimit));
   }
 
+  if (options.traceMessageTypes) {
+    params.set("traceMessageTypes", options.traceMessageTypes.join(","));
+  }
+
   const query = params.toString();
   const data = await fetchJson<GetSessionResponse>(
     `/api/v1/sessions/${encodeURIComponent(sessionId)}${query ? `?${query}` : ""}`,
@@ -81,6 +88,10 @@ export async function getSessionMessages(
 
   if (options.limit !== undefined) {
     params.set("limit", String(options.limit));
+  }
+
+  if (options.traceMessageTypes) {
+    params.set("traceMessageTypes", options.traceMessageTypes.join(","));
   }
 
   const query = params.toString();

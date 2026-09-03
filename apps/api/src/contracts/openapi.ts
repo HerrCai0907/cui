@@ -25,6 +25,7 @@ import {
   OkResponseSchema,
   QueuedPromptSchema,
   RoundReviewParamsSchema,
+  RunEventsQuerySchema,
   RunSchema,
   SessionIdParamsSchema,
   SubmittedRunResponseSchema,
@@ -346,6 +347,7 @@ registry.registerPath({
   summary: "Stream run events",
   request: {
     params: RunIdParamsSchema,
+    query: RunEventsQuerySchema,
   },
   responses: {
     200: {

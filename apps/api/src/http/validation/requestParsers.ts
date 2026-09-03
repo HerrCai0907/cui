@@ -8,6 +8,7 @@ import {
   GetSessionQuerySchema,
   ListSessionsQuerySchema,
   RoundReviewParamsSchema,
+  RunEventsQuerySchema,
   UpdateSessionRequestSchema,
 } from "../../contracts/apiSchemas.js";
 
@@ -59,6 +60,12 @@ export function parseRoundReviewParams(
   params: unknown,
 ): ParsedBody<z.infer<typeof RoundReviewParamsSchema>> {
   return parseWithSchema(RoundReviewParamsSchema, params);
+}
+
+export function parseRunEventsQuery(
+  query: unknown,
+): ParsedBody<z.infer<typeof RunEventsQuerySchema>> {
+  return parseWithSchema(RunEventsQuerySchema, query);
 }
 
 function parseWithSchema<T extends z.ZodType>(schema: T, input: unknown): ParsedBody<z.infer<T>> {

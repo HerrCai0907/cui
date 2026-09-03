@@ -5,6 +5,7 @@ import {
   createModelRequestPreferences,
   createDefaultAppConfig,
   getExecutionTraceMessageType,
+  getVisibleExecutionTraceMessageTypes,
   loadAppConfig,
   saveAppConfig,
 } from "../../apps/web/src/features/config/model/appConfig.js";
@@ -99,6 +100,20 @@ test("execution trace message type classification handles supported events", () 
     events.map(([event, expected]) => [getExecutionTraceMessageType(event), expected]),
     events.map(([, expected]) => [expected, expected]),
   );
+});
+
+test("getVisibleExecutionTraceMessageTypes returns enabled trace filters in stable order", () => {
+  const config = createDefaultAppConfig();
+
+  config.executionTrace.visibleMessageTypes.command_execution = true;
+  config.executionTrace.visibleMessageTypes.todo_list = false;
+  config.executionTrace.visibleMessageTypes.stdout = true;
+
+  assert.deepEqual(getVisibleExecutionTraceMessageTypes(config), [
+    "assistant_message",
+    "command_execution",
+    "stdout",
+  ]);
 });
 
 test("app config persists selected models and reasoning efforts", () => {
