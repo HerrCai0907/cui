@@ -69,7 +69,7 @@ export type GetSessionViewOptions = GetSessionQueryContract;
 
 export type GetSessionMessagesOptions = GetSessionMessagesQueryContract;
 
-const SESSION_MESSAGE_WINDOW_LIMIT = 80;
+const SESSION_MESSAGE_WINDOW_LIMIT = 2;
 
 export type SubmittedRun = {
   run: {
@@ -139,13 +139,18 @@ type StartRunOptions = {
 function toSessionMessageWindowOptions(
   options: GetSessionViewOptions,
 ): SessionMessageWindowOptions | undefined {
-  if (options.messageWindow === undefined && options.messageLimit === undefined) {
+  if (
+    options.messageWindow === undefined &&
+    options.messageLimit === undefined &&
+    options.traceMessageTypes === undefined
+  ) {
     return undefined;
   }
 
   return {
     window: options.messageWindow,
     limit: options.messageLimit,
+    traceMessageTypes: options.traceMessageTypes,
   };
 }
 
@@ -218,6 +223,7 @@ export class SessionService {
       ? createSessionMessagesPage(session.messages, {
           beforeMessageId: options.beforeMessageId,
           limit: options.limit,
+          traceMessageTypes: options.traceMessageTypes,
         })
       : undefined;
   }

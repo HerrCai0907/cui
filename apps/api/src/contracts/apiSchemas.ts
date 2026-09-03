@@ -5,6 +5,27 @@ extendZodWithOpenApi(z);
 
 const nonEmptyStringSchema = z.string().trim().min(1);
 const jsonRecordSchema = z.record(z.string(), z.unknown());
+const traceMessageTypeSchema = z.enum([
+  "assistant_message",
+  "command_execution",
+  "reasoning",
+  "file_change",
+  "todo_list",
+  "lifecycle",
+  "metadata",
+  "stdout",
+  "unknown",
+]);
+const traceMessageTypesQuerySchema = z
+  .union([z.string(), z.array(z.string())])
+  .transform((value) =>
+    (Array.isArray(value) ? value : [value])
+      .flatMap((current) => current.split(","))
+      .map((type) => type.trim())
+      .filter(Boolean),
+  )
+  .pipe(z.array(traceMessageTypeSchema))
+  .optional();
 
 export const ErrorResponseSchema = z.object({
   error: z.string(),
@@ -215,6 +236,7 @@ export const GetSessionQuerySchema = z.object({
     .nonnegative("messageLimit must be a non-negative integer")
     .max(500, "messageLimit must be less than or equal to 500")
     .optional(),
+  traceMessageTypes: traceMessageTypesQuerySchema,
 });
 
 export const GetSessionMessagesQuerySchema = z.object({
@@ -225,6 +247,11 @@ export const GetSessionMessagesQuerySchema = z.object({
     .positive("limit must be a positive integer")
     .max(500, "limit must be less than or equal to 500")
     .optional(),
+  traceMessageTypes: traceMessageTypesQuerySchema,
+});
+
+export const RunEventsQuerySchema = z.object({
+  traceMessageTypes: traceMessageTypesQuerySchema,
 });
 
 const startLineSchema = z.coerce
@@ -376,5 +403,6 @@ export type UpdateSessionRequestContract = z.infer<typeof UpdateSessionRequestSc
 export type ListSessionsQueryContract = z.infer<typeof ListSessionsQuerySchema>;
 export type GetSessionQueryContract = z.infer<typeof GetSessionQuerySchema>;
 export type GetSessionMessagesQueryContract = z.infer<typeof GetSessionMessagesQuerySchema>;
+export type RunEventsQueryContract = z.infer<typeof RunEventsQuerySchema>;
 export type CodeRangeRequestContract = z.infer<typeof CodeRangeQuerySchema>;
 export type CodeRangeResponseContract = z.infer<typeof CodeRangeResponseSchema>;

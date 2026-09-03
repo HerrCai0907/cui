@@ -332,6 +332,14 @@ export function getExecutionTraceMessageType(
   return "unknown";
 }
 
+export function getVisibleExecutionTraceMessageTypes(
+  config: AppConfig,
+): ExecutionTraceMessageType[] {
+  return EXECUTION_TRACE_MESSAGE_TYPES.filter(
+    (type) => config.executionTrace.visibleMessageTypes[type],
+  );
+}
+
 function getExecutionTraceItemMessageType(item: ExecutionTraceItem): ExecutionTraceMessageType {
   if (item.type === "agent_message") {
     return "assistant_message";

@@ -6,6 +6,7 @@ import type {
   ChatSessionListItem,
   ChatSessionView,
 } from "../../types.js";
+import { filterTraceContent, type TraceMessageType } from "./traceMessages.js";
 
 export type SessionViewOptions = {
   gitBranch?: string;
@@ -16,6 +17,7 @@ export type SessionViewOptions = {
 export type SessionMessageWindowOptions = {
   beforeMessageId?: string;
   limit?: number;
+  traceMessageTypes?: TraceMessageType[];
   window?: "tail";
 };
 
@@ -68,7 +70,10 @@ export function createSessionMessagesPage(
     : -1;
   const endIndex = options.beforeMessageId ? Math.max(0, beforeIndex) : total;
   const startIndex = Math.max(0, endIndex - limit);
-  const pageMessages = messages.slice(startIndex, endIndex);
+  const pageMessages = filterTraceMessages(
+    messages.slice(startIndex, endIndex),
+    options.traceMessageTypes,
+  );
   const oldestMessageId = pageMessages[0]?.id;
   const newestMessageId = pageMessages.at(-1)?.id;
 
@@ -83,6 +88,40 @@ export function createSessionMessagesPage(
       ...(newestMessageId ? { newestMessageId } : {}),
     },
   };
+}
+
+export function filterSessionViewTraceMessages(
+  session: ChatSessionView,
+  traceMessageTypes: TraceMessageType[] | undefined,
+): ChatSessionView {
+  if (traceMessageTypes === undefined) {
+    return session;
+  }
+
+  return {
+    ...session,
+    messages: filterTraceMessages(session.messages, traceMessageTypes),
+  };
+}
+
+function filterTraceMessages(
+  messages: ChatMessage[],
+  traceMessageTypes: TraceMessageType[] | undefined,
+): ChatMessage[] {
+  if (traceMessageTypes === undefined) {
+    return messages;
+  }
+
+  const visibleTypes = new Set(traceMessageTypes);
+
+  return messages.map((message) =>
+    message.kind === "trace"
+      ? {
+          ...message,
+          content: filterTraceContent(message.content, visibleTypes),
+        }
+      : message,
+  );
 }
 
 export function toSessionListItem(

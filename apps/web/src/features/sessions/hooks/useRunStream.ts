@@ -17,11 +17,13 @@ import { toSessionSummary } from "../model/sessionSummaries";
 import { parseRunStreamEvent } from "../model/runStream";
 import type { SessionSummary } from "../../../types";
 import { resolveApiUrl } from "../../../shared/api/apiBaseUrl";
+import type { ExecutionTraceMessageType } from "../../config/model/appConfig";
 
 type UseRunStreamInput = {
   activeSessionRef: MutableRefObject<ApiSession | null>;
   onRunSettled?: (sessionId: string, session?: ApiSession) => void;
   refreshSessions: () => void;
+  traceMessageTypes: ExecutionTraceMessageType[];
   setActiveSession: Dispatch<SetStateAction<ApiSession | null>>;
   setCurrentActiveSession: (
     session: ApiSession | null,
@@ -43,6 +45,7 @@ export function useRunStream({
   activeSessionRef,
   onRunSettled,
   refreshSessions,
+  traceMessageTypes,
   setActiveSession,
   setCurrentActiveSession,
   setError,
@@ -52,6 +55,7 @@ export function useRunStream({
 }: UseRunStreamInput) {
   const eventSourceRefs = useRef<Map<string, EventSource>>(new Map());
   const runIdRefs = useRef<Map<string, string>>(new Map());
+  const traceMessageTypeKeyRefs = useRef<Map<string, string>>(new Map());
   const streamStateRefs = useRef<Map<string, StreamMessageState>>(new Map());
   const streamMessageIdRefs = useRef<
     Map<
@@ -72,6 +76,7 @@ export function useRunStream({
       });
       eventSourceRefs.current.clear();
       runIdRefs.current.clear();
+      traceMessageTypeKeyRefs.current.clear();
       streamStateRefs.current.clear();
       streamMessageIdRefs.current.clear();
       stoppedTraceOverlayRefs.current.clear();
@@ -79,15 +84,24 @@ export function useRunStream({
   }, []);
 
   function streamRun(sessionId: string, runId: string) {
-    if (runIdRefs.current.get(sessionId) === runId && eventSourceRefs.current.has(sessionId)) {
+    const traceMessageTypeKey = traceMessageTypes.join(",");
+
+    if (
+      runIdRefs.current.get(sessionId) === runId &&
+      traceMessageTypeKeyRefs.current.get(sessionId) === traceMessageTypeKey &&
+      eventSourceRefs.current.has(sessionId)
+    ) {
       return;
     }
 
     eventSourceRefs.current.get(sessionId)?.close();
 
-    const eventSource = new EventSource(resolveApiUrl(`/api/v1/runs/${runId}/events`));
+    const eventSource = new EventSource(
+      resolveApiUrl(createRunEventsPath(runId, traceMessageTypes)),
+    );
     eventSourceRefs.current.set(sessionId, eventSource);
     runIdRefs.current.set(sessionId, runId);
+    traceMessageTypeKeyRefs.current.set(sessionId, traceMessageTypeKey);
     const streamingTraceMessageId = `stream-${runId}-trace`;
     const streamingResponseMessageId = `stream-${runId}-response`;
     const existingStreamMessageIds = streamMessageIdRefs.current.get(sessionId);
@@ -112,6 +126,7 @@ export function useRunStream({
       if (eventSourceRefs.current.get(sessionId) === eventSource) {
         eventSourceRefs.current.delete(sessionId);
         runIdRefs.current.delete(sessionId);
+        traceMessageTypeKeyRefs.current.delete(sessionId);
       }
 
       if (!options.preserveOverlay) {
@@ -335,6 +350,7 @@ export function useRunStream({
     eventSourceRefs.current.get(sessionId)?.close();
     eventSourceRefs.current.delete(sessionId);
     runIdRefs.current.delete(sessionId);
+    traceMessageTypeKeyRefs.current.delete(sessionId);
     if (options.preserveOverlay) {
       preserveStoppedStreamOverlay(sessionId);
       return;
@@ -438,6 +454,17 @@ export function useRunStream({
   }
 
   return { applyLocalRunOverlay, closeRunStream, streamRun };
+}
+
+export function createRunEventsPath(
+  runId: string,
+  traceMessageTypes: ExecutionTraceMessageType[],
+): string {
+  const params = new URLSearchParams();
+
+  params.set("traceMessageTypes", traceMessageTypes.join(","));
+
+  return `/api/v1/runs/${encodeURIComponent(runId)}/events?${params.toString()}`;
 }
 
 function findInitialTraceInsertIndex(session: ApiSession | null, sessionId: string): number {
