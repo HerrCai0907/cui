@@ -571,14 +571,55 @@
   line-height: 1.45;
 }
 
+.message-stream-shell {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
 .message-stream {
   display: flex;
+  height: 100%;
   min-width: 0;
   min-height: 0;
   flex-direction: column;
   gap: 22px;
   overflow: auto;
   padding: 28px min(7vw, 92px);
+}
+
+.scroll-to-last-reply-button {
+  position: absolute;
+  top: 50%;
+  right: 18px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #cfd8e3;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 14%);
+  color: #475569;
+  padding: 0;
+  transform: translateY(-50%);
+}
+
+.scroll-to-last-reply-button:hover {
+  border-color: #aab8c8;
+  background: #f3f6f9;
+  color: #111827;
+}
+
+.scroll-to-last-reply-button:focus-visible {
+  outline: 2px solid #64748b;
+  outline-offset: 2px;
+}
+
+.last-reply-scroll-spacer {
+  flex: 0 0 auto;
 }
 
 .load-older-messages-button {

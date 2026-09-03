@@ -1,5 +1,12 @@
-import { ClipboardList, FileDiff, ListChecks, LoaderCircle, Terminal } from "lucide-react";
-import type { RefObject } from "react";
+import {
+  ChevronsUp,
+  ClipboardList,
+  FileDiff,
+  ListChecks,
+  LoaderCircle,
+  Terminal,
+} from "lucide-react";
+import { useEffect, useState, type RefObject } from "react";
 import { TraceView } from "../../trace/components/TraceView";
 import { formatMessageTime } from "../../../shared/lib/dates";
 import type { AppConfig } from "../../config/model/appConfig";
@@ -43,55 +50,117 @@ export function MessageStream({
   onTraceExpandedChange,
   onWorkspaceDraftChange,
 }: MessageStreamProps) {
-  return (
-    <div
-      className="message-stream"
-      ref={messageStreamRef}
-      role="log"
-      aria-live="polite"
-      onScroll={onScroll}
-    >
-      {!activeSession && (
-        <div className="empty-state">
-          <h2>Start an AI harness-backed session</h2>
-          <p>
-            Pick a workspace path, type the initial prompt, and the backend will create a persistent
-            session.
-          </p>
-          <input
-            value={workspaceDraft}
-            aria-label="Workspace path"
-            onChange={(event) => onWorkspaceDraftChange(event.target.value)}
-          />
-        </div>
-      )}
+  const lastAssistantResponseMessageId = findLastAssistantResponseMessageId(activeSession);
+  const [lastReplyScrollSpacerHeight, setLastReplyScrollSpacerHeight] = useState(0);
 
-      {activeSession && (hasOlderMessages || olderMessagesLoading) && (
+  useEffect(() => {
+    setLastReplyScrollSpacerHeight(0);
+  }, [activeSession?.id, activeSession?.messages]);
+
+  function scrollToLastAssistantResponse() {
+    const messageStream = messageStreamRef.current;
+
+    if (!messageStream) {
+      return;
+    }
+
+    const target = messageStream.querySelector<HTMLElement>(
+      '[data-last-assistant-response="true"]',
+    );
+
+    if (!target) {
+      return;
+    }
+
+    const nextScrollTop =
+      target.getBoundingClientRect().top -
+      messageStream.getBoundingClientRect().top +
+      messageStream.scrollTop;
+    const requiredSpacerHeight = Math.max(
+      0,
+      Math.ceil(nextScrollTop - (messageStream.scrollHeight - messageStream.clientHeight)),
+    );
+
+    setLastReplyScrollSpacerHeight(requiredSpacerHeight);
+    window.requestAnimationFrame(() => {
+      messageStream.scrollTo({
+        top: nextScrollTop,
+        behavior: "smooth",
+      });
+    });
+  }
+
+  return (
+    <div className="message-stream-shell">
+      {lastAssistantResponseMessageId && (
         <button
-          className="load-older-messages-button"
+          className="scroll-to-last-reply-button"
           type="button"
-          disabled={olderMessagesLoading}
-          onClick={onLoadOlderMessages}
+          aria-label="Scroll to latest assistant reply"
+          title="Scroll to latest assistant reply"
+          onClick={scrollToLastAssistantResponse}
         >
-          {olderMessagesLoading ? "Loading earlier messages..." : "Load earlier messages"}
+          <ChevronsUp size={18} />
         </button>
       )}
 
-      {activeSession?.messages.map((message) => (
-        <MessageItem
-          activeSession={activeSession}
-          expanded={expandedTraceIds.has(message.id)}
-          key={message.id}
-          message={message}
-          config={config}
-          onOpenReview={onOpenReview}
-          onTraceExpandedChange={onTraceExpandedChange}
-        />
-      ))}
+      <div
+        className="message-stream"
+        ref={messageStreamRef}
+        role="log"
+        aria-live="polite"
+        onScroll={onScroll}
+      >
+        {!activeSession && (
+          <div className="empty-state">
+            <h2>Start an AI harness-backed session</h2>
+            <p>
+              Pick a workspace path, type the initial prompt, and the backend will create a
+              persistent session.
+            </p>
+            <input
+              value={workspaceDraft}
+              aria-label="Workspace path"
+              onChange={(event) => onWorkspaceDraftChange(event.target.value)}
+            />
+          </div>
+        )}
 
-      {queuedPrompts.length > 0 && <QueuedPromptList queuedPrompts={queuedPrompts} />}
-      {blocked && <p className="loading-line">Waiting for the AI harness...</p>}
-      {error && <p className="error-line">{error}</p>}
+        {activeSession && (hasOlderMessages || olderMessagesLoading) && (
+          <button
+            className="load-older-messages-button"
+            type="button"
+            disabled={olderMessagesLoading}
+            onClick={onLoadOlderMessages}
+          >
+            {olderMessagesLoading ? "Loading earlier messages..." : "Load earlier messages"}
+          </button>
+        )}
+
+        {activeSession?.messages.map((message) => (
+          <MessageItem
+            activeSession={activeSession}
+            expanded={expandedTraceIds.has(message.id)}
+            key={message.id}
+            message={message}
+            config={config}
+            latestAssistantResponse={message.id === lastAssistantResponseMessageId}
+            onOpenReview={onOpenReview}
+            onTraceExpandedChange={onTraceExpandedChange}
+          />
+        ))}
+
+        {queuedPrompts.length > 0 && <QueuedPromptList queuedPrompts={queuedPrompts} />}
+        {blocked && <p className="loading-line">Waiting for the AI harness...</p>}
+        {error && <p className="error-line">{error}</p>}
+        {lastReplyScrollSpacerHeight > 0 && (
+          <div
+            className="last-reply-scroll-spacer"
+            style={{ height: lastReplyScrollSpacerHeight }}
+            aria-hidden="true"
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -125,6 +194,7 @@ function MessageItem({
   activeSession,
   config,
   expanded,
+  latestAssistantResponse,
   message,
   onOpenReview,
   onTraceExpandedChange,
@@ -132,6 +202,7 @@ function MessageItem({
   activeSession: ApiSession;
   config: AppConfig;
   expanded: boolean;
+  latestAssistantResponse: boolean;
   message: ApiMessage;
   onOpenReview: (sessionId: string, round: number, mode: "atomic" | "full") => void;
   onTraceExpandedChange: (messageId: string, open: boolean) => void;
@@ -149,6 +220,7 @@ function MessageItem({
     <article
       className={`message ${message.role} ${isTrace ? "trace" : ""}`}
       data-message-id={message.id}
+      data-last-assistant-response={latestAssistantResponse ? "true" : undefined}
     >
       <div className="message-avatar">
         {isTrace ? <ClipboardList size={17} /> : message.role === "assistant" ? "AI" : "You"}
@@ -212,4 +284,20 @@ function MessageItem({
       </div>
     </article>
   );
+}
+
+function findLastAssistantResponseMessageId(session: ApiSession | null): string | undefined {
+  if (!session) {
+    return undefined;
+  }
+
+  for (let index = session.messages.length - 1; index >= 0; index -= 1) {
+    const message = session.messages[index];
+
+    if (message.role === "assistant" && message.kind === "response") {
+      return message.id;
+    }
+  }
+
+  return undefined;
 }

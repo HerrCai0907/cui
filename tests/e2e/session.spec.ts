@@ -33,6 +33,64 @@ test("loads the new session screen without browser errors", async ({ page }) => 
   expect(browserErrors).toEqual([]);
 });
 
+test("scrolls the latest assistant reply to the top of the message stream", async ({ page }) => {
+  const longSession = {
+    id: "session-scroll-latest-reply",
+    workspace: currentWorkspace,
+    title: "Long conversation",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      ...Array.from({ length: 8 }, (_, index) => [
+        {
+          id: `user-${index + 1}`,
+          role: "user",
+          content: `User message ${index + 1}\\n${"filler\\n".repeat(12)}`,
+          createdAt: "2026-08-22T00:00:00.000Z",
+        },
+        {
+          id: `assistant-${index + 1}`,
+          role: "assistant",
+          kind: "response",
+          content: `Assistant reply ${index + 1}\\n${"filler\\n".repeat(12)}`,
+          createdAt: "2026-08-22T00:00:00.000Z",
+        },
+      ]).flat(),
+    ],
+    rounds: [],
+  };
+
+  await mockSessions(page, [longSession]);
+  await mockSession(page, longSession);
+
+  await page.goto("/");
+
+  const messageStream = page.locator(".message-stream");
+  const latestReply = page.locator('[data-last-assistant-response="true"]');
+
+  await expect(
+    page.getByRole("button", { name: "Scroll to latest assistant reply" }),
+  ).toBeVisible();
+  await messageStream.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await page.getByRole("button", { name: "Scroll to latest assistant reply" }).click();
+
+  await expect
+    .poll(async () => {
+      return await latestReply.evaluate((target) => {
+        const stream = target.closest(".message-stream");
+
+        if (!stream) {
+          return Number.NaN;
+        }
+
+        return Math.abs(target.getBoundingClientRect().top - stream.getBoundingClientRect().top);
+      });
+    })
+    .toBeLessThan(2);
+});
+
 test("sends configured models when starting a chat session", async ({ page }) => {
   const startedSession = {
     id: "session-models",
