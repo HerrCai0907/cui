@@ -171,6 +171,26 @@
     grid-template-columns: 1fr;
   }
 
+  .atomic-review-panel .review-diff-row {
+    grid-template-columns: minmax(max-content, 1fr);
+  }
+
+  .atomic-review-panel .review-diff-row.has-comment-control {
+    grid-template-columns: minmax(max-content, 1fr) 38px;
+  }
+
+  .atomic-review-panel .review-diff-line-number {
+    display: none;
+  }
+
+  .atomic-review-panel .review-diff-row code {
+    border-left: 0;
+  }
+
+  .atomic-review-panel .review-diff-inline-comment {
+    padding-left: 12px;
+  }
+
   .atomic-review-inline-comment {
     position: static;
   }
