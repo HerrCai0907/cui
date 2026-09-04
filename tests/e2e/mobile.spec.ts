@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { currentWorkspace, mockSessions } from "./helpers";
+import { currentWorkspace, mockRoundReview, mockSession, mockSessions } from "./helpers";
 
 test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
@@ -101,4 +101,78 @@ test("keeps long message content inside the phone viewport", async ({ page }) =>
   expect(overflow.chatArea.streamWidth).toBe(overflow.chatArea.areaWidth);
   expect(overflow.chatArea.composerWidth).toBe(overflow.chatArea.areaWidth);
   await expect(page.locator(".message-code-block")).toHaveCSS("overflow-x", "auto");
+});
+
+test("hides atomic review diff line numbers on a phone", async ({ page }) => {
+  const session = {
+    id: "mobile-atomic-review",
+    workspace: currentWorkspace,
+    title: "Mobile atomic review",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [
+      {
+        round: 1,
+        hasChanges: true,
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+  };
+  const diff = [
+    "diff --git a/src/example.ts b/src/example.ts",
+    "--- a/src/example.ts",
+    "+++ b/src/example.ts",
+    "@@ -1,3 +1,3 @@",
+    " export function value() {",
+    "-  return 1;",
+    "+  return 2;",
+    " }",
+  ].join("\n");
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+  await mockRoundReview(page, "mobile-atomic-review", 1, {
+    round: 1,
+    beforeDiff: "",
+    afterDiff: diff,
+    diff,
+    hasChanges: true,
+    createdAt: "2026-08-22T00:00:00.000Z",
+    atomicReview: {
+      status: "ready",
+      generatedAt: "2026-08-22T00:00:00.000Z",
+      analysisSessionId: "analysis-session-mobile",
+      rawResponse: "",
+      items: [
+        {
+          id: "atomic-mobile-1",
+          order: 1,
+          capabilityType: 3,
+          capabilityLabel: "局部修复",
+          title: "Hide mobile line numbers",
+          intent: "Keep atomic review readable on small screens.",
+          files: ["src/example.ts"],
+          diff,
+          outputJson: {},
+        },
+      ],
+    },
+  });
+
+  await page.goto("/ui/sessions/mobile-atomic-review/rounds/1/atomic_review");
+
+  const atomicChange = page
+    .locator(".atomic-review-item")
+    .filter({ hasText: "Hide mobile line numbers" });
+
+  await expect(atomicChange.getByText("+  return 2;")).toBeVisible();
+  await expect(atomicChange.locator(".review-diff-line-number")).toHaveCount(8);
+  expect(
+    await atomicChange
+      .locator(".review-diff-line-number")
+      .evaluateAll((lineNumbers) =>
+        lineNumbers.some((lineNumber) => window.getComputedStyle(lineNumber).display !== "none"),
+      ),
+  ).toBe(false);
 });
