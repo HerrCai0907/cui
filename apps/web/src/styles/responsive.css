@@ -163,7 +163,7 @@
   }
 
   .atomic-review-heading-row {
-    grid-template-columns: 30px minmax(104px, auto) minmax(0, 1fr) 30px;
+    grid-template-columns: 30px 30px minmax(0, 1fr) 30px;
     gap: 8px;
   }
 
