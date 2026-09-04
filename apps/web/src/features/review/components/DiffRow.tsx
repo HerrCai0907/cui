@@ -38,6 +38,11 @@ export function DiffRow({
         {line.canExpandUp && (
           <DiffContextExpandRow direction="up" label="Expand 10 lines up" onExpand={onExpandUp} />
         )}
+        {!line.canExpandDown && !line.canExpandUp && (
+          <div className="review-diff-row review-diff-row-ellipsis is-gap">
+            <span className="review-diff-context-gap">Lines omitted between diff hunks</span>
+          </div>
+        )}
       </>
     );
   }
