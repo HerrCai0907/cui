@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Check } from "lucide-react";
 import { CONTEXT_EXPAND_LINE_COUNT, type DiffFile, type DiffLine } from "../model/diffParser";
 import { DiffRow } from "./DiffRow";
 
@@ -76,14 +77,19 @@ export function DiffFileList({
         return (
           <section className="review-diff-file" id={getFileSectionId?.(file)} key={file.id}>
             <header className="review-diff-file-header">
-              <label className="review-diff-collapse-control">
+              <label
+                className={`review-diff-collapse-control ${approved ? "is-approved" : ""}`}
+                title={approved ? `Unapprove ${file.path}` : `Approve ${file.path}`}
+              >
                 <input
                   type="checkbox"
                   checked={approved}
                   aria-label={`Approve ${file.path}`}
                   onChange={(event) => toggleFile(file.id, event.currentTarget.checked)}
                 />
-                <span>Approve</span>
+                <span aria-hidden="true">
+                  <Check size={14} />
+                </span>
               </label>
               <strong title={file.path}>{file.path}</strong>
               <span className="review-diff-stats" aria-label="Changed lines">

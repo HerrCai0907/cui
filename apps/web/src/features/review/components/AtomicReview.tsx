@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Send } from "lucide-react";
+import { CheckCheck, ChevronDown, ChevronRight, RotateCcw, Send } from "lucide-react";
 import type { ApiAtomicDiffReview, ApiAtomicDiffReviewItem } from "../../../types";
 import { shortId } from "../../../shared/lib/ids";
 import { DiffFileList } from "./DiffFileList";
@@ -214,11 +214,17 @@ function AtomicReviewItem({
           <button
             className="atomic-review-approve-all"
             type="button"
+            aria-label={allFilesApproved ? "Unapprove all" : "Approve all"}
             aria-pressed={allFilesApproved}
+            title={allFilesApproved ? "Unapprove all" : "Approve all"}
             disabled={files.length === 0}
             onClick={approveAllFiles}
           >
-            {allFilesApproved ? "Unapprove all" : "Approve all"}
+            {allFilesApproved ? (
+              <RotateCcw size={15} aria-hidden="true" />
+            ) : (
+              <CheckCheck size={15} aria-hidden="true" />
+            )}
           </button>
           <h2>{item.title}</h2>
           <span className="atomic-review-comment-status" aria-hidden={!hasComment}>

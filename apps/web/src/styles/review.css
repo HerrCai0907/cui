@@ -175,7 +175,7 @@
 
 .atomic-review-heading-row {
   display: grid;
-  grid-template-columns: 30px auto minmax(0, 1fr) auto;
+  grid-template-columns: 30px 30px minmax(0, 1fr) auto;
   min-width: 0;
   align-items: center;
   gap: 10px;
@@ -208,17 +208,15 @@
 
 .atomic-review-approve-all {
   display: inline-flex;
-  width: max-content;
+  width: 28px;
+  height: 28px;
   align-items: center;
   justify-content: center;
-  min-height: 28px;
   border: 1px solid #c6d1df;
   border-radius: 6px;
   background: #ffffff;
   color: #405168;
-  padding: 0 9px;
-  font-size: 0.76rem;
-  font-weight: 750;
+  padding: 0;
 }
 
 .atomic-review-approve-all:hover:not(:disabled) {
@@ -293,18 +291,18 @@
 }
 
 .review-diff-collapse-control {
+  position: relative;
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 6px;
-  min-height: 28px;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   border: 1px solid #c6d1df;
   border-radius: 6px;
   background: #ffffff;
   color: #405168;
-  padding: 0 8px;
-  font-size: 0.76rem;
-  font-weight: 750;
+  padding: 0;
 }
 
 .review-diff-collapse-control:hover {
@@ -313,10 +311,33 @@
 }
 
 .review-diff-collapse-control input {
-  width: 14px;
-  height: 14px;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   margin: 0;
-  accent-color: #26313f;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.review-diff-collapse-control span {
+  display: inline-flex;
+  color: #9aa6b4;
+  pointer-events: none;
+}
+
+.review-diff-collapse-control:focus-within {
+  outline: 2px solid rgb(100 116 139 / 28%);
+  outline-offset: 2px;
+}
+
+.review-diff-collapse-control.is-approved {
+  border-color: #8fb49c;
+  background: #dcfce7;
+}
+
+.review-diff-collapse-control.is-approved span {
+  color: #166534;
 }
 
 .review-diff-stats {
