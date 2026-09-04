@@ -362,6 +362,80 @@ test("renders middle diff context expansion as two full-width rows without ellip
   expect(firstButtonBox!.width).toBeGreaterThanOrEqual(firstRowBox!.width - 1);
 });
 
+test("marks atomic review diff hunk gaps when omitted lines cannot expand", async ({ page }) => {
+  const session = {
+    id: "session-atomic-hunk-gap",
+    workspace: currentWorkspace,
+    title: "Atomic hunk gap session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [
+      {
+        round: 1,
+        hasChanges: true,
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+  };
+  const diff = [
+    "diff --git a/src/example.ts b/src/example.ts",
+    "--- a/src/example.ts",
+    "+++ b/src/example.ts",
+    "@@ -1,3 +1,3 @@",
+    " export function first() {",
+    "-  return 1;",
+    "+  return 2;",
+    " }",
+    "@@ -20,3 +20,3 @@",
+    " export function second() {",
+    "-  return 20;",
+    "+  return 21;",
+    " }",
+  ].join("\n");
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+  await mockRoundReview(page, "session-atomic-hunk-gap", 1, {
+    round: 1,
+    beforeDiff: "",
+    afterDiff: diff,
+    diff,
+    hasChanges: true,
+    createdAt: "2026-08-22T00:00:00.000Z",
+    atomicReview: {
+      status: "ready",
+      generatedAt: "2026-08-22T00:00:00.000Z",
+      analysisSessionId: "analysis-session-hunk-gap",
+      rawResponse: "",
+      items: [
+        {
+          id: "atomic-1",
+          order: 1,
+          capabilityType: 3,
+          capabilityLabel: "局部修复",
+          title: "Adjust two return values",
+          intent: "Change two related return values in one file.",
+          files: ["src/example.ts"],
+          diff,
+          outputJson: {},
+        },
+      ],
+    },
+  });
+
+  await page.goto("/ui/sessions/session-atomic-hunk-gap/rounds/1/atomic_review");
+
+  const atomicChange = page
+    .locator(".atomic-review-item")
+    .filter({ hasText: "Adjust two return values" });
+  const gapRow = atomicChange.locator(".review-diff-row-ellipsis.is-gap");
+
+  await expect(gapRow).toHaveCount(1);
+  await expect(gapRow.getByText("Lines omitted between diff hunks")).toBeVisible();
+  await expect(gapRow.getByRole("button")).toHaveCount(0);
+});
+
 test("sends all atomic review comments together", async ({ page }) => {
   const session = {
     id: "session-comment",
