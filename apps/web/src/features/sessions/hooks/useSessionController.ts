@@ -66,7 +66,7 @@ const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 48;
 const AUTO_LOAD_OLDER_MESSAGES_THRESHOLD_PX = 32;
 const EMPTY_QUEUED_PROMPTS: QueuedPromptView[] = [];
 const ACTIVE_SESSION_MESSAGE_LIMIT = 2;
-const OLDER_SESSION_MESSAGES_LIMIT = 80;
+const MAX_OLDER_SESSION_MESSAGES_LIMIT = 8;
 const SESSION_PAGE_SIZE = 30;
 const SIDEBAR_SESSION_REFRESH_INTERVAL_MS = 10_000;
 
@@ -751,7 +751,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     try {
       const olderPage = await getSessionMessages(currentSession.id, {
         beforeMessageId: oldestMessageId,
-        limit: OLDER_SESSION_MESSAGES_LIMIT,
+        limit: getOlderSessionMessagesLimit(currentSession.messages.length),
         traceMessageTypes,
       });
 
@@ -1376,6 +1376,10 @@ function getActiveSessionWindow(
     messageLimit: ACTIVE_SESSION_MESSAGE_LIMIT,
     traceMessageTypes,
   });
+}
+
+function getOlderSessionMessagesLimit(currentMessageCount: number): number {
+  return Math.min(currentMessageCount * 2, MAX_OLDER_SESSION_MESSAGES_LIMIT);
 }
 
 function mergeOlderMessages(

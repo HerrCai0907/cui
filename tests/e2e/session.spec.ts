@@ -91,6 +91,73 @@ test("scrolls the latest assistant reply to the top of the message stream", asyn
     .toBeLessThan(2);
 });
 
+test("loads twice the current message count when requesting earlier messages", async ({ page }) => {
+  const session = {
+    id: "session-load-earlier-window",
+    workspace: currentWorkspace,
+    title: "Paginated conversation",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-5",
+        role: "user",
+        content: "Visible user message",
+        createdAt: "2026-08-22T00:05:00.000Z",
+      },
+      {
+        id: "message-6",
+        role: "assistant",
+        kind: "response",
+        content: "Visible assistant message",
+        createdAt: "2026-08-22T00:06:00.000Z",
+      },
+    ],
+    messagePageInfo: {
+      total: 6,
+      returned: 2,
+      hasMoreBefore: true,
+      hasMoreAfter: false,
+      oldestMessageId: "message-5",
+      newestMessageId: "message-6",
+    },
+    rounds: [],
+  };
+  let requestedLimit: string | null = null;
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+  await page.route(`**/api/v1/sessions/${session.id}/messages**`, async (route) => {
+    const url = new URL(route.request().url());
+
+    requestedLimit = url.searchParams.get("limit");
+
+    await fulfillJson(route, {
+      messages: [
+        {
+          id: "message-1",
+          role: "user",
+          content: "Earlier user message",
+          createdAt: "2026-08-22T00:01:00.000Z",
+        },
+      ],
+      pageInfo: {
+        total: 6,
+        returned: 1,
+        hasMoreBefore: false,
+        hasMoreAfter: true,
+        oldestMessageId: "message-1",
+        newestMessageId: "message-1",
+      },
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Load earlier messages" }).click();
+
+  await expect.poll(() => requestedLimit).toBe("4");
+});
+
 test("sends configured models when starting a chat session", async ({ page }) => {
   const startedSession = {
     id: "session-models",
