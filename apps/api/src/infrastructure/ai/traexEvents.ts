@@ -55,6 +55,16 @@ export function extractResponseDeltas(event: unknown): string[] {
 
   const type = getStringProperty(event, "type");
 
+  // Codex exec emits complete message items, not token deltas. Only consume
+  // completed items so started/updated snapshots cannot duplicate the text.
+  if (type === "item.completed" && "item" in event) {
+    const item = event.item;
+
+    if (item && typeof item === "object" && getStringProperty(item, "type") === "agent_message") {
+      return getTextFields(item, ["text"]).map((text) => `${text}\n\n`);
+    }
+  }
+
   if (type === "text_delta") {
     return getTextFields(event, ["text", "delta"]);
   }
@@ -80,4 +90,37 @@ export function extractResponseDeltas(event: unknown): string[] {
 
 export function formatRawEvents(events: unknown[]): string {
   return events.map((event) => JSON.stringify(event)).join("\n");
+}
+
+export function extractFinalResponse(events: unknown[]): string | undefined {
+  for (const event of events.slice().reverse()) {
+    if (getEventType(event) === "item.completed") {
+      const item = (event as Record<string, unknown>).item;
+      if (item && typeof item === "object" && getStringProperty(item, "type") === "agent_message") {
+        return getStringProperty(item, "text");
+      }
+    }
+  }
+  return undefined;
+}
+
+export function extractProcessError(events: unknown[], failedExit: boolean): string | undefined {
+  for (const event of events.slice().reverse()) {
+    const type = getEventType(event);
+    if (type === "turn.failed" || (failedExit && type === "error")) {
+      const record = event as Record<string, unknown>;
+      const error = record.error;
+      return (
+        (typeof error === "string" ? error : undefined) ||
+        (error && typeof error === "object" ? getStringProperty(error, "message") : undefined) ||
+        getStringProperty(record, "message") ||
+        "AI turn failed"
+      );
+    }
+  }
+  return undefined;
+}
+
+function getEventType(event: unknown): string | undefined {
+  return event && typeof event === "object" ? getStringProperty(event, "type") : undefined;
 }

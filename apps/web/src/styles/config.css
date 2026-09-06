@@ -188,7 +188,8 @@
   min-width: 0;
 }
 
-.config-select-row select {
+.config-select-row select,
+.config-select-controls input {
   width: 100%;
   min-width: 0;
   border: 1px solid #cbd5e1;
@@ -200,7 +201,12 @@
   padding: 0 34px 0 10px;
 }
 
-.config-select-row select:focus-visible {
+.config-select-controls input {
+  padding: 0 10px;
+}
+
+.config-select-row select:focus-visible,
+.config-select-controls input:focus-visible {
   outline: 2px solid #64748b;
   outline-offset: 2px;
 }

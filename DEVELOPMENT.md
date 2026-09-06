@@ -21,6 +21,20 @@ Supported command overrides:
 - `TRAEX_BIN`
 - `CODEX_BIN`
 
+For Codex, install the Codex CLI and authenticate with `codex login` before starting CUI.
+Select **Codex** in Configuration → AI Harness. Switching to Codex clears model selections;
+empty model fields use the harness configuration. For Codex you can also enter a model ID
+supported by your account, separately for normal replies, summaries and atomic review.
+Codex does not use the `traex models` catalog.
+
+CUI runs `codex exec --json -` for new sessions and `codex exec resume <session-id> --json -`
+for follow-ups. Prompts go directly to UTF-8 stdin; final replies come from
+`--output-last-message` with a fallback to the last JSONL assistant message. Completed
+assistant items are forwarded to the UI as they arrive (Codex exec does not emit token
+deltas). Model and reasoning selections use `--model` and `-c model_reasoning_effort=...`.
+The adapter currently uses `--dangerously-bypass-approvals-and-sandbox` for both commands,
+so it runs with the API process's filesystem permissions.
+
 ## Development Server
 
 Start the web and API workspaces together:
@@ -100,6 +114,22 @@ Run end-to-end tests:
 ```sh
 npm run test:e2e
 ```
+
+Run the opt-in Codex smoke test against the real CLI and model (requires an authenticated
+account and consumes model usage):
+
+```sh
+npm run test:codex
+# Also exercise explicit --model arguments with a model available to your account:
+CUI_CODEX_TEST_MODEL=gpt-5.5 npm run test:codex
+```
+
+This test calls the production adapter in a temporary Git workspace whose path contains
+spaces and Chinese characters. It checks exact multiline stdin/file contents, shell tool
+events, streamed and final replies, diffs, context-preserving resume, JSON summaries and
+atomic review through temporary input files. The workspace is removed afterward; Codex
+keeps its normal session history so resume can work. Ordinary unit tests use local child
+process fixtures and do not call a model.
 
 End-to-end tests use separate default ports: Playwright starts the web app at `http://localhost:5174` and points its API proxy at `http://localhost:3001`.
 

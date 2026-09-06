@@ -16,6 +16,7 @@
     "openapi:generate": "npm run openapi:generate -w @cui/api && npm run api-types:generate -w @cui/web",
     "prepare": "husky",
     "test:unit": "tsx --test tests/unit/**/*.test.ts",
+    "test:codex": "tsx scripts/test-codex.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "typecheck": "npm run typecheck --workspaces"

@@ -107,6 +107,10 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
     onConfigChange({
       ...config,
       harness,
+      models:
+        harness === "codex"
+          ? { normal: "", summary: "", atomicReview: "" }
+          : createDefaultAppConfig().models,
     });
   }
 
@@ -312,17 +316,26 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
                 <strong>{MODEL_PURPOSE_LABELS[purpose]}</strong>
               </span>
               <span className="config-select-controls">
-                <select
-                  value={config.models[purpose]}
-                  onChange={(event) => setModel(purpose, event.target.value)}
-                >
-                  <option value="">Harness default</option>
-                  {modelOptions.map((model) => (
-                    <option value={model.name} key={model.name}>
-                      {model.name}
-                    </option>
-                  ))}
-                </select>
+                {config.harness === "codex" ? (
+                  <input
+                    aria-label={`${MODEL_PURPOSE_LABELS[purpose]} model`}
+                    placeholder="Harness default"
+                    value={config.models[purpose]}
+                    onChange={(event) => setModel(purpose, event.target.value)}
+                  />
+                ) : (
+                  <select
+                    value={config.models[purpose]}
+                    onChange={(event) => setModel(purpose, event.target.value)}
+                  >
+                    <option value="">Harness default</option>
+                    {modelOptions.map((model) => (
+                      <option value={model.name} key={model.name}>
+                        {model.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <select
                   aria-label={`${MODEL_PURPOSE_LABELS[purpose]} reasoning effort`}
                   value={config.reasoningEfforts[purpose]}
