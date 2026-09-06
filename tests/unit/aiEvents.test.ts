@@ -4,7 +4,7 @@ import {
   extractResponseDeltas,
   extractFinalResponse,
   extractProcessError,
-} from "../../apps/api/src/infrastructure/ai/traexEvents.js";
+} from "../../apps/api/src/infrastructure/ai/aiEvents.js";
 
 test("Codex completed messages stream once, excluding tools and partial snapshots", () => {
   const item = { id: "item_1", type: "agent_message", text: "你好\nCodex" };

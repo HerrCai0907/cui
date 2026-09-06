@@ -47,7 +47,7 @@ import {
   ShellCommandRunner,
   type ShellCommandResult,
 } from "../../infrastructure/shell/ShellCommandRunner.js";
-import { formatRawEvents } from "../../infrastructure/ai/traexEvents.js";
+import { formatRawEvents } from "../../infrastructure/ai/aiEvents.js";
 import { assertExistingDirectory } from "../paths/pathValidation.js";
 
 export type { RunStreamEvent } from "../runs/runEvents.js";

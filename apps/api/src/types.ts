@@ -221,15 +221,7 @@ export type AiRun = {
   cancel: () => void;
 };
 
-export interface AiModel {
-  listModels(): Promise<AiModelInfo[]>;
-  createSession(input: AiCreateSessionInput): Promise<AiResponse>;
-  continueSession(input: AiContinueSessionInput): Promise<AiResponse>;
-  createAtomicDiffReview(input: AiAtomicDiffReviewInput): Promise<AtomicDiffReview>;
-  summarizeConversation(input: AiCreateSessionInput): Promise<ConversationSummary>;
-  createSessionStream(input: AiCreateSessionInput, onEvent: (event: AiRunEvent) => void): AiRun;
-  continueSessionStream(input: AiContinueSessionInput, onEvent: (event: AiRunEvent) => void): AiRun;
-}
+export type { AiModel } from "./domain/ai/AiModel.js";
 
 export class AiRunCancelledError extends Error {
   constructor(message = "AI run was cancelled") {

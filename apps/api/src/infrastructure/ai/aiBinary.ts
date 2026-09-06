@@ -34,7 +34,7 @@ export function getAiHarnessBinaryConfig(harness: AiHarness): AiHarnessBinaryCon
   };
 }
 
-export function createTraexEnv(): NodeJS.ProcessEnv {
+export function createAiProcessEnv(): NodeJS.ProcessEnv {
   return {
     ...process.env,
     NO_COLOR: "1",
@@ -55,7 +55,7 @@ export async function assertTraexBinaryAvailable(
 
 export async function assertAiHarnessBinaryAvailable(config: AiHarnessBinaryConfig): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    execFile(config.command, ["--version"], { env: createTraexEnv() }, (error) => {
+    execFile(config.command, ["--version"], { env: createAiProcessEnv() }, (error) => {
       if (!error) {
         resolve();
         return;
