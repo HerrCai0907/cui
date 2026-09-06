@@ -221,11 +221,13 @@ test("sends configured models when starting a chat session", async ({ page }) =>
   const modelChoices = page.getByRole("group", { name: "Model choices" });
 
   await page.getByRole("combobox", { name: "AI harness" }).selectOption("codex");
-  await modelChoices.locator("select").nth(0).selectOption("GPT-5.4");
+  await modelChoices.getByRole("textbox", { name: "Normal model", exact: true }).fill("gpt-5.5");
   await modelChoices.getByLabel("Normal reasoning effort").selectOption("medium");
-  await modelChoices.locator("select").nth(2).selectOption("Seed-2.1-Turbo");
+  await modelChoices.getByRole("textbox", { name: "Summary model", exact: true }).fill("gpt-5.4");
   await modelChoices.getByLabel("Summary reasoning effort").selectOption("low");
-  await modelChoices.locator("select").nth(4).selectOption("DeepSeek-V4-Pro");
+  await modelChoices
+    .getByRole("textbox", { name: "Atomic Review model", exact: true })
+    .fill("gpt-5.5");
   await modelChoices.getByLabel("Atomic Review reasoning effort").selectOption("xhigh");
   await page.getByRole("button", { name: "New session", exact: true }).click();
   await page.getByPlaceholder("Start with an initial prompt...").fill("Use the selected models.");
@@ -247,9 +249,9 @@ test("sends configured models when starting a chat session", async ({ page }) =>
       },
       models: {
         harness: "codex",
-        normal: "GPT-5.4",
-        summary: "Seed-2.1-Turbo",
-        atomicReview: "DeepSeek-V4-Pro",
+        normal: "gpt-5.5",
+        summary: "gpt-5.4",
+        atomicReview: "gpt-5.5",
         reasoningEfforts: {
           normal: "medium",
           summary: "low",

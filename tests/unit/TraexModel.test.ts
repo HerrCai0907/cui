@@ -3,12 +3,64 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { TraexModel } from "../../apps/api/src/infrastructure/ai/TraexModel.js";
 import type { TraexProcessRun } from "../../apps/api/src/infrastructure/ai/traexProcess.js";
+import type { AiRunEvent } from "../../apps/api/src/types.js";
 
 type ProcessCall = {
   command?: string;
   args: string[];
   input: string;
 };
+
+test("Codex streams completed messages and recovers final output from JSONL", async () => {
+  const events: AiRunEvent[] = [];
+  const model = new TraexModel({
+    processRunner: (input) => {
+      const rawEvents = [
+        { type: "thread.started", thread_id: "codex-test" },
+        { type: "item.completed", item: { type: "agent_message", text: "Working..." } },
+        { type: "item.completed", item: { type: "agent_message", text: "Done." } },
+        { type: "turn.completed" },
+      ];
+      rawEvents.forEach(input.onRawEvent);
+      return {
+        cancel: () => undefined,
+        promise: Promise.resolve({
+          content: "",
+          rawEvents,
+          beforeSnapshot: { gitCommit: "", diff: "" },
+          afterSnapshot: { gitCommit: "", diff: "" },
+        }),
+      };
+    },
+  });
+  const run = model.createSessionStream(
+    { workspace: "/tmp", prompt: "test", models: { harness: "codex" } },
+    (event) => events.push(event),
+  );
+  assert.equal(await run.sessionId, "codex-test");
+  assert.equal((await run.result).content, "Done.");
+  assert.deepEqual(
+    events.filter((event) => event.type === "delta"),
+    [
+      { type: "delta", text: "Working...\n\n" },
+      { type: "delta", text: "Done.\n\n" },
+    ],
+  );
+});
+
+test("non-streaming startup failures reject without an unhandled session promise", async () => {
+  const model = new TraexModel({
+    processRunner: () => ({
+      cancel: () => undefined,
+      promise: Promise.reject(new Error("Codex failed to start")),
+    }),
+  });
+  await assert.rejects(
+    model.createSession({ workspace: "/tmp", prompt: "test", models: { harness: "codex" } }),
+    /Codex failed to start/,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+});
 
 test("createAtomicDiffReview retries with validation feedback when item diff format is invalid", async () => {
   const calls: ProcessCall[] = [];

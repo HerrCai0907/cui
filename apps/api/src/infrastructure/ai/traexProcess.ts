@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GitDiffService, type DiffSnapshot } from "../diff/GitDiffService.js";
-import { parseJsonLine } from "./traexEvents.js";
+import { extractProcessError, parseJsonLine } from "./traexEvents.js";
 import { AiRunCancelledError } from "../../types.js";
 import {
   createAiHarnessNotFoundError,
@@ -68,6 +68,7 @@ export function runTraexProcess({
       let outputPath: string | undefined;
       let stdout = "";
       let stderr = "";
+      let stdinError: Error | undefined;
 
       const rejectWithCancellation = () => {
         if (settled) {
@@ -117,6 +118,9 @@ export function runTraexProcess({
           }
 
           const resetIdleTimer = () => {
+            if (settled) {
+              return;
+            }
             if (idleTimer) {
               clearTimeout(idleTimer);
             }
@@ -178,7 +182,7 @@ export function runTraexProcess({
             }
           });
 
-          child.on("close", (code) => {
+          child.on("close", (code, signal) => {
             if (settled) {
               return;
             }
@@ -204,10 +208,16 @@ export function runTraexProcess({
               onRawEvent(trailingEvent);
             }
 
-            if (code !== 0) {
+            const processError = extractProcessError(events, code !== 0);
+            if (code !== 0 || processError || stdinError) {
               reject(
                 new Error(
-                  `${binaryConfig.displayName} command exited with ${code}: ${stderr.trim()}`,
+                  `${binaryConfig.displayName} command failed (${signal || code}): ${
+                    processError ||
+                    stderr.trim() ||
+                    stdinError?.message ||
+                    "No error details returned"
+                  }`,
                 ),
               );
               void cleanupOutputDir(outputDir);
@@ -232,12 +242,18 @@ export function runTraexProcess({
                   rawEvents: events,
                 });
               })
+              .catch(reject)
               .finally(() => {
                 void cleanupOutputDir(outputDir);
               });
           });
 
-          child.stdin.end(input);
+          // CLI argument/auth failures can close stdin before a large prompt is
+          // written. Preserve the CLI diagnostic instead of crashing on EPIPE.
+          child.stdin.on("error", (error: Error) => {
+            stdinError = error;
+          });
+          child.stdin.end(input, "utf8");
         })
         .catch((error: unknown) => {
           if (cancelRequested) {

@@ -49,6 +49,13 @@ export function App() {
   useEffect(() => {
     let cancelled = false;
 
+    // Codex uses its own model IDs/configuration; `traex models` is not its catalog.
+    if (config.harness === "codex") {
+      setModels([]);
+      setModelsError(null);
+      return;
+    }
+
     listModels()
       .then((loadedModels) => {
         if (!cancelled) {
@@ -66,7 +73,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [config.harness]);
 
   useEffect(() => {
     const handleNavigation = () => {

@@ -178,7 +178,9 @@ export function loadAppConfig(): AppConfig {
       harness: isAiHarness(parsed.harness) ? parsed.harness : defaultConfig.harness,
       sshTunnel: parseSshTunnelConfig(parsed.sshTunnel),
       models: {
-        ...defaultConfig.models,
+        ...(parsed.harness === "codex"
+          ? { normal: "", summary: "", atomicReview: "" }
+          : defaultConfig.models),
         ...parseModelPreferences(parsed.models),
       },
       reasoningEfforts: {

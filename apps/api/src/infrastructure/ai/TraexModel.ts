@@ -32,7 +32,12 @@ import {
   getConfiguredTraexBinary,
   type AiHarnessBinaryConfig,
 } from "./traexBinary.js";
-import { extractResponseDeltas, extractThreadId, formatRawEvents } from "./traexEvents.js";
+import {
+  extractFinalResponse,
+  extractResponseDeltas,
+  extractThreadId,
+  formatRawEvents,
+} from "./traexEvents.js";
 import { runTraexProcess, type TraexProcessRun } from "./traexProcess.js";
 
 type TraexProcessRunner = (input: Parameters<typeof runTraexProcess>[0]) => TraexProcessRun;
@@ -402,9 +407,17 @@ export class TraexModel implements AiModel {
 
         sessionIdSignal.resolve(sessionId);
 
+        const responseContent =
+          content.trim() ||
+          (harness === "codex" ? extractFinalResponse(rawEvents)?.trim() : "") ||
+          "";
+        if (harness === "codex" && !responseContent) {
+          throw new Error("Codex did not return an assistant message");
+        }
+
         return {
           sessionId,
-          content: content.trim(),
+          content: responseContent,
           trace: formatRawEvents(rawEvents),
           ...(captureDiff
             ? {
@@ -439,6 +452,8 @@ function createDeferred<T>() {
     resolve = resolvePromise;
     reject = rejectPromise;
   });
+  // Non-streaming callers only await result; a startup failure rejects both.
+  void promise.catch(() => undefined);
 
   return { promise, resolve, reject };
 }
