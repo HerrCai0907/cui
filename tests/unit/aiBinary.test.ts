@@ -4,7 +4,7 @@ import {
   createAiHarnessNotFoundError,
   assertTraexBinaryAvailable,
   createTraexNotFoundError,
-} from "../../apps/api/src/infrastructure/ai/traexBinary.js";
+} from "../../apps/api/src/infrastructure/ai/aiBinary.js";
 
 test("TraeX not found error includes the API process PATH", () => {
   const originalPath = process.env.PATH;

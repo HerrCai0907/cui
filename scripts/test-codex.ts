@@ -4,8 +4,8 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { TraexModel } from "../apps/api/src/infrastructure/ai/TraexModel.js";
-import { runTraexProcess } from "../apps/api/src/infrastructure/ai/traexProcess.js";
+import { CodexModel } from "../apps/api/src/infrastructure/ai/CodexModel.js";
+import { runAiProcess } from "../apps/api/src/infrastructure/ai/aiProcess.js";
 import type { AiModelPreferences, AiRun, AiRunEvent } from "../apps/api/src/types.js";
 
 // Opt-in live test: uses the installed Codex CLI and its existing login/config.
@@ -16,11 +16,11 @@ const models: AiModelPreferences = {
   ...(modelId ? { normal: modelId, summary: modelId, atomicReview: modelId } : {}),
   reasoningEfforts: { normal: "low", summary: "low", atomicReview: "low" },
 };
-const model = new TraexModel({
+const model = new CodexModel({
   timeoutMs: 120_000,
   processRunner: (input) => {
     console.log(JSON.stringify({ command: input.command, args: input.args, cwd: input.cwd }));
-    return runTraexProcess(input);
+    return runAiProcess(input);
   },
 });
 const nonce = randomUUID();

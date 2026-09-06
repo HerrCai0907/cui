@@ -1,10 +1,12 @@
 import dotenv from "dotenv";
 import { createApp } from "./app/createApp.js";
 import { TraexModel } from "./infrastructure/ai/TraexModel.js";
+import { CodexModel } from "./infrastructure/ai/CodexModel.js";
+import { RoutingAiModel } from "./infrastructure/ai/RoutingAiModel.js";
 import {
   assertAiHarnessBinaryAvailable,
   getAiHarnessBinaryConfig,
-} from "./infrastructure/ai/traexBinary.js";
+} from "./infrastructure/ai/aiBinary.js";
 import { AppLogger } from "./infrastructure/logging/AppLogger.js";
 import { SessionService } from "./domain/sessions/SessionService.js";
 import { JsonSessionStore } from "./infrastructure/store/JsonSessionStore.js";
@@ -14,7 +16,10 @@ dotenv.config();
 
 const port = Number(process.env.PORT ?? 3000);
 const logger = new AppLogger();
-const aiModel = new TraexModel();
+const aiModel = new RoutingAiModel({
+  traex: new TraexModel(),
+  codex: new CodexModel(),
+});
 const sessionService = new SessionService(aiModel, new JsonSessionStore(), logger);
 const codeQueryService = new CodeQueryService();
 const app = createApp({ logger, aiModel, sessionService, codeQueryService });

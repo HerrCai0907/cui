@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { GitDiffService } from "../../apps/api/src/infrastructure/diff/GitDiffService.js";
-import { runTraexProcess } from "../../apps/api/src/infrastructure/ai/traexProcess.js";
+import { runAiProcess } from "../../apps/api/src/infrastructure/ai/aiProcess.js";
 import { AiRunCancelledError } from "../../apps/api/src/types.js";
 
 async function fixture(t: test.TestContext, script: string) {
@@ -54,7 +54,7 @@ test("process passes exact UTF-8 stdin and output path; parses split JSONL and t
   `,
   );
   input.input = "--你好 \"quotes\" 'single' $HOME $(echo no) `literal` \\path\nline two\n";
-  const result = await runTraexProcess(input).promise;
+  const result = await runAiProcess(input).promise;
   assert.equal(result.content, input.input);
   assert.deepEqual(events, [
     { type: "item.completed", item: { type: "agent_message", text: input.input } },
@@ -75,7 +75,7 @@ for (const code of [0, 1]) {
       });
     `,
     );
-    await assert.rejects(runTraexProcess(input).promise, /Codex command failed.*model unavailable/);
+    await assert.rejects(runAiProcess(input).promise, /Codex command failed.*model unavailable/);
   });
 }
 
@@ -85,7 +85,7 @@ test("process keeps CLI errors when a large stdin write is closed early", async 
     'process.stderr.write("invalid CLI option"); process.exit(2);',
   );
   input.input = "x".repeat(4 * 1024 * 1024);
-  await assert.rejects(runTraexProcess(input).promise, /invalid CLI option/);
+  await assert.rejects(runAiProcess(input).promise, /invalid CLI option/);
 });
 
 test("process rejects snapshot failures after successful CLI exit", async (t) => {
@@ -95,12 +95,12 @@ test("process rejects snapshot failures after successful CLI exit", async (t) =>
   input.diffService.captureWorkspaceDiff = async () => {
     throw new Error("snapshot failed");
   };
-  await assert.rejects(runTraexProcess(input).promise, /snapshot failed/);
+  await assert.rejects(runAiProcess(input).promise, /snapshot failed/);
 });
 
 test("process cancellation settles and kills a running CLI", async (t) => {
   const { input } = await fixture(t, "setInterval(() => {}, 1000);");
-  const run = runTraexProcess(input);
+  const run = runAiProcess(input);
   run.cancel();
   await assert.rejects(run.promise, AiRunCancelledError);
 });

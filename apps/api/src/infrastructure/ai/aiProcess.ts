@@ -3,13 +3,13 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GitDiffService, type DiffSnapshot } from "../diff/GitDiffService.js";
-import { extractProcessError, parseJsonLine } from "./traexEvents.js";
+import { extractProcessError, parseJsonLine } from "./aiEvents.js";
 import { AiRunCancelledError } from "../../types.js";
 import {
   createAiHarnessNotFoundError,
-  createTraexEnv,
+  createAiProcessEnv,
   type AiHarnessBinaryConfig,
-} from "./traexBinary.js";
+} from "./aiBinary.js";
 import { isInvalidCwdError, PathNotFoundError } from "../../domain/paths/pathValidation.js";
 
 type RunProcessInput = {
@@ -31,12 +31,12 @@ type RunProcessResult = {
   rawEvents: unknown[];
 };
 
-export type TraexProcessRun = {
+export type AiProcessRun = {
   promise: Promise<RunProcessResult>;
   cancel: () => void;
 };
 
-export function runTraexProcess({
+export function runAiProcess({
   command,
   binaryConfig,
   args,
@@ -46,7 +46,7 @@ export function runTraexProcess({
   captureDiff,
   diffService,
   onRawEvent,
-}: RunProcessInput): TraexProcessRun {
+}: RunProcessInput): AiProcessRun {
   let child: ChildProcessWithoutNullStreams | undefined;
   let outputDir: string | undefined;
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -109,7 +109,7 @@ export function runTraexProcess({
               cwd,
               detached: process.platform !== "win32",
               stdio: ["pipe", "pipe", "pipe"],
-              env: createTraexEnv(),
+              env: createAiProcessEnv(),
             });
           } catch (error) {
             reject(createAiProcessError(binaryConfig, error, cwd));

@@ -1,470 +1,58 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { GitDiffService } from "../diff/GitDiffService.js";
+import type { AiModel } from "../../domain/ai/AiModel.js";
+import type { AiModelInfo } from "../../types.js";
+import { CliAiModel, type CliAiModelOptions } from "./CliAiModel.js";
 import {
-  AiReasoningEffort,
-  AiHarness,
-  AiAtomicDiffReviewInput,
-  AiContinueSessionInput,
-  AiCreateSessionInput,
-  AiModel,
-  AiModelInfo,
-  AiModelPreferences,
-  AiModelPurpose,
-  AiResponse,
-  AiRun,
-  AiRunEvent,
-  AtomicDiffReview,
-  ConversationSummary,
-} from "../../types.js";
-import {
-  createAtomicDiffReviewFormatCorrectionPrompt,
-  createAtomicDiffReviewPrompt,
-} from "./atomicDiffReviewPrompt.js";
-import { parseAtomicDiffReviewItems } from "./atomicDiffReviewParser.js";
-import { parseConversationSummary } from "./conversationSummaryParser.js";
-import {
-  createTraexEnv,
+  createAiProcessEnv,
   createTraexNotFoundError,
   getAiHarnessBinaryConfig,
-  getConfiguredTraexBinary,
-  type AiHarnessBinaryConfig,
-} from "./traexBinary.js";
-import {
-  extractFinalResponse,
-  extractResponseDeltas,
-  extractThreadId,
-  formatRawEvents,
-} from "./traexEvents.js";
-import { runTraexProcess, type TraexProcessRun } from "./traexProcess.js";
+} from "./aiBinary.js";
 
-type TraexProcessRunner = (input: Parameters<typeof runTraexProcess>[0]) => TraexProcessRun;
-type TraexModelListRunner = () => Promise<unknown>;
-type AiHarnessBinaryResolver = (harness: AiHarness) => AiHarnessBinaryConfig;
-
-type TraexModelOptions = {
-  binary?: string;
-  binaryResolver?: AiHarnessBinaryResolver;
-  diffService?: GitDiffService;
-  modelListRunner?: TraexModelListRunner;
+type TraexModelOptions = CliAiModelOptions & {
+  modelListRunner?: () => Promise<unknown>;
   permissionMode?: string;
-  processRunner?: TraexProcessRunner;
-  timeoutMs?: number;
 };
 
-export class TraexModel implements AiModel {
-  private readonly binary: string;
-  private readonly binaryResolver: AiHarnessBinaryResolver;
-  private readonly diffService: GitDiffService;
-  private readonly modelListRunner: TraexModelListRunner;
+export class TraexModel extends CliAiModel implements AiModel {
+  private readonly modelListRunner: () => Promise<unknown>;
   private readonly permissionMode: string;
-  private readonly processRunner: TraexProcessRunner;
-  private readonly timeoutMs: number;
 
   constructor(options: TraexModelOptions = {}) {
-    this.binary = options.binary ?? getConfiguredTraexBinary();
-    this.binaryResolver =
-      options.binaryResolver ??
-      ((harness) =>
-        harness === "traex"
-          ? {
-              ...getAiHarnessBinaryConfig("traex"),
-              command: this.binary,
-            }
-          : getAiHarnessBinaryConfig("codex"));
-    this.diffService = options.diffService ?? new GitDiffService();
-    this.modelListRunner =
-      options.modelListRunner ?? (() => execFileJson(this.binary, ["models", "--json"]));
+    const config = getAiHarnessBinaryConfig("traex");
+    super(
+      { ...config, command: options.binary ?? config.command },
+      {
+        ...options,
+        timeoutMs: Number(options.timeoutMs ?? process.env.TRAEX_TIMEOUT_MS ?? 10 * 60 * 1000),
+      },
+    );
     this.permissionMode =
       options.permissionMode ?? process.env.TRAEX_PERMISSION_MODE ?? "bypass_permissions";
-    this.processRunner = options.processRunner ?? runTraexProcess;
-    this.timeoutMs = Number(options.timeoutMs ?? process.env.TRAEX_TIMEOUT_MS ?? 10 * 60 * 1000);
+    this.modelListRunner =
+      options.modelListRunner ??
+      (() => execFileJson(this.binaryConfig.command, ["models", "--json"]));
   }
 
   async listModels(): Promise<AiModelInfo[]> {
     const rawModels = await this.modelListRunner();
-
     if (!Array.isArray(rawModels)) {
       throw new Error("TraeX models output was not an array");
     }
-
     return rawModels.map(parseTraexModelInfo).filter((model) => model.name);
   }
 
-  async createSession(input: AiCreateSessionInput): Promise<AiResponse> {
-    const harness = getModelHarness(input.models);
-    const args = this.createExecArgs(input.workspace, input.models, "normal", harness);
-
-    return this.run(undefined, args, input.prompt, input.workspace, true, harness);
+  protected get permissionArgs(): string[] {
+    return ["--permission-mode", this.permissionMode];
   }
 
-  createSessionStream(input: AiCreateSessionInput, onEvent: (event: AiRunEvent) => void): AiRun {
-    const harness = getModelHarness(input.models);
-    const args = this.createExecArgs(input.workspace, input.models, "normal", harness);
-
-    return this.startRun(undefined, args, input.prompt, input.workspace, true, harness, onEvent);
+  protected resolveResponseContent(content: string): string {
+    return content.trim();
   }
-
-  async continueSession(input: AiContinueSessionInput): Promise<AiResponse> {
-    const harness = getModelHarness(input.models);
-    const args = this.createResumeArgs(input.sessionId, input.models, "normal", harness);
-
-    return this.run(input.sessionId, args, input.prompt, input.workspace, true, harness);
-  }
-
-  async summarizeConversation(input: AiCreateSessionInput): Promise<ConversationSummary> {
-    const harness = getModelHarness(input.models);
-    const args = this.createExecArgs(input.workspace, input.models, "summary", harness);
-    const response = await this.run(undefined, args, input.prompt, input.workspace, false, harness);
-
-    return parseConversationSummary(response.content);
-  }
-
-  async createAtomicDiffReview(input: AiAtomicDiffReviewInput): Promise<AtomicDiffReview> {
-    const harness = getModelHarness(input.models);
-    const createArgs = this.createExecArgs(input.workspace, input.models, "atomicReview", harness);
-    let response: AiResponse | undefined;
-    const inputFiles = await createAtomicReviewInputFiles({
-      diff: input.diff,
-      executionTrace: input.executionTrace,
-    });
-    const reviewInput = {
-      ...input,
-      diffFilePath: inputFiles.diffPath,
-      executionTraceFilePath: inputFiles.executionTracePath,
-    };
-
-    try {
-      response = await this.run(
-        undefined,
-        createArgs,
-        createAtomicDiffReviewPrompt(reviewInput),
-        input.workspace,
-        false,
-        harness,
-      );
-      const parsedItems = parseAtomicDiffReviewItems(response.content);
-
-      return {
-        status: "ready",
-        generatedAt: new Date().toISOString(),
-        analysisSessionId: response.sessionId,
-        items: parsedItems,
-        rawResponse: response.content,
-      };
-    } catch (error) {
-      if (response) {
-        let correctionResponse: AiResponse | undefined;
-
-        try {
-          correctionResponse = await this.run(
-            response.sessionId,
-            this.createResumeArgs(response.sessionId, input.models, "atomicReview", harness),
-            createAtomicDiffReviewFormatCorrectionPrompt({
-              validationError:
-                error instanceof Error ? error.message : "Atomic diff review format was invalid",
-              previousResponse: response.content,
-              diffFilePath: inputFiles.diffPath,
-            }),
-            input.workspace,
-            false,
-            harness,
-          );
-          const parsedItems = parseAtomicDiffReviewItems(correctionResponse.content);
-
-          return {
-            status: "ready",
-            generatedAt: new Date().toISOString(),
-            analysisSessionId: correctionResponse.sessionId,
-            items: parsedItems,
-            rawResponse: correctionResponse.content,
-          };
-        } catch (correctionError) {
-          return {
-            status: "failed",
-            generatedAt: new Date().toISOString(),
-            error:
-              correctionError instanceof Error
-                ? correctionError.message
-                : "Failed to create atomic diff review",
-            rawResponse: correctionResponse?.content ?? response.content,
-          };
-        }
-      }
-
-      return {
-        status: "failed",
-        generatedAt: new Date().toISOString(),
-        error: error instanceof Error ? error.message : "Failed to create atomic diff review",
-      };
-    } finally {
-      await cleanupAtomicReviewInputFiles(inputFiles.directory);
-    }
-  }
-
-  continueSessionStream(
-    input: AiContinueSessionInput,
-    onEvent: (event: AiRunEvent) => void,
-  ): AiRun {
-    const harness = getModelHarness(input.models);
-    const args = this.createResumeArgs(input.sessionId, input.models, "normal", harness);
-
-    return this.startRun(
-      input.sessionId,
-      args,
-      input.prompt,
-      input.workspace,
-      true,
-      harness,
-      onEvent,
-    );
-  }
-
-  private async run(
-    expectedSessionId: string | undefined,
-    args: string[],
-    prompt: string,
-    workspace: string,
-    captureDiff = true,
-    harness: AiHarness,
-  ): Promise<AiResponse> {
-    return this.startRun(
-      expectedSessionId,
-      args,
-      prompt,
-      workspace,
-      captureDiff,
-      harness,
-      () => undefined,
-    ).result;
-  }
-
-  private createExecArgs(
-    workspace: string,
-    models: AiModelPreferences | undefined,
-    purpose: AiModelPurpose,
-    harness: AiHarness,
-  ): string[] {
-    if (harness === "codex") {
-      return this.withModelArg(
-        [
-          "exec",
-          "-C",
-          workspace,
-          "--dangerously-bypass-approvals-and-sandbox",
-          "--skip-git-repo-check",
-          "--json",
-          "-",
-        ],
-        models,
-        purpose,
-      );
-    }
-
-    return this.withModelArg(
-      [
-        "exec",
-        "-C",
-        workspace,
-        "--permission-mode",
-        this.permissionMode,
-        "--skip-git-repo-check",
-        "--json",
-        "-",
-      ],
-      models,
-      purpose,
-    );
-  }
-
-  private createResumeArgs(
-    sessionId: string,
-    models: AiModelPreferences | undefined,
-    purpose: AiModelPurpose,
-    harness: AiHarness,
-  ): string[] {
-    if (harness === "codex") {
-      return this.withModelArg(
-        [
-          "exec",
-          "resume",
-          sessionId,
-          "--dangerously-bypass-approvals-and-sandbox",
-          "--skip-git-repo-check",
-          "--json",
-          "-",
-        ],
-        models,
-        purpose,
-      );
-    }
-
-    return this.withModelArg(
-      [
-        "exec",
-        "resume",
-        sessionId,
-        "--permission-mode",
-        this.permissionMode,
-        "--skip-git-repo-check",
-        "--json",
-        "-",
-      ],
-      models,
-      purpose,
-    );
-  }
-
-  private withModelArg(
-    args: string[],
-    models: AiModelPreferences | undefined,
-    purpose: AiModelPurpose,
-  ): string[] {
-    const model = models?.[purpose]?.trim();
-    const reasoningEffort = models?.reasoningEfforts?.[purpose];
-    const argsWithReasoningEffort = this.withReasoningEffortArg(args, reasoningEffort);
-
-    if (!model) {
-      return argsWithReasoningEffort;
-    }
-
-    return [
-      ...argsWithReasoningEffort.slice(0, -1),
-      "--model",
-      model,
-      argsWithReasoningEffort.at(-1)!,
-    ];
-  }
-
-  private withReasoningEffortArg(
-    args: string[],
-    reasoningEffort: AiReasoningEffort | undefined,
-  ): string[] {
-    if (!reasoningEffort) {
-      return args;
-    }
-
-    return [
-      ...args.slice(0, -1),
-      "-c",
-      `model_reasoning_effort="${reasoningEffort}"`,
-      args.at(-1)!,
-    ];
-  }
-
-  private startRun(
-    expectedSessionId: string | undefined,
-    args: string[],
-    prompt: string,
-    workspace: string,
-    captureDiff: boolean,
-    harness: AiHarness,
-    onEvent: (event: AiRunEvent) => void,
-  ): AiRun {
-    const sessionIdSignal = createDeferred<string>();
-    let observedSessionId = expectedSessionId;
-    const binaryConfig = this.binaryResolver(harness);
-
-    if (expectedSessionId) {
-      sessionIdSignal.resolve(expectedSessionId);
-      onEvent({ type: "session", sessionId: expectedSessionId });
-    }
-
-    const processRun = this.processRunner({
-      command: binaryConfig.command,
-      binaryConfig,
-      args,
-      cwd: workspace,
-      input: prompt,
-      timeoutMs: this.timeoutMs,
-      captureDiff,
-      diffService: this.diffService,
-      onRawEvent: (event) => {
-        const sessionId = extractThreadId([event]);
-
-        if (sessionId && !observedSessionId) {
-          observedSessionId = sessionId;
-          sessionIdSignal.resolve(sessionId);
-          onEvent({ type: "session", sessionId });
-        }
-
-        for (const text of extractResponseDeltas(event)) {
-          onEvent({ type: "delta", text });
-        }
-
-        onEvent({ type: "raw", event });
-      },
-    });
-    const result = processRun.promise.then(
-      async ({ content, beforeSnapshot, afterSnapshot, rawEvents }) => {
-        const sessionId = expectedSessionId ?? observedSessionId ?? extractThreadId(rawEvents);
-
-        if (!sessionId) {
-          throw new Error(`${binaryConfig.displayName} did not return a thread id`);
-        }
-
-        sessionIdSignal.resolve(sessionId);
-
-        const responseContent =
-          content.trim() ||
-          (harness === "codex" ? extractFinalResponse(rawEvents)?.trim() : "") ||
-          "";
-        if (harness === "codex" && !responseContent) {
-          throw new Error("Codex did not return an assistant message");
-        }
-
-        return {
-          sessionId,
-          content: responseContent,
-          trace: formatRawEvents(rawEvents),
-          ...(captureDiff
-            ? {
-                gitDiff: {
-                  baseCommit: beforeSnapshot.gitCommit,
-                  beforeDiff: beforeSnapshot.diff,
-                  afterDiff: afterSnapshot.diff,
-                },
-              }
-            : {}),
-          rawEvents,
-        };
-      },
-    );
-
-    result.catch((error: unknown) => {
-      sessionIdSignal.reject(error);
-    });
-
-    return {
-      sessionId: sessionIdSignal.promise,
-      result,
-      cancel: processRun.cancel,
-    };
-  }
-}
-
-function createDeferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
-  // Non-streaming callers only await result; a startup failure rejects both.
-  void promise.catch(() => undefined);
-
-  return { promise, resolve, reject };
-}
-
-function getModelHarness(models: AiModelPreferences | undefined): AiHarness {
-  return models?.harness === "codex" ? "codex" : "traex";
 }
 
 function execFileJson(command: string, args: string[]): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    execFile(command, args, { env: createTraexEnv() }, (error, stdout, stderr) => {
+    execFile(command, args, { env: createAiProcessEnv() }, (error, stdout, stderr) => {
       if (error) {
         reject(createTraexModelsError(command, stderr, error));
         return;
@@ -514,24 +102,4 @@ function parseTraexModelInfo(value: unknown): AiModelInfo {
     ...(description ? { description } : {}),
     ...(contextWindow ? { contextWindow } : {}),
   };
-}
-
-async function createAtomicReviewInputFiles(input: {
-  diff: string;
-  executionTrace: string;
-}): Promise<{ directory: string; diffPath: string; executionTracePath: string }> {
-  const directory = await mkdtemp(join(tmpdir(), "cui-atomic-review-"));
-  const diffPath = join(directory, "round.diff");
-  const executionTracePath = join(directory, "execution-trace.jsonl");
-
-  await Promise.all([
-    writeFile(diffPath, input.diff || "无", "utf8"),
-    writeFile(executionTracePath, input.executionTrace || "无", "utf8"),
-  ]);
-
-  return { directory, diffPath, executionTracePath };
-}
-
-async function cleanupAtomicReviewInputFiles(directory: string): Promise<void> {
-  await rm(directory, { force: true, recursive: true });
 }
