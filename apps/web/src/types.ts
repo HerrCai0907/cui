@@ -42,6 +42,7 @@ export type ExecutionTraceEvent =
   | ThreadStartedTraceEvent
   | TurnStartedTraceEvent
   | TurnCompletedTraceEvent
+  | HarnessLifecycleTraceEvent
   | ItemStartedTraceEvent
   | ItemUpdatedTraceEvent
   | ItemCompletedTraceEvent
@@ -59,6 +60,13 @@ export type TurnStartedTraceEvent = {
 
 export type TurnCompletedTraceEvent = {
   type: "turn.completed";
+  usage?: TokenUsage;
+};
+
+export type HarnessLifecycleTraceEvent = {
+  type: "lifecycle";
+  name: string;
+  threadId?: string;
   usage?: TokenUsage;
 };
 

@@ -24,7 +24,12 @@ import {
 import { parseAtomicDiffReviewItems } from "./atomicDiffReviewParser.js";
 import { parseConversationSummary } from "./conversationSummaryParser.js";
 import type { AiHarnessBinaryConfig } from "./aiBinary.js";
-import { extractResponseDeltas, extractThreadId, formatRawEvents } from "./aiEvents.js";
+import {
+  extractResponseDeltas,
+  extractThreadId,
+  formatTraceEvents,
+  toTraceEvent,
+} from "./aiEvents.js";
 import { runAiProcess, type AiProcessRun } from "./aiProcess.js";
 
 export type AiProcessRunner = (input: Parameters<typeof runAiProcess>[0]) => AiProcessRun;
@@ -279,7 +284,11 @@ export abstract class CliAiModel implements AiModel {
           onEvent({ type: "delta", text });
         }
 
-        onEvent({ type: "raw", event });
+        const traceEvent = toTraceEvent(event);
+
+        if (traceEvent) {
+          onEvent({ type: "raw", event: traceEvent });
+        }
       },
     });
     const result = processRun.promise.then(
@@ -297,7 +306,7 @@ export abstract class CliAiModel implements AiModel {
         return {
           sessionId,
           content: responseContent,
-          trace: formatRawEvents(rawEvents),
+          trace: formatTraceEvents(rawEvents),
           ...(captureDiff
             ? {
                 gitDiff: {

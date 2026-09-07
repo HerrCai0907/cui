@@ -47,7 +47,7 @@ import {
   ShellCommandRunner,
   type ShellCommandResult,
 } from "../../infrastructure/shell/ShellCommandRunner.js";
-import { formatRawEvents } from "../../infrastructure/ai/aiEvents.js";
+import { formatTraceEvents } from "../../infrastructure/ai/aiEvents.js";
 import { assertExistingDirectory } from "../paths/pathValidation.js";
 
 export type { RunStreamEvent } from "../runs/runEvents.js";
@@ -906,7 +906,7 @@ export class SessionService {
 
     try {
       await this.store.appendMessages(run.sessionId, [
-        createMessage("assistant", formatRawEvents(rawEvents), "trace"),
+        createMessage("assistant", formatTraceEvents(rawEvents), "trace"),
       ]);
     } catch (error) {
       void this.logger.session(run.sessionId).warn("session.cancelled_trace.persist_failed", {

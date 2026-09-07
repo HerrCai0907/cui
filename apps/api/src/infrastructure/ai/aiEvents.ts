@@ -1,4 +1,11 @@
 import { getStringProperty, getTextFields } from "./jsonFields.js";
+import {
+  extractAssistantResponseText,
+  formatHarnessMessages,
+  isTraceHarnessMessage,
+  normalizeHarnessEvent,
+  type HarnessMessage,
+} from "./harnessMessages.js";
 
 export function parseJsonLine(line: string): unknown | undefined {
   const trimmed = line.trim();
@@ -49,47 +56,39 @@ export function extractThreadId(events: unknown[]): string | undefined {
 }
 
 export function extractResponseDeltas(event: unknown): string[] {
-  if (!event || typeof event !== "object") {
+  const eventType = getEventType(event);
+
+  // Codex exec may repeat assistant snapshots across started/updated/completed
+  // item events. Only completed items are stable enough to stream as response.
+  if (eventType === "item.started" || eventType === "item.updated") {
     return [];
   }
 
-  const type = getStringProperty(event, "type");
+  const message = normalizeHarnessEvent(event);
 
-  // Codex exec emits complete message items, not token deltas. Only consume
-  // completed items so started/updated snapshots cannot duplicate the text.
-  if (type === "item.completed" && "item" in event) {
-    const item = event.item;
-
-    if (item && typeof item === "object" && getStringProperty(item, "type") === "agent_message") {
-      return getTextFields(item, ["text"]).map((text) => `${text}\n\n`);
-    }
+  if (message.type !== "assistant_response") {
+    return [];
   }
 
-  if (type === "text_delta") {
-    return getTextFields(event, ["text", "delta"]);
-  }
+  return message.final ? [`${message.text}\n\n`] : extractAssistantResponseText(message);
+}
 
-  if (type === "event_msg") {
-    const payload = "payload" in event ? event.payload : undefined;
-
-    if (payload && typeof payload === "object") {
-      const payloadType = getStringProperty(payload, "type");
-
-      if (payloadType === "agent_message") {
-        return getTextFields(payload, ["message"]).map((text) => `${text}\n\n`);
-      }
-
-      if (payloadType === "agent_message_delta") {
-        return getTextFields(payload, ["text", "delta", "message"]);
-      }
-    }
-  }
-
-  return [];
+export function shouldIncludeEventInTrace(event: unknown): boolean {
+  return isTraceHarnessMessage(normalizeHarnessEvent(event));
 }
 
 export function formatRawEvents(events: unknown[]): string {
   return events.map((event) => JSON.stringify(event)).join("\n");
+}
+
+export function formatTraceEvents(events: unknown[]): string {
+  return formatHarnessMessages(events.map(normalizeHarnessEvent).filter(isTraceHarnessMessage));
+}
+
+export function toTraceEvent(event: unknown): HarnessMessage | undefined {
+  const message = normalizeHarnessEvent(event);
+
+  return isTraceHarnessMessage(message) ? message : undefined;
 }
 
 export function extractFinalResponse(events: unknown[]): string | undefined {

@@ -54,6 +54,19 @@ function getTraceEventMessageType(event: unknown): TraceMessageType {
 
   const type = getString(event, "type");
 
+  if (
+    type === "command_execution" ||
+    type === "reasoning" ||
+    type === "todo_list" ||
+    type === "file_change" ||
+    type === "lifecycle" ||
+    type === "metadata" ||
+    type === "stdout" ||
+    type === "unknown"
+  ) {
+    return getUnifiedTraceMessageType(type);
+  }
+
   if (type === "item.started" || type === "item.updated" || type === "item.completed") {
     return getTraceItemMessageType(event.item);
   }
@@ -68,6 +81,30 @@ function getTraceEventMessageType(event: unknown): TraceMessageType {
 
   if (type === "text_delta") {
     return "assistant_message";
+  }
+
+  if (type === "stdout") {
+    return "stdout";
+  }
+
+  return "unknown";
+}
+
+function getUnifiedTraceMessageType(type: string): TraceMessageType {
+  if (type === "command_execution" || type === "reasoning" || type === "todo_list") {
+    return type;
+  }
+
+  if (type === "file_change") {
+    return "file_change";
+  }
+
+  if (type === "lifecycle") {
+    return "lifecycle";
+  }
+
+  if (type === "metadata") {
+    return "metadata";
   }
 
   if (type === "stdout") {

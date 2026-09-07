@@ -142,6 +142,19 @@ function describeTraceEvent(event: ExecutionTraceEvent): {
     };
   }
 
+  if (event.type === "lifecycle") {
+    return {
+      title: formatEventName(event.name),
+      meta: event.threadId
+        ? shortId(event.threadId)
+        : event.usage
+          ? formatUsage(event.usage)
+          : undefined,
+      tone: "trace-event-neutral",
+      icon: <Play size={14} />,
+    };
+  }
+
   if (
     event.type === "item.started" ||
     event.type === "item.updated" ||

@@ -55,7 +55,7 @@ for (const harness of [undefined, "traex", "codex"] as const) {
         [{ type: "session", sessionId: expectedSessionId }],
       );
       assert.ok(events.some((event) => event.type === "delta" && event.text === "Done."));
-      assert.equal(events.filter((event) => event.type === "raw").length, 2);
+      assert.equal(events.filter((event) => event.type === "raw").length, 1);
     }
 
     assert.deepEqual(await router.summarizeConversation(input), {

@@ -37,12 +37,46 @@ test("Codex streams completed messages and recovers final output from JSONL", as
     (event) => events.push(event),
   );
   assert.equal(await run.sessionId, "codex-test");
-  assert.equal((await run.result).content, "Done.");
+  const result = await run.result;
+
+  assert.equal(result.content, "Done.");
+  assert.equal(
+    result.trace,
+    [
+      {
+        type: "lifecycle",
+        name: "thread.started",
+        threadId: "codex-test",
+        raw: { type: "thread.started", thread_id: "codex-test" },
+      },
+      { type: "lifecycle", name: "turn.completed", raw: { type: "turn.completed" } },
+    ]
+      .map((event) => JSON.stringify(event))
+      .join("\n"),
+  );
   assert.deepEqual(
     events.filter((event) => event.type === "delta"),
     [
       { type: "delta", text: "Working...\n\n" },
       { type: "delta", text: "Done.\n\n" },
+    ],
+  );
+  assert.deepEqual(
+    events.filter((event) => event.type === "raw"),
+    [
+      {
+        type: "raw",
+        event: {
+          type: "lifecycle",
+          name: "thread.started",
+          threadId: "codex-test",
+          raw: { type: "thread.started", thread_id: "codex-test" },
+        },
+      },
+      {
+        type: "raw",
+        event: { type: "lifecycle", name: "turn.completed", raw: { type: "turn.completed" } },
+      },
     ],
   );
 });

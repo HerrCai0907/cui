@@ -4,6 +4,9 @@ import {
   extractResponseDeltas,
   extractFinalResponse,
   extractProcessError,
+  formatTraceEvents,
+  shouldIncludeEventInTrace,
+  toTraceEvent,
 } from "../../apps/api/src/infrastructure/ai/aiEvents.js";
 
 test("Codex completed messages stream once, excluding tools and partial snapshots", () => {
@@ -44,4 +47,139 @@ test("recoverable Codex errors do not fail a successful turn", () => {
   const events = [{ type: "error", message: "Reconnecting" }, { type: "turn.completed" }];
   assert.equal(extractProcessError(events, false), undefined);
   assert.equal(extractProcessError(events, true), "Reconnecting");
+});
+
+test("trace excludes events already consumed as assistant response text", () => {
+  assert.equal(
+    shouldIncludeEventInTrace({
+      type: "item.completed",
+      item: { id: "item_1", type: "agent_message", text: "Done." },
+    }),
+    false,
+  );
+  assert.equal(shouldIncludeEventInTrace({ type: "text_delta", text: "Done." }), false);
+  assert.equal(
+    shouldIncludeEventInTrace({
+      type: "event_msg",
+      payload: { type: "agent_message", message: "Done." },
+    }),
+    false,
+  );
+  assert.equal(
+    shouldIncludeEventInTrace({
+      type: "event_msg",
+      payload: { type: "agent_message_delta", delta: "Done." },
+    }),
+    false,
+  );
+  assert.equal(
+    shouldIncludeEventInTrace({
+      type: "response_item",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text: "Done." }],
+      },
+    }),
+    false,
+  );
+  assert.equal(
+    shouldIncludeEventInTrace({
+      type: "item.completed",
+      item: { id: "command_1", type: "command_execution", command: "npm test" },
+    }),
+    true,
+  );
+  assert.equal(shouldIncludeEventInTrace({ type: "turn.completed" }), true);
+});
+
+test("trace formatting emits unified harness messages without assistant responses", () => {
+  const trace = formatTraceEvents([
+    { type: "thread.started", thread_id: "session-1" },
+    {
+      type: "response_item",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text: "Final answer" }],
+      },
+    },
+    {
+      type: "item.completed",
+      item: {
+        id: "command_1",
+        type: "command_execution",
+        command: "npm test",
+        status: "completed",
+        exit_code: 0,
+      },
+    },
+  ]);
+
+  assert.deepEqual(
+    trace.split("\n").map((line) => JSON.parse(line)),
+    [
+      {
+        type: "lifecycle",
+        name: "thread.started",
+        threadId: "session-1",
+        raw: { type: "thread.started", thread_id: "session-1" },
+      },
+      {
+        type: "command_execution",
+        id: "command_1",
+        phase: "completed",
+        command: "npm test",
+        exitCode: 0,
+        status: "completed",
+        raw: {
+          type: "item.completed",
+          item: {
+            id: "command_1",
+            type: "command_execution",
+            command: "npm test",
+            status: "completed",
+            exit_code: 0,
+          },
+        },
+      },
+    ],
+  );
+});
+
+test("streaming trace events are already normalized for frontend consumption", () => {
+  assert.deepEqual(
+    toTraceEvent({
+      type: "item.completed",
+      item: { id: "assistant_1", type: "agent_message", text: "Done." },
+    }),
+    undefined,
+  );
+  assert.deepEqual(
+    toTraceEvent({
+      type: "item.completed",
+      item: {
+        id: "command_1",
+        type: "command_execution",
+        command: "npm test",
+      },
+    }),
+    {
+      type: "command_execution",
+      id: "command_1",
+      phase: "completed",
+      command: "npm test",
+      aggregatedOutput: undefined,
+      exitCode: undefined,
+      status: undefined,
+      raw: {
+        type: "item.completed",
+        item: {
+          id: "command_1",
+          type: "command_execution",
+          command: "npm test",
+        },
+      },
+    },
+  );
 });
