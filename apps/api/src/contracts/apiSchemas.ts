@@ -130,6 +130,7 @@ export const ChatSessionViewSchema = z.object({
   workspace: z.string(),
   title: z.string(),
   summary: z.string().optional(),
+  pinned: z.boolean().optional(),
   doneAt: z.string().datetime().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -211,9 +212,14 @@ export const CreateRoundReviewRunRequestSchema = z
   })
   .strict();
 
-export const UpdateSessionRequestSchema = z.object({
-  done: z.boolean(),
-});
+export const UpdateSessionRequestSchema = z
+  .object({
+    done: z.boolean().optional(),
+    pinned: z.boolean().optional(),
+  })
+  .refine((value) => value.done !== undefined || value.pinned !== undefined, {
+    message: "At least one session field must be provided",
+  });
 
 export const ListSessionsQuerySchema = z.object({
   page: z.coerce

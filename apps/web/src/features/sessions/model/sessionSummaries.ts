@@ -32,6 +32,7 @@ export function toSessionSummary(session: ApiSession | ApiSessionListItem): Sess
     workspace: session.workspace,
     title: session.title,
     summary: session.summary,
+    pinned: session.pinned,
     doneAt: session.doneAt,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
@@ -63,10 +64,16 @@ export function partitionActiveSessionsForSidebar(
   recentWorkspaceCount = ACTIVE_RECENT_WORKSPACE_COUNT,
 ): ActiveSidebarSessionPartition {
   const activeCandidateSessions = sessions.filter((session) => !session.doneAt);
+  const pinnedActiveCandidateSessions = activeCandidateSessions.filter((session) => session.pinned);
   const activeSidebarSessionIds = new Set<string>();
   const sessionsByWorkspace = groupSessionsByWorkspace(sessions);
   const activeCandidateSessionsByWorkspace = groupSessionsByWorkspace(activeCandidateSessions);
   const activeWorkspaceIds = new Set(highlightedWorkspaceIds);
+
+  pinnedActiveCandidateSessions.forEach((session) => {
+    activeSidebarSessionIds.add(session.id);
+    activeWorkspaceIds.add(session.workspace);
+  });
 
   Object.entries(sessionsByWorkspace).forEach(([workspace, workspaceSessions]) => {
     if (
@@ -100,6 +107,7 @@ export function partitionActiveSessionsForSidebar(
 
     workspaceSessions
       .filter((session) => !activeSidebarSessionIds.has(session.id))
+      .filter((session) => !session.pinned)
       .sort((left, right) => compareSessionsByAttention(left, right, attentionState))
       .slice(0, ACTIVE_RECENT_SESSION_COUNT_PER_WORKSPACE)
       .forEach((session) => {

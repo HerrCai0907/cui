@@ -257,6 +257,9 @@
           "summary": {
             "type": "string"
           },
+          "pinned": {
+            "type": "boolean"
+          },
           "doneAt": {
             "type": "string",
             "format": "date-time"
@@ -431,6 +434,9 @@
           },
           "summary": {
             "type": "string"
+          },
+          "pinned": {
+            "type": "boolean"
           },
           "doneAt": {
             "type": "string",
@@ -674,6 +680,9 @@
               },
               "summary": {
                 "type": "string"
+              },
+              "pinned": {
+                "type": "boolean"
               },
               "doneAt": {
                 "type": "string",
@@ -995,9 +1004,11 @@
         "properties": {
           "done": {
             "type": "boolean"
+          },
+          "pinned": {
+            "type": "boolean"
           }
-        },
-        "required": ["done"]
+        }
       },
       "SubmittedRunResponse": {
         "type": "object",
@@ -1048,6 +1059,9 @@
               },
               "summary": {
                 "type": "string"
+              },
+              "pinned": {
+                "type": "boolean"
               },
               "doneAt": {
                 "type": "string",
@@ -1270,6 +1284,9 @@
                   "summary": {
                     "type": "string"
                   },
+                  "pinned": {
+                    "type": "boolean"
+                  },
                   "doneAt": {
                     "type": "string",
                     "format": "date-time"
@@ -1454,6 +1471,9 @@
                   },
                   "summary": {
                     "type": "string"
+                  },
+                  "pinned": {
+                    "type": "boolean"
                   },
                   "doneAt": {
                     "type": "string",
@@ -1965,6 +1985,9 @@
                           "summary": {
                             "type": "string"
                           },
+                          "pinned": {
+                            "type": "boolean"
+                          },
                           "doneAt": {
                             "type": "string",
                             "format": "date-time"
@@ -2144,6 +2167,9 @@
                         },
                         "summary": {
                           "type": "string"
+                        },
+                        "pinned": {
+                          "type": "boolean"
                         },
                         "doneAt": {
                           "type": "string",
@@ -2404,6 +2430,9 @@
                         "summary": {
                           "type": "string"
                         },
+                        "pinned": {
+                          "type": "boolean"
+                        },
                         "doneAt": {
                           "type": "string",
                           "format": "date-time"
@@ -2602,9 +2631,11 @@
                 "properties": {
                   "done": {
                     "type": "boolean"
+                  },
+                  "pinned": {
+                    "type": "boolean"
                   }
-                },
-                "required": ["done"]
+                }
               }
             }
           }
@@ -2639,6 +2670,9 @@
                         },
                         "summary": {
                           "type": "string"
+                        },
+                        "pinned": {
+                          "type": "boolean"
                         },
                         "doneAt": {
                           "type": "string",
@@ -3381,6 +3415,9 @@
                         "summary": {
                           "type": "string"
                         },
+                        "pinned": {
+                          "type": "boolean"
+                        },
                         "doneAt": {
                           "type": "string",
                           "format": "date-time"
@@ -3724,6 +3761,9 @@
                         },
                         "summary": {
                           "type": "string"
+                        },
+                        "pinned": {
+                          "type": "boolean"
                         },
                         "doneAt": {
                           "type": "string",
@@ -4094,6 +4134,9 @@
                             "summary": {
                               "type": "string"
                             },
+                            "pinned": {
+                              "type": "boolean"
+                            },
                             "doneAt": {
                               "type": "string",
                               "format": "date-time"
@@ -4278,6 +4321,9 @@
                             },
                             "summary": {
                               "type": "string"
+                            },
+                            "pinned": {
+                              "type": "boolean"
                             },
                             "doneAt": {
                               "type": "string",

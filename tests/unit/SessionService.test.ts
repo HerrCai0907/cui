@@ -398,6 +398,45 @@ test("createRun queues prompts while a session is running", async () => {
   }
 });
 
+test("updateSession persists pinned state without changing done state", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    await store.createSession({
+      id: "session-1",
+      workspace: cwd,
+      title: "Initial title",
+      summary: "",
+      doneAt: "2026-08-22T00:00:10.000Z",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [],
+      rounds: [],
+    });
+
+    const pinnedSession = await service.updateSession("session-1", { pinned: true });
+
+    assert.equal(pinnedSession.pinned, true);
+    assert.equal(pinnedSession.doneAt, "2026-08-22T00:00:10.000Z");
+    assert.equal((await store.getSession("session-1"))?.pinned, true);
+    assert.equal(
+      (await service.listSessionViews()).sessions.find((session) => session.id === "session-1")
+        ?.pinned,
+      true,
+    );
+
+    const unpinnedSession = await service.updateSession("session-1", { pinned: false });
+
+    assert.equal(unpinnedSession.pinned, false);
+    assert.equal(unpinnedSession.doneAt, "2026-08-22T00:00:10.000Z");
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 test("resumeQueuedPrompts starts persisted queued prompts", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));

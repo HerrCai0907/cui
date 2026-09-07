@@ -262,16 +262,23 @@ export class SessionService {
   }
 
   async updateSession(sessionId: string, request: UpdateSessionRequest): Promise<ChatSessionView> {
-    const session = await this.store.getSession(sessionId);
+    let session = await this.store.getSession(sessionId);
 
     if (!session) {
       throw new SessionNotFoundError(sessionId);
     }
 
-    const doneAt = request.done ? new Date().toISOString() : undefined;
-    const updatedSession = await this.store.updateSessionDoneAt(sessionId, doneAt);
+    if (request.done !== undefined) {
+      const doneAt = request.done ? new Date().toISOString() : undefined;
 
-    return this.toWindowedSessionView(updatedSession);
+      session = await this.store.updateSessionDoneAt(sessionId, doneAt);
+    }
+
+    if (request.pinned !== undefined) {
+      session = await this.store.updateSessionPinned(sessionId, request.pinned);
+    }
+
+    return this.toWindowedSessionView(session);
   }
 
   async getRoundReview(sessionId: string, round: number): Promise<ChatRound | undefined> {
