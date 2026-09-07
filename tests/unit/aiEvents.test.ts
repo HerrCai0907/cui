@@ -29,6 +29,13 @@ test("Codex completed messages stream once, excluding tools and partial snapshot
     }),
     ["delta"],
   );
+  assert.deepEqual(
+    extractResponseDeltas({
+      type: "event_msg",
+      payload: { type: "agent_message", message: "trace only" },
+    }),
+    [],
+  );
 });
 
 test("Codex fallback selects the last assistant message without commentary or tool text", () => {
@@ -63,7 +70,7 @@ test("trace excludes events already consumed as assistant response text", () => 
       type: "event_msg",
       payload: { type: "agent_message", message: "Done." },
     }),
-    false,
+    true,
   );
   assert.equal(
     shouldIncludeEventInTrace({
@@ -97,12 +104,12 @@ test("trace formatting emits unified harness messages without assistant response
   const trace = formatTraceEvents([
     { type: "thread.started", thread_id: "session-1" },
     {
+      type: "event_msg",
+      payload: { type: "agent_message", message: "Assistant trace" },
+    },
+    {
       type: "response_item",
-      payload: {
-        type: "message",
-        role: "assistant",
-        content: [{ type: "output_text", text: "Final answer" }],
-      },
+      payload: { type: "agent_message", text: "Final answer" },
     },
     {
       type: "item.completed",
@@ -124,6 +131,14 @@ test("trace formatting emits unified harness messages without assistant response
         name: "thread.started",
         threadId: "session-1",
         raw: { type: "thread.started", thread_id: "session-1" },
+      },
+      {
+        type: "assistant_message",
+        text: "Assistant trace",
+        raw: {
+          type: "event_msg",
+          payload: { type: "agent_message", message: "Assistant trace" },
+        },
       },
       {
         type: "command_execution",
