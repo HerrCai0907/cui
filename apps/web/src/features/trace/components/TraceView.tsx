@@ -358,6 +358,7 @@ function getFileChangePaths(item: ExecutionTraceItem): string[] {
     stringValue(item.file_path),
     stringValue(item.filePath),
     ...stringArrayValue(item.files),
+    ...stringArrayValue(item.paths),
     ...Object.keys(isRecord(changes) ? changes : {}),
     ...fileChangeArrayPaths(changes),
   ].filter((path): path is string => Boolean(path));

@@ -77,6 +77,10 @@ test("createSessionMessagesPage filters trace content by message type", () => {
             item: { id: "assistant", type: "agent_message", text: "visible assistant" },
           }),
           JSON.stringify({
+            type: "event_msg",
+            payload: { type: "agent_message", message: "visible legacy assistant" },
+          }),
+          JSON.stringify({
             type: "item.completed",
             item: { id: "command", type: "command_execution", command: "hidden command" },
           }),
@@ -99,6 +103,10 @@ test("createSessionMessagesPage filters trace content by message type", () => {
     JSON.stringify({
       type: "item.completed",
       item: { id: "assistant", type: "agent_message", text: "visible assistant" },
+    }),
+    JSON.stringify({
+      type: "event_msg",
+      payload: { type: "agent_message", message: "visible legacy assistant" },
     }),
     JSON.stringify({
       type: "item.updated",

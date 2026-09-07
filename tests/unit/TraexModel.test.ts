@@ -27,16 +27,40 @@ test("TraeX lists and normalizes its model catalog", async () => {
   ]);
 });
 
-test("TraeX keeps completed assistant messages in execution trace without duplicating response deltas", async () => {
+test("TraeX keeps normalized execution trace messages without duplicating response deltas", async () => {
   const events: AiRunEvent[] = [];
+  const rawEvents = [
+    { type: "thread.started", thread_id: "traex-test" },
+    { type: "text_delta", text: "Done" },
+    { type: "item.completed", item: { id: "item_0", type: "agent_message", text: "Done." } },
+    { type: "turn.completed" },
+  ];
+  const traceEvents = [
+    {
+      type: "lifecycle",
+      name: "thread.started",
+      threadId: "traex-test",
+      raw: { type: "thread.started", thread_id: "traex-test" },
+    },
+    {
+      type: "assistant_message",
+      text: "Done",
+      raw: { type: "text_delta", text: "Done" },
+    },
+    {
+      type: "assistant_message",
+      id: "item_0",
+      phase: "completed",
+      text: "Done.",
+      raw: {
+        type: "item.completed",
+        item: { id: "item_0", type: "agent_message", text: "Done." },
+      },
+    },
+    { type: "lifecycle", name: "turn.completed", raw: { type: "turn.completed" } },
+  ];
   const model = new TraexModel({
     processRunner: (input): AiProcessRun => {
-      const rawEvents = [
-        { type: "thread.started", thread_id: "traex-test" },
-        { type: "text_delta", text: "Done" },
-        { type: "item.completed", item: { id: "item_0", type: "agent_message", text: "Done." } },
-        { type: "turn.completed" },
-      ];
       rawEvents.forEach(input.onRawEvent);
 
       return {
@@ -57,59 +81,13 @@ test("TraeX keeps completed assistant messages in execution trace without duplic
   const result = await run.result;
 
   assert.equal(result.content, "Done.");
-  assert.equal(
-    result.trace,
-    [
-      {
-        type: "lifecycle",
-        name: "thread.started",
-        threadId: "traex-test",
-        raw: { type: "thread.started", thread_id: "traex-test" },
-      },
-      {
-        type: "assistant_message",
-        text: "Done.",
-        raw: {
-          type: "item.completed",
-          item: { id: "item_0", type: "agent_message", text: "Done." },
-        },
-      },
-      { type: "lifecycle", name: "turn.completed", raw: { type: "turn.completed" } },
-    ]
-      .map((event) => JSON.stringify(event))
-      .join("\n"),
-  );
+  assert.equal(result.trace, traceEvents.map((event) => JSON.stringify(event)).join("\n"));
   assert.deepEqual(
     events.filter((event) => event.type === "delta"),
     [{ type: "delta", text: "Done" }],
   );
   assert.deepEqual(
     events.filter((event) => event.type === "raw"),
-    [
-      {
-        type: "raw",
-        event: {
-          type: "lifecycle",
-          name: "thread.started",
-          threadId: "traex-test",
-          raw: { type: "thread.started", thread_id: "traex-test" },
-        },
-      },
-      {
-        type: "raw",
-        event: {
-          type: "assistant_message",
-          text: "Done.",
-          raw: {
-            type: "item.completed",
-            item: { id: "item_0", type: "agent_message", text: "Done." },
-          },
-        },
-      },
-      {
-        type: "raw",
-        event: { type: "lifecycle", name: "turn.completed", raw: { type: "turn.completed" } },
-      },
-    ],
+    traceEvents.map((event) => ({ type: "raw", event })),
   );
 });

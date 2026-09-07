@@ -92,6 +92,41 @@ test("execution trace message type classification handles supported events", () 
     ],
     [{ type: "turn.completed" }, "lifecycle"],
     [{ type: "session_meta", payload: {} }, "metadata"],
+    [
+      {
+        type: "event_msg",
+        payload: { type: "agent_message", message: "legacy assistant" },
+      },
+      "assistant_message",
+    ],
+    [
+      {
+        type: "event_msg",
+        payload: { type: "command_execution", command: "npm test" },
+      },
+      "command_execution",
+    ],
+    [
+      {
+        type: "event_msg",
+        payload: { type: "reasoning_delta", delta: "thinking" },
+      },
+      "reasoning",
+    ],
+    [
+      {
+        type: "event_msg",
+        payload: { type: "todo_list", items: [] },
+      },
+      "todo_list",
+    ],
+    [
+      {
+        type: "event_msg",
+        payload: { type: "file_change", path: "src/file.ts" },
+      },
+      "file_change",
+    ],
     [{ type: "text_delta", text: "stream" }, "assistant_message"],
     [{ type: "stdout", text: "output" }, "stdout"],
   ];

@@ -13,6 +13,8 @@ test("parseExecutionTrace maps unified harness messages to execution trace event
       }),
       JSON.stringify({
         type: "assistant_message",
+        id: "assistant_1",
+        phase: "updated",
         text: "Visible assistant trace.",
         raw: {},
       }),
@@ -33,6 +35,13 @@ test("parseExecutionTrace maps unified harness messages to execution trace event
         items: [{ text: "Ship unified messages", completed: false }],
         raw: {},
       }),
+      JSON.stringify({
+        type: "file_change",
+        id: "file_1",
+        phase: "completed",
+        paths: ["src/file.ts"],
+        raw: {},
+      }),
     ].join("\n"),
   );
 
@@ -42,9 +51,9 @@ test("parseExecutionTrace maps unified harness messages to execution trace event
       thread_id: "session-1",
     },
     {
-      type: "item.completed",
+      type: "item.updated",
       item: {
-        id: "",
+        id: "assistant_1",
         type: "agent_message",
         text: "Visible assistant trace.",
       },
@@ -66,6 +75,15 @@ test("parseExecutionTrace maps unified harness messages to execution trace event
         id: "todo_1",
         type: "todo_list",
         items: [{ text: "Ship unified messages", completed: false }],
+      },
+    },
+    {
+      type: "item.completed",
+      item: {
+        id: "file_1",
+        type: "unknown",
+        originalType: "file_change",
+        paths: ["src/file.ts"],
       },
     },
   ]);

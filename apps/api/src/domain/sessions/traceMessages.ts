@@ -76,7 +76,11 @@ function getTraceEventMessageType(event: unknown): TraceMessageType {
     return "lifecycle";
   }
 
-  if (type === "session_meta" || type === "response_item" || type === "event_msg") {
+  if (type === "event_msg") {
+    return getLegacyEventMessageType(event.payload);
+  }
+
+  if (type === "session_meta" || type === "response_item") {
     return "metadata";
   }
 
@@ -147,6 +151,36 @@ function getTraceItemMessageType(item: unknown): TraceMessageType {
   }
 
   return "unknown";
+}
+
+function getLegacyEventMessageType(payload: unknown): TraceMessageType {
+  if (!isRecord(payload)) {
+    return "metadata";
+  }
+
+  const type = getString(payload, "type");
+
+  if (type === "agent_message") {
+    return "assistant_message";
+  }
+
+  if (type === "command_execution") {
+    return "command_execution";
+  }
+
+  if (type === "reasoning" || type === "reasoning_delta") {
+    return "reasoning";
+  }
+
+  if (type === "todo_list") {
+    return "todo_list";
+  }
+
+  if (isFileChangeItem(type)) {
+    return "file_change";
+  }
+
+  return "metadata";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

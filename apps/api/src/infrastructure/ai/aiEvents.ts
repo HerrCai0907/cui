@@ -75,7 +75,7 @@ export function extractResponseDeltas(event: unknown, harness?: AiHarness): stri
 }
 
 export function shouldIncludeEventInTrace(event: unknown, harness?: AiHarness): boolean {
-  return isTraceHarnessMessage(normalizeHarnessEvent(event, harness));
+  return Boolean(toTraceEvent(event, harness));
 }
 
 export function formatRawEvents(events: unknown[]): string {
@@ -84,12 +84,14 @@ export function formatRawEvents(events: unknown[]): string {
 
 export function formatTraceEvents(events: unknown[], harness?: AiHarness): string {
   return formatHarnessMessages(
-    events.map((event) => normalizeHarnessEvent(event, harness)).filter(isTraceHarnessMessage),
+    events
+      .map((event) => toTraceEvent(event, harness))
+      .filter((event): event is HarnessMessage => Boolean(event)),
   );
 }
 
 export function toTraceEvent(event: unknown, harness?: AiHarness): HarnessMessage | undefined {
-  const message = normalizeHarnessEvent(event, harness);
+  const message = normalizeTraceEvent(event, harness);
 
   return isTraceHarnessMessage(message) ? message : undefined;
 }
@@ -125,4 +127,36 @@ export function extractProcessError(events: unknown[], failedExit: boolean): str
 
 function getEventType(event: unknown): string | undefined {
   return event && typeof event === "object" ? getStringProperty(event, "type") : undefined;
+}
+
+function normalizeTraceEvent(event: unknown, harness?: AiHarness): HarnessMessage {
+  if (harness === "traex" && event && typeof event === "object") {
+    const eventType = getStringProperty(event, "type");
+
+    if (eventType === "text_delta") {
+      return {
+        type: "assistant_message",
+        text: getTextFields(event, ["text", "delta"]).join(""),
+        raw: event,
+      };
+    }
+
+    if (eventType === "event_msg" && "payload" in event) {
+      const payload = event.payload;
+
+      if (
+        payload &&
+        typeof payload === "object" &&
+        getStringProperty(payload, "type") === "agent_message_delta"
+      ) {
+        return {
+          type: "assistant_message",
+          text: getTextFields(payload, ["text", "delta", "message"]).join(""),
+          raw: event,
+        };
+      }
+    }
+  }
+
+  return normalizeHarnessEvent(event, harness);
 }
