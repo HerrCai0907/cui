@@ -168,6 +168,43 @@ test("JsonSessionStore paginates session index entries by updated time", async (
   }
 });
 
+test("JsonSessionStore includes pinned sessions on the first session index page", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-json-session-store-"));
+  const storePath = join(cwd, "sessions.json");
+
+  try {
+    const store = new JsonSessionStore(storePath);
+
+    for (const index of [0, 1, 2, 3]) {
+      await store.createSession({
+        id: `session-${index}`,
+        workspace: cwd,
+        title: `Session ${index}`,
+        summary: "",
+        pinned: index === 0,
+        createdAt: "2026-08-22T00:00:00.000Z",
+        updatedAt: new Date(Date.UTC(2026, 7, 22, 0, 0, index)).toISOString(),
+        messages: [],
+      });
+    }
+
+    const firstPage = await store.listSessionIndexEntries({ page: 1, pageSize: 2 });
+    const secondPage = await store.listSessionIndexEntries({ page: 2, pageSize: 2 });
+
+    assert.deepEqual(
+      firstPage.sessions.map((session) => session.id),
+      ["session-0", "session-3", "session-2"],
+    );
+    assert.deepEqual(
+      secondPage.sessions.map((session) => session.id),
+      ["session-1", "session-0"],
+    );
+    assert.equal(firstPage.pagination.total, 4);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 test("JsonSessionStore stores done state and clears it when appending messages", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-json-session-store-"));
   const storePath = join(cwd, "sessions.json");
@@ -196,6 +233,53 @@ test("JsonSessionStore stores done state and clears it when appending messages",
     assert.equal(appendedSession.doneAt, undefined);
     assert.equal((await store.getSession("session-1"))?.doneAt, undefined);
     assert.equal("doneAt" in JSON.parse(await readFile(detailPath, "utf8")), false);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("JsonSessionStore stores pinned state in the session index", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-json-session-store-"));
+  const storePath = join(cwd, "sessions.json");
+  const session: ChatSession = {
+    id: "session-1",
+    workspace: cwd,
+    title: "Pinned session",
+    summary: "",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+  };
+
+  try {
+    const store = new JsonSessionStore(storePath);
+
+    await store.createSession(session);
+    const pinnedSession = await store.updateSessionPinned("session-1", true);
+
+    assert.equal(pinnedSession.pinned, true);
+    assert.equal((await store.getSession("session-1"))?.pinned, true);
+
+    const rawStore = JSON.parse(await readFile(storePath, "utf8")) as {
+      sessions: Array<Record<string, unknown>>;
+    };
+
+    assert.equal(rawStore.sessions[0].pinned, true);
+    assert.equal((await store.listSessionIndexEntries()).sessions[0]?.pinned, true);
+
+    const unpinnedSession = await store.updateSessionPinned("session-1", false);
+
+    assert.equal(unpinnedSession.pinned, false);
+    assert.equal((await store.getSession("session-1"))?.pinned, undefined);
+    assert.equal(
+      "pinned" in
+        (
+          JSON.parse(await readFile(storePath, "utf8")) as {
+            sessions: Array<Record<string, unknown>>;
+          }
+        ).sessions[0],
+      false,
+    );
   } finally {
     await rm(cwd, { force: true, recursive: true });
   }

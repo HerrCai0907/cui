@@ -249,6 +249,33 @@ test("partitionActiveSessionsForSidebar keeps done sessions out of Active only",
   );
 });
 
+test("partitionActiveSessionsForSidebar keeps pinned sessions active without consuming automatic slots", () => {
+  const sessions = createSessions(4).map((session) => ({
+    ...session,
+    workspace: "/workspace/a",
+  }));
+  sessions[0] = {
+    ...sessions[0],
+    pinned: true,
+  };
+
+  const partition = partitionActiveSessionsForSidebar(sessions, {
+    sessions: {
+      "session-1": 300,
+      "session-2": 200,
+    },
+    workspaces: {
+      "/workspace/a": 100,
+    },
+  });
+
+  assert.deepEqual(
+    partition.active.map((session) => session.id),
+    ["session-1", "session-0"],
+  );
+  assert.deepEqual(partition.activeWorkspaces, ["/workspace/a"]);
+});
+
 test("partitionActiveSessionsForSidebar uses done sessions when retaining active workspaces", () => {
   const sessions = createSessions(4);
   sessions[0] = {

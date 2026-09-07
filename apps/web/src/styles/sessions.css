@@ -215,7 +215,7 @@
 
 .session-list-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 24px;
+  grid-template-columns: minmax(0, 1fr) 24px 24px;
   align-items: center;
   gap: 4px;
 }
@@ -317,6 +317,7 @@
   white-space: normal;
 }
 
+.session-pin-button,
 .session-done-button {
   display: inline-flex;
   align-items: center;
@@ -330,6 +331,10 @@
   padding: 0;
 }
 
+.session-pin-button {
+  opacity: 0.58;
+}
+
 .session-done-button span {
   width: 10px;
   height: 10px;
@@ -337,9 +342,20 @@
   border-radius: 999px;
 }
 
+.session-pin-button:hover,
 .session-done-button:hover {
   background: #e2e8f0;
   color: #475569;
+}
+
+.session-pin-button.is-pinned {
+  opacity: 1;
+  color: #0f766e;
+}
+
+.session-pin-button.is-pinned:hover {
+  background: #ccfbf1;
+  color: #0f766e;
 }
 
 .session-done-button.is-done {

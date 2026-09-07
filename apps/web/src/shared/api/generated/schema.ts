@@ -250,6 +250,7 @@ export interface paths {
                 workspace: string;
                 title: string;
                 summary?: string;
+                pinned?: boolean;
                 /** Format: date-time */
                 doneAt?: string;
                 /** Format: date-time */
@@ -330,6 +331,7 @@ export interface paths {
                 workspace: string;
                 title: string;
                 summary?: string;
+                pinned?: boolean;
                 /** Format: date-time */
                 doneAt?: string;
                 /** Format: date-time */
@@ -437,6 +439,7 @@ export interface paths {
                 workspace: string;
                 title: string;
                 summary?: string;
+                pinned?: boolean;
                 /** Format: date-time */
                 doneAt?: string;
                 /** Format: date-time */
@@ -517,7 +520,8 @@ export interface paths {
       requestBody: {
         content: {
           "application/json": {
-            done: boolean;
+            done?: boolean;
+            pinned?: boolean;
           };
         };
       };
@@ -538,6 +542,7 @@ export interface paths {
                 workspace: string;
                 title: string;
                 summary?: string;
+                pinned?: boolean;
                 /** Format: date-time */
                 doneAt?: string;
                 /** Format: date-time */
@@ -879,6 +884,7 @@ export interface paths {
                 workspace: string;
                 title: string;
                 summary?: string;
+                pinned?: boolean;
                 /** Format: date-time */
                 doneAt?: string;
                 /** Format: date-time */
@@ -1039,6 +1045,7 @@ export interface paths {
                 workspace: string;
                 title: string;
                 summary?: string;
+                pinned?: boolean;
                 /** Format: date-time */
                 doneAt?: string;
                 /** Format: date-time */
@@ -1242,6 +1249,7 @@ export interface paths {
                     workspace: string;
                     title: string;
                     summary?: string;
+                    pinned?: boolean;
                     /** Format: date-time */
                     doneAt?: string;
                     /** Format: date-time */
@@ -1301,6 +1309,7 @@ export interface paths {
                     workspace: string;
                     title: string;
                     summary?: string;
+                    pinned?: boolean;
                     /** Format: date-time */
                     doneAt?: string;
                     /** Format: date-time */
@@ -1462,6 +1471,7 @@ export interface components {
       workspace: string;
       title: string;
       summary?: string;
+      pinned?: boolean;
       /** Format: date-time */
       doneAt?: string;
       /** Format: date-time */
@@ -1517,6 +1527,7 @@ export interface components {
       workspace: string;
       title: string;
       summary?: string;
+      pinned?: boolean;
       /** Format: date-time */
       doneAt?: string;
       /** Format: date-time */
@@ -1599,6 +1610,7 @@ export interface components {
         workspace: string;
         title: string;
         summary?: string;
+        pinned?: boolean;
         /** Format: date-time */
         doneAt?: string;
         /** Format: date-time */
@@ -1706,7 +1718,8 @@ export interface components {
       createdAt?: string;
     };
     UpdateSessionRequest: {
-      done: boolean;
+      done?: boolean;
+      pinned?: boolean;
     };
     SubmittedRunResponse: {
       run: {
@@ -1728,6 +1741,7 @@ export interface components {
         workspace: string;
         title: string;
         summary?: string;
+        pinned?: boolean;
         /** Format: date-time */
         doneAt?: string;
         /** Format: date-time */
@@ -1802,6 +1816,7 @@ export interface components {
             workspace: string;
             title: string;
             summary?: string;
+            pinned?: boolean;
             /** Format: date-time */
             doneAt?: string;
             /** Format: date-time */
@@ -1861,6 +1876,7 @@ export interface components {
             workspace: string;
             title: string;
             summary?: string;
+            pinned?: boolean;
             /** Format: date-time */
             doneAt?: string;
             /** Format: date-time */
