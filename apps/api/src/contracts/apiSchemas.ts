@@ -138,6 +138,7 @@ export const ChatSessionViewSchema = z.object({
   queuedPrompts: z.array(QueuedPromptSchema).optional(),
   currentRound: z.number().int().nonnegative(),
   gitBranch: z.string().optional(),
+  gitCommitSha: z.string().optional(),
   isRunning: z.boolean(),
   runningRunId: z.string().optional(),
   messagePageInfo: MessagePageInfoSchema.optional(),
@@ -254,6 +255,10 @@ export const RunEventsQuerySchema = z.object({
   traceMessageTypes: traceMessageTypesQuerySchema,
 });
 
+export const WorkspaceGitInfoQuerySchema = z.object({
+  workspace: nonEmptyStringSchema,
+});
+
 const startLineSchema = z.coerce
   .number("startLine must be a positive integer")
   .int("startLine must be a positive integer")
@@ -305,6 +310,12 @@ export const CodeRangeResponseSchema = z.object({
   endLine: z.number().int().positive(),
   code: z.string(),
   lines: z.array(CodeLineSchema),
+});
+
+export const WorkspaceGitInfoResponseSchema = z.object({
+  workspace: z.string(),
+  gitBranch: z.string().optional(),
+  gitCommitSha: z.string().optional(),
 });
 
 export const RunSchema = z.object({
@@ -406,3 +417,5 @@ export type GetSessionMessagesQueryContract = z.infer<typeof GetSessionMessagesQ
 export type RunEventsQueryContract = z.infer<typeof RunEventsQuerySchema>;
 export type CodeRangeRequestContract = z.infer<typeof CodeRangeQuerySchema>;
 export type CodeRangeResponseContract = z.infer<typeof CodeRangeResponseSchema>;
+export type WorkspaceGitInfoRequestContract = z.infer<typeof WorkspaceGitInfoQuerySchema>;
+export type WorkspaceGitInfoResponseContract = z.infer<typeof WorkspaceGitInfoResponseSchema>;

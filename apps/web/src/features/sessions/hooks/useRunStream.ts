@@ -207,6 +207,7 @@ export function useRunStream({
           updatedAt: updatedSession.updatedAt,
           currentRound: updatedSession.currentRound,
           gitBranch: updatedSession.gitBranch,
+          gitCommitSha: updatedSession.gitCommitSha,
           queuedPrompts: updatedSession.queuedPrompts,
           isRunning: updatedSession.isRunning,
           runningRunId: updatedSession.runningRunId,

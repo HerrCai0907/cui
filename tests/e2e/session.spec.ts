@@ -7,6 +7,7 @@ import {
   mockSession,
   mockSessionById,
   mockSessions,
+  mockWorkspaceGitInfo,
 } from "./helpers";
 
 test("loads the new session screen without browser errors", async ({ page }) => {
@@ -31,6 +32,27 @@ test("loads the new session screen without browser errors", async ({ page }) => 
   await expect(page.getByPlaceholder("Start with an initial prompt...")).toBeVisible();
   await expect(page.getByLabel("Send message")).toBeVisible();
   expect(browserErrors).toEqual([]);
+});
+
+test("shows the selected workspace branch and commit on the new session screen", async ({
+  page,
+}) => {
+  await mockSessions(page, []);
+  await mockWorkspaceGitInfo(page, {
+    gitBranch: "feature/session-metadata",
+    gitCommitSha: "1234567890abcdef1234567890abcdef12345678",
+  });
+
+  await page.goto("/");
+
+  const gitInfo = page.getByLabel(
+    "Current branch feature/session-metadata, current commit 1234567890ab",
+  );
+
+  await expect(page.getByRole("heading", { name: "New session" })).toBeVisible();
+  await expect(gitInfo).toBeVisible();
+  await expect(gitInfo).toContainText("feature/session-metadata");
+  await expect(gitInfo).toContainText("1234567890ab");
 });
 
 test("scrolls the latest assistant reply to the top of the message stream", async ({ page }) => {
@@ -495,6 +517,7 @@ test("shows the active session branch in the right side of the title bar", async
     title: "Branch display session",
     summary: "Branch name is shown in the header",
     gitBranch: "feature/session-branch",
+    gitCommitSha: "abcdef1234567890abcdef1234567890abcdef12",
     createdAt: "2026-08-22T00:00:00.000Z",
     updatedAt: "2026-08-22T00:00:00.000Z",
     currentRound: 1,
@@ -517,10 +540,13 @@ test("shows the active session branch in the right side of the title bar", async
   await page.goto("/");
 
   const title = page.getByRole("heading", { name: "Branch display session" });
-  const branch = page.getByLabel("Current branch feature/session-branch");
+  const branch = page.getByLabel(
+    "Current branch feature/session-branch, current commit abcdef123456",
+  );
 
   await expect(title).toBeVisible();
   await expect(branch).toBeVisible();
+  await expect(branch).toContainText("abcdef123456");
 
   const [titleBox, branchBox] = await Promise.all([title.boundingBox(), branch.boundingBox()]);
 

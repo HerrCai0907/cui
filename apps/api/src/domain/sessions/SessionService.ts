@@ -183,17 +183,23 @@ export class SessionService {
     options: ListSessionViewsOptions = {},
   ): Promise<SessionListPage<ChatSessionListItem>> {
     const page = await this.store.listSessionIndexEntries(options);
-    const branchByWorkspace = new Map<string, Promise<string | undefined>>();
+    const gitInfoByWorkspace = new Map<
+      string,
+      ReturnType<GitDiffService["captureWorkspaceGitInfo"]>
+    >();
 
     return {
       ...page,
       sessions: await Promise.all(
-        page.sessions.map(async (session) =>
-          toSessionListItem(session, {
-            gitBranch: await this.getWorkspaceBranch(session.workspace, branchByWorkspace),
+        page.sessions.map(async (session) => {
+          const gitInfo = await this.getWorkspaceGitInfo(session.workspace, gitInfoByWorkspace);
+
+          return toSessionListItem(session, {
+            gitBranch: gitInfo.branch,
+            gitCommitSha: gitInfo.commitSha,
             runningRunId: this.runRegistry.getRunningRunIdForSession(session.id),
-          }),
-        ),
+          });
+        }),
       ),
     };
   }
@@ -908,8 +914,11 @@ export class SessionService {
     runningRunId = this.runRegistry.getRunningRunIdForSession(session.id),
     messages?: SessionMessageWindowOptions,
   ): Promise<ChatSessionView> {
+    const gitInfo = await this.getWorkspaceGitInfo(session.workspace);
+
     return toSessionView(session, {
-      gitBranch: await this.getWorkspaceBranch(session.workspace),
+      gitBranch: gitInfo.branch,
+      gitCommitSha: gitInfo.commitSha,
       messages,
       runningRunId,
     });
@@ -925,20 +934,20 @@ export class SessionService {
     });
   }
 
-  private async getWorkspaceBranch(
+  private async getWorkspaceGitInfo(
     workspace: string,
-    cache?: Map<string, Promise<string | undefined>>,
-  ): Promise<string | undefined> {
-    const cachedBranch = cache?.get(workspace);
+    cache?: Map<string, ReturnType<GitDiffService["captureWorkspaceGitInfo"]>>,
+  ): Promise<Awaited<ReturnType<GitDiffService["captureWorkspaceGitInfo"]>>> {
+    const cachedInfo = cache?.get(workspace);
 
-    if (cachedBranch) {
-      return cachedBranch;
+    if (cachedInfo) {
+      return cachedInfo;
     }
 
-    const branch = this.gitDiffService.captureCurrentBranch(workspace);
-    cache?.set(workspace, branch);
+    const gitInfo = this.gitDiffService.captureWorkspaceGitInfo(workspace);
+    cache?.set(workspace, gitInfo);
 
-    return branch;
+    return gitInfo;
   }
 
   private scheduleAtomicReview(input: {

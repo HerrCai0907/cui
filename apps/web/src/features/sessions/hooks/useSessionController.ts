@@ -15,6 +15,7 @@ import {
   type SessionListPage,
   updateSession,
 } from "../api/sessionsApi";
+import { getWorkspaceGitInfo, type WorkspaceGitInfo } from "../api/codeApi";
 import {
   getCurrentRound,
   groupSessionsByWorkspace,
@@ -69,6 +70,7 @@ const ACTIVE_SESSION_MESSAGE_LIMIT = 2;
 const MAX_OLDER_SESSION_MESSAGES_LIMIT = 8;
 const SESSION_PAGE_SIZE = 30;
 const SIDEBAR_SESSION_REFRESH_INTERVAL_MS = 10_000;
+const WORKSPACE_GIT_INFO_REFRESH_DELAY_MS = 250;
 
 type SessionPagination = SessionListPage["pagination"];
 type AtomicReviewStatus = NonNullable<ApiSession["rounds"]>[number]["atomicReviewStatus"];
@@ -109,6 +111,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   const [draft, setDraft] = useState("");
   const [composerMode, setComposerMode] = useState<ComposerMode>("chat");
   const [workspaceDraft, setWorkspaceDraft] = useState(defaultWorkspace);
+  const [newSessionGitInfo, setNewSessionGitInfo] = useState<WorkspaceGitInfo | null>(null);
   const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(() => new Set());
   const [submittingSessionIds, setSubmittingSessionIds] = useState<Set<string>>(() => new Set());
   const [stoppingSessionIds, setStoppingSessionIds] = useState<Set<string>>(() => new Set());
@@ -338,6 +341,34 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     };
   }, [draft]);
 
+  useEffect(() => {
+    if (activeSession) {
+      setNewSessionGitInfo(null);
+      return;
+    }
+
+    const workspace = workspaceDraft.trim() || defaultWorkspace;
+    let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      void getWorkspaceGitInfo({ workspace })
+        .then((gitInfo) => {
+          if (!cancelled) {
+            setNewSessionGitInfo(gitInfo);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setNewSessionGitInfo(null);
+          }
+        });
+    }, WORKSPACE_GIT_INFO_REFRESH_DELAY_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [activeSession?.id, defaultWorkspace, workspaceDraft]);
+
   function toggleWorkspace(workspaceId: string) {
     updateSidebarBrowserState((current) => {
       const nextExpandedWorkspaces = new Set(
@@ -536,6 +567,8 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
                 nextActiveSessionSummary.currentRound,
               ),
               gitBranch: nextActiveSessionSummary.gitBranch ?? currentActiveSession.gitBranch,
+              gitCommitSha:
+                nextActiveSessionSummary.gitCommitSha ?? currentActiveSession.gitCommitSha,
               queuedPrompts: nextActiveSessionSummary.queuedPrompts,
               isRunning: nextActiveSessionSummary.isRunning,
               runningRunId: nextActiveSessionSummary.runningRunId,
@@ -1171,6 +1204,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
         sessionWithRunOverlay.currentRound ?? 0,
       ),
       gitBranch: sessionWithRunOverlay.gitBranch ?? currentSession.gitBranch,
+      gitCommitSha: sessionWithRunOverlay.gitCommitSha ?? currentSession.gitCommitSha,
       isRunning: true,
       runningRunId: localRunId,
     };
@@ -1264,6 +1298,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     markSessionDone,
     olderMessagesLoading,
     notification,
+    newSessionGitInfo,
     pendingDoneSessionIds,
     runningSessionIds,
     setDraft,
@@ -1456,6 +1491,7 @@ function createSessionShell(session: ApiSessionListItem): ApiSession {
     queuedPrompts: session.queuedPrompts,
     currentRound: session.currentRound,
     gitBranch: session.gitBranch,
+    gitCommitSha: session.gitCommitSha,
     isRunning: session.isRunning,
     runningRunId: session.runningRunId,
   };

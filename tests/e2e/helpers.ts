@@ -118,6 +118,25 @@ export async function mockModels(page: Page) {
   });
 }
 
+export async function mockWorkspaceGitInfo(
+  page: Page,
+  gitInfo: {
+    workspace?: string;
+    gitBranch?: string;
+    gitCommitSha?: string;
+  },
+) {
+  await page.route("**/api/v1/workspaces/git-info?**", async (route) => {
+    const url = new URL(route.request().url());
+
+    await fulfillJson(route, {
+      workspace: gitInfo.workspace ?? url.searchParams.get("workspace") ?? currentWorkspace,
+      gitBranch: gitInfo.gitBranch,
+      gitCommitSha: gitInfo.gitCommitSha,
+    });
+  });
+}
+
 export async function mockSession(page: Page, session: MockSession) {
   await page.route(`**/api/v1/sessions/${session.id}`, async (route) => {
     await fulfillJson(route, { session });

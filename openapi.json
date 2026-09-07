@@ -362,6 +362,9 @@
           "gitBranch": {
             "type": "string"
           },
+          "gitCommitSha": {
+            "type": "string"
+          },
           "isRunning": {
             "type": "boolean"
           },
@@ -469,6 +472,9 @@
             "minimum": 0
           },
           "gitBranch": {
+            "type": "string"
+          },
+          "gitCommitSha": {
             "type": "string"
           },
           "isRunning": {
@@ -609,6 +615,21 @@
           }
         },
         "required": ["filePath", "startLine", "endLine", "code", "lines"]
+      },
+      "WorkspaceGitInfoResponse": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "type": "string"
+          },
+          "gitBranch": {
+            "type": "string"
+          },
+          "gitCommitSha": {
+            "type": "string"
+          }
+        },
+        "required": ["workspace"]
       },
       "CreateSessionRequest": {
         "type": "object",
@@ -757,6 +778,9 @@
                 "minimum": 0
               },
               "gitBranch": {
+                "type": "string"
+              },
+              "gitCommitSha": {
                 "type": "string"
               },
               "isRunning": {
@@ -1130,6 +1154,9 @@
               "gitBranch": {
                 "type": "string"
               },
+              "gitCommitSha": {
+                "type": "string"
+              },
               "isRunning": {
                 "type": "boolean"
               },
@@ -1348,6 +1375,9 @@
                   "gitBranch": {
                     "type": "string"
                   },
+                  "gitCommitSha": {
+                    "type": "string"
+                  },
                   "isRunning": {
                     "type": "boolean"
                   },
@@ -1530,6 +1560,9 @@
                   "gitBranch": {
                     "type": "string"
                   },
+                  "gitCommitSha": {
+                    "type": "string"
+                  },
                   "isRunning": {
                     "type": "boolean"
                   },
@@ -1659,6 +1692,62 @@
                     }
                   },
                   "required": ["status", "service", "time"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/git-info": {
+      "get": {
+        "summary": "Get current Git metadata for a workspace",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "workspace",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current Git metadata for the workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workspace": {
+                      "type": "string"
+                    },
+                    "gitBranch": {
+                      "type": "string"
+                    },
+                    "gitCommitSha": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["workspace"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
                 }
               }
             }
@@ -1918,6 +2007,9 @@
                           "gitBranch": {
                             "type": "string"
                           },
+                          "gitCommitSha": {
+                            "type": "string"
+                          },
                           "isRunning": {
                             "type": "boolean"
                           },
@@ -2156,6 +2248,9 @@
                           "minimum": 0
                         },
                         "gitBranch": {
+                          "type": "string"
+                        },
+                        "gitCommitSha": {
                           "type": "string"
                         },
                         "isRunning": {
@@ -2414,6 +2509,9 @@
                         "gitBranch": {
                           "type": "string"
                         },
+                        "gitCommitSha": {
+                          "type": "string"
+                        },
                         "isRunning": {
                           "type": "boolean"
                         },
@@ -2645,6 +2743,9 @@
                           "minimum": 0
                         },
                         "gitBranch": {
+                          "type": "string"
+                        },
+                        "gitCommitSha": {
                           "type": "string"
                         },
                         "isRunning": {
@@ -3385,6 +3486,9 @@
                         "gitBranch": {
                           "type": "string"
                         },
+                        "gitCommitSha": {
+                          "type": "string"
+                        },
                         "isRunning": {
                           "type": "boolean"
                         },
@@ -3724,6 +3828,9 @@
                           "minimum": 0
                         },
                         "gitBranch": {
+                          "type": "string"
+                        },
+                        "gitCommitSha": {
                           "type": "string"
                         },
                         "isRunning": {
@@ -4092,6 +4199,9 @@
                             "gitBranch": {
                               "type": "string"
                             },
+                            "gitCommitSha": {
+                              "type": "string"
+                            },
                             "isRunning": {
                               "type": "boolean"
                             },
@@ -4272,6 +4382,9 @@
                               "minimum": 0
                             },
                             "gitBranch": {
+                              "type": "string"
+                            },
+                            "gitCommitSha": {
                               "type": "string"
                             },
                             "isRunning": {

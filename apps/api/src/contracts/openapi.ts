@@ -32,6 +32,8 @@ import {
   RunIdParamsSchema,
   RunStreamEventSchema,
   UpdateSessionRequestSchema,
+  WorkspaceGitInfoQuerySchema,
+  WorkspaceGitInfoResponseSchema,
 } from "./apiSchemas.js";
 
 const registry = new OpenAPIRegistry();
@@ -47,6 +49,7 @@ registry.register("MessagePageInfo", GetSessionMessagesResponseSchema.shape.page
 registry.register("QueuedPrompt", QueuedPromptSchema);
 registry.register("AiModelPreferences", AiModelPreferencesSchema);
 registry.register("CodeRangeResponse", CodeRangeResponseSchema);
+registry.register("WorkspaceGitInfoResponse", WorkspaceGitInfoResponseSchema);
 registry.register("CreateSessionRequest", CreateSessionRequestSchema);
 registry.register("CreateSessionResponse", CreateSessionResponseSchema);
 registry.register("CreateRunRequest", CreateRunRequestSchema);
@@ -80,6 +83,26 @@ registry.registerPath({
         },
       },
     },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/v1/workspaces/git-info",
+  summary: "Get current Git metadata for a workspace",
+  request: {
+    query: WorkspaceGitInfoQuerySchema,
+  },
+  responses: {
+    200: {
+      description: "Current Git metadata for the workspace.",
+      content: {
+        "application/json": {
+          schema: WorkspaceGitInfoResponseSchema,
+        },
+      },
+    },
+    400: errorResponse,
   },
 });
 

@@ -156,6 +156,28 @@ test("captureCurrentBranch returns the active workspace branch name", async () =
   }
 });
 
+test("captureWorkspaceGitInfo returns the active branch and head commit", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-git-info-"));
+  const diffService = new GitDiffService();
+
+  try {
+    await runGit(["init"], cwd);
+    await runGit(["config", "user.email", "test@example.com"], cwd);
+    await runGit(["config", "user.name", "Test User"], cwd);
+    await writeFile(join(cwd, "example.ts"), "export const value = 1;\n");
+    await runGit(["add", "example.ts"], cwd);
+    await runGit(["commit", "-m", "initial"], cwd);
+    await runGit(["checkout", "-b", "feature/session-git-info"], cwd);
+
+    const info = await diffService.captureWorkspaceGitInfo(cwd);
+
+    assert.equal(info.branch, "feature/session-git-info");
+    assert.match(info.commitSha ?? "", /^[0-9a-f]{40}$/);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 test("git queries tolerate missing workspaces", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-git-missing-"));
   const missingWorkspace = join(cwd, "missing");
@@ -163,6 +185,7 @@ test("git queries tolerate missing workspaces", async () => {
 
   try {
     assert.equal(await diffService.captureCurrentBranch(missingWorkspace), undefined);
+    assert.deepEqual(await diffService.captureWorkspaceGitInfo(missingWorkspace), {});
     assert.equal(await diffService.captureWorkspaceDiff(missingWorkspace), "");
   } finally {
     await rm(cwd, { force: true, recursive: true });

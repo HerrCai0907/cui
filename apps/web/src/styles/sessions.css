@@ -519,12 +519,19 @@
   min-width: 0;
 }
 
-.session-branch {
+.session-git-info {
   display: inline-flex;
   min-width: 0;
   max-width: min(34vw, 360px);
   align-items: center;
   justify-content: flex-end;
+  gap: 10px;
+}
+
+.session-git-info-item {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
   gap: 6px;
   color: #4d5a69;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
@@ -533,12 +540,12 @@
   line-height: 1.25;
 }
 
-.session-branch svg {
+.session-git-info-item svg {
   flex: 0 0 auto;
   color: #64748b;
 }
 
-.session-branch span {
+.session-git-info-item span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

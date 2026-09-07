@@ -5,8 +5,11 @@ import { createInterface } from "node:readline";
 import type {
   CodeRangeRequestContract,
   CodeRangeResponseContract,
+  WorkspaceGitInfoRequestContract,
+  WorkspaceGitInfoResponseContract,
 } from "../../contracts/apiSchemas.js";
 import { expandHomePath, InvalidPathError } from "../paths/pathValidation.js";
+import { GitDiffService } from "../../infrastructure/diff/GitDiffService.js";
 
 const MAX_PREVIEW_FILE_BYTES = 5 * 1024 * 1024;
 const DEFAULT_PREVIEW_LINE_COUNT = 200;
@@ -20,6 +23,8 @@ export type CodeLine = {
 
 export type CodeRangeRequest = CodeRangeRequestContract;
 export type CodeRangeResult = CodeRangeResponseContract;
+export type WorkspaceGitInfoRequest = WorkspaceGitInfoRequestContract;
+export type WorkspaceGitInfoResult = WorkspaceGitInfoResponseContract;
 
 export class CodeFileNotFoundError extends Error {
   constructor(filePath: string) {
@@ -53,6 +58,8 @@ export class CodeRangeTooLargeError extends Error {
 }
 
 export class CodeQueryService {
+  constructor(private readonly gitDiffService = new GitDiffService()) {}
+
   async getCodeRange(request: CodeRangeRequest): Promise<CodeRangeResult> {
     const filePath = normalizeCodeFilePath(request.filePath);
 
@@ -100,6 +107,43 @@ export class CodeQueryService {
       lines: selectedLines,
     };
   }
+
+  async getWorkspaceGitInfo(request: WorkspaceGitInfoRequest): Promise<WorkspaceGitInfoResult> {
+    const workspace = await assertExistingCodeDirectory(request.workspace);
+    const gitInfo = await this.gitDiffService.captureWorkspaceGitInfo(workspace);
+
+    return {
+      workspace,
+      ...(gitInfo.branch ? { gitBranch: gitInfo.branch } : {}),
+      ...(gitInfo.commitSha ? { gitCommitSha: gitInfo.commitSha } : {}),
+    };
+  }
+}
+
+async function assertExistingCodeDirectory(inputPath: string): Promise<string> {
+  const workspace = normalizeCodeFilePath(inputPath);
+
+  if (!workspace) {
+    throw new InvalidPathError(inputPath, "Path must not be empty.");
+  }
+
+  let pathStat;
+
+  try {
+    pathStat = await stat(workspace);
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      throw new InvalidPathError(workspace, "Path does not exist.");
+    }
+
+    throw error;
+  }
+
+  if (!pathStat.isDirectory()) {
+    throw new InvalidPathError(workspace, "Path is not a directory.");
+  }
+
+  return workspace;
 }
 
 async function readCodeLines(

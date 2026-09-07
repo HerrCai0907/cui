@@ -28,6 +28,8 @@ export type SessionSummary = {
   updatedAt: string;
   currentRound: number;
   queuedPrompts?: ApiSession["queuedPrompts"];
+  gitBranch?: string;
+  gitCommitSha?: string;
   isRunning: boolean;
   hasUnreadRound: boolean;
 };

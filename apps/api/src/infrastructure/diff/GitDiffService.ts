@@ -6,6 +6,11 @@ export type DiffSnapshot = {
   diff: string;
 };
 
+export type WorkspaceGitInfo = {
+  branch?: string;
+  commitSha?: string;
+};
+
 type TextSnapshot = {
   exists: boolean;
   lines: string[];
@@ -45,15 +50,29 @@ export class GitDiffService {
   }
 
   async captureCurrentBranch(cwd: string): Promise<string | undefined> {
-    const branchName = (await this.runGit(["branch", "--show-current"], cwd)).stdout.trim();
+    const info = await this.captureWorkspaceGitInfo(cwd);
 
-    if (branchName) {
-      return branchName;
+    if (info.branch) {
+      return info.branch;
     }
 
-    const headName = (await this.runGit(["rev-parse", "--short", "HEAD"], cwd)).stdout.trim();
+    const headName = info.commitSha?.slice(0, 12);
 
     return headName ? `HEAD ${headName}` : undefined;
+  }
+
+  async captureWorkspaceGitInfo(cwd: string): Promise<WorkspaceGitInfo> {
+    const [branchResult, commitResult] = await Promise.all([
+      this.runGit(["branch", "--show-current"], cwd),
+      this.runGit(["rev-parse", "--verify", "HEAD"], cwd),
+    ]);
+    const branchName = branchResult.stdout.trim();
+    const commitSha = commitResult.stdout.trim();
+
+    return {
+      ...(branchResult.ok && branchName ? { branch: branchName } : {}),
+      ...(commitResult.ok && commitSha ? { commitSha } : {}),
+    };
   }
 
   async captureWorkspaceDiff(cwd: string, baseCommit?: string): Promise<string> {
