@@ -7,10 +7,32 @@ import {
   type CodeQueryService,
 } from "../../domain/code/CodeQueryService.js";
 import { InvalidPathError } from "../../domain/paths/pathValidation.js";
-import { parseCodeRangeQuery } from "../validation/requestParsers.js";
+import { parseCodeRangeQuery, parseWorkspaceGitInfoQuery } from "../validation/requestParsers.js";
 
 export function createCodeRouter(codeQueryService: CodeQueryService): Router {
   const router = Router();
+
+  router.get("/api/v1/workspaces/git-info", async (request, response, next) => {
+    try {
+      const parsed = parseWorkspaceGitInfoQuery(request.query);
+
+      if (!parsed.ok) {
+        response.status(400).json({ error: parsed.error });
+        return;
+      }
+
+      const result = await codeQueryService.getWorkspaceGitInfo(parsed.value);
+
+      response.json(result);
+    } catch (error) {
+      if (error instanceof InvalidPathError) {
+        response.status(400).json({ error: error.message });
+        return;
+      }
+
+      next(error);
+    }
+  });
 
   router.get("/api/v1/source-files/content", async (request, response, next) => {
     try {

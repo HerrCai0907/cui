@@ -47,6 +47,59 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/workspaces/git-info": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get current Git metadata for a workspace */
+    get: {
+      parameters: {
+        query: {
+          workspace: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Current Git metadata for the workspace. */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              workspace: string;
+              gitBranch?: string;
+              gitCommitSha?: string;
+            };
+          };
+        };
+        /** @description Error response. */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/source-files/content": {
     parameters: {
       query?: never;
@@ -213,6 +266,7 @@ export interface paths {
                 }[];
                 currentRound: number;
                 gitBranch?: string;
+                gitCommitSha?: string;
                 isRunning: boolean;
                 runningRunId?: string;
               }[];
@@ -310,6 +364,7 @@ export interface paths {
                 }[];
                 currentRound: number;
                 gitBranch?: string;
+                gitCommitSha?: string;
                 isRunning: boolean;
                 runningRunId?: string;
                 messagePageInfo?: {
@@ -416,6 +471,7 @@ export interface paths {
                 }[];
                 currentRound: number;
                 gitBranch?: string;
+                gitCommitSha?: string;
                 isRunning: boolean;
                 runningRunId?: string;
                 messagePageInfo?: {
@@ -516,6 +572,7 @@ export interface paths {
                 }[];
                 currentRound: number;
                 gitBranch?: string;
+                gitCommitSha?: string;
                 isRunning: boolean;
                 runningRunId?: string;
                 messagePageInfo?: {
@@ -856,6 +913,7 @@ export interface paths {
                 }[];
                 currentRound: number;
                 gitBranch?: string;
+                gitCommitSha?: string;
                 isRunning: boolean;
                 runningRunId?: string;
                 messagePageInfo?: {
@@ -1015,6 +1073,7 @@ export interface paths {
                 }[];
                 currentRound: number;
                 gitBranch?: string;
+                gitCommitSha?: string;
                 isRunning: boolean;
                 runningRunId?: string;
                 messagePageInfo?: {
@@ -1217,6 +1276,7 @@ export interface paths {
                     }[];
                     currentRound: number;
                     gitBranch?: string;
+                    gitCommitSha?: string;
                     isRunning: boolean;
                     runningRunId?: string;
                     messagePageInfo?: {
@@ -1275,6 +1335,7 @@ export interface paths {
                     }[];
                     currentRound: number;
                     gitBranch?: string;
+                    gitCommitSha?: string;
                     isRunning: boolean;
                     runningRunId?: string;
                     messagePageInfo?: {
@@ -1435,6 +1496,7 @@ export interface components {
       }[];
       currentRound: number;
       gitBranch?: string;
+      gitCommitSha?: string;
       isRunning: boolean;
       runningRunId?: string;
       messagePageInfo?: {
@@ -1471,6 +1533,7 @@ export interface components {
       }[];
       currentRound: number;
       gitBranch?: string;
+      gitCommitSha?: string;
       isRunning: boolean;
       runningRunId?: string;
     };
@@ -1514,6 +1577,11 @@ export interface components {
         lineNumber: number;
         content: string;
       }[];
+    };
+    WorkspaceGitInfoResponse: {
+      workspace: string;
+      gitBranch?: string;
+      gitCommitSha?: string;
     };
     CreateSessionRequest: {
       workspace: string;
@@ -1565,6 +1633,7 @@ export interface components {
         }[];
         currentRound: number;
         gitBranch?: string;
+        gitCommitSha?: string;
         isRunning: boolean;
         runningRunId?: string;
         messagePageInfo?: {
@@ -1693,6 +1762,7 @@ export interface components {
         }[];
         currentRound: number;
         gitBranch?: string;
+        gitCommitSha?: string;
         isRunning: boolean;
         runningRunId?: string;
         messagePageInfo?: {
@@ -1766,6 +1836,7 @@ export interface components {
             }[];
             currentRound: number;
             gitBranch?: string;
+            gitCommitSha?: string;
             isRunning: boolean;
             runningRunId?: string;
             messagePageInfo?: {
@@ -1824,6 +1895,7 @@ export interface components {
             }[];
             currentRound: number;
             gitBranch?: string;
+            gitCommitSha?: string;
             isRunning: boolean;
             runningRunId?: string;
             messagePageInfo?: {

@@ -299,6 +299,7 @@ export function App() {
         <ChatHeader
           activeSession={sessionController.activeSession}
           configOpen={configOpen}
+          newSessionGitInfo={sessionController.newSessionGitInfo}
           reviewRoute={reviewRoute}
           onCloseReview={closeReview}
           onOpenNavigation={() => setMobileNavigationOpen(true)}

@@ -10,6 +10,7 @@ import { filterTraceContent, type TraceMessageType } from "./traceMessages.js";
 
 export type SessionViewOptions = {
   gitBranch?: string;
+  gitCommitSha?: string;
   messages?: SessionMessageWindowOptions;
   runningRunId?: string;
 };
@@ -53,6 +54,7 @@ export function toSessionView(
     queuedPrompts,
     currentRound: getCurrentRound(session),
     ...(options.gitBranch ? { gitBranch: options.gitBranch } : {}),
+    ...(options.gitCommitSha ? { gitCommitSha: options.gitCommitSha } : {}),
     isRunning: Boolean(options.runningRunId),
     ...(options.runningRunId ? { runningRunId: options.runningRunId } : {}),
     ...(options.messages ? { messagePageInfo: messagesPage.pageInfo } : {}),
@@ -136,6 +138,7 @@ export function toSessionListItem(
   return {
     ...session,
     ...(options.gitBranch ? { gitBranch: options.gitBranch } : {}),
+    ...(options.gitCommitSha ? { gitCommitSha: options.gitCommitSha } : {}),
     isRunning: Boolean(options.runningRunId),
     ...(options.runningRunId ? { runningRunId: options.runningRunId } : {}),
   };

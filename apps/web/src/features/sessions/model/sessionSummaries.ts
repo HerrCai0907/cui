@@ -37,6 +37,8 @@ export function toSessionSummary(session: ApiSession | ApiSessionListItem): Sess
     updatedAt: session.updatedAt,
     currentRound,
     queuedPrompts: session.queuedPrompts,
+    gitBranch: session.gitBranch,
+    gitCommitSha: session.gitCommitSha,
     isRunning: session.isRunning ?? Boolean(session.runningRunId),
     hasUnreadRound: lastSeenRound !== null && lastSeenRound !== currentRound,
   };

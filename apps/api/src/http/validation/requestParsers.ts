@@ -10,6 +10,7 @@ import {
   RoundReviewParamsSchema,
   RunEventsQuerySchema,
   UpdateSessionRequestSchema,
+  WorkspaceGitInfoQuerySchema,
 } from "../../contracts/apiSchemas.js";
 
 export type ParsedBody<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -66,6 +67,12 @@ export function parseRunEventsQuery(
   query: unknown,
 ): ParsedBody<z.infer<typeof RunEventsQuerySchema>> {
   return parseWithSchema(RunEventsQuerySchema, query);
+}
+
+export function parseWorkspaceGitInfoQuery(
+  query: unknown,
+): ParsedBody<z.infer<typeof WorkspaceGitInfoQuerySchema>> {
+  return parseWithSchema(WorkspaceGitInfoQuerySchema, query);
 }
 
 function parseWithSchema<T extends z.ZodType>(schema: T, input: unknown): ParsedBody<z.infer<T>> {

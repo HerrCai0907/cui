@@ -59,6 +59,7 @@ export type ChatSessionView = Omit<ChatSession, "aiThreadId" | "rounds" | "queue
   queuedPrompts?: QueuedPromptView[];
   currentRound: number;
   gitBranch?: string;
+  gitCommitSha?: string;
   isRunning: boolean;
   runningRunId?: string;
   messagePageInfo?: MessagePageInfo;
@@ -88,6 +89,7 @@ export type ChatSessionIndexEntry = Omit<
 
 export type ChatSessionListItem = ChatSessionIndexEntry & {
   gitBranch?: string;
+  gitCommitSha?: string;
   isRunning: boolean;
   runningRunId?: string;
 };
