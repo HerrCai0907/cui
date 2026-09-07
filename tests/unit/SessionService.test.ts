@@ -244,8 +244,11 @@ test("cancelRun stops an active stream and emits a cancellation event", async ()
       type: "item.completed",
       item: {
         id: "item-1",
-        type: "agent_message",
-        text: "Trace before stop.",
+        type: "command_execution",
+        command: "echo Trace before stop",
+        aggregated_output: "Trace before stop.",
+        status: "completed",
+        exit_code: 0,
       },
     });
     await service.cancelRun(submitted.run.id);

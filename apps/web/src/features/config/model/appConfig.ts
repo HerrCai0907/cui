@@ -299,6 +299,10 @@ export function createModelRequestPreferences(
 export function getExecutionTraceMessageType(
   event: ExecutionTraceEvent,
 ): ExecutionTraceMessageType {
+  if (event.type === "lifecycle") {
+    return "lifecycle";
+  }
+
   if (
     event.type === "item.started" ||
     event.type === "item.updated" ||

@@ -65,6 +65,10 @@ function normalizeTraceEvent(raw: unknown): ExecutionTraceEvent {
 
   const type = getString(raw, "type");
 
+  if (isUnifiedHarnessMessageType(type)) {
+    return normalizeUnifiedHarnessMessage(raw, type);
+  }
+
   if (type === "thread.started") {
     return {
       type,
@@ -115,6 +119,108 @@ function normalizeTraceEvent(raw: unknown): ExecutionTraceEvent {
       type,
       text: getString(raw, "text"),
       delta: getString(raw, "delta"),
+    };
+  }
+
+  if (type === "stdout") {
+    return {
+      type,
+      text: getString(raw, "text") ?? "",
+    };
+  }
+
+  return { type: "unknown", raw };
+}
+
+function normalizeUnifiedHarnessMessage(
+  raw: Record<string, unknown>,
+  type: UnifiedHarnessMessageType,
+): ExecutionTraceEvent {
+  if (type === "command_execution") {
+    return {
+      type: phaseToTraceEventType(getString(raw, "phase")),
+      item: {
+        id: getString(raw, "id") ?? "",
+        type,
+        command: getString(raw, "command"),
+        aggregated_output: getString(raw, "aggregatedOutput"),
+        exit_code: getNumberOrNull(raw, "exitCode"),
+        status: getString(raw, "status"),
+      },
+    };
+  }
+
+  if (type === "reasoning") {
+    return {
+      type: phaseToTraceEventType(getString(raw, "phase")),
+      item: {
+        id: getString(raw, "id") ?? "",
+        type,
+        text: getString(raw, "text"),
+      },
+    };
+  }
+
+  if (type === "todo_list") {
+    return {
+      type: phaseToTraceEventType(getString(raw, "phase")),
+      item: {
+        id: getString(raw, "id") ?? "",
+        type,
+        items: normalizeTodoListItems(raw.items),
+      },
+    };
+  }
+
+  if (type === "file_change") {
+    return {
+      type: phaseToTraceEventType(getString(raw, "phase")),
+      item: {
+        id: getString(raw, "id") ?? "",
+        type: "unknown",
+        originalType: type,
+        paths: stringArrayValue(raw.paths),
+      },
+    };
+  }
+
+  if (type === "lifecycle") {
+    const name = getString(raw, "name") ?? "lifecycle";
+
+    if (name === "thread.started") {
+      return {
+        type: name,
+        thread_id: getString(raw, "threadId") ?? "",
+      };
+    }
+
+    if (name === "turn.started") {
+      return { type: name };
+    }
+
+    if (name === "turn.completed") {
+      const usage = raw.usage;
+
+      return {
+        type: name,
+        ...(isRecord(usage) ? { usage: usage as TokenUsage } : {}),
+      };
+    }
+
+    return {
+      type,
+      name,
+      threadId: getString(raw, "threadId"),
+      ...(isRecord(raw.usage) ? { usage: raw.usage as TokenUsage } : {}),
+    };
+  }
+
+  if (type === "metadata") {
+    const payload = raw.payload;
+
+    return {
+      type: "response_item",
+      payload: isRecord(payload) ? payload : raw,
     };
   }
 
@@ -221,4 +327,47 @@ function getNumberOrNull(value: Record<string, unknown>, key: string): number | 
   }
 
   return typeof property === "number" ? property : undefined;
+}
+
+type UnifiedHarnessMessageType =
+  | "command_execution"
+  | "reasoning"
+  | "todo_list"
+  | "file_change"
+  | "lifecycle"
+  | "metadata"
+  | "stdout"
+  | "unknown";
+
+function isUnifiedHarnessMessageType(type: string | undefined): type is UnifiedHarnessMessageType {
+  return (
+    type === "command_execution" ||
+    type === "reasoning" ||
+    type === "todo_list" ||
+    type === "file_change" ||
+    type === "lifecycle" ||
+    type === "metadata" ||
+    type === "stdout" ||
+    type === "unknown"
+  );
+}
+
+function phaseToTraceEventType(
+  phase: string | undefined,
+): "item.started" | "item.updated" | "item.completed" {
+  if (phase === "started") {
+    return "item.started";
+  }
+
+  if (phase === "updated") {
+    return "item.updated";
+  }
+
+  return "item.completed";
+}
+
+function stringArrayValue(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
