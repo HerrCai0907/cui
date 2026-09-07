@@ -319,11 +319,11 @@ export function getExecutionTraceMessageType(
     return "lifecycle";
   }
 
-  if (
-    event.type === "session_meta" ||
-    event.type === "response_item" ||
-    event.type === "event_msg"
-  ) {
+  if (event.type === "event_msg") {
+    return getLegacyEventMessageType(event.payload);
+  }
+
+  if (event.type === "session_meta" || event.type === "response_item") {
     return "metadata";
   }
 
@@ -368,6 +368,37 @@ function getExecutionTraceItemMessageType(item: ExecutionTraceItem): ExecutionTr
   }
 
   return "unknown";
+}
+
+function getLegacyEventMessageType(payload: unknown): ExecutionTraceMessageType {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return "metadata";
+  }
+
+  const record = payload as Record<string, unknown>;
+  const type = typeof record.type === "string" ? record.type : undefined;
+
+  if (type === "agent_message") {
+    return "assistant_message";
+  }
+
+  if (type === "command_execution") {
+    return "command_execution";
+  }
+
+  if (type === "reasoning" || type === "reasoning_delta") {
+    return "reasoning";
+  }
+
+  if (type === "todo_list") {
+    return "todo_list";
+  }
+
+  if (isFileChangeItem(type)) {
+    return "file_change";
+  }
+
+  return "metadata";
 }
 
 function parseVisibleTraceMessageTypes(

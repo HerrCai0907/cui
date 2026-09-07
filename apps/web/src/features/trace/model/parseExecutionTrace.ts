@@ -152,7 +152,7 @@ function normalizeUnifiedHarnessMessage(
 
   if (type === "assistant_message") {
     return {
-      type: "item.completed",
+      type: phaseToTraceEventType(getString(raw, "phase")),
       item: {
         id: getString(raw, "id") ?? "",
         type: "agent_message",

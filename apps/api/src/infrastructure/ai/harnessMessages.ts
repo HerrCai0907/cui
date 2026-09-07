@@ -10,6 +10,8 @@ export type HarnessMessage =
     }
   | {
       type: "assistant_message";
+      id?: string;
+      phase?: HarnessItemPhase;
       text: string;
       raw: unknown;
     }
@@ -91,6 +93,15 @@ export function normalizeHarnessEvent(event: unknown, harness?: AiHarness): Harn
 
   if (type === "response_item") {
     const payload = event.payload;
+
+    if (harness === "traex") {
+      return {
+        type: "metadata",
+        name: type,
+        payload: isRecord(payload) ? payload : {},
+        raw: event,
+      };
+    }
 
     if (isRecord(payload)) {
       return normalizeHarnessPayload(payload, event, type);
@@ -202,6 +213,7 @@ function normalizeHarnessPayload(
     if (sourceType === "event_msg") {
       return {
         type: "assistant_message",
+        id: getStringProperty(payload, "id"),
         text: getTextFields(payload, ["text", "message"]).join(""),
         raw,
       };
@@ -269,6 +281,8 @@ function normalizeHarnessItem(
     if (harness === "traex") {
       return {
         type: "assistant_message",
+        id: getStringProperty(item, "id"),
+        phase,
         text: getTextFields(item, ["text", "message"]).join(""),
         raw,
       };
