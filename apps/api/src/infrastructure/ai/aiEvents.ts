@@ -1,4 +1,5 @@
 import { getStringProperty, getTextFields } from "./jsonFields.js";
+import type { AiHarness } from "../../types.js";
 import {
   extractAssistantResponseText,
   formatHarnessMessages,
@@ -55,16 +56,16 @@ export function extractThreadId(events: unknown[]): string | undefined {
   return undefined;
 }
 
-export function extractResponseDeltas(event: unknown): string[] {
+export function extractResponseDeltas(event: unknown, harness?: AiHarness): string[] {
   const eventType = getEventType(event);
 
   // Codex exec may repeat assistant snapshots across started/updated/completed
   // item events. Only completed items are stable enough to stream as response.
-  if (eventType === "item.started" || eventType === "item.updated") {
+  if (harness === "codex" && (eventType === "item.started" || eventType === "item.updated")) {
     return [];
   }
 
-  const message = normalizeHarnessEvent(event);
+  const message = normalizeHarnessEvent(event, harness);
 
   if (message.type !== "assistant_response") {
     return [];
@@ -73,20 +74,22 @@ export function extractResponseDeltas(event: unknown): string[] {
   return message.final ? [`${message.text}\n\n`] : extractAssistantResponseText(message);
 }
 
-export function shouldIncludeEventInTrace(event: unknown): boolean {
-  return isTraceHarnessMessage(normalizeHarnessEvent(event));
+export function shouldIncludeEventInTrace(event: unknown, harness?: AiHarness): boolean {
+  return isTraceHarnessMessage(normalizeHarnessEvent(event, harness));
 }
 
 export function formatRawEvents(events: unknown[]): string {
   return events.map((event) => JSON.stringify(event)).join("\n");
 }
 
-export function formatTraceEvents(events: unknown[]): string {
-  return formatHarnessMessages(events.map(normalizeHarnessEvent).filter(isTraceHarnessMessage));
+export function formatTraceEvents(events: unknown[], harness?: AiHarness): string {
+  return formatHarnessMessages(
+    events.map((event) => normalizeHarnessEvent(event, harness)).filter(isTraceHarnessMessage),
+  );
 }
 
-export function toTraceEvent(event: unknown): HarnessMessage | undefined {
-  const message = normalizeHarnessEvent(event);
+export function toTraceEvent(event: unknown, harness?: AiHarness): HarnessMessage | undefined {
+  const message = normalizeHarnessEvent(event, harness);
 
   return isTraceHarnessMessage(message) ? message : undefined;
 }
