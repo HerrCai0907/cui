@@ -1,4 +1,5 @@
 import { getStringProperty, getTextFields } from "./jsonFields.js";
+import type { AiHarness } from "../../types.js";
 
 export type HarnessMessage =
   | {
@@ -73,7 +74,7 @@ export type HarnessTodoItem = {
   completed: boolean;
 };
 
-export function normalizeHarnessEvent(event: unknown): HarnessMessage {
+export function normalizeHarnessEvent(event: unknown, harness?: AiHarness): HarnessMessage {
   if (!isRecord(event)) {
     return { type: "unknown", raw: event };
   }
@@ -85,7 +86,7 @@ export function normalizeHarnessEvent(event: unknown): HarnessMessage {
   }
 
   if (type === "item.started" || type === "item.updated" || type === "item.completed") {
-    return normalizeHarnessItem(event.item, itemPhase(type), event);
+    return normalizeHarnessItem(event.item, itemPhase(type), event, harness);
   }
 
   if (type === "response_item") {
@@ -256,6 +257,7 @@ function normalizeHarnessItem(
   item: unknown,
   phase: HarnessItemPhase,
   raw: unknown,
+  harness: AiHarness | undefined,
 ): HarnessMessage {
   if (!isRecord(item)) {
     return { type: "unknown", raw };
@@ -264,6 +266,14 @@ function normalizeHarnessItem(
   const type = getStringProperty(item, "type");
 
   if (type === "agent_message") {
+    if (harness === "traex") {
+      return {
+        type: "assistant_message",
+        text: getTextFields(item, ["text", "message"]).join(""),
+        raw,
+      };
+    }
+
     return {
       type: "assistant_response",
       text: getTextFields(item, ["text", "message"]).join(""),

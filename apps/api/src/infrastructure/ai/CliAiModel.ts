@@ -280,11 +280,11 @@ export abstract class CliAiModel implements AiModel {
           onEvent({ type: "session", sessionId });
         }
 
-        for (const text of extractResponseDeltas(event)) {
+        for (const text of extractResponseDeltas(event, binaryConfig.harness)) {
           onEvent({ type: "delta", text });
         }
 
-        const traceEvent = toTraceEvent(event);
+        const traceEvent = toTraceEvent(event, binaryConfig.harness);
 
         if (traceEvent) {
           onEvent({ type: "raw", event: traceEvent });
@@ -306,7 +306,7 @@ export abstract class CliAiModel implements AiModel {
         return {
           sessionId,
           content: responseContent,
-          trace: formatTraceEvents(rawEvents),
+          trace: formatTraceEvents(rawEvents, binaryConfig.harness),
           ...(captureDiff
             ? {
                 gitDiff: {

@@ -11,9 +11,11 @@ import {
 
 test("Codex completed messages stream once, excluding tools and partial snapshots", () => {
   const item = { id: "item_1", type: "agent_message", text: "你好\nCodex" };
-  assert.deepEqual(extractResponseDeltas({ type: "item.started", item }), []);
-  assert.deepEqual(extractResponseDeltas({ type: "item.updated", item }), []);
-  assert.deepEqual(extractResponseDeltas({ type: "item.completed", item }), ["你好\nCodex\n\n"]);
+  assert.deepEqual(extractResponseDeltas({ type: "item.started", item }, "codex"), []);
+  assert.deepEqual(extractResponseDeltas({ type: "item.updated", item }, "codex"), []);
+  assert.deepEqual(extractResponseDeltas({ type: "item.completed", item }, "codex"), [
+    "你好\nCodex\n\n",
+  ]);
   assert.deepEqual(
     extractResponseDeltas({
       type: "item.completed",
@@ -58,11 +60,24 @@ test("recoverable Codex errors do not fail a successful turn", () => {
 
 test("trace excludes events already consumed as assistant response text", () => {
   assert.equal(
-    shouldIncludeEventInTrace({
-      type: "item.completed",
-      item: { id: "item_1", type: "agent_message", text: "Done." },
-    }),
+    shouldIncludeEventInTrace(
+      {
+        type: "item.completed",
+        item: { id: "item_1", type: "agent_message", text: "Done." },
+      },
+      "codex",
+    ),
     false,
+  );
+  assert.equal(
+    shouldIncludeEventInTrace(
+      {
+        type: "item.completed",
+        item: { id: "item_1", type: "agent_message", text: "Done." },
+      },
+      "traex",
+    ),
+    true,
   );
   assert.equal(shouldIncludeEventInTrace({ type: "text_delta", text: "Done." }), false);
   assert.equal(
@@ -100,13 +115,74 @@ test("trace excludes events already consumed as assistant response text", () => 
   assert.equal(shouldIncludeEventInTrace({ type: "turn.completed" }), true);
 });
 
-test("trace formatting emits unified harness messages without assistant responses", () => {
+test("trace formatting keeps TraeX assistant messages and excludes final response payloads", () => {
+  const trace = formatTraceEvents(
+    [
+      { type: "thread.started", thread_id: "session-1" },
+      {
+        type: "item.completed",
+        item: { id: "item_1", type: "agent_message", text: "Assistant trace" },
+      },
+      {
+        type: "response_item",
+        payload: { type: "agent_message", text: "Final answer" },
+      },
+      {
+        type: "item.completed",
+        item: {
+          id: "command_1",
+          type: "command_execution",
+          command: "npm test",
+          status: "completed",
+          exit_code: 0,
+        },
+      },
+    ],
+    "traex",
+  );
+
+  assert.deepEqual(
+    trace.split("\n").map((line) => JSON.parse(line)),
+    [
+      {
+        type: "lifecycle",
+        name: "thread.started",
+        threadId: "session-1",
+        raw: { type: "thread.started", thread_id: "session-1" },
+      },
+      {
+        type: "assistant_message",
+        text: "Assistant trace",
+        raw: {
+          type: "item.completed",
+          item: { id: "item_1", type: "agent_message", text: "Assistant trace" },
+        },
+      },
+      {
+        type: "command_execution",
+        id: "command_1",
+        phase: "completed",
+        command: "npm test",
+        exitCode: 0,
+        status: "completed",
+        raw: {
+          type: "item.completed",
+          item: {
+            id: "command_1",
+            type: "command_execution",
+            command: "npm test",
+            status: "completed",
+            exit_code: 0,
+          },
+        },
+      },
+    ],
+  );
+});
+
+test("trace formatting excludes Codex assistant responses", () => {
   const trace = formatTraceEvents([
     { type: "thread.started", thread_id: "session-1" },
-    {
-      type: "event_msg",
-      payload: { type: "agent_message", message: "Assistant trace" },
-    },
     {
       type: "response_item",
       payload: { type: "agent_message", text: "Final answer" },
@@ -133,14 +209,6 @@ test("trace formatting emits unified harness messages without assistant response
         raw: { type: "thread.started", thread_id: "session-1" },
       },
       {
-        type: "assistant_message",
-        text: "Assistant trace",
-        raw: {
-          type: "event_msg",
-          payload: { type: "agent_message", message: "Assistant trace" },
-        },
-      },
-      {
         type: "command_execution",
         id: "command_1",
         phase: "completed",
@@ -164,11 +232,31 @@ test("trace formatting emits unified harness messages without assistant response
 
 test("streaming trace events are already normalized for frontend consumption", () => {
   assert.deepEqual(
-    toTraceEvent({
-      type: "item.completed",
-      item: { id: "assistant_1", type: "agent_message", text: "Done." },
-    }),
+    toTraceEvent(
+      {
+        type: "item.completed",
+        item: { id: "assistant_1", type: "agent_message", text: "Done." },
+      },
+      "codex",
+    ),
     undefined,
+  );
+  assert.deepEqual(
+    toTraceEvent(
+      {
+        type: "item.completed",
+        item: { id: "assistant_1", type: "agent_message", text: "Done." },
+      },
+      "traex",
+    ),
+    {
+      type: "assistant_message",
+      text: "Done.",
+      raw: {
+        type: "item.completed",
+        item: { id: "assistant_1", type: "agent_message", text: "Done." },
+      },
+    },
   );
   assert.deepEqual(
     toTraceEvent({

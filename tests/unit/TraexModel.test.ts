@@ -34,8 +34,7 @@ test("TraeX keeps completed assistant messages in execution trace without duplic
       const rawEvents = [
         { type: "thread.started", thread_id: "traex-test" },
         { type: "text_delta", text: "Done" },
-        { type: "event_msg", payload: { type: "agent_message_delta", delta: "." } },
-        { type: "event_msg", payload: { type: "agent_message", message: "Done." } },
+        { type: "item.completed", item: { id: "item_0", type: "agent_message", text: "Done." } },
         { type: "turn.completed" },
       ];
       rawEvents.forEach(input.onRawEvent);
@@ -70,7 +69,10 @@ test("TraeX keeps completed assistant messages in execution trace without duplic
       {
         type: "assistant_message",
         text: "Done.",
-        raw: { type: "event_msg", payload: { type: "agent_message", message: "Done." } },
+        raw: {
+          type: "item.completed",
+          item: { id: "item_0", type: "agent_message", text: "Done." },
+        },
       },
       { type: "lifecycle", name: "turn.completed", raw: { type: "turn.completed" } },
     ]
@@ -79,10 +81,7 @@ test("TraeX keeps completed assistant messages in execution trace without duplic
   );
   assert.deepEqual(
     events.filter((event) => event.type === "delta"),
-    [
-      { type: "delta", text: "Done" },
-      { type: "delta", text: "." },
-    ],
+    [{ type: "delta", text: "Done" }],
   );
   assert.deepEqual(
     events.filter((event) => event.type === "raw"),
@@ -101,7 +100,10 @@ test("TraeX keeps completed assistant messages in execution trace without duplic
         event: {
           type: "assistant_message",
           text: "Done.",
-          raw: { type: "event_msg", payload: { type: "agent_message", message: "Done." } },
+          raw: {
+            type: "item.completed",
+            item: { id: "item_0", type: "agent_message", text: "Done." },
+          },
         },
       },
       {
