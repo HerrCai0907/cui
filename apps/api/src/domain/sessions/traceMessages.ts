@@ -55,6 +55,7 @@ function getTraceEventMessageType(event: unknown): TraceMessageType {
   const type = getString(event, "type");
 
   if (
+    type === "assistant_message" ||
     type === "command_execution" ||
     type === "reasoning" ||
     type === "todo_list" ||
@@ -91,6 +92,10 @@ function getTraceEventMessageType(event: unknown): TraceMessageType {
 }
 
 function getUnifiedTraceMessageType(type: string): TraceMessageType {
+  if (type === "assistant_message") {
+    return "assistant_message";
+  }
+
   if (type === "command_execution" || type === "reasoning" || type === "todo_list") {
     return type;
   }

@@ -27,7 +27,7 @@ test("TraeX lists and normalizes its model catalog", async () => {
   ]);
 });
 
-test("TraeX excludes streamed assistant text from execution trace", async () => {
+test("TraeX keeps completed assistant messages in execution trace without duplicating response deltas", async () => {
   const events: AiRunEvent[] = [];
   const model = new TraexModel({
     processRunner: (input): AiProcessRun => {
@@ -67,6 +67,11 @@ test("TraeX excludes streamed assistant text from execution trace", async () => 
         threadId: "traex-test",
         raw: { type: "thread.started", thread_id: "traex-test" },
       },
+      {
+        type: "assistant_message",
+        text: "Done.",
+        raw: { type: "event_msg", payload: { type: "agent_message", message: "Done." } },
+      },
       { type: "lifecycle", name: "turn.completed", raw: { type: "turn.completed" } },
     ]
       .map((event) => JSON.stringify(event))
@@ -77,7 +82,6 @@ test("TraeX excludes streamed assistant text from execution trace", async () => 
     [
       { type: "delta", text: "Done" },
       { type: "delta", text: "." },
-      { type: "delta", text: "Done.\n\n" },
     ],
   );
   assert.deepEqual(
@@ -90,6 +94,14 @@ test("TraeX excludes streamed assistant text from execution trace", async () => 
           name: "thread.started",
           threadId: "traex-test",
           raw: { type: "thread.started", thread_id: "traex-test" },
+        },
+      },
+      {
+        type: "raw",
+        event: {
+          type: "assistant_message",
+          text: "Done.",
+          raw: { type: "event_msg", payload: { type: "agent_message", message: "Done." } },
         },
       },
       {

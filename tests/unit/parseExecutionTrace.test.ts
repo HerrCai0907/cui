@@ -12,6 +12,11 @@ test("parseExecutionTrace maps unified harness messages to execution trace event
         raw: { type: "thread.started", thread_id: "session-1" },
       }),
       JSON.stringify({
+        type: "assistant_message",
+        text: "Visible assistant trace.",
+        raw: {},
+      }),
+      JSON.stringify({
         type: "command_execution",
         id: "command_1",
         phase: "completed",
@@ -35,6 +40,14 @@ test("parseExecutionTrace maps unified harness messages to execution trace event
     {
       type: "thread.started",
       thread_id: "session-1",
+    },
+    {
+      type: "item.completed",
+      item: {
+        id: "",
+        type: "agent_message",
+        text: "Visible assistant trace.",
+      },
     },
     {
       type: "item.completed",

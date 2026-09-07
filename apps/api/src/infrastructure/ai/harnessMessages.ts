@@ -8,6 +8,11 @@ export type HarnessMessage =
       raw: unknown;
     }
   | {
+      type: "assistant_message";
+      text: string;
+      raw: unknown;
+    }
+  | {
       type: "command_execution";
       id?: string;
       phase?: HarnessItemPhase;
@@ -87,7 +92,7 @@ export function normalizeHarnessEvent(event: unknown): HarnessMessage {
     const payload = event.payload;
 
     if (isRecord(payload)) {
-      return normalizeHarnessPayload(payload, event);
+      return normalizeHarnessPayload(payload, event, type);
     }
 
     return {
@@ -102,7 +107,7 @@ export function normalizeHarnessEvent(event: unknown): HarnessMessage {
     const payload = event.payload;
 
     if (isRecord(payload)) {
-      return normalizeHarnessPayload(payload, event);
+      return normalizeHarnessPayload(payload, event, type);
     }
 
     return {
@@ -176,14 +181,35 @@ export function formatHarnessMessages(messages: HarnessMessage[]): string {
   return messages.map((message) => JSON.stringify(message)).join("\n");
 }
 
-function normalizeHarnessPayload(payload: Record<string, unknown>, raw: unknown): HarnessMessage {
+function normalizeHarnessPayload(
+  payload: Record<string, unknown>,
+  raw: unknown,
+  sourceType: "event_msg" | "response_item",
+): HarnessMessage {
   const payloadType = getStringProperty(payload, "type");
 
-  if (payloadType === "agent_message" || payloadType === "agent_message_delta") {
+  if (payloadType === "agent_message_delta") {
     return {
       type: "assistant_response",
       text: getTextFields(payload, ["text", "delta", "message"]).join(""),
-      final: payloadType === "agent_message",
+      final: false,
+      raw,
+    };
+  }
+
+  if (payloadType === "agent_message") {
+    if (sourceType === "event_msg") {
+      return {
+        type: "assistant_message",
+        text: getTextFields(payload, ["text", "message"]).join(""),
+        raw,
+      };
+    }
+
+    return {
+      type: "assistant_response",
+      text: getTextFields(payload, ["text", "message"]).join(""),
+      final: true,
       raw,
     };
   }
@@ -423,6 +449,7 @@ function isFileChangeType(type: string | undefined): boolean {
 
 function isUnifiedTraceMessageType(type: string | undefined): boolean {
   return (
+    type === "assistant_message" ||
     type === "command_execution" ||
     type === "reasoning" ||
     type === "todo_list" ||

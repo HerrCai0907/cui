@@ -150,6 +150,17 @@ function normalizeUnifiedHarnessMessage(
     };
   }
 
+  if (type === "assistant_message") {
+    return {
+      type: "item.completed",
+      item: {
+        id: getString(raw, "id") ?? "",
+        type: "agent_message",
+        text: getString(raw, "text"),
+      },
+    };
+  }
+
   if (type === "reasoning") {
     return {
       type: phaseToTraceEventType(getString(raw, "phase")),
@@ -330,6 +341,7 @@ function getNumberOrNull(value: Record<string, unknown>, key: string): number | 
 }
 
 type UnifiedHarnessMessageType =
+  | "assistant_message"
   | "command_execution"
   | "reasoning"
   | "todo_list"
@@ -341,6 +353,7 @@ type UnifiedHarnessMessageType =
 
 function isUnifiedHarnessMessageType(type: string | undefined): type is UnifiedHarnessMessageType {
   return (
+    type === "assistant_message" ||
     type === "command_execution" ||
     type === "reasoning" ||
     type === "todo_list" ||
