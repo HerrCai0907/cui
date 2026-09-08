@@ -6,11 +6,13 @@ import {
   AiRunResult,
   AiRunCancelledError,
   ChatRound,
+  DiffFilePage,
   ChatSessionMessagesPage,
   ChatSession,
   ChatSessionListItem,
   ChatSessionView,
   QueuedPrompt,
+  RoundReview,
   SessionListPage,
 } from "../../types.js";
 import { JsonSessionStore } from "../../infrastructure/store/JsonSessionStore.js";
@@ -43,6 +45,10 @@ import type {
   UpdateSessionRequestContract,
 } from "../../contracts/apiSchemas.js";
 import { GitDiffService } from "../../infrastructure/diff/GitDiffService.js";
+import {
+  DiffArtifactService,
+  type DiffPageOptions,
+} from "../../infrastructure/diff/DiffArtifactService.js";
 import {
   ShellCommandRunner,
   type ShellCommandResult,
@@ -157,6 +163,7 @@ function toSessionMessageWindowOptions(
 export class SessionService {
   private readonly runRegistry = new RunRegistry();
   private readonly sessionOperationQueues = new Map<string, Promise<void>>();
+  private readonly diffArtifacts: DiffArtifactService;
 
   constructor(
     private readonly aiModel: AiModel,
@@ -164,16 +171,20 @@ export class SessionService {
     private readonly logger = new AppLogger(),
     private readonly roundService = new RoundService(),
     private readonly atomicReviewService = new AtomicReviewService(aiModel, logger),
+    diffArtifactService = new DiffArtifactService(store.getArtifactDirectoryPath()),
     private readonly sessionSummaryService = new SessionSummaryService(aiModel, store, logger),
     private readonly runCompletionService = new RunCompletionService(
       store,
       logger,
       roundService,
       atomicReviewService,
+      diffArtifactService ?? new DiffArtifactService(store.getArtifactDirectoryPath()),
     ),
     private readonly gitDiffService = new GitDiffService(),
     private readonly shellCommandRunner = new ShellCommandRunner(),
-  ) {}
+  ) {
+    this.diffArtifacts = diffArtifactService;
+  }
 
   async listSessions(): Promise<ChatSession[]> {
     return this.store.listSessions();
@@ -309,7 +320,7 @@ export class SessionService {
     };
   }
 
-  async getRoundReview(sessionId: string, round: number): Promise<ChatRound | undefined> {
+  async getRoundReview(sessionId: string, round: number): Promise<RoundReview | undefined> {
     const session = await this.store.getSession(sessionId);
 
     if (!session) {
@@ -323,8 +334,90 @@ export class SessionService {
     }
 
     review = this.roundService.refreshRoundDiff(review);
+    const diffSummary = await this.diffArtifacts.getRoundDiffSummary({
+      sessionId,
+      round,
+      diff: review.diff,
+    });
+    const atomicReview = await this.diffArtifacts.createAtomicReviewView({
+      sessionId,
+      round,
+      review: review.atomicReview,
+    });
+    const {
+      beforeDiff: _beforeDiff,
+      afterDiff: _afterDiff,
+      diff: _diff,
+      ...lightweightReview
+    } = review;
 
-    return review;
+    return {
+      ...lightweightReview,
+      ...(diffSummary ? { diffSummary } : {}),
+      ...(atomicReview ? { atomicReview } : {}),
+    };
+  }
+
+  async getRoundDiffFilePage(
+    sessionId: string,
+    round: number,
+    fileId: string,
+    options: DiffPageOptions = {},
+  ): Promise<DiffFilePage | undefined> {
+    const session = await this.store.getSession(sessionId);
+
+    if (!session) {
+      return undefined;
+    }
+
+    const review = session.rounds?.find((current) => current.round === round);
+
+    if (!review) {
+      return undefined;
+    }
+
+    const refreshedReview = this.roundService.refreshRoundDiff(review);
+
+    return this.diffArtifacts.getRoundDiffFilePage({
+      sessionId,
+      round,
+      fileId,
+      diff: refreshedReview.diff,
+      options,
+    });
+  }
+
+  async getAtomicReviewItemDiffFilePage(
+    sessionId: string,
+    round: number,
+    itemId: string,
+    fileId: string,
+    options: DiffPageOptions = {},
+  ): Promise<DiffFilePage | undefined> {
+    const session = await this.store.getSession(sessionId);
+
+    if (!session) {
+      return undefined;
+    }
+
+    const review = session.rounds?.find((current) => current.round === round);
+    const item =
+      review?.atomicReview?.status === "ready"
+        ? review.atomicReview.items.find((current) => current.id === itemId)
+        : undefined;
+
+    if (!item) {
+      return undefined;
+    }
+
+    return this.diffArtifacts.getAtomicReviewItemDiffFilePage({
+      sessionId,
+      round,
+      itemId,
+      fileId,
+      itemDiff: item.diff,
+      options,
+    });
   }
 
   private async submitAssistantRun(
@@ -432,7 +525,13 @@ export class SessionService {
         models: request.models,
       })
       .then(async (atomicReview) => {
-        await this.store.updateRoundAtomicReview(sessionId, round, atomicReview);
+        const persistedReview = await this.diffArtifacts.persistAtomicReview({
+          sessionId,
+          round,
+          review: atomicReview,
+        });
+
+        await this.store.updateRoundAtomicReview(sessionId, round, persistedReview);
         const updatedSession = await this.getExistingSession(sessionId, "round.review.not_found");
 
         this.runRegistry.emitRunEvent(runningRun, {

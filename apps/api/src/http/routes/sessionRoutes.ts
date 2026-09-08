@@ -1,13 +1,16 @@
 import { Router } from "express";
 import type { SessionService } from "../../domain/sessions/SessionService.js";
 import {
+  parseAtomicDiffFileParams,
   parseCreateRoundReviewRunBody,
   parseCreateRunBody,
   parseCreateSessionBody,
+  parseDiffFilePageQuery,
   parseGetSessionMessagesQuery,
   parseGetSessionQuery,
   parseListSessionsQuery,
   parseQueuedPromptParams,
+  parseRoundDiffFileParams,
   parseRoundReviewParams,
   parseUpdateSessionBody,
 } from "../validation/requestParsers.js";
@@ -96,6 +99,81 @@ export function createSessionRouter(sessionService: SessionService): Router {
         }
 
         response.json({ review });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  router.get(
+    "/api/v1/sessions/:sessionId/rounds/:round/diff/files/:fileId",
+    async (request, response, next) => {
+      try {
+        const parsedParams = parseRoundDiffFileParams(request.params);
+
+        if (!parsedParams.ok) {
+          response.status(400).json({ error: parsedParams.error });
+          return;
+        }
+
+        const parsedQuery = parseDiffFilePageQuery(request.query);
+
+        if (!parsedQuery.ok) {
+          response.status(400).json({ error: parsedQuery.error });
+          return;
+        }
+
+        const page = await sessionService.getRoundDiffFilePage(
+          parsedParams.value.sessionId,
+          parsedParams.value.round,
+          parsedParams.value.fileId,
+          parsedQuery.value,
+        );
+
+        if (!page) {
+          response.status(404).json({ error: "Diff file not found" });
+          return;
+        }
+
+        response.json({ page });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  router.get(
+    "/api/v1/sessions/:sessionId/rounds/:round/atomic/items/:itemId/diff/files/:fileId",
+    async (request, response, next) => {
+      try {
+        const parsedParams = parseAtomicDiffFileParams(request.params);
+
+        if (!parsedParams.ok) {
+          response.status(400).json({ error: parsedParams.error });
+          return;
+        }
+
+        const parsedQuery = parseDiffFilePageQuery(request.query);
+
+        if (!parsedQuery.ok) {
+          response.status(400).json({ error: parsedQuery.error });
+          return;
+        }
+
+        const page = await sessionService.getAtomicReviewItemDiffFilePage(
+          parsedParams.value.sessionId,
+          parsedParams.value.round,
+          parsedParams.value.itemId,
+          parsedParams.value.fileId,
+          parsedQuery.value,
+        );
+
+        if (!page) {
+          response.status(404).json({ error: "Atomic diff file not found" });
+          return;
+        }
+
+        response.json({ page });
       } catch (error) {
         next(error);
       }

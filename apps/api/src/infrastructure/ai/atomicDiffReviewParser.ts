@@ -27,7 +27,7 @@ export function parseAtomicDiffReviewItems(content: string): AtomicDiffReviewIte
 
 export function validateAtomicDiffReviewItems(items: AtomicDiffReviewItem[]): string[] {
   return items.flatMap((item, index) =>
-    validateAtomicDiffReviewItemDiff(item.diff).map(
+    validateAtomicDiffReviewItemDiff(item.diff ?? "").map(
       (error) => `item ${index + 1} (${item.id}): ${error}`,
     ),
   );

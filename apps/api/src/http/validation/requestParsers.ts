@@ -4,6 +4,9 @@ import {
   CreateRoundReviewRunRequestSchema,
   CreateRunRequestSchema,
   CreateSessionRequestSchema,
+  AtomicDiffFileParamsSchema,
+  DiffFilePageQuerySchema,
+  RoundDiffFileParamsSchema,
   GetSessionMessagesQuerySchema,
   GetSessionQuerySchema,
   ListSessionsQuerySchema,
@@ -62,6 +65,24 @@ export function parseRoundReviewParams(
   params: unknown,
 ): ParsedBody<z.infer<typeof RoundReviewParamsSchema>> {
   return parseWithSchema(RoundReviewParamsSchema, params);
+}
+
+export function parseRoundDiffFileParams(
+  params: unknown,
+): ParsedBody<z.infer<typeof RoundDiffFileParamsSchema>> {
+  return parseWithSchema(RoundDiffFileParamsSchema, params);
+}
+
+export function parseAtomicDiffFileParams(
+  params: unknown,
+): ParsedBody<z.infer<typeof AtomicDiffFileParamsSchema>> {
+  return parseWithSchema(AtomicDiffFileParamsSchema, params);
+}
+
+export function parseDiffFilePageQuery(
+  query: unknown,
+): ParsedBody<z.infer<typeof DiffFilePageQuerySchema>> {
+  return parseWithSchema(DiffFilePageQuerySchema, query);
 }
 
 export function parseQueuedPromptParams(

@@ -729,45 +729,219 @@ export interface paths {
           };
           content: {
             "application/json": {
-              review: {
-                round: number;
-                baseCommit?: string;
-                beforeDiff: string;
-                afterDiff: string;
-                diff: string;
-                hasChanges: boolean;
-                /** Format: date-time */
-                createdAt: string;
-                atomicReview?:
-                  | {
-                      /** @enum {string} */
-                      status: "ready";
-                      /** Format: date-time */
-                      generatedAt: string;
-                      analysisSessionId: string;
-                      items: {
-                        id: string;
-                        order: number;
-                        capabilityType: 0 | 1 | 2 | 3 | 5;
-                        capabilityLabel: string;
-                        title: string;
-                        intent: string;
-                        files: string[];
-                        diff: string;
-                        outputJson: {
-                          [key: string]: unknown;
-                        };
-                      }[];
-                      rawResponse: string;
-                    }
-                  | {
-                      /** @enum {string} */
-                      status: "failed";
-                      /** Format: date-time */
-                      generatedAt: string;
-                      error: string;
-                      rawResponse?: string;
-                    };
+              review: components["schemas"]["RoundReview"];
+            };
+          };
+        };
+        /** @description Error response. */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+        /** @description Error response. */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/sessions/{sessionId}/rounds/{round}/diff/files/{fileId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get a lazily loaded diff file page for a round */
+    get: {
+      parameters: {
+        query?: {
+          context?: number | null;
+          cursor?: string;
+          limit?: number;
+        };
+        header?: never;
+        path: {
+          sessionId: string;
+          round: number;
+          fileId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The requested diff file page. */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              page: {
+                file: {
+                  id: string;
+                  path: string;
+                  oldPath?: string;
+                  /** @enum {string} */
+                  status: "added" | "modified" | "deleted" | "renamed" | "binary";
+                  additions: number;
+                  deletions: number;
+                  hunkCount: number;
+                  lineCount: number;
+                  byteSize: number;
+                  isLarge: boolean;
+                  isBinary: boolean;
+                  metadata: string[];
+                };
+                lines: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "add" | "remove" | "context" | "meta" | "ellipsis";
+                  oldLine?: number;
+                  newLine?: number;
+                  content: string;
+                  canExpandUp?: boolean;
+                  canExpandDown?: boolean;
+                  gapKey?: string;
+                }[];
+                pageInfo: {
+                  cursor?: string;
+                  nextCursor?: string;
+                  returned: number;
+                  totalVisible: number;
+                  hasMoreBefore: boolean;
+                  hasMoreAfter: boolean;
+                  hasExpandableContext: boolean;
+                  contextLines: number;
+                  truncated: boolean;
+                };
+              };
+            };
+          };
+        };
+        /** @description Error response. */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+        /** @description Error response. */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/sessions/{sessionId}/rounds/{round}/atomic/items/{itemId}/diff/files/{fileId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get a lazily loaded diff file page for an atomic review item */
+    get: {
+      parameters: {
+        query?: {
+          context?: number | null;
+          cursor?: string;
+          limit?: number;
+        };
+        header?: never;
+        path: {
+          sessionId: string;
+          round: number;
+          fileId: string;
+          itemId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The requested atomic item diff file page. */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              page: {
+                file: {
+                  id: string;
+                  path: string;
+                  oldPath?: string;
+                  /** @enum {string} */
+                  status: "added" | "modified" | "deleted" | "renamed" | "binary";
+                  additions: number;
+                  deletions: number;
+                  hunkCount: number;
+                  lineCount: number;
+                  byteSize: number;
+                  isLarge: boolean;
+                  isBinary: boolean;
+                  metadata: string[];
+                };
+                lines: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "add" | "remove" | "context" | "meta" | "ellipsis";
+                  oldLine?: number;
+                  newLine?: number;
+                  content: string;
+                  canExpandUp?: boolean;
+                  canExpandDown?: boolean;
+                  gapKey?: string;
+                }[];
+                pageInfo: {
+                  cursor?: string;
+                  nextCursor?: string;
+                  returned: number;
+                  totalVisible: number;
+                  hasMoreBefore: boolean;
+                  hasMoreAfter: boolean;
+                  hasExpandableContext: boolean;
+                  contextLines: number;
+                  truncated: boolean;
+                };
               };
             };
           };
@@ -1557,6 +1731,31 @@ export interface components {
       hasChanges: boolean;
       /** Format: date-time */
       createdAt: string;
+      diffSummary?: {
+        /** @enum {number} */
+        version: 1;
+        totalFiles: number;
+        totalAdditions: number;
+        totalDeletions: number;
+        totalLines: number;
+        totalBytes: number;
+        files: {
+          id: string;
+          path: string;
+          oldPath?: string;
+          /** @enum {string} */
+          status: "added" | "modified" | "deleted" | "renamed" | "binary";
+          additions: number;
+          deletions: number;
+          hunkCount: number;
+          lineCount: number;
+          byteSize: number;
+          isLarge: boolean;
+          isBinary: boolean;
+          metadata: string[];
+        }[];
+        round: number;
+      };
       atomicReview?:
         | {
             /** @enum {string} */
@@ -1572,7 +1771,34 @@ export interface components {
               title: string;
               intent: string;
               files: string[];
-              diff: string;
+              diff?: string;
+              diffSummary?: {
+                /** @enum {number} */
+                version: 1;
+                totalFiles: number;
+                totalAdditions: number;
+                totalDeletions: number;
+                totalLines: number;
+                totalBytes: number;
+                files: {
+                  id: string;
+                  path: string;
+                  oldPath?: string;
+                  /** @enum {string} */
+                  status: "added" | "modified" | "deleted" | "renamed" | "binary";
+                  additions: number;
+                  deletions: number;
+                  hunkCount: number;
+                  lineCount: number;
+                  byteSize: number;
+                  isLarge: boolean;
+                  isBinary: boolean;
+                  metadata: string[];
+                }[];
+              };
+              diffRef?: {
+                itemId: string;
+              };
               outputJson: {
                 [key: string]: unknown;
               };
@@ -1587,6 +1813,45 @@ export interface components {
             error: string;
             rawResponse?: string;
           };
+    };
+    DiffFilePage: {
+      file: {
+        id: string;
+        path: string;
+        oldPath?: string;
+        /** @enum {string} */
+        status: "added" | "modified" | "deleted" | "renamed" | "binary";
+        additions: number;
+        deletions: number;
+        hunkCount: number;
+        lineCount: number;
+        byteSize: number;
+        isLarge: boolean;
+        isBinary: boolean;
+        metadata: string[];
+      };
+      lines: {
+        id: string;
+        /** @enum {string} */
+        kind: "add" | "remove" | "context" | "meta" | "ellipsis";
+        oldLine?: number;
+        newLine?: number;
+        content: string;
+        canExpandUp?: boolean;
+        canExpandDown?: boolean;
+        gapKey?: string;
+      }[];
+      pageInfo: {
+        cursor?: string;
+        nextCursor?: string;
+        returned: number;
+        totalVisible: number;
+        hasMoreBefore: boolean;
+        hasMoreAfter: boolean;
+        hasExpandableContext: boolean;
+        contextLines: number;
+        truncated: boolean;
+      };
     };
     ChatSessionView: {
       id: string;
@@ -2132,6 +2397,98 @@ export interface components {
         description?: string;
         contextWindow?: number;
       }[];
+    };
+    RoundReview: {
+      round: number;
+      baseCommit?: string;
+      hasChanges: boolean;
+      /** Format: date-time */
+      createdAt: string;
+      diffSummary?: {
+        /** @enum {number} */
+        version: 1;
+        totalFiles: number;
+        totalAdditions: number;
+        totalDeletions: number;
+        totalLines: number;
+        totalBytes: number;
+        files: {
+          id: string;
+          path: string;
+          oldPath?: string;
+          /** @enum {string} */
+          status: "added" | "modified" | "deleted" | "renamed" | "binary";
+          additions: number;
+          deletions: number;
+          hunkCount: number;
+          lineCount: number;
+          byteSize: number;
+          isLarge: boolean;
+          isBinary: boolean;
+          metadata: string[];
+        }[];
+        round: number;
+      };
+      atomicReview?:
+        | {
+            /** @enum {string} */
+            status: "ready";
+            /** Format: date-time */
+            generatedAt: string;
+            analysisSessionId: string;
+            items: {
+              id: string;
+              order: number;
+              capabilityType: 0 | 1 | 2 | 3 | 5;
+              capabilityLabel: string;
+              title: string;
+              intent: string;
+              files: string[];
+              diff?: string;
+              diffSummary?: {
+                /** @enum {number} */
+                version: 1;
+                totalFiles: number;
+                totalAdditions: number;
+                totalDeletions: number;
+                totalLines: number;
+                totalBytes: number;
+                files: {
+                  id: string;
+                  path: string;
+                  oldPath?: string;
+                  /** @enum {string} */
+                  status: "added" | "modified" | "deleted" | "renamed" | "binary";
+                  additions: number;
+                  deletions: number;
+                  hunkCount: number;
+                  lineCount: number;
+                  byteSize: number;
+                  isLarge: boolean;
+                  isBinary: boolean;
+                  metadata: string[];
+                }[];
+              };
+              diffRef?: {
+                itemId: string;
+              };
+              outputJson: {
+                [key: string]: unknown;
+              };
+            }[];
+            rawResponse: string;
+          }
+        | {
+            /** @enum {string} */
+            status: "failed";
+            /** Format: date-time */
+            generatedAt: string;
+            error: string;
+            rawResponse?: string;
+          };
+      beforeDiff?: string;
+      afterDiff?: string;
+      diff?: string;
     };
   };
   responses: never;

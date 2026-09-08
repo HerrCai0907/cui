@@ -1,4 +1,8 @@
-import type { ApiAtomicDiffReview, ApiAtomicDiffReviewItem } from "../../../types";
+import type {
+  ApiAtomicDiffReview,
+  ApiAtomicDiffReviewItem,
+  ApiDiffFileSummary,
+} from "../../../types";
 import { parseDiff, type DiffFile } from "./diffParser";
 import { createEmptyAtomicItemState, type ReviewBrowserState } from "./reviewBrowserState";
 
@@ -37,11 +41,11 @@ export function createAtomicReviewNavigation(
   }
 
   const sortedItems = [...review.items].sort(compareAtomicReviewItems);
-  const filesByItem = new Map<string, DiffFile[]>();
+  const filesByItem = new Map<string, ApiDiffFileSummary[]>();
   const basenameCounts = new Map<string, number>();
 
   sortedItems.forEach((item) => {
-    const files = parseDiff(item.diff).sort(compareDiffFiles);
+    const files = getAtomicItemFileSummaries(item).sort(compareDiffFiles);
 
     filesByItem.set(item.id, files);
     files.forEach((file) => {
@@ -81,7 +85,7 @@ export function createAtomicReviewFileSectionId(itemId: string, fileId: string):
 
 function createNavigationFile(
   item: ApiAtomicDiffReviewItem,
-  file: DiffFile,
+  file: ApiDiffFileSummary,
   basenameCounts: Map<string, number>,
 ): ReviewNavigationFile {
   const basename = getFileBasename(file.path);
@@ -96,6 +100,30 @@ function createNavigationFile(
   };
 }
 
+function getAtomicItemFileSummaries(item: ApiAtomicDiffReviewItem): ApiDiffFileSummary[] {
+  if (item.diffSummary) {
+    return item.diffSummary.files;
+  }
+
+  if (!item.diff) {
+    return [];
+  }
+
+  return parseDiff(item.diff).map((file) => ({
+    id: file.id,
+    path: file.path,
+    status: "modified",
+    additions: file.additions,
+    deletions: file.deletions,
+    hunkCount: 0,
+    lineCount: file.lines.length,
+    byteSize: item.diff?.length ?? 0,
+    isLarge: false,
+    isBinary: false,
+    metadata: file.metadata,
+  }));
+}
+
 function compareAtomicReviewItems(
   left: ApiAtomicDiffReviewItem,
   right: ApiAtomicDiffReviewItem,
@@ -107,7 +135,10 @@ function compareAtomicReviewItems(
   );
 }
 
-function compareDiffFiles(left: DiffFile, right: DiffFile): number {
+function compareDiffFiles(
+  left: Pick<ApiDiffFileSummary, "path">,
+  right: Pick<ApiDiffFileSummary, "path">,
+): number {
   return left.path.localeCompare(right.path);
 }
 

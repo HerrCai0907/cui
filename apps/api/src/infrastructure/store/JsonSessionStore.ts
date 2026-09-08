@@ -540,6 +540,10 @@ export class JsonSessionStore {
     return updatedSession;
   }
 
+  getArtifactDirectoryPath(): string {
+    return join(dirname(this.filePath), "session-artifacts");
+  }
+
   private async readIndex(): Promise<SessionIndexData> {
     try {
       return normalizeIndexData(await this.db.read<unknown>(this.filePath));

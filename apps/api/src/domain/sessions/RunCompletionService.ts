@@ -1,6 +1,7 @@
 import type { AiModelPreferences, AiRunResult, ChatRound, ChatSession } from "../../types.js";
 import type { JsonSessionStore } from "../../infrastructure/store/JsonSessionStore.js";
 import type { AppLogger } from "../../infrastructure/logging/AppLogger.js";
+import { DiffArtifactService } from "../../infrastructure/diff/DiffArtifactService.js";
 import { AtomicReviewService } from "../reviews/AtomicReviewService.js";
 import { RoundService } from "../reviews/RoundService.js";
 import { createAssistantMessages } from "./sessionMessages.js";
@@ -13,6 +14,7 @@ export class RunCompletionService {
     private readonly logger: AppLogger,
     private readonly roundService: RoundService,
     private readonly atomicReviewService: AtomicReviewService,
+    private readonly diffArtifactService = new DiffArtifactService(),
   ) {}
 
   async completeRun(input: {
@@ -22,10 +24,21 @@ export class RunCompletionService {
     models?: AiModelPreferences;
   }) {
     const currentSession = await this.store.getSession(input.aiResponse.sessionId);
-    const round = this.roundService.createNextRound(currentSession, input.aiResponse);
+    let round = this.roundService.createNextRound(currentSession, input.aiResponse);
     const reviewPrompt = round?.hasChanges
       ? createSessionInputTranscript(currentSession, input.prompt)
       : undefined;
+
+    if (round?.hasChanges) {
+      round = {
+        ...round,
+        diffSummary: await this.diffArtifactService.persistRoundDiff({
+          sessionId: input.aiResponse.sessionId,
+          round: round.round,
+          diff: round.diff,
+        }),
+      };
+    }
 
     const assistantMessages = createAssistantMessages(input.aiResponse, round);
     const updatedSession = await this.store.appendRoundAndMessages(
@@ -60,9 +73,19 @@ export class RunCompletionService {
   }): void {
     void this.atomicReviewService
       .createAtomicDiffReview(input)
-      .then((atomicReview) =>
-        this.store.updateRoundAtomicReview(input.sessionId, input.round.round, atomicReview),
-      )
+      .then(async (atomicReview) => {
+        const persistedReview = await this.diffArtifactService.persistAtomicReview({
+          sessionId: input.sessionId,
+          round: input.round.round,
+          review: atomicReview,
+        });
+
+        return this.store.updateRoundAtomicReview(
+          input.sessionId,
+          input.round.round,
+          persistedReview,
+        );
+      })
       .catch((error: unknown) =>
         this.logger.session(input.sessionId).warn("round.review.persist_failed", {
           sessionId: input.sessionId,

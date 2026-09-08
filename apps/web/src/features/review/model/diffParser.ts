@@ -1,5 +1,6 @@
 export const DEFAULT_CONTEXT_LINE_COUNT = 3;
 export const CONTEXT_EXPAND_LINE_COUNT = 10;
+export const MAX_CLIENT_DIFF_PARSE_BYTES = 512 * 1024;
 
 export type DiffLineKind = "add" | "remove" | "context" | "meta" | "ellipsis";
 
@@ -41,6 +42,10 @@ type ParsedFileBlock = {
 };
 
 export function parseDiff(diff: string, contextLineCount = DEFAULT_CONTEXT_LINE_COUNT): DiffFile[] {
+  if (diff.length > MAX_CLIENT_DIFF_PARSE_BYTES) {
+    return [];
+  }
+
   return splitFileBlocks(diff).map((block, fileIndex) => {
     const parsed = parseFileBlock(block, contextLineCount, fileIndex);
 
