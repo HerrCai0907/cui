@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import type { ApiDiffFilePage, ApiDiffFileSummary } from "../../../types";
 import {
@@ -9,6 +9,8 @@ import {
 import { DiffRow } from "./DiffRow";
 
 export type DiffFileListFile = ApiDiffFileSummary;
+
+const AUTO_LOAD_DIFF_LINE_THRESHOLD = 80;
 
 type DiffFileListProps = {
   files: DiffFileListFile[];
@@ -131,6 +133,7 @@ function DiffFilePanel({
     loaded: Boolean(initialPage),
     loading: false,
   }));
+  const autoLoadedFileIds = useRef<Set<string>>(new Set());
   const metadata = useMemo(() => file.metadata.join("\n"), [file.metadata]);
 
   useEffect(() => {
@@ -142,6 +145,22 @@ function DiffFilePanel({
       loading: false,
     });
   }, [file.id, initialPage]);
+
+  useEffect(() => {
+    if (
+      approved ||
+      state.loaded ||
+      state.loading ||
+      !loadFilePage ||
+      !shouldAutoLoadDiffFile(file) ||
+      autoLoadedFileIds.current.has(file.id)
+    ) {
+      return;
+    }
+
+    autoLoadedFileIds.current.add(file.id);
+    void loadPage({ context: DEFAULT_CONTEXT_LINE_COUNT });
+  }, [approved, file, loadFilePage, state.loaded, state.loading]);
 
   async function loadPage(options: { context: number; cursor?: string; append?: boolean }) {
     if (!loadFilePage) {
@@ -280,6 +299,10 @@ function DiffFilePanel({
       )}
     </section>
   );
+}
+
+function shouldAutoLoadDiffFile(file: DiffFileListFile): boolean {
+  return !file.isBinary && !file.isLarge && file.lineCount <= AUTO_LOAD_DIFF_LINE_THRESHOLD;
 }
 
 function expandDiffLines(
