@@ -140,6 +140,7 @@
 }
 
 .config-toggle-row {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -231,8 +232,14 @@
 
 .config-toggle-row input {
   position: absolute;
+  top: 50%;
+  inset-inline-end: 16px;
+  width: 42px;
+  height: 24px;
+  margin: 0;
   opacity: 0;
   pointer-events: none;
+  transform: translateY(-50%);
 }
 
 .config-toggle-row:has(input:focus-visible) .config-switch {

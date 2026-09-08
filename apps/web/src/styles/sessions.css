@@ -489,6 +489,12 @@
   background: #ffffff;
 }
 
+@supports (overflow: clip) {
+  .chat-area {
+    overflow: clip;
+  }
+}
+
 .session-notification {
   position: absolute;
   top: 84px;
