@@ -457,6 +457,146 @@ test("loads large atomic diff pages only after expanding the item", async ({ pag
   expect(atomicDiffRequests).toBe(1);
 });
 
+test("auto-loads small atomic diff pages when expanding the item", async ({ page }) => {
+  const session = {
+    id: "session-small-diff",
+    workspace: currentWorkspace,
+    title: "Small diff session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [
+      {
+        round: 1,
+        hasChanges: true,
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+  };
+  const fileSummary = {
+    id: "0:src/small.ts",
+    path: "src/small.ts",
+    status: "modified",
+    additions: 1,
+    deletions: 1,
+    hunkCount: 1,
+    lineCount: 3,
+    byteSize: 180,
+    isLarge: false,
+    isBinary: false,
+    metadata: [
+      "diff --git a/src/small.ts b/src/small.ts",
+      "--- a/src/small.ts",
+      "+++ b/src/small.ts",
+    ],
+  };
+  const diffPage = {
+    file: fileSummary,
+    lines: [
+      {
+        id: "0:src/small.ts:0:meta::",
+        kind: "meta",
+        content: "@@ -1,2 +1,2 @@",
+      },
+      {
+        id: "0:src/small.ts:1:remove:1:",
+        kind: "remove",
+        oldLine: 1,
+        content: "export const value = 1;",
+      },
+      {
+        id: "0:src/small.ts:2:add::1",
+        kind: "add",
+        newLine: 1,
+        content: "export const value = 2;",
+      },
+    ],
+    pageInfo: {
+      returned: 3,
+      totalVisible: 3,
+      hasMoreBefore: false,
+      hasMoreAfter: false,
+      hasExpandableContext: false,
+      contextLines: 3,
+      truncated: false,
+    },
+  };
+  let atomicDiffRequests = 0;
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+  await mockRoundReview(page, "session-small-diff", 1, {
+    round: 1,
+    hasChanges: true,
+    createdAt: "2026-08-22T00:00:00.000Z",
+    atomicReview: {
+      status: "ready",
+      generatedAt: "2026-08-22T00:00:00.000Z",
+      analysisSessionId: "analysis-session-small",
+      rawResponse: "",
+      items: [
+        {
+          id: "atomic-1",
+          order: 1,
+          capabilityType: 3,
+          capabilityLabel: "局部修复",
+          title: "Update small file value",
+          intent: "Change a small file value.",
+          files: ["src/small.ts"],
+          diffSummary: {
+            version: 1,
+            totalFiles: 1,
+            totalAdditions: 1,
+            totalDeletions: 1,
+            totalLines: 3,
+            totalBytes: 180,
+            files: [fileSummary],
+          },
+          diffRef: {
+            itemId: "atomic-1",
+          },
+          outputJson: {},
+        },
+      ],
+    },
+  });
+  await mockDiffFilePage(
+    page,
+    "**/api/v1/sessions/session-small-diff/rounds/1/atomic/items/atomic-1/diff/files/**",
+    () => {
+      atomicDiffRequests += 1;
+      return diffPage;
+    },
+  );
+
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "cui:review-state:v1:session-small-diff:1",
+      JSON.stringify({
+        version: 1,
+        fullApprovedFileIds: [],
+        atomicItems: {
+          "atomic-1": {
+            collapsed: true,
+            approvedFileIds: [],
+          },
+        },
+        updatedAt: Date.now(),
+        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      }),
+    );
+  });
+  await page.goto("/ui/sessions/session-small-diff/rounds/1/atomic_review");
+
+  await expect(page.getByLabel("Expand atomic change 1")).toBeVisible();
+  expect(atomicDiffRequests).toBe(0);
+
+  await page.getByLabel("Expand atomic change 1").click();
+  await expect(page.getByText("+export const value = 2;")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Load diff" })).toHaveCount(0);
+  expect(atomicDiffRequests).toBe(1);
+});
+
 test("renders middle diff context expansion as two full-width rows without ellipsis text", async ({
   page,
 }) => {
