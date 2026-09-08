@@ -15,6 +15,7 @@ export type ChatRound = {
   beforeDiff: string;
   afterDiff: string;
   diff: string;
+  diffSummary?: RoundDiffSummary;
   hasChanges: boolean;
   createdAt: string;
   atomicReview?: AtomicDiffReview;
@@ -135,6 +136,64 @@ export type AiModelPreferences = Partial<Record<AiModelPurpose, string>> & {
 
 export type AtomicCapabilityType = 0 | 1 | 2 | 3 | 5;
 
+export type DiffLineKind = "add" | "remove" | "context" | "meta" | "ellipsis";
+
+export type DiffLine = {
+  id: string;
+  kind: DiffLineKind;
+  oldLine?: number;
+  newLine?: number;
+  content: string;
+  canExpandUp?: boolean;
+  canExpandDown?: boolean;
+  gapKey?: string;
+};
+
+export type DiffFileSummary = {
+  id: string;
+  path: string;
+  oldPath?: string;
+  status: "added" | "modified" | "deleted" | "renamed" | "binary";
+  additions: number;
+  deletions: number;
+  hunkCount: number;
+  lineCount: number;
+  byteSize: number;
+  isLarge: boolean;
+  isBinary: boolean;
+  metadata: string[];
+};
+
+export type DiffSummary = {
+  version: 1;
+  totalFiles: number;
+  totalAdditions: number;
+  totalDeletions: number;
+  totalLines: number;
+  totalBytes: number;
+  files: DiffFileSummary[];
+};
+
+export type RoundDiffSummary = DiffSummary & {
+  round: number;
+};
+
+export type DiffFilePage = {
+  file: DiffFileSummary;
+  lines: DiffLine[];
+  pageInfo: {
+    cursor?: string;
+    nextCursor?: string;
+    returned: number;
+    totalVisible: number;
+    hasMoreBefore: boolean;
+    hasMoreAfter: boolean;
+    hasExpandableContext: boolean;
+    contextLines: number;
+    truncated: boolean;
+  };
+};
+
 export type AtomicDiffReviewItem = {
   id: string;
   order: number;
@@ -143,7 +202,11 @@ export type AtomicDiffReviewItem = {
   title: string;
   intent: string;
   files: string[];
-  diff: string;
+  diff?: string;
+  diffSummary?: DiffSummary;
+  diffRef?: {
+    itemId: string;
+  };
   outputJson: Record<string, unknown>;
 };
 
@@ -174,6 +237,12 @@ export type AiAtomicDiffReviewInput = {
   executionTraceFilePath?: string;
   models?: AiModelPreferences;
 };
+
+export type RoundReview = Omit<ChatRound, "beforeDiff" | "afterDiff" | "diff" | "atomicReview"> &
+  Partial<Pick<ChatRound, "beforeDiff" | "afterDiff" | "diff">> & {
+    diffSummary?: RoundDiffSummary;
+    atomicReview?: AtomicDiffReview;
+  };
 
 export type AiResponse = {
   sessionId: string;

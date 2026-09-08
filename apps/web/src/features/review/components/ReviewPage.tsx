@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatMessageTime } from "../../../shared/lib/dates";
-import type { ApiAtomicDiffReviewItem, ApiRound } from "../../../types";
+import type { ApiAtomicDiffReviewItem, ApiRoundReview } from "../../../types";
 import { createAtomicReviewCommentPrompt } from "../model/atomicReviewCommentPrompt";
 import type { ReviewNavigation, ReviewNavigationTarget } from "../model/reviewNavigation";
 import { createAtomicReviewNavigation } from "../model/reviewNavigation";
@@ -16,7 +16,7 @@ import { ReviewDiff } from "./ReviewDiff";
 type ReviewPageProps = {
   error: string | null;
   loading: boolean;
-  review: ApiRound | null;
+  review: ApiRoundReview | null;
   reviewRoute: ReviewRoute;
   navigationTarget: ReviewNavigationTarget | null;
   sessionBlocked: boolean;
@@ -210,8 +210,9 @@ export function ReviewPage({
           </div>
           <ReviewDiff
             key={reviewBrowserStateKey(reviewRoute)}
-            diff={review.diff}
-            atomicReview={review.atomicReview}
+            review={review}
+            sessionId={reviewRoute.sessionId}
+            round={reviewRoute.round}
             mode={reviewRoute.mode}
             reviewState={reviewState}
             commentCount={atomicComments.length}
@@ -232,7 +233,7 @@ export function ReviewPage({
 }
 
 function collectAtomicComments(
-  atomicReview: ApiRound["atomicReview"] | undefined,
+  atomicReview: ApiRoundReview["atomicReview"] | undefined,
   reviewState: ReviewBrowserState,
 ): Array<{ item: ApiAtomicDiffReviewItem; comment: string }> {
   if (atomicReview?.status !== "ready") {

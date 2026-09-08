@@ -54,6 +54,62 @@ export const AtomicCapabilityTypeSchema = z.union([
   z.literal(5),
 ]);
 
+export const DiffLineSchema = z.object({
+  id: z.string(),
+  kind: z.enum(["add", "remove", "context", "meta", "ellipsis"]),
+  oldLine: z.number().int().positive().optional(),
+  newLine: z.number().int().positive().optional(),
+  content: z.string(),
+  canExpandUp: z.boolean().optional(),
+  canExpandDown: z.boolean().optional(),
+  gapKey: z.string().optional(),
+});
+
+export const DiffFileSummarySchema = z.object({
+  id: z.string(),
+  path: z.string(),
+  oldPath: z.string().optional(),
+  status: z.enum(["added", "modified", "deleted", "renamed", "binary"]),
+  additions: z.number().int().nonnegative(),
+  deletions: z.number().int().nonnegative(),
+  hunkCount: z.number().int().nonnegative(),
+  lineCount: z.number().int().nonnegative(),
+  byteSize: z.number().int().nonnegative(),
+  isLarge: z.boolean(),
+  isBinary: z.boolean(),
+  metadata: z.array(z.string()),
+});
+
+export const DiffSummarySchema = z.object({
+  version: z.literal(1),
+  totalFiles: z.number().int().nonnegative(),
+  totalAdditions: z.number().int().nonnegative(),
+  totalDeletions: z.number().int().nonnegative(),
+  totalLines: z.number().int().nonnegative(),
+  totalBytes: z.number().int().nonnegative(),
+  files: z.array(DiffFileSummarySchema),
+});
+
+export const RoundDiffSummarySchema = DiffSummarySchema.extend({
+  round: z.number().int().positive(),
+});
+
+export const DiffFilePageSchema = z.object({
+  file: DiffFileSummarySchema,
+  lines: z.array(DiffLineSchema),
+  pageInfo: z.object({
+    cursor: z.string().optional(),
+    nextCursor: z.string().optional(),
+    returned: z.number().int().nonnegative(),
+    totalVisible: z.number().int().nonnegative(),
+    hasMoreBefore: z.boolean(),
+    hasMoreAfter: z.boolean(),
+    hasExpandableContext: z.boolean(),
+    contextLines: z.number().int().nonnegative(),
+    truncated: z.boolean(),
+  }),
+});
+
 export const AtomicDiffReviewItemSchema = z.object({
   id: z.string(),
   order: z.number().int(),
@@ -62,7 +118,13 @@ export const AtomicDiffReviewItemSchema = z.object({
   title: z.string(),
   intent: z.string(),
   files: z.array(z.string()),
-  diff: z.string(),
+  diff: z.string().optional(),
+  diffSummary: DiffSummarySchema.optional(),
+  diffRef: z
+    .object({
+      itemId: z.string(),
+    })
+    .optional(),
   outputJson: jsonRecordSchema,
 });
 
@@ -90,8 +152,22 @@ export const ChatRoundSchema = z.object({
   diff: z.string(),
   hasChanges: z.boolean(),
   createdAt: z.string().datetime(),
+  diffSummary: RoundDiffSummarySchema.optional(),
   atomicReview: AtomicDiffReviewSchema.optional(),
 });
+
+export const RoundReviewSchema = ChatRoundSchema.omit({
+  beforeDiff: true,
+  afterDiff: true,
+  diff: true,
+})
+  .extend({
+    beforeDiff: z.string().optional(),
+    afterDiff: z.string().optional(),
+    diff: z.string().optional(),
+    diffSummary: RoundDiffSummarySchema.optional(),
+  })
+  .openapi("RoundReview");
 
 export const ChatRoundSummarySchema = ChatRoundSchema.pick({
   round: true,
@@ -371,7 +447,11 @@ export const GetSessionMessagesResponseSchema = z.object({
 });
 
 export const GetRoundReviewResponseSchema = z.object({
-  review: ChatRoundSchema,
+  review: RoundReviewSchema,
+});
+
+export const GetDiffFilePageResponseSchema = z.object({
+  page: DiffFilePageSchema,
 });
 
 export const WithdrawQueuedPromptsResponseSchema = z.object({
@@ -391,6 +471,20 @@ export const QueuedPromptParamsSchema = z.object({
 export const RoundReviewParamsSchema = z.object({
   sessionId: z.string().min(1),
   round: z.coerce.number().int().positive(),
+});
+
+export const RoundDiffFileParamsSchema = RoundReviewParamsSchema.extend({
+  fileId: z.string().min(1),
+});
+
+export const AtomicDiffFileParamsSchema = RoundDiffFileParamsSchema.extend({
+  itemId: z.string().min(1),
+});
+
+export const DiffFilePageQuerySchema = z.object({
+  context: z.coerce.number().int().nonnegative().max(200).optional(),
+  cursor: z.string().trim().min(1).optional(),
+  limit: z.coerce.number().int().positive().max(1000).optional(),
 });
 
 export const RunIdParamsSchema = z.object({
@@ -430,6 +524,7 @@ export type UpdateSessionRequestContract = z.infer<typeof UpdateSessionRequestSc
 export type ListSessionsQueryContract = z.infer<typeof ListSessionsQuerySchema>;
 export type GetSessionQueryContract = z.infer<typeof GetSessionQuerySchema>;
 export type GetSessionMessagesQueryContract = z.infer<typeof GetSessionMessagesQuerySchema>;
+export type DiffFilePageQueryContract = z.infer<typeof DiffFilePageQuerySchema>;
 export type QueuedPromptParamsContract = z.infer<typeof QueuedPromptParamsSchema>;
 export type RunEventsQueryContract = z.infer<typeof RunEventsQuerySchema>;
 export type CodeRangeRequestContract = z.infer<typeof CodeRangeQuerySchema>;

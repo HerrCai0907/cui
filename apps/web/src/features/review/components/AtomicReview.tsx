@@ -1,8 +1,14 @@
 import { CheckCheck, ChevronDown, ChevronRight, RotateCcw, Send } from "lucide-react";
-import type { ApiAtomicDiffReview, ApiAtomicDiffReviewItem } from "../../../types";
+import type {
+  ApiAtomicDiffReview,
+  ApiAtomicDiffReviewItem,
+  ApiDiffFilePage,
+  ApiDiffFileSummary,
+} from "../../../types";
 import { shortId } from "../../../shared/lib/ids";
 import { DiffFileList } from "./DiffFileList";
 import { parseDiff } from "../model/diffParser";
+import { getAtomicDiffFilePage } from "../api/reviewApi";
 import {
   createEmptyAtomicItemState,
   toggleString,
@@ -15,6 +21,8 @@ import {
 
 type AtomicReviewProps = {
   review?: ApiAtomicDiffReview;
+  sessionId: string;
+  round: number;
   itemStates: Record<string, AtomicReviewItemState>;
   commentCount: number;
   commentsDisabled: boolean;
@@ -29,6 +37,8 @@ type AtomicReviewProps = {
 
 export function AtomicReview({
   review,
+  sessionId,
+  round,
   itemStates,
   commentCount,
   commentsDisabled,
@@ -76,6 +86,8 @@ export function AtomicReview({
         {[...review.items].sort(compareAtomicReviewItems).map((item) => (
           <AtomicReviewItem
             item={item}
+            sessionId={sessionId}
+            round={round}
             itemState={itemStates[item.id] ?? createEmptyAtomicItemState()}
             key={item.id}
             onUpdateItemState={onUpdateItemState}
@@ -128,10 +140,14 @@ function AtomicReviewTopline({ onOpenFullReview }: { onOpenFullReview?: () => vo
 
 function AtomicReviewItem({
   item,
+  sessionId,
+  round,
   itemState,
   onUpdateItemState,
 }: {
   item: ApiAtomicDiffReviewItem;
+  sessionId: string;
+  round: number;
   itemState: AtomicReviewItemState;
   onUpdateItemState: (
     itemId: string,
@@ -142,9 +158,13 @@ function AtomicReviewItem({
   const commentOpen = Boolean(itemState.commentOpen);
   const commentDraft = itemState.commentDraft ?? "";
   const hasComment = Boolean(commentDraft.trim());
-  const files = parseDiff(item.diff);
+  const shouldParseLegacyDiff = !collapsed && !item.diffSummary;
+  const legacyParsedFiles = shouldParseLegacyDiff ? parseDiff(item.diff ?? "") : [];
+  const files = item.diffSummary?.files ?? toDiffFileSummaries(legacyParsedFiles, item.diff);
+  const initialPages = toInitialPages(legacyParsedFiles);
   const activeCommentLineId =
-    itemState.commentLineId ?? (commentOpen ? findFirstCommentableLineId(files) : undefined);
+    itemState.commentLineId ??
+    (commentOpen ? findFirstCommentableLineId(initialPages, files) : undefined);
   const approvedFileIds = new Set(itemState.approvedFileIds);
   const allFilesApproved = files.length > 0 && files.every((file) => approvedFileIds.has(file.id));
 
@@ -237,6 +257,19 @@ function AtomicReviewItem({
         <div className={`atomic-review-change-block ${commentOpen ? "has-comment-open" : ""}`}>
           <DiffFileList
             files={files}
+            initialPages={initialPages}
+            loadFilePage={
+              item.diffSummary
+                ? (fileId, options) =>
+                    getAtomicDiffFilePage({
+                      sessionId,
+                      round,
+                      itemId: item.id,
+                      fileId,
+                      ...options,
+                    })
+                : undefined
+            }
             approvedFileIds={approvedFileIds}
             commentLineId={activeCommentLineId}
             commentDraft={commentDraft}
@@ -252,9 +285,12 @@ function AtomicReviewItem({
   );
 }
 
-function findFirstCommentableLineId(files: ReturnType<typeof parseDiff>): string | undefined {
+function findFirstCommentableLineId(
+  initialPages: Record<string, ApiDiffFilePage>,
+  files: ApiDiffFileSummary[],
+): string | undefined {
   for (const file of files) {
-    const line = file.lines.find((candidate) => candidate.kind !== "ellipsis");
+    const line = initialPages[file.id]?.lines.find((candidate) => candidate.kind !== "ellipsis");
 
     if (line) {
       return line.id;
@@ -262,6 +298,58 @@ function findFirstCommentableLineId(files: ReturnType<typeof parseDiff>): string
   }
 
   return undefined;
+}
+
+function toDiffFileSummaries(
+  files: ReturnType<typeof parseDiff>,
+  diff: string | undefined,
+): ApiDiffFileSummary[] {
+  return files.map((file) => ({
+    id: file.id,
+    path: file.path,
+    status: "modified",
+    additions: file.additions,
+    deletions: file.deletions,
+    hunkCount: 0,
+    lineCount: file.lines.length,
+    byteSize: diff?.length ?? 0,
+    isLarge: false,
+    isBinary: false,
+    metadata: file.metadata,
+  }));
+}
+
+function toInitialPages(files: ReturnType<typeof parseDiff>): Record<string, ApiDiffFilePage> {
+  return Object.fromEntries(
+    files.map((file) => [
+      file.id,
+      {
+        file: {
+          id: file.id,
+          path: file.path,
+          status: "modified",
+          additions: file.additions,
+          deletions: file.deletions,
+          hunkCount: 0,
+          lineCount: file.lines.length,
+          byteSize: 0,
+          isLarge: false,
+          isBinary: false,
+          metadata: file.metadata,
+        },
+        lines: file.lines,
+        pageInfo: {
+          returned: file.lines.length,
+          totalVisible: file.lines.length,
+          hasMoreBefore: false,
+          hasMoreAfter: false,
+          hasExpandableContext: file.lines.some((line) => line.kind === "ellipsis"),
+          contextLines: 3,
+          truncated: false,
+        },
+      },
+    ]),
+  );
 }
 
 function capabilityToneClass(capabilityType: ApiAtomicDiffReviewItem["capabilityType"]): string {

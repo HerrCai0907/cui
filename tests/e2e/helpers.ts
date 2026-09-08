@@ -166,6 +166,20 @@ export async function mockRoundReview(
   });
 }
 
+export async function mockDiffFilePage(
+  page: Page,
+  pathPattern: string,
+  pageBody: unknown | ((url: URL) => unknown),
+) {
+  await page.route(pathPattern, async (route) => {
+    const url = new URL(route.request().url());
+
+    await fulfillJson(route, {
+      page: typeof pageBody === "function" ? pageBody(url) : pageBody,
+    });
+  });
+}
+
 export async function showExecutionTraceTypes(page: Page, types: ExecutionTraceMessageType[]) {
   const defaultConfig = createDefaultAppConfig();
   const storedConfig = {

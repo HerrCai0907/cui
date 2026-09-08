@@ -24,7 +24,7 @@ import { Composer } from "../features/sessions/components/Composer";
 import { MessageStream } from "../features/sessions/components/MessageStream";
 import { SessionSidebar } from "../features/sessions/components/SessionSidebar";
 import { useSessionController } from "../features/sessions/hooks/useSessionController";
-import type { ApiRound } from "../types";
+import type { ApiRoundReview } from "../types";
 
 const DEFAULT_WORKSPACE = "~";
 
@@ -38,7 +38,7 @@ export function App() {
   const [reviewRoute, setReviewRoute] = useState<ReviewRoute | null>(() =>
     initialPath === "/config" ? null : parseReviewRoute(initialPath),
   );
-  const [review, setReview] = useState<ApiRound | null>(null);
+  const [review, setReview] = useState<ApiRoundReview | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [reviewNavigation, setReviewNavigation] = useState<ReviewNavigation | null>(null);

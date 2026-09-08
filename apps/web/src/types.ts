@@ -1,7 +1,9 @@
-import type { components } from "./shared/api/generated/schema";
+import type { components, paths } from "./shared/api/generated/schema";
 
 export type ApiMessage = components["schemas"]["ChatMessage"];
 export type ApiRound = components["schemas"]["ChatRound"];
+export type ApiRoundReview =
+  paths["/api/v1/sessions/{sessionId}/rounds/{round}/review"]["get"]["responses"][200]["content"]["application/json"]["review"];
 export type ApiRoundSummary = components["schemas"]["ChatRoundSummary"];
 export type ApiSession = components["schemas"]["ChatSessionView"];
 export type ApiSessionListItem = components["schemas"]["ChatSessionListItem"];
@@ -17,6 +19,9 @@ export type ApiAtomicDiffReviewItem = Extract<
   ApiAtomicDiffReview,
   { status: "ready" }
 >["items"][number];
+export type ApiDiffFileSummary = components["schemas"]["DiffFilePage"]["file"];
+export type ApiDiffFilePage = components["schemas"]["DiffFilePage"];
+export type ApiDiffSummary = NonNullable<ApiRoundReview["diffSummary"]>;
 
 export type SessionSummary = {
   id: string;

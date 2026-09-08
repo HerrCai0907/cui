@@ -4,6 +4,7 @@ import {
   createSubmittedRunResponse,
   currentWorkspace,
   fulfillJson,
+  mockDiffFilePage,
   mockRoundReview,
   mockSession,
   mockSessions,
@@ -293,6 +294,167 @@ test("expands review diff context by 10 lines in each direction", async ({ page 
   await page.getByLabel("Expand 10 lines down").click();
   await expect(page.getByText(" const value33 = 33;")).toBeVisible();
   await expect(page.getByText(" const value34 = 34;")).not.toBeVisible();
+});
+
+test("loads large atomic diff pages only after expanding the item", async ({ page }) => {
+  const session = {
+    id: "session-large-diff",
+    workspace: currentWorkspace,
+    title: "Large diff session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [
+      {
+        round: 1,
+        hasChanges: true,
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+  };
+  const fileSummary = {
+    id: "0:src/huge.ts",
+    path: "src/huge.ts",
+    status: "modified",
+    additions: 1,
+    deletions: 1,
+    hunkCount: 1,
+    lineCount: 120000,
+    byteSize: 2 * 1024 * 1024,
+    isLarge: true,
+    isBinary: false,
+    metadata: ["diff --git a/src/huge.ts b/src/huge.ts", "--- a/src/huge.ts", "+++ b/src/huge.ts"],
+  };
+  const diffPage = {
+    file: fileSummary,
+    lines: [
+      {
+        id: "0:src/huge.ts:0:meta::",
+        kind: "meta",
+        content: "@@ -60000,3 +60000,3 @@",
+      },
+      {
+        id: "0:src/huge.ts:1:remove:60000:",
+        kind: "remove",
+        oldLine: 60000,
+        content: "export const value = 1;",
+      },
+      {
+        id: "0:src/huge.ts:2:add::60000",
+        kind: "add",
+        newLine: 60000,
+        content: "export const value = 2;",
+      },
+    ],
+    pageInfo: {
+      returned: 3,
+      totalVisible: 3,
+      hasMoreBefore: false,
+      hasMoreAfter: false,
+      hasExpandableContext: false,
+      contextLines: 3,
+      truncated: false,
+    },
+  };
+  let roundDiffRequests = 0;
+  let atomicDiffRequests = 0;
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+  await mockRoundReview(page, "session-large-diff", 1, {
+    round: 1,
+    hasChanges: true,
+    createdAt: "2026-08-22T00:00:00.000Z",
+    diffSummary: {
+      version: 1,
+      round: 1,
+      totalFiles: 1,
+      totalAdditions: 1,
+      totalDeletions: 1,
+      totalLines: 120000,
+      totalBytes: 2 * 1024 * 1024,
+      files: [fileSummary],
+    },
+    atomicReview: {
+      status: "ready",
+      generatedAt: "2026-08-22T00:00:00.000Z",
+      analysisSessionId: "analysis-session-large",
+      rawResponse: "",
+      items: [
+        {
+          id: "atomic-1",
+          order: 1,
+          capabilityType: 3,
+          capabilityLabel: "局部修复",
+          title: "Update huge file value",
+          intent: "Change the generated file value without loading the full patch initially.",
+          files: ["src/huge.ts"],
+          diffSummary: {
+            version: 1,
+            totalFiles: 1,
+            totalAdditions: 1,
+            totalDeletions: 1,
+            totalLines: 120000,
+            totalBytes: 2 * 1024 * 1024,
+            files: [fileSummary],
+          },
+          diffRef: {
+            itemId: "atomic-1",
+          },
+          outputJson: {},
+        },
+      ],
+    },
+  });
+  await page.route(
+    "**/api/v1/sessions/session-large-diff/rounds/1/diff/files/**",
+    async (route) => {
+      roundDiffRequests += 1;
+      await route.fallback();
+    },
+  );
+  await mockDiffFilePage(
+    page,
+    "**/api/v1/sessions/session-large-diff/rounds/1/atomic/items/atomic-1/diff/files/**",
+    () => {
+      atomicDiffRequests += 1;
+      return diffPage;
+    },
+  );
+
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "cui:review-state:v1:session-large-diff:1",
+      JSON.stringify({
+        version: 1,
+        fullApprovedFileIds: [],
+        atomicItems: {
+          "atomic-1": {
+            collapsed: true,
+            approvedFileIds: [],
+          },
+        },
+        updatedAt: Date.now(),
+        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      }),
+    );
+  });
+  await page.goto("/ui/sessions/session-large-diff/rounds/1/atomic_review");
+
+  await expect(page.getByLabel("Expand atomic change 1")).toBeVisible();
+  await expect(page.getByText("+export const value = 2;")).toHaveCount(0);
+  expect(roundDiffRequests).toBe(0);
+  expect(atomicDiffRequests).toBe(0);
+
+  await page.getByLabel("Expand atomic change 1").click();
+  await expect(page.getByRole("button", { name: "Load large diff" })).toBeVisible();
+  expect(roundDiffRequests).toBe(0);
+  expect(atomicDiffRequests).toBe(0);
+
+  await page.getByRole("button", { name: "Load large diff" }).click();
+  await expect(page.getByText("+export const value = 2;")).toBeVisible();
+  expect(roundDiffRequests).toBe(0);
+  expect(atomicDiffRequests).toBe(1);
 });
 
 test("renders middle diff context expansion as two full-width rows without ellipsis text", async ({

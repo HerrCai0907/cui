@@ -5,6 +5,7 @@ import {
   ChatRoundSummarySchema,
   ChatSessionListItemSchema,
   ChatSessionViewSchema,
+  AtomicDiffFileParamsSchema,
   AiModelPreferencesSchema,
   CodeRangeQuerySchema,
   CodeRangeResponseSchema,
@@ -12,6 +13,8 @@ import {
   CreateRunRequestSchema,
   CreateSessionResponseSchema,
   CreateSessionRequestSchema,
+  DiffFilePageQuerySchema,
+  GetDiffFilePageResponseSchema,
   ErrorResponseSchema,
   GetSessionMessagesQuerySchema,
   GetSessionMessagesResponseSchema,
@@ -25,6 +28,7 @@ import {
   OkResponseSchema,
   QueuedPromptSchema,
   QueuedPromptParamsSchema,
+  RoundDiffFileParamsSchema,
   RoundReviewParamsSchema,
   RunEventsQuerySchema,
   RunSchema,
@@ -45,6 +49,7 @@ registry.register("HealthResponse", HealthResponseSchema);
 registry.register("ChatMessage", ChatMessageSchema);
 registry.register("ChatRoundSummary", ChatRoundSummarySchema);
 registry.register("ChatRound", ChatRoundSchema);
+registry.register("DiffFilePage", GetDiffFilePageResponseSchema.shape.page);
 registry.register("ChatSessionView", ChatSessionViewSchema);
 registry.register("ChatSessionListItem", ChatSessionListItemSchema);
 registry.register("MessagePageInfo", GetSessionMessagesResponseSchema.shape.pageInfo);
@@ -278,6 +283,50 @@ registry.registerPath({
       content: {
         "application/json": {
           schema: GetRoundReviewResponseSchema,
+        },
+      },
+    },
+    400: errorResponse,
+    404: errorResponse,
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/v1/sessions/{sessionId}/rounds/{round}/diff/files/{fileId}",
+  summary: "Get a lazily loaded diff file page for a round",
+  request: {
+    params: RoundDiffFileParamsSchema,
+    query: DiffFilePageQuerySchema,
+  },
+  responses: {
+    200: {
+      description: "The requested diff file page.",
+      content: {
+        "application/json": {
+          schema: GetDiffFilePageResponseSchema,
+        },
+      },
+    },
+    400: errorResponse,
+    404: errorResponse,
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/v1/sessions/{sessionId}/rounds/{round}/atomic/items/{itemId}/diff/files/{fileId}",
+  summary: "Get a lazily loaded diff file page for an atomic review item",
+  request: {
+    params: AtomicDiffFileParamsSchema,
+    query: DiffFilePageQuerySchema,
+  },
+  responses: {
+    200: {
+      description: "The requested atomic item diff file page.",
+      content: {
+        "application/json": {
+          schema: GetDiffFilePageResponseSchema,
         },
       },
     },

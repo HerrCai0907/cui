@@ -25,7 +25,7 @@ export function createAtomicReviewCommentPrompt(input: {
       "",
       "Relevant diff:",
       "```diff",
-      item.diff.trim() || "No textual diff available.",
+      item.diff?.trim() || "Diff is available in the round review UI, but was not embedded here.",
       "```",
     ].join("\n"),
   );

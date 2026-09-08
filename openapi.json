@@ -116,6 +116,115 @@
             "type": "string",
             "format": "date-time"
           },
+          "diffSummary": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "number",
+                "enum": [1]
+              },
+              "totalFiles": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "totalAdditions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "totalDeletions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "totalLines": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "totalBytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "oldPath": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["added", "modified", "deleted", "renamed", "binary"]
+                    },
+                    "additions": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "deletions": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "hunkCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "lineCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "byteSize": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "isLarge": {
+                      "type": "boolean"
+                    },
+                    "isBinary": {
+                      "type": "boolean"
+                    },
+                    "metadata": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "path",
+                    "status",
+                    "additions",
+                    "deletions",
+                    "hunkCount",
+                    "lineCount",
+                    "byteSize",
+                    "isLarge",
+                    "isBinary",
+                    "metadata"
+                  ]
+                }
+              },
+              "round": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "version",
+              "totalFiles",
+              "totalAdditions",
+              "totalDeletions",
+              "totalLines",
+              "totalBytes",
+              "files",
+              "round"
+            ]
+          },
           "atomicReview": {
             "oneOf": [
               {
@@ -185,6 +294,119 @@
                         "diff": {
                           "type": "string"
                         },
+                        "diffSummary": {
+                          "type": "object",
+                          "properties": {
+                            "version": {
+                              "type": "number",
+                              "enum": [1]
+                            },
+                            "totalFiles": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "totalAdditions": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "totalDeletions": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "totalLines": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "totalBytes": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "files": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "type": "string"
+                                  },
+                                  "oldPath": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": ["added", "modified", "deleted", "renamed", "binary"]
+                                  },
+                                  "additions": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "deletions": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "hunkCount": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "lineCount": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "byteSize": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "isLarge": {
+                                    "type": "boolean"
+                                  },
+                                  "isBinary": {
+                                    "type": "boolean"
+                                  },
+                                  "metadata": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "path",
+                                  "status",
+                                  "additions",
+                                  "deletions",
+                                  "hunkCount",
+                                  "lineCount",
+                                  "byteSize",
+                                  "isLarge",
+                                  "isBinary",
+                                  "metadata"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "version",
+                            "totalFiles",
+                            "totalAdditions",
+                            "totalDeletions",
+                            "totalLines",
+                            "totalBytes",
+                            "files"
+                          ]
+                        },
+                        "diffRef": {
+                          "type": "object",
+                          "properties": {
+                            "itemId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["itemId"]
+                        },
                         "outputJson": {
                           "type": "object",
                           "additionalProperties": {}
@@ -198,7 +420,6 @@
                         "title",
                         "intent",
                         "files",
-                        "diff",
                         "outputJson"
                       ]
                     }
@@ -233,6 +454,155 @@
           }
         },
         "required": ["round", "beforeDiff", "afterDiff", "diff", "hasChanges", "createdAt"]
+      },
+      "DiffFilePage": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "oldPath": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["added", "modified", "deleted", "renamed", "binary"]
+              },
+              "additions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "deletions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "hunkCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "lineCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "byteSize": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "isLarge": {
+                "type": "boolean"
+              },
+              "isBinary": {
+                "type": "boolean"
+              },
+              "metadata": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "path",
+              "status",
+              "additions",
+              "deletions",
+              "hunkCount",
+              "lineCount",
+              "byteSize",
+              "isLarge",
+              "isBinary",
+              "metadata"
+            ]
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": ["add", "remove", "context", "meta", "ellipsis"]
+                },
+                "oldLine": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                "newLine": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                "content": {
+                  "type": "string"
+                },
+                "canExpandUp": {
+                  "type": "boolean"
+                },
+                "canExpandDown": {
+                  "type": "boolean"
+                },
+                "gapKey": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "kind", "content"]
+            }
+          },
+          "pageInfo": {
+            "type": "object",
+            "properties": {
+              "cursor": {
+                "type": "string"
+              },
+              "nextCursor": {
+                "type": "string"
+              },
+              "returned": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "totalVisible": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "hasMoreBefore": {
+                "type": "boolean"
+              },
+              "hasMoreAfter": {
+                "type": "boolean"
+              },
+              "hasExpandableContext": {
+                "type": "boolean"
+              },
+              "contextLines": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "returned",
+              "totalVisible",
+              "hasMoreBefore",
+              "hasMoreAfter",
+              "hasExpandableContext",
+              "contextLines",
+              "truncated"
+            ]
+          }
+        },
+        "required": ["file", "lines", "pageInfo"]
       },
       "ChatSessionView": {
         "type": "object",
@@ -1889,6 +2259,371 @@
           }
         },
         "required": ["models"]
+      },
+      "RoundReview": {
+        "type": "object",
+        "properties": {
+          "round": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "baseCommit": {
+            "type": "string"
+          },
+          "hasChanges": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "diffSummary": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "number",
+                "enum": [1]
+              },
+              "totalFiles": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "totalAdditions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "totalDeletions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "totalLines": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "totalBytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "oldPath": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["added", "modified", "deleted", "renamed", "binary"]
+                    },
+                    "additions": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "deletions": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "hunkCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "lineCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "byteSize": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "isLarge": {
+                      "type": "boolean"
+                    },
+                    "isBinary": {
+                      "type": "boolean"
+                    },
+                    "metadata": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "path",
+                    "status",
+                    "additions",
+                    "deletions",
+                    "hunkCount",
+                    "lineCount",
+                    "byteSize",
+                    "isLarge",
+                    "isBinary",
+                    "metadata"
+                  ]
+                }
+              },
+              "round": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "version",
+              "totalFiles",
+              "totalAdditions",
+              "totalDeletions",
+              "totalLines",
+              "totalBytes",
+              "files",
+              "round"
+            ]
+          },
+          "atomicReview": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["ready"]
+                  },
+                  "generatedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "analysisSessionId": {
+                    "type": "string"
+                  },
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "order": {
+                          "type": "integer"
+                        },
+                        "capabilityType": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "enum": [0]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [1]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [2]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [3]
+                            },
+                            {
+                              "type": "number",
+                              "enum": [5]
+                            }
+                          ]
+                        },
+                        "capabilityLabel": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "intent": {
+                          "type": "string"
+                        },
+                        "files": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "diff": {
+                          "type": "string"
+                        },
+                        "diffSummary": {
+                          "type": "object",
+                          "properties": {
+                            "version": {
+                              "type": "number",
+                              "enum": [1]
+                            },
+                            "totalFiles": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "totalAdditions": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "totalDeletions": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "totalLines": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "totalBytes": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "files": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "type": "string"
+                                  },
+                                  "oldPath": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": ["added", "modified", "deleted", "renamed", "binary"]
+                                  },
+                                  "additions": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "deletions": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "hunkCount": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "lineCount": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "byteSize": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "isLarge": {
+                                    "type": "boolean"
+                                  },
+                                  "isBinary": {
+                                    "type": "boolean"
+                                  },
+                                  "metadata": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "path",
+                                  "status",
+                                  "additions",
+                                  "deletions",
+                                  "hunkCount",
+                                  "lineCount",
+                                  "byteSize",
+                                  "isLarge",
+                                  "isBinary",
+                                  "metadata"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "version",
+                            "totalFiles",
+                            "totalAdditions",
+                            "totalDeletions",
+                            "totalLines",
+                            "totalBytes",
+                            "files"
+                          ]
+                        },
+                        "diffRef": {
+                          "type": "object",
+                          "properties": {
+                            "itemId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["itemId"]
+                        },
+                        "outputJson": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "order",
+                        "capabilityType",
+                        "capabilityLabel",
+                        "title",
+                        "intent",
+                        "files",
+                        "outputJson"
+                      ]
+                    }
+                  },
+                  "rawResponse": {
+                    "type": "string"
+                  }
+                },
+                "required": ["status", "generatedAt", "analysisSessionId", "items", "rawResponse"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["failed"]
+                  },
+                  "generatedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "error": {
+                    "type": "string"
+                  },
+                  "rawResponse": {
+                    "type": "string"
+                  }
+                },
+                "required": ["status", "generatedAt", "error"]
+              }
+            ]
+          },
+          "beforeDiff": {
+            "type": "string"
+          },
+          "afterDiff": {
+            "type": "string"
+          },
+          "diff": {
+            "type": "string"
+          }
+        },
+        "required": ["round", "hasChanges", "createdAt"]
       }
     },
     "parameters": {}
@@ -3263,164 +3998,537 @@
                   "type": "object",
                   "properties": {
                     "review": {
-                      "type": "object",
-                      "properties": {
-                        "round": {
-                          "type": "integer",
-                          "exclusiveMinimum": 0
-                        },
-                        "baseCommit": {
-                          "type": "string"
-                        },
-                        "beforeDiff": {
-                          "type": "string"
-                        },
-                        "afterDiff": {
-                          "type": "string"
-                        },
-                        "diff": {
-                          "type": "string"
-                        },
-                        "hasChanges": {
-                          "type": "boolean"
-                        },
-                        "createdAt": {
-                          "type": "string",
-                          "format": "date-time"
-                        },
-                        "atomicReview": {
-                          "oneOf": [
-                            {
-                              "type": "object",
-                              "properties": {
-                                "status": {
-                                  "type": "string",
-                                  "enum": ["ready"]
-                                },
-                                "generatedAt": {
-                                  "type": "string",
-                                  "format": "date-time"
-                                },
-                                "analysisSessionId": {
-                                  "type": "string"
-                                },
-                                "items": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "id": {
-                                        "type": "string"
-                                      },
-                                      "order": {
-                                        "type": "integer"
-                                      },
-                                      "capabilityType": {
-                                        "anyOf": [
-                                          {
-                                            "type": "number",
-                                            "enum": [0]
-                                          },
-                                          {
-                                            "type": "number",
-                                            "enum": [1]
-                                          },
-                                          {
-                                            "type": "number",
-                                            "enum": [2]
-                                          },
-                                          {
-                                            "type": "number",
-                                            "enum": [3]
-                                          },
-                                          {
-                                            "type": "number",
-                                            "enum": [5]
-                                          }
-                                        ]
-                                      },
-                                      "capabilityLabel": {
-                                        "type": "string"
-                                      },
-                                      "title": {
-                                        "type": "string"
-                                      },
-                                      "intent": {
-                                        "type": "string"
-                                      },
-                                      "files": {
-                                        "type": "array",
-                                        "items": {
-                                          "type": "string"
-                                        }
-                                      },
-                                      "diff": {
-                                        "type": "string"
-                                      },
-                                      "outputJson": {
-                                        "type": "object",
-                                        "additionalProperties": {}
-                                      }
-                                    },
-                                    "required": [
-                                      "id",
-                                      "order",
-                                      "capabilityType",
-                                      "capabilityLabel",
-                                      "title",
-                                      "intent",
-                                      "files",
-                                      "diff",
-                                      "outputJson"
-                                    ]
-                                  }
-                                },
-                                "rawResponse": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "status",
-                                "generatedAt",
-                                "analysisSessionId",
-                                "items",
-                                "rawResponse"
-                              ]
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "status": {
-                                  "type": "string",
-                                  "enum": ["failed"]
-                                },
-                                "generatedAt": {
-                                  "type": "string",
-                                  "format": "date-time"
-                                },
-                                "error": {
-                                  "type": "string"
-                                },
-                                "rawResponse": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": ["status", "generatedAt", "error"]
-                            }
-                          ]
-                        }
-                      },
-                      "required": [
-                        "round",
-                        "beforeDiff",
-                        "afterDiff",
-                        "diff",
-                        "hasChanges",
-                        "createdAt"
-                      ]
+                      "$ref": "#/components/schemas/RoundReview"
                     }
                   },
                   "required": ["review"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{sessionId}/rounds/{round}/diff/files/{fileId}": {
+      "get": {
+        "summary": "Get a lazily loaded diff file page for a round",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "sessionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "required": true,
+            "name": "round",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "fileId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "maximum": 200
+            },
+            "required": false,
+            "name": "context",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 1000
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested diff file page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "page": {
+                      "type": "object",
+                      "properties": {
+                        "file": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "type": "string"
+                            },
+                            "oldPath": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": ["added", "modified", "deleted", "renamed", "binary"]
+                            },
+                            "additions": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "deletions": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "hunkCount": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "lineCount": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "byteSize": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "isLarge": {
+                              "type": "boolean"
+                            },
+                            "isBinary": {
+                              "type": "boolean"
+                            },
+                            "metadata": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "path",
+                            "status",
+                            "additions",
+                            "deletions",
+                            "hunkCount",
+                            "lineCount",
+                            "byteSize",
+                            "isLarge",
+                            "isBinary",
+                            "metadata"
+                          ]
+                        },
+                        "lines": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": ["add", "remove", "context", "meta", "ellipsis"]
+                              },
+                              "oldLine": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "newLine": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "content": {
+                                "type": "string"
+                              },
+                              "canExpandUp": {
+                                "type": "boolean"
+                              },
+                              "canExpandDown": {
+                                "type": "boolean"
+                              },
+                              "gapKey": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["id", "kind", "content"]
+                          }
+                        },
+                        "pageInfo": {
+                          "type": "object",
+                          "properties": {
+                            "cursor": {
+                              "type": "string"
+                            },
+                            "nextCursor": {
+                              "type": "string"
+                            },
+                            "returned": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "totalVisible": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "hasMoreBefore": {
+                              "type": "boolean"
+                            },
+                            "hasMoreAfter": {
+                              "type": "boolean"
+                            },
+                            "hasExpandableContext": {
+                              "type": "boolean"
+                            },
+                            "contextLines": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "truncated": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "returned",
+                            "totalVisible",
+                            "hasMoreBefore",
+                            "hasMoreAfter",
+                            "hasExpandableContext",
+                            "contextLines",
+                            "truncated"
+                          ]
+                        }
+                      },
+                      "required": ["file", "lines", "pageInfo"]
+                    }
+                  },
+                  "required": ["page"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{sessionId}/rounds/{round}/atomic/items/{itemId}/diff/files/{fileId}": {
+      "get": {
+        "summary": "Get a lazily loaded diff file page for an atomic review item",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "sessionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "required": true,
+            "name": "round",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "fileId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "itemId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "maximum": 200
+            },
+            "required": false,
+            "name": "context",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 1000
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested atomic item diff file page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "page": {
+                      "type": "object",
+                      "properties": {
+                        "file": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "type": "string"
+                            },
+                            "oldPath": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": ["added", "modified", "deleted", "renamed", "binary"]
+                            },
+                            "additions": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "deletions": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "hunkCount": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "lineCount": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "byteSize": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "isLarge": {
+                              "type": "boolean"
+                            },
+                            "isBinary": {
+                              "type": "boolean"
+                            },
+                            "metadata": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "path",
+                            "status",
+                            "additions",
+                            "deletions",
+                            "hunkCount",
+                            "lineCount",
+                            "byteSize",
+                            "isLarge",
+                            "isBinary",
+                            "metadata"
+                          ]
+                        },
+                        "lines": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": ["add", "remove", "context", "meta", "ellipsis"]
+                              },
+                              "oldLine": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "newLine": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "content": {
+                                "type": "string"
+                              },
+                              "canExpandUp": {
+                                "type": "boolean"
+                              },
+                              "canExpandDown": {
+                                "type": "boolean"
+                              },
+                              "gapKey": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["id", "kind", "content"]
+                          }
+                        },
+                        "pageInfo": {
+                          "type": "object",
+                          "properties": {
+                            "cursor": {
+                              "type": "string"
+                            },
+                            "nextCursor": {
+                              "type": "string"
+                            },
+                            "returned": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "totalVisible": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "hasMoreBefore": {
+                              "type": "boolean"
+                            },
+                            "hasMoreAfter": {
+                              "type": "boolean"
+                            },
+                            "hasExpandableContext": {
+                              "type": "boolean"
+                            },
+                            "contextLines": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "truncated": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "returned",
+                            "totalVisible",
+                            "hasMoreBefore",
+                            "hasMoreAfter",
+                            "hasExpandableContext",
+                            "contextLines",
+                            "truncated"
+                          ]
+                        }
+                      },
+                      "required": ["file", "lines", "pageInfo"]
+                    }
+                  },
+                  "required": ["page"]
                 }
               }
             }

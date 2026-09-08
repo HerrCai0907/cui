@@ -211,6 +211,134 @@ test("createRun completes without waiting for atomic review generation", async (
   }
 });
 
+test("round reviews expose diff summaries and lazy diff pages", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+  const diff = [
+    "diff --git a/example.ts b/example.ts",
+    "--- a/example.ts",
+    "+++ b/example.ts",
+    "@@ -1 +1 @@",
+    "-export const value = 1;",
+    "+export const value = 2;",
+  ].join("\n");
+
+  try {
+    await store.createSession({
+      id: "session-lazy-review",
+      aiThreadId: "traex-thread-1",
+      workspace: cwd,
+      title: "Initial title",
+      summary: "",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [],
+      rounds: [],
+    });
+
+    const submitted = await service.createRun(
+      "session-lazy-review",
+      createAssistantRunRequest("Change the value."),
+    );
+
+    service.subscribeToRun(submitted.run.id, () => undefined);
+    await waitFor(() => aiModel.summaryPrompts.length === 1);
+    aiModel.resolveSummary({
+      title: "Input summary",
+      progress: "The input was summarized.",
+    });
+    aiModel.resolveRun({
+      sessionId: "traex-thread-1",
+      content: "Done.",
+      gitDiff: {
+        beforeDiff: "",
+        afterDiff: diff,
+      },
+      rawEvents: [],
+    });
+    await waitFor(() => aiModel.summaryPrompts.length === 2);
+    aiModel.resolveSummary(
+      {
+        title: "Changed value",
+        progress: "The value changed.",
+      },
+      1,
+    );
+    await waitFor(
+      async () => (await store.getRound("session-lazy-review", 1))?.hasChanges === true,
+    );
+
+    aiModel.resolveAtomicReview({
+      status: "ready",
+      generatedAt: "2026-08-22T00:00:02.000Z",
+      analysisSessionId: "analysis-session-1",
+      items: [
+        {
+          id: "atomic-1",
+          order: 1,
+          capabilityType: 3,
+          capabilityLabel: "局部修复",
+          title: "Adjust return value",
+          intent: "Change the local value.",
+          files: ["example.ts"],
+          diff,
+          outputJson: {},
+        },
+      ],
+      rawResponse: '{"items":[]}',
+    });
+    await waitFor(
+      async () =>
+        (await store.getRound("session-lazy-review", 1))?.atomicReview?.status === "ready",
+    );
+
+    const review = await service.getRoundReview("session-lazy-review", 1);
+    const fileId = review?.diffSummary?.files[0]?.id;
+
+    assert.equal(review?.diff, undefined);
+    assert.equal(review?.beforeDiff, undefined);
+    assert.equal(review?.afterDiff, undefined);
+    assert.equal(review?.diffSummary?.totalFiles, 1);
+    assert.equal(review?.atomicReview?.status, "ready");
+
+    if (review?.atomicReview?.status === "ready") {
+      assert.equal(review.atomicReview.items[0]?.diff, undefined);
+      assert.equal(review.atomicReview.items[0]?.diffSummary?.totalFiles, 1);
+    }
+
+    assert.equal(fileId, "0:example.ts");
+
+    const roundPage = await service.getRoundDiffFilePage("session-lazy-review", 1, fileId!);
+
+    assert.equal(roundPage?.file.path, "example.ts");
+    assert.equal(
+      roundPage?.lines.some(
+        (line) => line.kind === "add" && line.content === "export const value = 2;",
+      ),
+      true,
+    );
+
+    const atomicPage = await service.getAtomicReviewItemDiffFilePage(
+      "session-lazy-review",
+      1,
+      "atomic-1",
+      fileId!,
+    );
+
+    assert.equal(atomicPage?.file.path, "example.ts");
+    assert.equal(
+      atomicPage?.lines.some(
+        (line) => line.kind === "remove" && line.content === "export const value = 1;",
+      ),
+      true,
+    );
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 test("cancelRun stops an active stream and emits a cancellation event", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
