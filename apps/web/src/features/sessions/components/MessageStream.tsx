@@ -1,6 +1,7 @@
 import {
   ChevronsUp,
   ClipboardList,
+  FilePenLine,
   FileDiff,
   ListChecks,
   LoaderCircle,
@@ -27,6 +28,7 @@ type MessageStreamProps = {
   queuedPrompts: QueuedPromptView[];
   workspaceDraft: string;
   onLoadOlderMessages: () => void;
+  onEditQueuedPrompt: (queuedPromptId: string) => void;
   onOpenReview: (sessionId: string, round: number, mode: "atomic" | "full") => void;
   onScroll: () => void;
   onTraceExpandedChange: (messageId: string, open: boolean) => void;
@@ -44,6 +46,7 @@ export function MessageStream({
   olderMessagesLoading,
   queuedPrompts,
   workspaceDraft,
+  onEditQueuedPrompt,
   onLoadOlderMessages,
   onOpenReview,
   onScroll,
@@ -150,7 +153,9 @@ export function MessageStream({
           />
         ))}
 
-        {queuedPrompts.length > 0 && <QueuedPromptList queuedPrompts={queuedPrompts} />}
+        {queuedPrompts.length > 0 && (
+          <QueuedPromptList queuedPrompts={queuedPrompts} onEditQueuedPrompt={onEditQueuedPrompt} />
+        )}
         {blocked && <p className="loading-line">Waiting for the AI harness...</p>}
         {error && <p className="error-line">{error}</p>}
         {lastReplyScrollSpacerHeight > 0 && (
@@ -165,7 +170,13 @@ export function MessageStream({
   );
 }
 
-function QueuedPromptList({ queuedPrompts }: { queuedPrompts: QueuedPromptView[] }) {
+function QueuedPromptList({
+  queuedPrompts,
+  onEditQueuedPrompt,
+}: {
+  queuedPrompts: QueuedPromptView[];
+  onEditQueuedPrompt: (queuedPromptId: string) => void;
+}) {
   return (
     <section className="queued-prompts" aria-label="Queued prompts">
       <div className="queued-prompts-heading">
@@ -178,11 +189,22 @@ function QueuedPromptList({ queuedPrompts }: { queuedPrompts: QueuedPromptView[]
           <li className="queued-prompt" key={queuedPrompt.id}>
             <span className="queued-prompt-index">{index + 1}</span>
             <p>{queuedPrompt.prompt}</p>
-            {queuedPrompt.mode === "shell" && (
-              <span className="queued-prompt-mode" title="Shell command">
-                <Terminal size={14} />
-              </span>
-            )}
+            <span className="queued-prompt-actions">
+              {queuedPrompt.mode === "shell" && (
+                <span className="queued-prompt-mode" title="Shell command">
+                  <Terminal size={14} />
+                </span>
+              )}
+              <button
+                className="queued-prompt-edit-button"
+                type="button"
+                aria-label={`Edit queued prompt ${index + 1}`}
+                title="Edit queued prompt"
+                onClick={() => onEditQueuedPrompt(queuedPrompt.id)}
+              >
+                <FilePenLine size={14} />
+              </button>
+            </span>
           </li>
         ))}
       </ol>

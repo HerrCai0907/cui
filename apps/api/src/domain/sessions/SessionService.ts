@@ -281,6 +281,34 @@ export class SessionService {
     return this.toWindowedSessionView(session);
   }
 
+  async withdrawQueuedPrompts(
+    sessionId: string,
+    queuedPromptId: string,
+  ): Promise<{ session: ChatSessionView; queuedPrompts: QueuedPrompt[] }> {
+    const result = await this.enqueueSessionOperation(sessionId, () =>
+      this.store.truncateQueuedPromptsFrom(sessionId, queuedPromptId),
+    );
+
+    if (!result) {
+      throw new SessionNotFoundError(sessionId);
+    }
+
+    if (result.removedPrompts.length === 0) {
+      throw new QueuedPromptNotFoundError(sessionId, queuedPromptId);
+    }
+
+    await this.logger.framework.info("session.prompt.withdrawn", {
+      sessionId,
+      queuedPromptId,
+      count: result.removedPrompts.length,
+    });
+
+    return {
+      session: await this.toWindowedSessionView(result.session),
+      queuedPrompts: result.removedPrompts,
+    };
+  }
+
   async getRoundReview(sessionId: string, round: number): Promise<ChatRound | undefined> {
     const session = await this.store.getSession(sessionId);
 
@@ -998,6 +1026,13 @@ export class RunNotFoundError extends Error {
   constructor(runId: string) {
     super(`Run not found: ${runId}`);
     this.name = "RunNotFoundError";
+  }
+}
+
+export class QueuedPromptNotFoundError extends Error {
+  constructor(sessionId: string, queuedPromptId: string) {
+    super(`Queued prompt not found: ${sessionId}:${queuedPromptId}`);
+    this.name = "QueuedPromptNotFoundError";
   }
 }
 

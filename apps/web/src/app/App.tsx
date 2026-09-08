@@ -352,6 +352,7 @@ export function App() {
               olderMessagesLoading={sessionController.olderMessagesLoading}
               queuedPrompts={sessionController.activeSessionQueuedPrompts}
               workspaceDraft={sessionController.workspaceDraft}
+              onEditQueuedPrompt={sessionController.editQueuedPrompt}
               onLoadOlderMessages={sessionController.loadOlderActiveSessionMessages}
               onOpenReview={openReview}
               onScroll={sessionController.handleMessageStreamScroll}

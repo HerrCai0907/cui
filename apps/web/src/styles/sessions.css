@@ -1203,7 +1203,8 @@
 }
 
 .queued-prompt-index,
-.queued-prompt-mode {
+.queued-prompt-mode,
+.queued-prompt-edit-button {
   display: inline-flex;
   width: 24px;
   height: 24px;
@@ -1228,6 +1229,23 @@
 
 .queued-prompt-mode {
   color: #1d4ed8;
+}
+
+.queued-prompt-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.queued-prompt-edit-button {
+  border: 1px solid #d5dee8;
+  cursor: pointer;
+}
+
+.queued-prompt-edit-button:hover {
+  border-color: #aebdcb;
+  background: #e9eef4;
+  color: #1f2937;
 }
 
 .loading-line,

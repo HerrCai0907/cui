@@ -21,6 +21,8 @@ type UpdateSessionRequest =
   paths["/api/v1/sessions/{sessionId}"]["patch"]["requestBody"]["content"]["application/json"];
 type UpdateSessionResponse =
   paths["/api/v1/sessions/{sessionId}"]["patch"]["responses"][200]["content"]["application/json"];
+type WithdrawQueuedPromptsResponse =
+  paths["/api/v1/sessions/{sessionId}/queued-prompts/{queuedPromptId}"]["delete"]["responses"][200]["content"]["application/json"];
 type CancelRunResponse =
   paths["/api/v1/runs/{runId}/cancellation"]["post"]["responses"][202]["content"]["application/json"];
 
@@ -139,6 +141,20 @@ export async function updateSession(
   );
 
   return data.session;
+}
+
+export async function withdrawQueuedPrompts(
+  sessionId: string,
+  queuedPromptId: string,
+): Promise<WithdrawQueuedPromptsResponse> {
+  return fetchJson<WithdrawQueuedPromptsResponse>(
+    `/api/v1/sessions/${encodeURIComponent(sessionId)}/queued-prompts/${encodeURIComponent(
+      queuedPromptId,
+    )}`,
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 export async function cancelRun(runId: string): Promise<void> {

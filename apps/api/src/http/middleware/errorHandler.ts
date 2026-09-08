@@ -1,6 +1,7 @@
 import type express from "express";
 import type { AppLogger } from "../../infrastructure/logging/AppLogger.js";
 import {
+  QueuedPromptNotFoundError,
   RoundReviewNotFoundError,
   RunNotFoundError,
   SessionBusyError,
@@ -28,6 +29,11 @@ export function createErrorHandler(logger: AppLogger): express.ErrorRequestHandl
 
     if (error instanceof RunNotFoundError) {
       response.status(404).json({ error: "Run not found" });
+      return;
+    }
+
+    if (error instanceof QueuedPromptNotFoundError) {
+      response.status(404).json({ error: "Queued prompt not found" });
       return;
     }
 

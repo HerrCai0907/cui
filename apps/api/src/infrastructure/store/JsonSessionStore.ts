@@ -231,6 +231,56 @@ export class JsonSessionStore {
     return shiftedPrompt;
   }
 
+  async truncateQueuedPromptsFrom(
+    sessionId: string,
+    queuedPromptId: string,
+  ): Promise<{ session: ChatSession; removedPrompts: QueuedPrompt[] } | undefined> {
+    let result: { session: ChatSession; removedPrompts: QueuedPrompt[] } | undefined;
+
+    await this.enqueueWrite(async () => {
+      const index = await this.readIndex();
+      const storedSession = index.sessions.find((session) => session.id === sessionId);
+
+      if (!storedSession) {
+        return;
+      }
+
+      const detail = await this.readSessionDetail(sessionId);
+      const queuedPromptIndex = detail.queuedPrompts.findIndex(
+        (queuedPrompt) => queuedPrompt.id === queuedPromptId,
+      );
+
+      if (queuedPromptIndex === -1) {
+        result = {
+          session: hydrateSession(storedSession, detail),
+          removedPrompts: [],
+        };
+        return;
+      }
+
+      const remainingPrompts = detail.queuedPrompts.slice(0, queuedPromptIndex);
+      const removedPrompts = detail.queuedPrompts.slice(queuedPromptIndex);
+      const updatedSession = {
+        ...hydrateSession(storedSession, detail),
+        updatedAt: new Date().toISOString(),
+        queuedPrompts: remainingPrompts,
+      };
+      const sessions = index.sessions.map((session) =>
+        session.id === sessionId ? toStoredSession(updatedSession) : session,
+      );
+
+      await this.writeSessionDetail(toSessionDetail(updatedSession));
+      await this.writeIndex({ ...index, sessions });
+
+      result = {
+        session: updatedSession,
+        removedPrompts,
+      };
+    });
+
+    return result;
+  }
+
   async appendRoundAndMessages(
     sessionId: string,
     round: ChatRound | undefined,

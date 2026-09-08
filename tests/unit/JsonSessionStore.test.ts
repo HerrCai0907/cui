@@ -334,6 +334,75 @@ test("JsonSessionStore persists and shifts queued prompts", async () => {
   }
 });
 
+test("JsonSessionStore truncates queued prompts from a selected prompt", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-json-session-store-"));
+  const storePath = join(cwd, "sessions.json");
+
+  try {
+    const store = new JsonSessionStore(storePath);
+
+    await store.createSession({
+      id: "session-1",
+      workspace: cwd,
+      title: "Queued session",
+      summary: "",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [],
+    });
+    await store.enqueuePrompt("session-1", {
+      id: "queued-1",
+      mode: "chat",
+      prompt: "First queued follow-up.",
+      createdAt: "2026-08-22T00:00:01.000Z",
+    });
+    await store.enqueuePrompt("session-1", {
+      id: "queued-2",
+      mode: "shell",
+      prompt: "printf second",
+      createdAt: "2026-08-22T00:00:02.000Z",
+    });
+    await store.enqueuePrompt("session-1", {
+      id: "queued-3",
+      mode: "chat",
+      prompt: "Third queued follow-up.",
+      createdAt: "2026-08-22T00:00:03.000Z",
+    });
+
+    const result = await store.truncateQueuedPromptsFrom("session-1", "queued-2");
+
+    assert.deepEqual(
+      result?.removedPrompts.map((prompt) => ({
+        id: prompt.id,
+        mode: prompt.mode,
+        prompt: prompt.prompt,
+      })),
+      [
+        {
+          id: "queued-2",
+          mode: "shell",
+          prompt: "printf second",
+        },
+        {
+          id: "queued-3",
+          mode: "chat",
+          prompt: "Third queued follow-up.",
+        },
+      ],
+    );
+    assert.deepEqual(
+      (await store.getSession("session-1"))?.queuedPrompts?.map((prompt) => prompt.id),
+      ["queued-1"],
+    );
+    assert.deepEqual(
+      result?.session.queuedPrompts?.map((prompt) => prompt.id),
+      ["queued-1"],
+    );
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 test("JsonSessionStore reads existing v3 index and per-session detail files", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-json-session-store-"));
   const storePath = join(cwd, "sessions.json");

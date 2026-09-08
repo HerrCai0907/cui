@@ -401,6 +401,84 @@ test("createRun queues prompts while a session is running", async () => {
   }
 });
 
+test("withdrawQueuedPrompts removes the selected queued prompt and later prompts", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    await store.createSession({
+      id: "session-1",
+      workspace: cwd,
+      title: "Queued session",
+      summary: "",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [],
+      rounds: [],
+    });
+    await store.enqueuePrompt("session-1", {
+      id: "queued-1",
+      mode: "chat",
+      prompt: "First queued follow-up.",
+      createdAt: "2026-08-22T00:00:01.000Z",
+    });
+    await store.enqueuePrompt("session-1", {
+      id: "queued-2",
+      mode: "shell",
+      prompt: "printf second",
+      createdAt: "2026-08-22T00:00:02.000Z",
+    });
+    await store.enqueuePrompt("session-1", {
+      id: "queued-3",
+      mode: "chat",
+      prompt: "Third queued follow-up.",
+      createdAt: "2026-08-22T00:00:03.000Z",
+      models: {
+        normal: "GPT-5.4",
+      },
+    });
+
+    const result = await service.withdrawQueuedPrompts("session-1", "queued-2");
+
+    assert.deepEqual(
+      result.queuedPrompts.map((prompt) => ({
+        id: prompt.id,
+        mode: prompt.mode,
+        prompt: prompt.prompt,
+        models: prompt.models,
+      })),
+      [
+        {
+          id: "queued-2",
+          mode: "shell",
+          prompt: "printf second",
+          models: undefined,
+        },
+        {
+          id: "queued-3",
+          mode: "chat",
+          prompt: "Third queued follow-up.",
+          models: {
+            normal: "GPT-5.4",
+          },
+        },
+      ],
+    );
+    assert.deepEqual(
+      result.session.queuedPrompts?.map((prompt) => prompt.id),
+      ["queued-1"],
+    );
+    assert.deepEqual(
+      (await store.getSession("session-1"))?.queuedPrompts?.map((prompt) => prompt.id),
+      ["queued-1"],
+    );
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 test("updateSession persists pinned state without changing done state", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));

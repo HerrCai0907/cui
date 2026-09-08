@@ -24,6 +24,7 @@ import {
   ListModelsResponseSchema,
   OkResponseSchema,
   QueuedPromptSchema,
+  QueuedPromptParamsSchema,
   RoundReviewParamsSchema,
   RunEventsQuerySchema,
   RunSchema,
@@ -32,6 +33,7 @@ import {
   RunIdParamsSchema,
   RunStreamEventSchema,
   UpdateSessionRequestSchema,
+  WithdrawQueuedPromptsResponseSchema,
   WorkspaceGitInfoQuerySchema,
   WorkspaceGitInfoResponseSchema,
 } from "./apiSchemas.js";
@@ -57,6 +59,7 @@ registry.register("CreateRoundReviewRunRequest", CreateRoundReviewRunRequestSche
 registry.register("Run", RunSchema);
 registry.register("UpdateSessionRequest", UpdateSessionRequestSchema);
 registry.register("SubmittedRunResponse", SubmittedRunResponseSchema);
+registry.register("WithdrawQueuedPromptsResponse", WithdrawQueuedPromptsResponseSchema);
 registry.register("OkResponse", OkResponseSchema);
 registry.register("RunStreamEvent", RunStreamEventSchema);
 registry.register("ListModelsResponse", ListModelsResponseSchema);
@@ -310,6 +313,27 @@ registry.registerPath({
     400: errorResponse,
     404: errorResponse,
     409: errorResponse,
+  },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/api/v1/sessions/{sessionId}/queued-prompts/{queuedPromptId}",
+  summary: "Withdraw a queued prompt and later queued prompts",
+  request: {
+    params: QueuedPromptParamsSchema,
+  },
+  responses: {
+    200: {
+      description: "The updated session and withdrawn queued prompts.",
+      content: {
+        "application/json": {
+          schema: WithdrawQueuedPromptsResponseSchema,
+        },
+      },
+    },
+    400: errorResponse,
+    404: errorResponse,
   },
 });
 
