@@ -374,8 +374,18 @@ export const GetRoundReviewResponseSchema = z.object({
   review: ChatRoundSchema,
 });
 
+export const WithdrawQueuedPromptsResponseSchema = z.object({
+  session: ChatSessionViewSchema,
+  queuedPrompts: z.array(QueuedPromptSchema),
+});
+
 export const SessionIdParamsSchema = z.object({
   sessionId: z.string().min(1),
+});
+
+export const QueuedPromptParamsSchema = z.object({
+  sessionId: z.string().min(1),
+  queuedPromptId: z.string().min(1),
 });
 
 export const RoundReviewParamsSchema = z.object({
@@ -420,6 +430,7 @@ export type UpdateSessionRequestContract = z.infer<typeof UpdateSessionRequestSc
 export type ListSessionsQueryContract = z.infer<typeof ListSessionsQuerySchema>;
 export type GetSessionQueryContract = z.infer<typeof GetSessionQuerySchema>;
 export type GetSessionMessagesQueryContract = z.infer<typeof GetSessionMessagesQuerySchema>;
+export type QueuedPromptParamsContract = z.infer<typeof QueuedPromptParamsSchema>;
 export type RunEventsQueryContract = z.infer<typeof RunEventsQuerySchema>;
 export type CodeRangeRequestContract = z.infer<typeof CodeRangeQuerySchema>;
 export type CodeRangeResponseContract = z.infer<typeof CodeRangeResponseSchema>;

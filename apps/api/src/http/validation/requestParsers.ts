@@ -7,6 +7,7 @@ import {
   GetSessionMessagesQuerySchema,
   GetSessionQuerySchema,
   ListSessionsQuerySchema,
+  QueuedPromptParamsSchema,
   RoundReviewParamsSchema,
   RunEventsQuerySchema,
   UpdateSessionRequestSchema,
@@ -61,6 +62,12 @@ export function parseRoundReviewParams(
   params: unknown,
 ): ParsedBody<z.infer<typeof RoundReviewParamsSchema>> {
   return parseWithSchema(RoundReviewParamsSchema, params);
+}
+
+export function parseQueuedPromptParams(
+  params: unknown,
+): ParsedBody<z.infer<typeof QueuedPromptParamsSchema>> {
+  return parseWithSchema(QueuedPromptParamsSchema, params);
 }
 
 export function parseRunEventsQuery(

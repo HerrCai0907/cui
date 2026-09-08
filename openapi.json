@@ -1218,6 +1218,213 @@
         },
         "required": ["run", "session"]
       },
+      "WithdrawQueuedPromptsResponse": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "origin": {
+                "type": "string",
+                "enum": ["chat", "shell"]
+              },
+              "aiHarness": {
+                "type": "string",
+                "enum": ["traex", "codex"]
+              },
+              "workspace": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              },
+              "pinned": {
+                "type": "boolean"
+              },
+              "doneAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": ["assistant", "user"]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["response", "trace"]
+                    },
+                    "round": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": ["id", "role", "content", "createdAt"]
+                }
+              },
+              "rounds": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "round": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "hasChanges": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "atomicReviewStatus": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": ["ready"]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["failed"]
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["round", "hasChanges", "createdAt"]
+                }
+              },
+              "queuedPrompts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": ["chat", "shell"]
+                    },
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": ["id", "mode", "prompt", "createdAt"]
+                }
+              },
+              "currentRound": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "gitBranch": {
+                "type": "string"
+              },
+              "gitCommitSha": {
+                "type": "string"
+              },
+              "isRunning": {
+                "type": "boolean"
+              },
+              "runningRunId": {
+                "type": "string"
+              },
+              "messagePageInfo": {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "returned": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "hasMoreBefore": {
+                    "type": "boolean"
+                  },
+                  "hasMoreAfter": {
+                    "type": "boolean"
+                  },
+                  "oldestMessageId": {
+                    "type": "string"
+                  },
+                  "newestMessageId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["total", "returned", "hasMoreBefore", "hasMoreAfter"]
+              }
+            },
+            "required": [
+              "id",
+              "workspace",
+              "title",
+              "createdAt",
+              "updatedAt",
+              "messages",
+              "currentRound",
+              "isRunning"
+            ]
+          },
+          "queuedPrompts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": ["chat", "shell"]
+                },
+                "prompt": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": ["id", "mode", "prompt", "createdAt"]
+            }
+          }
+        },
+        "required": ["session", "queuedPrompts"]
+      },
       "OkResponse": {
         "type": "object",
         "properties": {
@@ -3609,6 +3816,279 @@
             }
           },
           "409": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{sessionId}/queued-prompts/{queuedPromptId}": {
+      "delete": {
+        "summary": "Withdraw a queued prompt and later queued prompts",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "sessionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "queuedPromptId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The updated session and withdrawn queued prompts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "origin": {
+                          "type": "string",
+                          "enum": ["chat", "shell"]
+                        },
+                        "aiHarness": {
+                          "type": "string",
+                          "enum": ["traex", "codex"]
+                        },
+                        "workspace": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "pinned": {
+                          "type": "boolean"
+                        },
+                        "doneAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "messages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "role": {
+                                "type": "string",
+                                "enum": ["assistant", "user"]
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": ["response", "trace"]
+                              },
+                              "round": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "content": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": ["id", "role", "content", "createdAt"]
+                          }
+                        },
+                        "rounds": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "round": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "hasChanges": {
+                                "type": "boolean"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "atomicReviewStatus": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": ["ready"]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["failed"]
+                                  }
+                                ]
+                              }
+                            },
+                            "required": ["round", "hasChanges", "createdAt"]
+                          }
+                        },
+                        "queuedPrompts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "mode": {
+                                "type": "string",
+                                "enum": ["chat", "shell"]
+                              },
+                              "prompt": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": ["id", "mode", "prompt", "createdAt"]
+                          }
+                        },
+                        "currentRound": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "gitBranch": {
+                          "type": "string"
+                        },
+                        "gitCommitSha": {
+                          "type": "string"
+                        },
+                        "isRunning": {
+                          "type": "boolean"
+                        },
+                        "runningRunId": {
+                          "type": "string"
+                        },
+                        "messagePageInfo": {
+                          "type": "object",
+                          "properties": {
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "returned": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "hasMoreBefore": {
+                              "type": "boolean"
+                            },
+                            "hasMoreAfter": {
+                              "type": "boolean"
+                            },
+                            "oldestMessageId": {
+                              "type": "string"
+                            },
+                            "newestMessageId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["total", "returned", "hasMoreBefore", "hasMoreAfter"]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "workspace",
+                        "title",
+                        "createdAt",
+                        "updatedAt",
+                        "messages",
+                        "currentRound",
+                        "isRunning"
+                      ]
+                    },
+                    "queuedPrompts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "mode": {
+                            "type": "string",
+                            "enum": ["chat", "shell"]
+                          },
+                          "prompt": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": ["id", "mode", "prompt", "createdAt"]
+                      }
+                    }
+                  },
+                  "required": ["session", "queuedPrompts"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "404": {
             "description": "Error response.",
             "content": {
               "application/json": {

@@ -975,6 +975,132 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/sessions/{sessionId}/queued-prompts/{queuedPromptId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Withdraw a queued prompt and later queued prompts */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          sessionId: string;
+          queuedPromptId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The updated session and withdrawn queued prompts. */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              session: {
+                id: string;
+                /** @enum {string} */
+                origin?: "chat" | "shell";
+                /** @enum {string} */
+                aiHarness?: "traex" | "codex";
+                workspace: string;
+                title: string;
+                summary?: string;
+                pinned?: boolean;
+                /** Format: date-time */
+                doneAt?: string;
+                /** Format: date-time */
+                createdAt: string;
+                /** Format: date-time */
+                updatedAt: string;
+                messages: {
+                  id: string;
+                  /** @enum {string} */
+                  role: "assistant" | "user";
+                  /** @enum {string} */
+                  kind?: "response" | "trace";
+                  round?: number;
+                  content: string;
+                  /** Format: date-time */
+                  createdAt: string;
+                }[];
+                rounds?: {
+                  round: number;
+                  hasChanges: boolean;
+                  /** Format: date-time */
+                  createdAt: string;
+                  atomicReviewStatus?: "ready" | "failed";
+                }[];
+                queuedPrompts?: {
+                  id: string;
+                  /** @enum {string} */
+                  mode: "chat" | "shell";
+                  prompt: string;
+                  /** Format: date-time */
+                  createdAt: string;
+                }[];
+                currentRound: number;
+                gitBranch?: string;
+                gitCommitSha?: string;
+                isRunning: boolean;
+                runningRunId?: string;
+                messagePageInfo?: {
+                  total: number;
+                  returned: number;
+                  hasMoreBefore: boolean;
+                  hasMoreAfter: boolean;
+                  oldestMessageId?: string;
+                  newestMessageId?: string;
+                };
+              };
+              queuedPrompts: {
+                id: string;
+                /** @enum {string} */
+                mode: "chat" | "shell";
+                prompt: string;
+                /** Format: date-time */
+                createdAt: string;
+              }[];
+            };
+          };
+        };
+        /** @description Error response. */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+        /** @description Error response. */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/sessions/{sessionId}/rounds/{round}/review-runs": {
     parameters: {
       query?: never;
@@ -1788,6 +1914,72 @@ export interface components {
           newestMessageId?: string;
         };
       };
+    };
+    WithdrawQueuedPromptsResponse: {
+      session: {
+        id: string;
+        /** @enum {string} */
+        origin?: "chat" | "shell";
+        /** @enum {string} */
+        aiHarness?: "traex" | "codex";
+        workspace: string;
+        title: string;
+        summary?: string;
+        pinned?: boolean;
+        /** Format: date-time */
+        doneAt?: string;
+        /** Format: date-time */
+        createdAt: string;
+        /** Format: date-time */
+        updatedAt: string;
+        messages: {
+          id: string;
+          /** @enum {string} */
+          role: "assistant" | "user";
+          /** @enum {string} */
+          kind?: "response" | "trace";
+          round?: number;
+          content: string;
+          /** Format: date-time */
+          createdAt: string;
+        }[];
+        rounds?: {
+          round: number;
+          hasChanges: boolean;
+          /** Format: date-time */
+          createdAt: string;
+          atomicReviewStatus?: "ready" | "failed";
+        }[];
+        queuedPrompts?: {
+          id: string;
+          /** @enum {string} */
+          mode: "chat" | "shell";
+          prompt: string;
+          /** Format: date-time */
+          createdAt: string;
+        }[];
+        currentRound: number;
+        gitBranch?: string;
+        gitCommitSha?: string;
+        isRunning: boolean;
+        runningRunId?: string;
+        messagePageInfo?: {
+          total: number;
+          returned: number;
+          hasMoreBefore: boolean;
+          hasMoreAfter: boolean;
+          oldestMessageId?: string;
+          newestMessageId?: string;
+        };
+      };
+      queuedPrompts: {
+        id: string;
+        /** @enum {string} */
+        mode: "chat" | "shell";
+        prompt: string;
+        /** Format: date-time */
+        createdAt: string;
+      }[];
     };
     OkResponse: {
       /** @enum {string} */

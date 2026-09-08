@@ -462,6 +462,171 @@ test("queues a prompt while a session is running and sends it after stop", async
   await expect(page.getByText("Trace before stop.")).toBeVisible();
 });
 
+test("edits a queued prompt by withdrawing it and later queued prompts", async ({ page }) => {
+  const queuedPromptOne = {
+    id: "queued-1",
+    mode: "chat",
+    prompt: "Keep first queued",
+    createdAt: "2026-08-22T00:00:01.000Z",
+  };
+  const queuedPromptTwo = {
+    id: "queued-2",
+    mode: "shell",
+    prompt: "printf old",
+    createdAt: "2026-08-22T00:00:02.000Z",
+  };
+  const queuedPromptThree = {
+    id: "queued-3",
+    mode: "chat",
+    prompt: "Old third",
+    createdAt: "2026-08-22T00:00:03.000Z",
+  };
+  const initialSession = {
+    id: "session-1",
+    workspace: currentWorkspace,
+    title: "Running session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-1",
+        role: "user",
+        content: "Run a long task",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    rounds: [],
+    queuedPrompts: [queuedPromptOne, queuedPromptTwo, queuedPromptThree],
+    currentRound: 0,
+    isRunning: true,
+    runningRunId: "run-1",
+  };
+  const withdrawnSession = {
+    ...initialSession,
+    queuedPrompts: [queuedPromptOne],
+  };
+  const firstResubmittedSession = {
+    ...withdrawnSession,
+    queuedPrompts: [
+      queuedPromptOne,
+      {
+        id: "queued-2-edited",
+        mode: "shell",
+        prompt: "printf edited",
+        createdAt: "2026-08-22T00:00:04.000Z",
+      },
+    ],
+  };
+  const secondResubmittedSession = {
+    ...firstResubmittedSession,
+    queuedPrompts: [
+      ...firstResubmittedSession.queuedPrompts,
+      {
+        id: "queued-3-edited",
+        mode: "chat",
+        prompt: "Edited third",
+        createdAt: "2026-08-22T00:00:05.000Z",
+      },
+    ],
+  };
+  let visibleSession = initialSession;
+  const withdrawnPromptIds: string[] = [];
+  const submittedPrompts: Array<{ type: string; prompt: string }> = [];
+
+  await mockSessions(page, () => [visibleSession]);
+  await mockSessionById(page, "session-1", () => visibleSession);
+  await page.route("**/api/v1/sessions/session-1/queued-prompts/queued-2", async (route) => {
+    withdrawnPromptIds.push("queued-2");
+    visibleSession = withdrawnSession;
+    await fulfillJson(route, {
+      session: withdrawnSession,
+      queuedPrompts: [queuedPromptTwo, queuedPromptThree],
+    });
+  });
+  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
+    const body = route.request().postDataJSON() as
+      | { type: "assistant_response"; input: { prompt: string } }
+      | { type: "shell_command"; input: { command: string } };
+    const submittedPrompt = body.type === "shell_command" ? body.input.command : body.input.prompt;
+
+    submittedPrompts.push({
+      type: body.type,
+      prompt: submittedPrompt,
+    });
+    visibleSession =
+      submittedPrompts.length === 1 ? firstResubmittedSession : secondResubmittedSession;
+    await fulfillJson(
+      route,
+      createSubmittedRunResponse(
+        visibleSession,
+        submittedPrompts.length === 1 ? "queued-2-edited" : "queued-3-edited",
+        {
+          status: "queued",
+          type: body.type,
+        },
+      ),
+    );
+  });
+  await page.route("**/api/v1/runs/run-1/events", async () => {
+    // Keep the stream open so queued prompts remain queued.
+  });
+
+  await page.goto("/");
+
+  await expect(page.getByRole("region", { name: "Queued prompts" })).toContainText(
+    "Keep first queued",
+  );
+  await expect(page.getByRole("region", { name: "Queued prompts" })).toContainText("printf old");
+  await expect(page.getByRole("region", { name: "Queued prompts" })).toContainText("Old third");
+
+  await page.getByRole("button", { name: "Edit queued prompt 2" }).click();
+
+  await expect.poll(() => withdrawnPromptIds).toEqual(["queued-2"]);
+  await expect(page.getByPlaceholder("Run a shell command...")).toHaveValue("printf old");
+  await expect(page.getByRole("region", { name: "Queued prompts" })).toContainText(
+    "Keep first queued",
+  );
+  await expect(page.getByRole("region", { name: "Queued prompts" })).not.toContainText(
+    "printf old",
+  );
+  await expect(page.getByRole("region", { name: "Queued prompts" })).not.toContainText("Old third");
+
+  await page.getByPlaceholder("Run a shell command...").fill("printf edited");
+  await page.getByRole("button", { name: "Send message" }).click();
+
+  await expect
+    .poll(() => submittedPrompts)
+    .toEqual([
+      {
+        type: "shell_command",
+        prompt: "printf edited",
+      },
+    ]);
+  await expect(page.getByPlaceholder("Continue this session...")).toHaveValue("Old third");
+
+  await page.getByPlaceholder("Continue this session...").fill("Edited third");
+  await page.getByRole("button", { name: "Send message" }).click();
+
+  await expect
+    .poll(() => submittedPrompts)
+    .toEqual([
+      {
+        type: "shell_command",
+        prompt: "printf edited",
+      },
+      {
+        type: "assistant_response",
+        prompt: "Edited third",
+      },
+    ]);
+  await expect(page.getByPlaceholder("Continue this session...")).toHaveValue("");
+  await expect(page.getByRole("region", { name: "Queued prompts" })).toContainText(
+    "Keep first queued",
+  );
+  await expect(page.getByRole("region", { name: "Queued prompts" })).toContainText("printf edited");
+  await expect(page.getByRole("region", { name: "Queued prompts" })).toContainText("Edited third");
+});
+
 test("queues a prompt while a session is running and sends it after completion", async ({
   page,
 }) => {

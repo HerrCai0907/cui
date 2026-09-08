@@ -7,6 +7,7 @@ import {
   parseGetSessionMessagesQuery,
   parseGetSessionQuery,
   parseListSessionsQuery,
+  parseQueuedPromptParams,
   parseRoundReviewParams,
   parseUpdateSessionBody,
 } from "../validation/requestParsers.js";
@@ -151,6 +152,29 @@ export function createSessionRouter(sessionService: SessionService): Router {
       next(error);
     }
   });
+
+  router.delete(
+    "/api/v1/sessions/:sessionId/queued-prompts/:queuedPromptId",
+    async (request, response, next) => {
+      try {
+        const parsedParams = parseQueuedPromptParams(request.params);
+
+        if (!parsedParams.ok) {
+          response.status(400).json({ error: parsedParams.error });
+          return;
+        }
+
+        const result = await sessionService.withdrawQueuedPrompts(
+          parsedParams.value.sessionId,
+          parsedParams.value.queuedPromptId,
+        );
+
+        response.json(result);
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
 
   router.post(
     "/api/v1/sessions/:sessionId/rounds/:round/review-runs",

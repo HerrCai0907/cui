@@ -14,6 +14,7 @@ import {
   listSessions,
   type SessionListPage,
   updateSession,
+  withdrawQueuedPrompts,
 } from "../api/sessionsApi";
 import { getWorkspaceGitInfo, type WorkspaceGitInfo } from "../api/codeApi";
 import {
@@ -143,6 +144,10 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   const runningSessionIdsRef = useRef<Set<string>>(runningSessionIds);
   const runningRunIdBySessionIdRef = useRef<Map<string, string>>(new Map());
   const submittingSessionIdsRef = useRef<Set<string>>(submittingSessionIds);
+  const withdrawnQueuedPromptsRef = useRef<{
+    sessionId: string;
+    prompts: QueuedPromptView[];
+  } | null>(null);
   const activeSessionRunning = activeSession ? runningSessionIds.has(activeSession.id) : false;
   const activeSessionSubmitting = activeSession
     ? submittingSessionIds.has(activeSession.id)
@@ -890,6 +895,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       ) {
         setCurrentActiveSession(data.session);
       }
+      fillNextWithdrawnQueuedPrompt(data.session.id);
 
       expandWorkspace(data.session.workspace);
       void refreshSessions();
@@ -921,6 +927,53 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     event.preventDefault();
 
     await submitPrompt(draft, { mode: composerMode, restoreDraftOnFailure: true });
+  }
+
+  async function editQueuedPrompt(queuedPromptId: string) {
+    const currentSession = activeSessionRef.current;
+
+    if (!currentSession || submittingSessionIdsRef.current.has(currentSession.id)) {
+      return;
+    }
+
+    const currentQueuedPrompts = currentSession.queuedPrompts ?? [];
+    const queuedPromptIndex = currentQueuedPrompts.findIndex(
+      (queuedPrompt) => queuedPrompt.id === queuedPromptId,
+    );
+
+    if (queuedPromptIndex === -1) {
+      return;
+    }
+
+    setSubmittingSession(currentSession.id, true);
+    setError(null);
+
+    try {
+      const withdrawn = await withdrawQueuedPrompts(currentSession.id, queuedPromptId);
+      const [nextPrompt, ...remainingPrompts] = withdrawn.queuedPrompts;
+
+      if (!nextPrompt) {
+        return;
+      }
+
+      withdrawnQueuedPromptsRef.current = {
+        sessionId: currentSession.id,
+        prompts: remainingPrompts,
+      };
+      setCurrentActiveSession(withdrawn.session);
+      setComposerMode(nextPrompt.mode);
+      setDraft(nextPrompt.prompt);
+      window.requestAnimationFrame(() => {
+        composerTextareaRef.current?.focus();
+      });
+      void refreshSessions();
+    } catch (reason) {
+      if (activeSessionRef.current?.id === currentSession.id) {
+        setError(reason instanceof Error ? reason.message : "Failed to edit queued prompt");
+      }
+    } finally {
+      setSubmittingSession(currentSession.id, false);
+    }
   }
 
   async function stopActiveSession() {
@@ -1311,6 +1364,34 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     });
   }
 
+  function fillNextWithdrawnQueuedPrompt(sessionId: string) {
+    const withdrawnQueuedPrompts = withdrawnQueuedPromptsRef.current;
+
+    if (!withdrawnQueuedPrompts || withdrawnQueuedPrompts.sessionId !== sessionId) {
+      return;
+    }
+
+    const [nextPrompt, ...remainingPrompts] = withdrawnQueuedPrompts.prompts;
+
+    if (!nextPrompt) {
+      withdrawnQueuedPromptsRef.current = null;
+      return;
+    }
+
+    withdrawnQueuedPromptsRef.current =
+      remainingPrompts.length > 0
+        ? {
+            sessionId,
+            prompts: remainingPrompts,
+          }
+        : null;
+    setComposerMode(nextPrompt.mode);
+    setDraft(nextPrompt.prompt);
+    window.requestAnimationFrame(() => {
+      composerTextareaRef.current?.focus();
+    });
+  }
+
   return {
     activeSession,
     activeSessionBlocked,
@@ -1327,6 +1408,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     hasOlderMessages: Boolean(activeSession?.messagePageInfo?.hasMoreBefore),
     lastEnterKeyDownRef,
     messageStreamRef,
+    editQueuedPrompt,
     handleMessageStreamScroll,
     loadOlderActiveSessionMessages,
     refreshSessions,
