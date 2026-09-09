@@ -29,6 +29,40 @@ test("uses an overlay session drawer on a portrait phone", async ({ page }) => {
   await expect(sidebar).not.toBeInViewport();
 });
 
+test("shows git details from a compact mobile header action", async ({ page }) => {
+  const session = {
+    id: "mobile-git-info",
+    workspace: currentWorkspace,
+    title: "Mobile git info",
+    summary: "Branch metadata stays available on mobile",
+    gitBranch: "feature/mobile-git-info",
+    gitCommitSha: "abcdef1234567890abcdef1234567890abcdef12",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [],
+  };
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+
+  await page.goto("/");
+
+  const gitAction = page.getByRole("button", {
+    name: "Show git details",
+  });
+
+  await expect(page.locator(".session-git-info")).not.toBeVisible();
+  await expect(gitAction).toBeVisible();
+  await gitAction.click();
+
+  const gitDialog = page.getByRole("dialog", { name: "Current git information" });
+
+  await expect(gitDialog).toBeVisible();
+  await expect(gitDialog.getByText("feature/mobile-git-info")).toBeVisible();
+  await expect(gitDialog.getByText("abcdef1234567890abcdef1234567890abcdef12")).toBeVisible();
+});
+
 test("config exposes touch-friendly SSH tunnel settings", async ({ page }) => {
   await mockSessions(page, []);
 

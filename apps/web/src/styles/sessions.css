@@ -574,6 +574,12 @@
   white-space: nowrap;
 }
 
+.session-git-info-mobile-trigger,
+.session-git-info-mobile-backdrop,
+.session-git-info-sheet {
+  display: none;
+}
+
 .section-label {
   display: block;
   margin-bottom: 4px;
