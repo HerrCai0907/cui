@@ -76,13 +76,13 @@ npm run start -- --api-port 3001
 
 `npm run start` stores production-preview data under the project root `prod/` directory by default:
 
-- Session data: `prod/data/sessions.json`
+- Session database: `prod/data/cui.sqlite`
 - API logs: `prod/logs/`
 
 Override those paths when needed:
 
 ```sh
-npm run start -- --store-path prod/data/local-sessions.json --log-dir prod/local-logs
+npm run start -- --database-path prod/data/local-cui.sqlite --log-dir prod/local-logs
 ```
 
 Development mode uses the API store defaults unless overridden through the environment.
@@ -93,7 +93,7 @@ Development mode uses the API store defaults unless overridden through the envir
 npm run dev
 npm run start
 npm run start -- --port 5174
-npm run start -- --store-path prod/data/local-sessions.json --log-dir prod/local-logs
+npm run start -- --database-path prod/data/local-cui.sqlite --log-dir prod/local-logs
 npm run build
 npm run typecheck
 npm run test:unit

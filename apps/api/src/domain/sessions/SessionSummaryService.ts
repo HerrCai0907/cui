@@ -1,12 +1,12 @@
 import type { AiModel, AiModelPreferences, ChatSession } from "../../types.js";
 import type { AppLogger } from "../../infrastructure/logging/AppLogger.js";
-import type { JsonSessionStore } from "../../infrastructure/store/JsonSessionStore.js";
+import type { SessionStore } from "../../infrastructure/store/SessionStore.js";
 import { createSummaryPrompt } from "./transcripts.js";
 
 export class SessionSummaryService {
   constructor(
     private readonly aiModel: AiModel,
-    private readonly store: JsonSessionStore,
+    private readonly store: SessionStore,
     private readonly logger: AppLogger,
   ) {}
 

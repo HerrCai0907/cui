@@ -1,5 +1,5 @@
 import type { AiModelPreferences, AiRunResult, ChatRound, ChatSession } from "../../types.js";
-import type { JsonSessionStore } from "../../infrastructure/store/JsonSessionStore.js";
+import type { SessionStore } from "../../infrastructure/store/SessionStore.js";
 import type { AppLogger } from "../../infrastructure/logging/AppLogger.js";
 import { DiffArtifactService } from "../../infrastructure/diff/DiffArtifactService.js";
 import { AtomicReviewService } from "../reviews/AtomicReviewService.js";
@@ -10,7 +10,7 @@ import { createSessionInputTranscript } from "./transcripts.js";
 
 export class RunCompletionService {
   constructor(
-    private readonly store: JsonSessionStore,
+    private readonly store: SessionStore,
     private readonly logger: AppLogger,
     private readonly roundService: RoundService,
     private readonly atomicReviewService: AtomicReviewService,

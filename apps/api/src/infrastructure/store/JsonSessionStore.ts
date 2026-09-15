@@ -11,6 +11,7 @@ import {
   QueuedPromptView,
   SessionListPage,
 } from "../../types.js";
+import type { ListSessionIndexEntriesOptions, SessionStore } from "./SessionStore.js";
 
 const STORE_VERSION = 3;
 
@@ -35,12 +36,7 @@ type SessionDetailData = {
   queuedPrompts: QueuedPrompt[];
 };
 
-export type ListSessionIndexEntriesOptions = {
-  page?: number;
-  pageSize?: number;
-};
-
-export class JsonSessionStore {
+export class JsonSessionStore implements SessionStore {
   private readonly filePath: string;
   private readonly detailDirectoryPath: string;
   private writeQueue: Promise<void> = Promise.resolve();
