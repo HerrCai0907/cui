@@ -32,6 +32,13 @@ export class RoundService {
   }
 
   refreshRoundDiff(round: ChatRound): ChatRound {
+    if (!round.beforeDiff && !round.afterDiff && round.diff) {
+      return {
+        ...round,
+        hasChanges: this.diffService.hasChanges(round.diff),
+      };
+    }
+
     const diff = this.diffService.createRoundDiff(round.beforeDiff, round.afterDiff);
 
     return {

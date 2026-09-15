@@ -60,3 +60,38 @@ test("JsonFileDb serializes first reads and writes for the same file", async () 
     await rm(cwd, { force: true, recursive: true });
   }
 });
+
+test("JsonFileDb does not retain oversized JSON files in cache", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-json-file-db-"));
+  const filePath = join(cwd, "data.json");
+  const db = new JsonFileDb(20);
+
+  try {
+    await db.write(filePath, { value: "large value that exceeds the cache limit" });
+    await writeFile(filePath, `${JSON.stringify({ value: "updated on disk" })}\n`, "utf8");
+
+    assert.deepEqual(await db.read(filePath), { value: "updated on disk" });
+
+    await db.write(filePath, { v: "x" });
+    await writeFile(filePath, '{"value":"partial', "utf8");
+
+    assert.deepEqual(await db.read(filePath), { v: "x" });
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("JsonFileDb uses a fixed default cache limit for large JSON files", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-json-file-db-"));
+  const filePath = join(cwd, "data.json");
+  const db = new JsonFileDb();
+
+  try {
+    await db.write(filePath, { value: "x".repeat(1024 * 1024) });
+    await writeFile(filePath, `${JSON.stringify({ value: "updated on disk" })}\n`, "utf8");
+
+    assert.deepEqual(await db.read(filePath), { value: "updated on disk" });
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});

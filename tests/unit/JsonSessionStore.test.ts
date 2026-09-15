@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import type { JsonFileDb } from "../../apps/api/src/infrastructure/store/JsonFileDb.js";
 import { JsonSessionStore } from "../../apps/api/src/infrastructure/store/JsonSessionStore.js";
 import type { ChatMessage, ChatRound, ChatSession } from "../../apps/api/src/types.js";
 
@@ -92,10 +93,27 @@ test("JsonSessionStore stores session index and per-session details separately",
       version: 3,
       id: "session-1",
       messages: [message],
-      rounds: [round],
+      rounds: [
+        {
+          round: round.round,
+          baseCommit: round.baseCommit,
+          diff: round.diff,
+          hasChanges: round.hasChanges,
+          createdAt: round.createdAt,
+        },
+      ],
       queuedPrompts: [],
     });
-    assert.deepEqual(await store.getSession("session-1"), session);
+    assert.deepEqual(await store.getSession("session-1"), {
+      ...session,
+      rounds: [
+        {
+          ...round,
+          beforeDiff: "",
+          afterDiff: "",
+        },
+      ],
+    });
     assert.deepEqual(await store.listSessionIndexEntries(), {
       sessions: [
         {
@@ -313,8 +331,14 @@ test("JsonSessionStore persists and shifts queued prompts", async () => {
 
     const queuedSession = await store.getSession("session-1");
     const listedSessions = await store.listSessionIndexEntries();
+    const rawQueuedStore = JSON.parse(await readFile(storePath, "utf8")) as {
+      sessions: Array<Record<string, unknown>>;
+    };
 
     assert.equal(queuedSession?.queuedPrompts?.[0]?.models?.normal, "GPT-5.4");
+    assert.equal(rawQueuedStore.sessions[0].queuedPromptCount, 1);
+    assert.deepEqual(await store.listQueuedSessionIds(), ["session-1"]);
+    assert.equal(await store.hasQueuedPrompt("queued-1"), true);
     assert.deepEqual(listedSessions.sessions[0]?.queuedPrompts, [
       {
         id: "queued-1",
@@ -328,6 +352,16 @@ test("JsonSessionStore persists and shifts queued prompts", async () => {
 
     assert.equal(shiftedPrompt?.id, "queued-1");
     assert.equal((await store.getSession("session-1"))?.queuedPrompts?.length ?? 0, 0);
+    assert.equal(
+      (
+        JSON.parse(await readFile(storePath, "utf8")) as {
+          sessions: Array<Record<string, unknown>>;
+        }
+      ).sessions[0].queuedPromptCount,
+      0,
+    );
+    assert.deepEqual(await store.listQueuedSessionIds(), []);
+    assert.equal(await store.hasQueuedPrompt("queued-1"), false);
     assert.equal(await store.shiftQueuedPrompt("session-1"), undefined);
   } finally {
     await rm(cwd, { force: true, recursive: true });
@@ -460,6 +494,67 @@ test("JsonSessionStore reads existing v3 index and per-session detail files", as
         rounds: [round],
       },
     ]);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("JsonSessionStore reads list entries from index without hydrating session details", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-json-session-store-"));
+  const storePath = join(cwd, "sessions.json");
+  const db = {
+    async read(filePath: string) {
+      if (filePath === storePath) {
+        return {
+          version: 3,
+          sessions: [
+            {
+              id: "session-1",
+              workspace: cwd,
+              title: "Indexed session",
+              summary: "",
+              createdAt: "2026-08-22T00:00:00.000Z",
+              updatedAt: "2026-08-22T00:00:00.000Z",
+              currentRound: 4,
+              queuedPromptCount: 0,
+            },
+          ],
+        };
+      }
+
+      throw new Error(`Unexpected detail read: ${filePath}`);
+    },
+    async write() {
+      throw new Error("Unexpected write");
+    },
+  };
+
+  try {
+    const store = new JsonSessionStore(storePath, db as unknown as JsonFileDb);
+
+    assert.deepEqual(await store.listSessionIndexEntries(), {
+      sessions: [
+        {
+          id: "session-1",
+          workspace: cwd,
+          title: "Indexed session",
+          summary: "",
+          createdAt: "2026-08-22T00:00:00.000Z",
+          updatedAt: "2026-08-22T00:00:00.000Z",
+          currentRound: 4,
+        },
+      ],
+      pagination: {
+        page: 1,
+        pageSize: 30,
+        total: 1,
+        totalPages: 1,
+        hasPreviousPage: false,
+        hasNextPage: false,
+      },
+    });
+    assert.deepEqual(await store.listQueuedSessionIds(), []);
+    assert.equal(await store.hasQueuedPrompt("queued-1"), false);
   } finally {
     await rm(cwd, { force: true, recursive: true });
   }
