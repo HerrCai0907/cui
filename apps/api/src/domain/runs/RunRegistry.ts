@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { RunStreamEvent } from "./runEvents.js";
 
+const DEFAULT_MAX_STORED_RUN_EVENTS = 500;
+
 type StoredRunStreamEvent = {
   id: number;
   event: RunStreamEvent;
@@ -27,6 +29,8 @@ export class RunRegistry {
     string,
     Set<(event: StoredRunStreamEvent) => void>
   >();
+
+  constructor(private readonly maxStoredRunEvents = DEFAULT_MAX_STORED_RUN_EVENTS) {}
 
   isSessionActive(sessionId: string): boolean {
     return this.activeSessionIds.has(sessionId);
@@ -104,6 +108,9 @@ export class RunRegistry {
 
     run.nextEventId += 1;
     run.events.push(storedEvent);
+    if (run.events.length > this.maxStoredRunEvents) {
+      run.events.splice(0, run.events.length - this.maxStoredRunEvents);
+    }
     run.subscribers.forEach((subscriber) => subscriber(storedEvent));
 
     if (

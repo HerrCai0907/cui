@@ -16,7 +16,11 @@ const STORE_VERSION = 3;
 
 type StoredSession = Omit<ChatSession, "messages" | "rounds" | "queuedPrompts"> & {
   currentRound?: number;
+  queuedPromptCount?: number;
 };
+
+type StoredChatRound = Omit<ChatRound, "beforeDiff" | "afterDiff"> &
+  Partial<Pick<ChatRound, "beforeDiff" | "afterDiff">>;
 
 type SessionIndexData = {
   version: typeof STORE_VERSION;
@@ -27,7 +31,7 @@ type SessionDetailData = {
   version: typeof STORE_VERSION;
   id: string;
   messages: ChatMessage[];
-  rounds: ChatRound[];
+  rounds: StoredChatRound[];
   queuedPrompts: QueuedPrompt[];
 };
 
@@ -63,6 +67,32 @@ export class JsonSessionStore {
     return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
+  async listQueuedSessionIds(): Promise<string[]> {
+    const index = await this.readIndex();
+
+    return index.sessions
+      .filter((session) => (session.queuedPromptCount ?? 0) > 0)
+      .map((session) => session.id);
+  }
+
+  async hasQueuedPrompt(queuedPromptId: string): Promise<boolean> {
+    const index = await this.readIndex();
+
+    for (const session of index.sessions) {
+      if ((session.queuedPromptCount ?? 0) === 0) {
+        continue;
+      }
+
+      const detail = await this.readSessionDetail(session.id);
+
+      if (detail.queuedPrompts.some((queuedPrompt) => queuedPrompt.id === queuedPromptId)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   async listSessionIndexEntries(
     options: ListSessionIndexEntriesOptions = {},
   ): Promise<SessionListPage<ChatSessionIndexEntry>> {
@@ -78,12 +108,15 @@ export class JsonSessionStore {
     const pageSessions = uniqueStoredSessionsById([...pinnedSessions, ...pagedSessions]);
     const sessions = await Promise.all(
       pageSessions.map(async (session) => {
-        const detail = await this.readSessionDetail(session.id);
+        const detail =
+          session.currentRound === undefined || (session.queuedPromptCount ?? 0) > 0
+            ? await this.readSessionDetail(session.id)
+            : undefined;
 
         return {
           ...toSessionIndexEntry(session),
           currentRound: session.currentRound ?? getCurrentRoundFromSessionDetail(detail),
-          ...toQueuedPromptViewsProperty(detail.queuedPrompts),
+          ...toQueuedPromptViewsProperty(detail?.queuedPrompts ?? []),
         };
       }),
     );
@@ -222,10 +255,20 @@ export class JsonSessionStore {
       }
 
       shiftedPrompt = nextPrompt;
+      const sessions = index.sessions.map((session) =>
+        session.id === sessionId
+          ? {
+              ...session,
+              queuedPromptCount: remainingPrompts.length,
+            }
+          : session,
+      );
+
       await this.writeSessionDetail({
         ...detail,
         queuedPrompts: remainingPrompts,
       });
+      await this.writeIndex({ ...index, sessions });
     });
 
     return shiftedPrompt;
@@ -302,7 +345,7 @@ export class JsonSessionStore {
           return session;
         }
 
-        const currentRounds = detail.rounds;
+        const currentRounds = detail.rounds.map(hydrateRound);
         const nextRounds = round ? [...currentRounds, round] : currentRounds;
 
         updatedSession = {
@@ -401,11 +444,11 @@ export class JsonSessionStore {
         }
 
         updatedRound = {
-          ...round,
+          ...hydrateRound(round),
           atomicReview,
         };
 
-        return updatedRound;
+        return toStoredRound(updatedRound);
       });
 
       if (!updatedRound) {
@@ -579,7 +622,7 @@ export class JsonSessionStore {
   }
 
   private async writeSessionDetail(detail: SessionDetailData): Promise<void> {
-    await this.db.write(this.getSessionDetailPath(detail.id), detail);
+    await this.db.write(this.getSessionDetailPath(detail.id), compactSessionDetail(detail));
   }
 
   private getSessionDetailPath(sessionId: string): string {
@@ -621,14 +664,18 @@ function normalizeSessionDetail(data: unknown, sessionId: string): SessionDetail
     version: STORE_VERSION,
     id: sessionId,
     messages: parseArray<ChatMessage>(detail.messages),
-    rounds: parseArray<ChatRound>(detail.rounds),
+    rounds: parseArray<StoredChatRound>(detail.rounds),
     queuedPrompts: parseArray<QueuedPrompt>(detail.queuedPrompts),
   };
 }
 
 function hydrateSession(session: StoredSession, detail: SessionDetailData): ChatSession {
-  const { currentRound: _currentRound, ...sessionMetadata } = session;
-  const rounds = detail.rounds;
+  const {
+    currentRound: _currentRound,
+    queuedPromptCount: _queuedPromptCount,
+    ...sessionMetadata
+  } = session;
+  const rounds = detail.rounds.map(hydrateRound);
 
   return {
     ...sessionMetadata,
@@ -650,9 +697,30 @@ function toSessionDetail(session: ChatSession): SessionDetailData {
     version: STORE_VERSION,
     id: session.id,
     messages: session.messages,
-    rounds: session.rounds ?? [],
+    rounds: (session.rounds ?? []).map(toStoredRound),
     queuedPrompts: session.queuedPrompts ?? [],
   };
+}
+
+function compactSessionDetail(detail: SessionDetailData): SessionDetailData {
+  return {
+    ...detail,
+    rounds: detail.rounds.map((round) => toStoredRound(hydrateRound(round))),
+  };
+}
+
+function hydrateRound(round: StoredChatRound): ChatRound {
+  return {
+    beforeDiff: "",
+    afterDiff: "",
+    ...round,
+  };
+}
+
+function toStoredRound(round: ChatRound): StoredChatRound {
+  const { beforeDiff: _beforeDiff, afterDiff: _afterDiff, ...storedRound } = round;
+
+  return storedRound;
 }
 
 function toStoredSession(session: ChatSession | StoredSession): StoredSession {
@@ -671,6 +739,9 @@ function toStoredSession(session: ChatSession | StoredSession): StoredSession {
     currentRound:
       ("currentRound" in session ? session.currentRound : undefined) ??
       ("messages" in session ? getCurrentRoundFromSession(session) : undefined),
+    queuedPromptCount:
+      ("queuedPromptCount" in session ? session.queuedPromptCount : undefined) ??
+      ("queuedPrompts" in session ? (session.queuedPrompts?.length ?? 0) : 0),
   };
 }
 
@@ -768,11 +839,18 @@ function getCurrentRoundFromSession(session: ChatSession): number {
   return getCurrentRoundFromParts(session.messages, session.rounds ?? []);
 }
 
-function getCurrentRoundFromSessionDetail(detail: SessionDetailData): number {
+function getCurrentRoundFromSessionDetail(detail: SessionDetailData | undefined): number {
+  if (!detail) {
+    return 0;
+  }
+
   return getCurrentRoundFromParts(detail.messages, detail.rounds);
 }
 
-function getCurrentRoundFromParts(messages: ChatMessage[], rounds: ChatRound[]): number {
+function getCurrentRoundFromParts(
+  messages: ChatMessage[],
+  rounds: Array<Pick<ChatRound, "round">>,
+): number {
   const storedRound = Math.max(0, ...rounds.map(({ round }) => round));
   const messageRound = Math.max(
     0,

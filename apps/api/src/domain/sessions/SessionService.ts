@@ -559,11 +559,7 @@ export class SessionService {
       return true;
     }
 
-    const sessions = await this.store.listSessions();
-
-    return sessions.some((session) =>
-      session.queuedPrompts?.some((queuedPrompt) => queuedPrompt.id === runId),
-    );
+    return this.store.hasQueuedPrompt(runId);
   }
 
   async cancelRun(runId: string): Promise<void> {
@@ -582,11 +578,9 @@ export class SessionService {
   }
 
   async resumeQueuedPrompts(): Promise<void> {
-    const sessions = await this.store.listSessions();
+    const sessionIds = await this.store.listQueuedSessionIds();
 
-    sessions
-      .filter((session) => (session.queuedPrompts?.length ?? 0) > 0)
-      .forEach((session) => this.scheduleNextQueuedPrompt(session.id));
+    sessionIds.forEach((sessionId) => this.scheduleNextQueuedPrompt(sessionId));
   }
 
   private async startAssistantRun(

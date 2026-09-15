@@ -105,7 +105,9 @@ export class RunCompletionService {
       workspace: input.workspace,
       prompt: input.prompt,
       response: input.aiResponse.content,
-      rawEvents: input.aiResponse.rawEvents,
+      responseLength: input.aiResponse.content.length,
+      rawEventCount: input.aiResponse.rawEvents.length,
+      traceLength: input.aiResponse.trace?.length ?? 0,
     });
     await this.logger.framework.info("run.assistant.completed", {
       sessionId: input.aiResponse.sessionId,
