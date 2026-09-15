@@ -38,13 +38,13 @@ npm run start
 
 `npm run start` 默认把生产预览数据保存在 `prod/` 目录下：
 
-- 会话数据：`prod/data/sessions.json`
+- 会话数据库：`prod/data/cui.sqlite`
 - API 日志：`prod/logs/`
 
 需要隔离本地数据集时，可以指定自定义路径：
 
 ```sh
-npm run start -- --store-path prod/data/local-sessions.json --log-dir prod/local-logs
+npm run start -- --database-path prod/data/local-cui.sqlite --log-dir prod/local-logs
 ```
 
 ## 开发文档

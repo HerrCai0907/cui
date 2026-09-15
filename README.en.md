@@ -38,13 +38,13 @@ By default, the production preview web app runs on port `5173` and talks to the 
 
 `npm run start` stores production-preview data under `prod/` by default:
 
-- Session data: `prod/data/sessions.json`
+- Session database: `prod/data/cui.sqlite`
 - API logs: `prod/logs/`
 
 Use custom paths when you want an isolated local dataset:
 
 ```sh
-npm run start -- --store-path prod/data/local-sessions.json --log-dir prod/local-logs
+npm run start -- --database-path prod/data/local-cui.sqlite --log-dir prod/local-logs
 ```
 
 ## Developer Docs

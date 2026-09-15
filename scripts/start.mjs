@@ -10,8 +10,8 @@ const WEB_DIST_PATH = resolve(PROJECT_ROOT, "apps/web/dist");
 const API_DIST_PATH = resolve(PROJECT_ROOT, "apps/api/dist");
 const PROD_WEB_PATH = resolve(PROJECT_ROOT, "prod/web");
 const PROD_API_PATH = resolve(PROJECT_ROOT, "prod/api");
-const DEFAULT_STORE_PATH =
-  process.env.CUI_STORE_PATH ?? resolve(PROJECT_ROOT, "prod/data/sessions.json");
+const DEFAULT_DATABASE_PATH =
+  process.env.CUI_DATABASE_PATH ?? resolve(PROJECT_ROOT, "prod/data/cui.sqlite");
 const DEFAULT_LOG_DIR = process.env.CUI_LOG_DIR ?? resolve(PROJECT_ROOT, "prod/logs");
 
 const options = parseArgs(process.argv.slice(2));
@@ -39,7 +39,7 @@ const webCommand = [
 ].join(" ");
 const apiCommand = [
   `PORT=${options.apiPort}`,
-  `CUI_STORE_PATH=${shellQuote(resolveProjectPath(options.storePath))}`,
+  `CUI_DATABASE_PATH=${shellQuote(resolveProjectPath(options.databasePath))}`,
   `CUI_LOG_DIR=${shellQuote(resolveProjectPath(options.logDir))}`,
   `node ${shellQuote(resolve(PROD_API_PATH, "server.js"))}`,
 ].join(" ");
@@ -63,10 +63,10 @@ function copyBuildOutput(source, destination, name) {
 function parseArgs(args) {
   const parsed = {
     apiPort: DEFAULT_API_PORT,
+    databasePath: DEFAULT_DATABASE_PATH,
     help: false,
     logDir: DEFAULT_LOG_DIR,
     port: DEFAULT_WEB_PORT,
-    storePath: DEFAULT_STORE_PATH,
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -97,13 +97,18 @@ function parseArgs(args) {
       continue;
     }
 
-    if (arg === "--store-path") {
-      parsed.storePath = readPathValue(args, (index += 1), arg);
+    if (arg === "--database-path" || arg === "--store-path") {
+      parsed.databasePath = readPathValue(args, (index += 1), arg);
+      continue;
+    }
+
+    if (arg.startsWith("--database-path=")) {
+      parsed.databasePath = parsePath(arg.slice("--database-path=".length), "--database-path");
       continue;
     }
 
     if (arg.startsWith("--store-path=")) {
-      parsed.storePath = parsePath(arg.slice("--store-path=".length), "--store-path");
+      parsed.databasePath = parsePath(arg.slice("--store-path=".length), "--store-path");
       continue;
     }
 
@@ -195,8 +200,10 @@ function printHelp() {
 Options:
   -p, --port <port>      Web app port. Default: ${DEFAULT_WEB_PORT}
       --api-port <port>  API server port. Default: ${DEFAULT_API_PORT}
+      --database-path <path>
+                          API SQLite database path. Default: ${DEFAULT_DATABASE_PATH}
       --store-path <path>
-                          API session store path. Default: ${DEFAULT_STORE_PATH}
+                          Deprecated alias for --database-path.
       --log-dir <path>   API log directory. Default: ${DEFAULT_LOG_DIR}
   -h, --help             Show this help message
 `);

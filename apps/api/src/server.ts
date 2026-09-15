@@ -9,7 +9,7 @@ import {
 } from "./infrastructure/ai/aiBinary.js";
 import { AppLogger } from "./infrastructure/logging/AppLogger.js";
 import { SessionService } from "./domain/sessions/SessionService.js";
-import { JsonSessionStore } from "./infrastructure/store/JsonSessionStore.js";
+import { SqliteSessionStore } from "./infrastructure/store/SqliteSessionStore.js";
 import { CodeQueryService } from "./domain/code/CodeQueryService.js";
 
 dotenv.config();
@@ -20,7 +20,7 @@ const aiModel = new RoutingAiModel({
   traex: new TraexModel(),
   codex: new CodexModel(),
 });
-const sessionService = new SessionService(aiModel, new JsonSessionStore(), logger);
+const sessionService = new SessionService(aiModel, new SqliteSessionStore(), logger);
 const codeQueryService = new CodeQueryService();
 const app = createApp({ logger, aiModel, sessionService, codeQueryService });
 

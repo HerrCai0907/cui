@@ -15,7 +15,7 @@ import {
   RoundReview,
   SessionListPage,
 } from "../../types.js";
-import { JsonSessionStore } from "../../infrastructure/store/JsonSessionStore.js";
+import type { SessionStore } from "../../infrastructure/store/SessionStore.js";
 import { AppLogger } from "../../infrastructure/logging/AppLogger.js";
 import { createMessage } from "./sessionMessages.js";
 import {
@@ -167,7 +167,7 @@ export class SessionService {
 
   constructor(
     private readonly aiModel: AiModel,
-    private readonly store: JsonSessionStore,
+    private readonly store: SessionStore,
     private readonly logger = new AppLogger(),
     private readonly roundService = new RoundService(),
     private readonly atomicReviewService = new AtomicReviewService(aiModel, logger),
