@@ -126,14 +126,14 @@
 
 .workspace-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 28px;
+  grid-template-columns: minmax(0, 1fr) 28px 28px;
   align-items: center;
   gap: 4px;
   padding-left: calc(var(--workspace-depth, 0) * 14px);
 }
 
 .workspace-row.has-workspace-toggle {
-  grid-template-columns: minmax(0, 1fr) 28px 28px;
+  grid-template-columns: minmax(0, 1fr) 28px 28px 28px;
 }
 
 .workspace-directory-row {
@@ -177,7 +177,8 @@
 }
 
 .workspace-toggle,
-.workspace-new-session {
+.workspace-new-session,
+.workspace-vscode-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -191,7 +192,8 @@
 }
 
 .workspace-toggle:hover,
-.workspace-new-session:hover {
+.workspace-new-session:hover,
+.workspace-vscode-link:hover {
   border-color: #cbd5e1;
   background: #ffffff;
   color: #1f2937;

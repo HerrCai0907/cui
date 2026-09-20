@@ -14,7 +14,8 @@
   gap: 18px;
 }
 
-.ssh-tunnel-card {
+.ssh-tunnel-card,
+.vscode-config-card {
   display: grid;
   gap: 10px;
   border: 1px solid #dce3eb;
@@ -24,19 +25,23 @@
 }
 
 .ssh-tunnel-card > label,
-.ssh-tunnel-grid label > span:first-child {
+.ssh-tunnel-grid label > span:first-child,
+.vscode-config-card > label,
+.vscode-config-grid label > span:first-child {
   color: #1d2733;
   font-size: 0.9rem;
   font-weight: 700;
 }
 
-.ssh-tunnel-grid {
+.ssh-tunnel-grid,
+.vscode-config-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
-.ssh-tunnel-grid label {
+.ssh-tunnel-grid label,
+.vscode-config-grid label {
   display: grid;
   min-width: 0;
   gap: 6px;
@@ -44,11 +49,13 @@
 
 .ssh-tunnel-grid label:first-child,
 .ssh-tunnel-grid label:nth-child(4),
-.ssh-tunnel-grid label:nth-child(6) {
+.ssh-tunnel-grid label:nth-child(6),
+.vscode-config-grid label {
   grid-column: 1 / -1;
 }
 
-.ssh-tunnel-toggle {
+.ssh-tunnel-toggle,
+.vscode-config-toggle {
   min-height: 0;
   border: 0;
   border-radius: 8px;
@@ -84,7 +91,8 @@
   font: inherit;
 }
 
-.ssh-tunnel-grid > label > input {
+.ssh-tunnel-grid > label > input,
+.vscode-config-grid > label > input {
   width: 100%;
   min-width: 0;
   min-height: 42px;
@@ -96,7 +104,8 @@
   padding: 0 11px;
 }
 
-.ssh-tunnel-grid input:focus-visible {
+.ssh-tunnel-grid input:focus-visible,
+.vscode-config-grid input:focus-visible {
   outline: 2px solid #64748b;
   outline-offset: 2px;
 }

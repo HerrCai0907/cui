@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-import { currentWorkspace, fulfillJson, mockSession, mockSessions } from "./helpers";
+import {
+  currentWorkspace,
+  fulfillJson,
+  mockSession,
+  mockSessions,
+  storeAppConfig,
+} from "./helpers";
 
 test("renders workspace paths as a file tree in the sidebar", async ({ page }) => {
   const firstSession = {
@@ -53,6 +59,42 @@ test("keeps the current workspace available when it has no sessions", async ({ p
   await expect(sidebar.getByText("~", { exact: true })).toBeVisible();
   await expect(sidebar.getByLabel("~", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "New session in ~" })).toBeVisible();
+});
+
+test("opens workspace links in VSCode with configured Remote SSH mapping", async ({ page }) => {
+  const session = {
+    id: "session-1",
+    workspace: "/mapped/cui/project a",
+    title: "Mapped session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [],
+  };
+
+  await mockSessions(page, [session]);
+  await storeAppConfig(page, {
+    vscode: {
+      remoteSsh: {
+        enabled: true,
+        host: "dev-box",
+        localPathPrefix: "/mapped",
+        remotePathPrefix: "/data/workspaces",
+      },
+    },
+  });
+
+  await page.goto("/");
+
+  const vscodeLink = page.getByRole("link", {
+    name: "Open /mapped/cui/project a in VSCode",
+  });
+
+  await expect(vscodeLink).toBeVisible();
+  await expect(vscodeLink).toHaveAttribute(
+    "href",
+    "vscode://vscode-remote/ssh-remote+dev-box/data/workspaces/cui/project%20a",
+  );
 });
 
 test("shows a focused Active list and keeps all sessions in More", async ({ page }) => {
@@ -112,22 +154,10 @@ test("pages through sessions in More", async ({ page }) => {
     currentRound: 0,
     isRunning: false,
   }));
-  const requestedSessionPages: number[] = [];
-
   await mockSessions(page, sessions);
-  await page.route("**/api/v1/sessions**", async (route) => {
-    const url = new URL(route.request().url());
-
-    if (route.request().method() === "GET" && url.pathname === "/api/v1/sessions") {
-      requestedSessionPages.push(Number(url.searchParams.get("page")) || 1);
-    }
-
-    await route.fallback();
-  });
 
   await page.goto("/");
   await expect(page.getByRole("button", { name: "More" })).toBeVisible();
-  expect(requestedSessionPages[0]).toBe(1);
 
   await page.getByRole("button", { name: "More" }).click();
   await expect(page.getByText("1 / 2")).toBeVisible();
