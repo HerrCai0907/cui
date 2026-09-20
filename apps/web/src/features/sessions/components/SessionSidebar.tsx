@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Circle,
+  Code2,
   FileText,
   Folder,
   FolderOpen,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import { formatRelativeTime } from "../../../shared/lib/dates";
 import type { SessionSummary } from "../../../types";
+import { createVscodeWorkspaceUrl, type VscodeConfig } from "../../config/model/appConfig";
 import type { ReviewNavigation, ReviewNavigationTarget } from "../../review/model/reviewNavigation";
 import type { SessionListMode } from "../model/sessionBrowserState";
 import {
@@ -49,6 +51,7 @@ type SessionSidebarProps = {
   runningSessionIds: Set<string>;
   reviewNavigation?: ReviewNavigation | null;
   reviewNavigationActive?: boolean;
+  vscodeConfig: VscodeConfig;
   onOpenChange: (open: boolean) => void;
   onMobileClose?: () => void;
   onWidthChange: (width: number) => void;
@@ -81,6 +84,7 @@ export function SessionSidebar({
   runningSessionIds,
   reviewNavigation,
   reviewNavigationActive,
+  vscodeConfig,
   onOpenChange,
   onMobileClose,
   onWidthChange,
@@ -226,6 +230,7 @@ export function SessionSidebar({
                   groups={workspaceGroups}
                   pendingDoneSessionIds={pendingDoneSessionIds}
                   sessionListMode={sessionListMode}
+                  vscodeConfig={vscodeConfig}
                   runningSessionIds={runningSessionIds}
                   onOpenSession={onOpenSession}
                   onMarkSessionDone={onMarkSessionDone}
@@ -310,12 +315,14 @@ function WorkspaceGroupList({
   onToggleSessionPinned,
   onStartNewSession,
   onToggleWorkspace,
+  vscodeConfig,
 }: {
   activeSessionId?: string;
   expandedWorkspaces: Set<string>;
   groups: WorkspaceTreeNode[];
   pendingDoneSessionIds: Set<string>;
   sessionListMode: SessionListMode;
+  vscodeConfig: VscodeConfig;
   runningSessionIds: Set<string>;
   onOpenSession: (sessionId: string) => void;
   onMarkSessionDone: (sessionId: string) => void;
@@ -340,6 +347,7 @@ function WorkspaceGroupList({
           onToggleSessionPinned={onToggleSessionPinned}
           onStartNewSession={onStartNewSession}
           onToggleWorkspace={onToggleWorkspace}
+          vscodeConfig={vscodeConfig}
         />
       ))}
     </div>
@@ -359,6 +367,7 @@ function WorkspaceTreeNodeView({
   onToggleSessionPinned,
   onStartNewSession,
   onToggleWorkspace,
+  vscodeConfig,
 }: {
   activeSessionId?: string;
   depth: number;
@@ -372,6 +381,7 @@ function WorkspaceTreeNodeView({
   onToggleSessionPinned: (sessionId: string) => void;
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
+  vscodeConfig: VscodeConfig;
 }) {
   const workspace = node.workspace;
   const expanded = workspace ? expandedWorkspaces.has(workspace.workspace) : true;
@@ -398,6 +408,7 @@ function WorkspaceTreeNodeView({
           onToggleSessionPinned={onToggleSessionPinned}
           onStartNewSession={onStartNewSession}
           onToggleWorkspace={onToggleWorkspace}
+          vscodeConfig={vscodeConfig}
         />
       ) : (
         <div
@@ -425,6 +436,7 @@ function WorkspaceTreeNodeView({
               onToggleSessionPinned={onToggleSessionPinned}
               onStartNewSession={onStartNewSession}
               onToggleWorkspace={onToggleWorkspace}
+              vscodeConfig={vscodeConfig}
             />
           ))}
         </div>
@@ -505,6 +517,7 @@ function WorkspaceGroup({
   onToggleSessionPinned,
   onStartNewSession,
   onToggleWorkspace,
+  vscodeConfig,
 }: {
   activeSessionId?: string;
   depth: number;
@@ -513,6 +526,7 @@ function WorkspaceGroup({
   runningSessionIds: Set<string>;
   pendingDoneSessionIds: Set<string>;
   sessionListMode: SessionListMode;
+  vscodeConfig: VscodeConfig;
   workspace: WorkspaceDisplayItem;
   onOpenSession: (sessionId: string) => void;
   onMarkSessionDone: (sessionId: string) => void;
@@ -521,6 +535,7 @@ function WorkspaceGroup({
   onToggleWorkspace: (workspace: string) => void;
 }) {
   const useSeparateToggle = sessionListMode === "active";
+  const vscodeWorkspaceUrl = createVscodeWorkspaceUrl(workspace.workspace, vscodeConfig);
 
   return (
     <section className="workspace-group" style={{ "--workspace-depth": depth } as CSSProperties}>
@@ -569,6 +584,14 @@ function WorkspaceGroup({
         >
           <Plus size={15} />
         </button>
+        <a
+          className="workspace-vscode-link"
+          aria-label={`Open ${workspace.workspace} in VSCode`}
+          title="Open workspace in VSCode"
+          href={vscodeWorkspaceUrl}
+        >
+          <Code2 size={15} />
+        </a>
       </div>
 
       {expanded && (

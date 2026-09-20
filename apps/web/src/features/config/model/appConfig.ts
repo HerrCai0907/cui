@@ -56,10 +56,20 @@ export type SshTunnelConfig = {
   remotePort: number;
 };
 
+export type VscodeConfig = {
+  remoteSsh: {
+    enabled: boolean;
+    host: string;
+    localPathPrefix: string;
+    remotePathPrefix: string;
+  };
+};
+
 export type AppConfig = {
   apiBaseUrl: string;
   harness: AiHarness;
   sshTunnel: SshTunnelConfig;
+  vscode: VscodeConfig;
   models: ModelPreferences;
   reasoningEfforts: ReasoningEffortPreferences;
   executionTrace: {
@@ -71,6 +81,9 @@ type StoredAppConfig = {
   version: 1;
   harness?: AiHarness;
   sshTunnel?: Partial<SshTunnelConfig>;
+  vscode?: Partial<{
+    remoteSsh: Partial<VscodeConfig["remoteSsh"]>;
+  }>;
   models?: Partial<Record<ModelPurpose, string>>;
   reasoningEfforts?: Partial<Record<ModelPurpose, ReasoningEffort>>;
   executionTrace?: {
@@ -122,8 +135,25 @@ export const DEFAULT_SSH_TUNNEL_CONFIG: SshTunnelConfig = {
   remotePort: 0,
 };
 
+export const DEFAULT_VSCODE_CONFIG: VscodeConfig = {
+  remoteSsh: {
+    enabled: false,
+    host: "",
+    localPathPrefix: "",
+    remotePathPrefix: "",
+  },
+};
+
 export function createDefaultSshTunnelConfig(): SshTunnelConfig {
   return { ...DEFAULT_SSH_TUNNEL_CONFIG };
+}
+
+export function createDefaultVscodeConfig(): VscodeConfig {
+  return {
+    remoteSsh: {
+      ...DEFAULT_VSCODE_CONFIG.remoteSsh,
+    },
+  };
 }
 
 export function createDefaultAppConfig(): AppConfig {
@@ -131,6 +161,7 @@ export function createDefaultAppConfig(): AppConfig {
     apiBaseUrl: getDefaultApiBaseUrl(),
     harness: "traex",
     sshTunnel: createDefaultSshTunnelConfig(),
+    vscode: createDefaultVscodeConfig(),
     models: {
       normal: "GPT-5.5",
       summary: "GPT-5.4",
@@ -177,6 +208,7 @@ export function loadAppConfig(): AppConfig {
       apiBaseUrl: getDefaultApiBaseUrl(),
       harness: isAiHarness(parsed.harness) ? parsed.harness : defaultConfig.harness,
       sshTunnel: parseSshTunnelConfig(parsed.sshTunnel),
+      vscode: parseVscodeConfig(parsed.vscode),
       models: {
         ...(parsed.harness === "codex"
           ? { normal: "", summary: "", atomicReview: "" }
@@ -210,6 +242,7 @@ export function saveAppConfig(config: AppConfig): void {
       version: 1,
       harness: config.harness,
       sshTunnel: sanitizeSshTunnelConfig(config.sshTunnel),
+      vscode: sanitizeVscodeConfig(config.vscode),
       models: sanitizeModelPreferences(config.models),
       reasoningEfforts: sanitizeReasoningEffortPreferences(config.reasoningEfforts),
       executionTrace: {
@@ -262,6 +295,45 @@ function sanitizeSshTunnelConfig(config: Partial<SshTunnelConfig>): SshTunnelCon
   };
 }
 
+function parseVscodeConfig(value: unknown): VscodeConfig {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return createDefaultVscodeConfig();
+  }
+
+  const config = value as Partial<{
+    remoteSsh: Partial<VscodeConfig["remoteSsh"]>;
+  }>;
+
+  return sanitizeVscodeConfig({
+    remoteSsh:
+      config.remoteSsh && typeof config.remoteSsh === "object" && !Array.isArray(config.remoteSsh)
+        ? config.remoteSsh
+        : DEFAULT_VSCODE_CONFIG.remoteSsh,
+  });
+}
+
+function sanitizeVscodeConfig(
+  config: Partial<{ remoteSsh: Partial<VscodeConfig["remoteSsh"]> }>,
+): VscodeConfig {
+  const remoteSsh = config.remoteSsh ?? DEFAULT_VSCODE_CONFIG.remoteSsh;
+
+  return {
+    remoteSsh: {
+      enabled:
+        typeof remoteSsh.enabled === "boolean"
+          ? remoteSsh.enabled
+          : DEFAULT_VSCODE_CONFIG.remoteSsh.enabled,
+      host: sanitizeString(remoteSsh.host),
+      localPathPrefix: sanitizeString(remoteSsh.localPathPrefix),
+      remotePathPrefix: sanitizeString(remoteSsh.remotePathPrefix),
+    },
+  };
+}
+
+function sanitizeString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function sanitizeNonEmptyString(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
@@ -294,6 +366,18 @@ export function createModelRequestPreferences(
   }
 
   return Object.keys(preferences).length > 0 ? preferences : undefined;
+}
+
+export function createVscodeWorkspaceUrl(workspace: string, config: VscodeConfig): string {
+  const remoteSsh = config.remoteSsh;
+
+  if (remoteSsh.enabled && remoteSsh.host.trim()) {
+    return `vscode://vscode-remote/ssh-remote+${encodeURIComponent(
+      remoteSsh.host.trim(),
+    )}${encodeWorkspacePath(mapRemoteWorkspacePath(workspace, remoteSsh))}`;
+  }
+
+  return `vscode://file${encodeWorkspacePath(workspace)}`;
 }
 
 export function getExecutionTraceMessageType(
@@ -481,4 +565,43 @@ function isAiHarness(value: unknown): value is AiHarness {
 
 function isFileChangeItem(type: string | undefined): boolean {
   return Boolean(type && /^file[._-]?change$/i.test(type));
+}
+
+function mapRemoteWorkspacePath(workspace: string, remoteSsh: VscodeConfig["remoteSsh"]): string {
+  const localPrefix = trimTrailingSlashes(remoteSsh.localPathPrefix.trim());
+  const remotePrefix = trimTrailingSlashes(remoteSsh.remotePathPrefix.trim());
+
+  if (!localPrefix || !remotePrefix) {
+    return workspace;
+  }
+
+  if (workspace === localPrefix) {
+    return remotePrefix;
+  }
+
+  if (workspace.startsWith(`${localPrefix}/`)) {
+    return `${remotePrefix}${workspace.slice(localPrefix.length)}`;
+  }
+
+  return workspace;
+}
+
+function encodeWorkspacePath(workspace: string): string {
+  const path = workspace.trim() || "/";
+
+  if (path.startsWith("/")) {
+    return path
+      .split("/")
+      .map((part) => encodeURIComponent(part))
+      .join("/");
+  }
+
+  return `/${path
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/")}`;
+}
+
+function trimTrailingSlashes(path: string): string {
+  return path.replace(/\/+$/u, "");
 }

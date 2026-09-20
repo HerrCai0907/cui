@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   APP_CONFIG_STORAGE_KEY,
+  createVscodeWorkspaceUrl,
   createModelRequestPreferences,
   createDefaultAppConfig,
   getExecutionTraceMessageType,
@@ -36,6 +37,14 @@ test("default app config shows assistant messages and todo lists in execution tr
     localPort: 0,
     remoteHost: "",
     remotePort: 0,
+  });
+  assert.deepEqual(config.vscode, {
+    remoteSsh: {
+      enabled: false,
+      host: "",
+      localPathPrefix: "",
+      remotePathPrefix: "",
+    },
   });
   assert.deepEqual(config.reasoningEfforts, {
     normal: "high",
@@ -188,6 +197,10 @@ test("app config persists selected models and reasoning efforts", () => {
     config.sshTunnel.localPort = 18443;
     config.sshTunnel.remoteHost = "127.0.0.1";
     config.sshTunnel.remotePort = 18444;
+    config.vscode.remoteSsh.enabled = true;
+    config.vscode.remoteSsh.host = "prod-box";
+    config.vscode.remoteSsh.localPathPrefix = "/Users/me/mapped";
+    config.vscode.remoteSsh.remotePathPrefix = "/data/workspaces";
     saveAppConfig(config);
 
     const loaded = loadAppConfig();
@@ -196,6 +209,7 @@ test("app config persists selected models and reasoning efforts", () => {
     assert.equal(loaded.harness, "codex");
     assert.deepEqual(loaded.reasoningEfforts, config.reasoningEfforts);
     assert.deepEqual(loaded.sshTunnel, config.sshTunnel);
+    assert.deepEqual(loaded.vscode, config.vscode);
     assert.deepEqual(
       createModelRequestPreferences(loaded.harness, loaded.models, loaded.reasoningEfforts),
       {
@@ -238,10 +252,49 @@ test("app config persists selected models and reasoning efforts", () => {
       JSON.parse(storage.get(APP_CONFIG_STORAGE_KEY) ?? "{}").sshTunnel.host,
       "server.example",
     );
+    assert.equal(
+      JSON.parse(storage.get(APP_CONFIG_STORAGE_KEY) ?? "{}").vscode.remoteSsh.host,
+      "prod-box",
+    );
   } finally {
     Object.defineProperty(globalThis, "window", {
       configurable: true,
       value: originalWindow,
     });
   }
+});
+
+test("createVscodeWorkspaceUrl opens local workspaces through VSCode file URLs", () => {
+  assert.equal(
+    createVscodeWorkspaceUrl("/Users/me/work space", createDefaultAppConfig().vscode),
+    "vscode://file/Users/me/work%20space",
+  );
+});
+
+test("createVscodeWorkspaceUrl opens mapped workspaces through Remote SSH", () => {
+  assert.equal(
+    createVscodeWorkspaceUrl("/Users/me/mapped/project a", {
+      remoteSsh: {
+        enabled: true,
+        host: "dev-box",
+        localPathPrefix: "/Users/me/mapped",
+        remotePathPrefix: "/data/workspaces",
+      },
+    }),
+    "vscode://vscode-remote/ssh-remote+dev-box/data/workspaces/project%20a",
+  );
+});
+
+test("createVscodeWorkspaceUrl keeps the workspace path when no remote prefix matches", () => {
+  assert.equal(
+    createVscodeWorkspaceUrl("/tmp/project", {
+      remoteSsh: {
+        enabled: true,
+        host: "dev box",
+        localPathPrefix: "/Users/me/mapped",
+        remotePathPrefix: "/data/workspaces",
+      },
+    }),
+    "vscode://vscode-remote/ssh-remote+dev%20box/tmp/project",
+  );
 });

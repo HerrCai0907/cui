@@ -281,6 +281,7 @@ export function App() {
         onOpenConfig={openConfig}
         onStartNewSession={startNewSession}
         onToggleWorkspace={sessionController.toggleWorkspace}
+        vscodeConfig={config.vscode}
         reviewNavigationActive={reviewRoute?.mode === "atomic"}
         reviewNavigation={reviewRoute?.mode === "atomic" ? reviewNavigation : null}
       />

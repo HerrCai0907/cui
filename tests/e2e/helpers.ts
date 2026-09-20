@@ -207,3 +207,54 @@ export async function showExecutionTraceTypes(page: Page, types: ExecutionTraceM
     },
   );
 }
+
+export async function storeAppConfig(
+  page: Page,
+  configPatch: Partial<ReturnType<typeof createDefaultAppConfig>>,
+) {
+  const defaultConfig = createDefaultAppConfig();
+  const storedConfig = {
+    version: 1,
+    ...defaultConfig,
+    ...configPatch,
+    sshTunnel: {
+      ...defaultConfig.sshTunnel,
+      ...configPatch.sshTunnel,
+    },
+    vscode: {
+      ...defaultConfig.vscode,
+      ...configPatch.vscode,
+      remoteSsh: {
+        ...defaultConfig.vscode.remoteSsh,
+        ...configPatch.vscode?.remoteSsh,
+      },
+    },
+    models: {
+      ...defaultConfig.models,
+      ...configPatch.models,
+    },
+    reasoningEfforts: {
+      ...defaultConfig.reasoningEfforts,
+      ...configPatch.reasoningEfforts,
+    },
+    executionTrace: {
+      ...defaultConfig.executionTrace,
+      ...configPatch.executionTrace,
+      visibleMessageTypes: {
+        ...defaultConfig.executionTrace.visibleMessageTypes,
+        ...configPatch.executionTrace?.visibleMessageTypes,
+      },
+    },
+    updatedAt: Date.now(),
+  };
+
+  await page.addInitScript(
+    ({ storageKey, config }) => {
+      localStorage.setItem(storageKey, JSON.stringify(config));
+    },
+    {
+      storageKey: APP_CONFIG_STORAGE_KEY,
+      config: storedConfig,
+    },
+  );
+}

@@ -18,6 +18,7 @@ import {
   type ModelPurpose,
   type ReasoningEffort,
   type SshTunnelConfig,
+  type VscodeConfig,
 } from "../model/appConfig";
 import {
   getAndroidSshTunnelStatus,
@@ -131,6 +132,7 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
     onConfigChange({
       ...createDefaultAppConfig(),
       sshTunnel: config.sshTunnel,
+      vscode: config.vscode,
     });
   }
 
@@ -141,8 +143,101 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
     }));
   }
 
+  function setVscodeRemoteSshField<K extends keyof VscodeConfig["remoteSsh"]>(
+    field: K,
+    value: VscodeConfig["remoteSsh"][K],
+  ) {
+    onConfigChange({
+      ...config,
+      vscode: {
+        ...config.vscode,
+        remoteSsh: {
+          ...config.vscode.remoteSsh,
+          [field]: value,
+        },
+      },
+    });
+  }
+
   return (
     <div className="config-page">
+      <section className="config-section" aria-labelledby="vscode-config-heading">
+        <div className="config-section-header">
+          <div>
+            <span className="section-label">Editor</span>
+            <h2 id="vscode-config-heading">VSCode</h2>
+          </div>
+        </div>
+
+        <div className="vscode-config-card">
+          <label className="config-toggle-row vscode-config-toggle">
+            <span>
+              <strong>Open workspaces over Remote SSH</strong>
+            </span>
+            <input
+              type="checkbox"
+              checked={config.vscode.remoteSsh.enabled}
+              onChange={(event) => setVscodeRemoteSshField("enabled", event.target.checked)}
+            />
+            <span
+              className={`config-switch ${config.vscode.remoteSsh.enabled ? "is-on" : ""}`}
+              aria-hidden="true"
+            >
+              <span>{config.vscode.remoteSsh.enabled && <Check size={13} />}</span>
+            </span>
+          </label>
+
+          <div className="vscode-config-grid">
+            <label>
+              <span>SSH host alias</span>
+              <span className="api-server-input">
+                <Server size={17} aria-hidden="true" />
+                <input
+                  type="text"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  placeholder="Host from ~/.ssh/config"
+                  value={config.vscode.remoteSsh.host}
+                  onChange={(event) => setVscodeRemoteSshField("host", event.target.value)}
+                />
+              </span>
+            </label>
+            <label>
+              <span>Local workspace prefix</span>
+              <input
+                type="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                placeholder="/Users/me/mapped"
+                value={config.vscode.remoteSsh.localPathPrefix}
+                onChange={(event) => setVscodeRemoteSshField("localPathPrefix", event.target.value)}
+              />
+            </label>
+            <label>
+              <span>Remote workspace prefix</span>
+              <input
+                type="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                placeholder="/home/me"
+                value={config.vscode.remoteSsh.remotePathPrefix}
+                onChange={(event) =>
+                  setVscodeRemoteSshField("remotePathPrefix", event.target.value)
+                }
+              />
+            </label>
+          </div>
+
+          <p className="config-help">
+            Workspace buttons use VSCode URL handlers. With Remote SSH enabled, the local prefix is
+            rewritten to the remote prefix before opening the SSH host.
+          </p>
+        </div>
+      </section>
+
       <section className="config-section" aria-labelledby="ssh-tunnel-heading">
         <div className="config-section-header">
           <div>
