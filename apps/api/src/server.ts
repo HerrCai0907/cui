@@ -9,7 +9,7 @@ import {
 } from "./infrastructure/ai/aiBinary.js";
 import { AppLogger } from "./infrastructure/logging/AppLogger.js";
 import { SessionService } from "./domain/sessions/SessionService.js";
-import { SqliteSessionStore } from "./infrastructure/store/SqliteSessionStore.js";
+import { WorkerSessionStore } from "./infrastructure/store/WorkerSessionStore.js";
 import { CodeQueryService } from "./domain/code/CodeQueryService.js";
 
 dotenv.config();
@@ -20,7 +20,8 @@ const aiModel = new RoutingAiModel({
   traex: new TraexModel(),
   codex: new CodexModel(),
 });
-const sessionService = new SessionService(aiModel, new SqliteSessionStore(), logger);
+const sessionStore = new WorkerSessionStore();
+const sessionService = new SessionService(aiModel, sessionStore, logger);
 const codeQueryService = new CodeQueryService();
 const app = createApp({ logger, aiModel, sessionService, codeQueryService });
 
@@ -64,6 +65,7 @@ server.on("error", (error) => {
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
     server.close(() => {
+      sessionStore.close();
       void logger.framework.info("server.stopped", { signal });
       process.exit(0);
     });

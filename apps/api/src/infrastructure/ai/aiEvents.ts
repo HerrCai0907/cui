@@ -8,6 +8,16 @@ import {
   type HarnessMessage,
 } from "./harnessMessages.js";
 
+const MAX_TRACE_STRING_LENGTH = 256 * 1024;
+const MAX_TRACE_ARRAY_LENGTH = 100;
+const MAX_TRACE_OBJECT_KEYS = 100;
+const MAX_TRACE_DEPTH = 8;
+
+export type FormatTraceEventsOptions = {
+  compact?: boolean;
+  includeRaw?: boolean;
+};
+
 export function parseJsonLine(line: string): unknown | undefined {
   const trimmed = line.trim();
 
@@ -82,10 +92,18 @@ export function formatRawEvents(events: unknown[]): string {
   return events.map((event) => JSON.stringify(event)).join("\n");
 }
 
-export function formatTraceEvents(events: unknown[], harness?: AiHarness): string {
+export function formatTraceEvents(
+  events: unknown[],
+  harness?: AiHarness,
+  options: FormatTraceEventsOptions = {},
+): string {
+  const includeRaw = options.includeRaw ?? true;
   return formatHarnessMessages(
     events
       .map((event) => toTraceEvent(event, harness))
+      .map((event) =>
+        event && options.compact ? compactTraceMessage(event, { includeRaw }) : event,
+      )
       .filter((event): event is HarnessMessage => Boolean(event)),
   );
 }
@@ -127,6 +145,66 @@ export function extractProcessError(events: unknown[], failedExit: boolean): str
 
 function getEventType(event: unknown): string | undefined {
   return event && typeof event === "object" ? getStringProperty(event, "type") : undefined;
+}
+
+function compactTraceMessage(
+  event: HarnessMessage,
+  options: Required<Pick<FormatTraceEventsOptions, "includeRaw">>,
+): HarnessMessage {
+  return compactTraceValue(event, 0, options) as HarnessMessage;
+}
+
+function compactTraceValue(
+  value: unknown,
+  depth: number,
+  options: Required<Pick<FormatTraceEventsOptions, "includeRaw">>,
+): unknown {
+  if (typeof value === "string") {
+    return truncateTraceString(value);
+  }
+
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+
+  if (depth >= MAX_TRACE_DEPTH) {
+    return "[truncated: nested value]";
+  }
+
+  if (Array.isArray(value)) {
+    const compacted = value
+      .slice(0, MAX_TRACE_ARRAY_LENGTH)
+      .map((item) => compactTraceValue(item, depth + 1, options));
+
+    if (value.length > MAX_TRACE_ARRAY_LENGTH) {
+      compacted.push(`[truncated: ${value.length - MAX_TRACE_ARRAY_LENGTH} more items]`);
+    }
+
+    return compacted;
+  }
+
+  const entries = Object.entries(value).filter(([key]) => options.includeRaw || key !== "raw");
+  const compacted = Object.fromEntries(
+    entries
+      .slice(0, MAX_TRACE_OBJECT_KEYS)
+      .map(([key, item]) => [key, compactTraceValue(item, depth + 1, options)]),
+  );
+
+  if (entries.length > MAX_TRACE_OBJECT_KEYS) {
+    compacted.__truncated__ = `${entries.length - MAX_TRACE_OBJECT_KEYS} more fields`;
+  }
+
+  return compacted;
+}
+
+function truncateTraceString(value: string): string {
+  if (value.length <= MAX_TRACE_STRING_LENGTH) {
+    return value;
+  }
+
+  return `${value.slice(0, MAX_TRACE_STRING_LENGTH)}\n[truncated: ${
+    value.length - MAX_TRACE_STRING_LENGTH
+  } more characters]`;
 }
 
 function normalizeTraceEvent(event: unknown, harness?: AiHarness): HarnessMessage {

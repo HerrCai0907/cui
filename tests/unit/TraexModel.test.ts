@@ -40,6 +40,24 @@ test("TraeX keeps normalized execution trace messages without duplicating respon
       type: "lifecycle",
       name: "thread.started",
       threadId: "traex-test",
+    },
+    {
+      type: "assistant_message",
+      text: "Done",
+    },
+    {
+      type: "assistant_message",
+      id: "item_0",
+      phase: "completed",
+      text: "Done.",
+    },
+    { type: "lifecycle", name: "turn.completed" },
+  ];
+  const streamedTraceEvents = [
+    {
+      type: "lifecycle",
+      name: "thread.started",
+      threadId: "traex-test",
       raw: { type: "thread.started", thread_id: "traex-test" },
     },
     {
@@ -88,6 +106,6 @@ test("TraeX keeps normalized execution trace messages without duplicating respon
   );
   assert.deepEqual(
     events.filter((event) => event.type === "raw"),
-    traceEvents.map((event) => ({ type: "raw", event })),
+    streamedTraceEvents.map((event) => ({ type: "raw", event })),
   );
 });

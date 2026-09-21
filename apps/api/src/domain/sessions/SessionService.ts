@@ -1027,7 +1027,11 @@ export class SessionService {
 
     try {
       await this.store.appendMessages(run.sessionId, [
-        createMessage("assistant", formatTraceEvents(rawEvents), "trace"),
+        createMessage(
+          "assistant",
+          formatTraceEvents(rawEvents, undefined, { compact: true, includeRaw: false }),
+          "trace",
+        ),
       ]);
     } catch (error) {
       void this.logger.session(run.sessionId).warn("session.cancelled_trace.persist_failed", {

@@ -47,9 +47,8 @@ test("Codex streams completed messages and recovers final output from JSONL", as
         type: "lifecycle",
         name: "thread.started",
         threadId: "codex-test",
-        raw: { type: "thread.started", thread_id: "codex-test" },
       },
-      { type: "lifecycle", name: "turn.completed", raw: { type: "turn.completed" } },
+      { type: "lifecycle", name: "turn.completed" },
     ]
       .map((event) => JSON.stringify(event))
       .join("\n"),

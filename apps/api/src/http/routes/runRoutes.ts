@@ -4,7 +4,7 @@ import type { SessionService } from "../../domain/sessions/SessionService.js";
 import { filterSessionViewTraceMessages } from "../../domain/sessions/sessionViews.js";
 import { isTraceEventVisible, type TraceMessageType } from "../../domain/sessions/traceMessages.js";
 import { parseRunEventsQuery } from "../validation/requestParsers.js";
-import { writeSse } from "../sse/writeSse.js";
+import { createSseStreamWriter } from "../sse/writeSse.js";
 
 export function createRunRouter(sessionService: SessionService): Router {
   const router = Router();
@@ -38,25 +38,41 @@ export function createRunRouter(sessionService: SessionService): Router {
     const visibleTraceTypes = parsed.value.traceMessageTypes
       ? new Set(parsed.value.traceMessageTypes)
       : undefined;
-    const unsubscribe = sessionService.subscribeToRun(request.params.runId, (event) => {
+    const sseWriter = createSseStreamWriter(response);
+    let unsubscribe = () => {};
+    unsubscribe = sessionService.subscribeToRun(request.params.runId, (event) => {
       const filteredEvent = filterRunStreamEvent(event, visibleTraceTypes);
 
       if (!filteredEvent) {
         return;
       }
 
-      writeSse(response, filteredEvent.type, filteredEvent);
-
-      if (
+      const shouldEnd =
         filteredEvent.type === "run.succeeded" ||
         filteredEvent.type === "run.failed" ||
-        filteredEvent.type === "run.cancelled"
+        filteredEvent.type === "run.cancelled";
+
+      if (
+        !sseWriter.enqueue(filteredEvent.type, filteredEvent, {
+          endAfterWrite: shouldEnd,
+        })
       ) {
-        response.end();
+        unsubscribe();
+        return;
+      }
+
+      if (shouldEnd) {
+        unsubscribe();
       }
     });
 
-    request.on("close", unsubscribe);
+    const cleanup = () => {
+      unsubscribe();
+      sseWriter.close();
+    };
+
+    request.on("close", cleanup);
+    response.on("close", cleanup);
   });
 
   router.post("/api/v1/runs/:runId/cancellation", async (request, response, next) => {
