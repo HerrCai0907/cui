@@ -69,24 +69,7 @@
   align-items: center;
   justify-content: space-between;
   min-height: 36px;
-  gap: 10px;
-}
-
-.sidebar-header strong {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  color: #111827;
-  font-size: 0.98rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sidebar-header span {
-  display: block;
-  margin-top: 2px;
-  color: #6b7280;
-  font-size: 0.78rem;
+  gap: 6px;
 }
 
 .icon-button,

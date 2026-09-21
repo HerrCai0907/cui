@@ -165,9 +165,23 @@ export function SessionSidebar({
     >
       <div className="sidebar-header">
         {contentVisible && (
-          <div>
-            <strong>Coding Assistant</strong>
-          </div>
+          <>
+            <button className="new-session" type="button" onClick={() => onStartNewSession()}>
+              <Plus size={16} />
+              New session
+            </button>
+
+            <button
+              className={`icon-button sidebar-config-button ${configOpen ? "is-active" : ""}`}
+              type="button"
+              aria-current={configOpen ? "page" : undefined}
+              aria-label="Config"
+              title="Config"
+              onClick={onOpenConfig}
+            >
+              <Settings size={18} />
+            </button>
+          </>
         )}
         <button
           className="icon-button"
@@ -189,21 +203,6 @@ export function SessionSidebar({
             />
           ) : (
             <>
-              <button className="new-session" type="button" onClick={() => onStartNewSession()}>
-                <Plus size={16} />
-                New session
-              </button>
-
-              <button
-                className={`sidebar-nav-button ${configOpen ? "is-active" : ""}`}
-                type="button"
-                aria-current={configOpen ? "page" : undefined}
-                onClick={onOpenConfig}
-              >
-                <Settings size={16} />
-                Config
-              </button>
-
               <div className="session-mode-switch" role="group" aria-label="Session list mode">
                 <button
                   className={sessionListMode === "active" ? "is-selected" : ""}
