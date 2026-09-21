@@ -5,11 +5,23 @@ test("Codex uses harness defaults and persists custom model IDs without a TraeX 
   page,
 }) => {
   await mockSessions(page, []);
+  await page.route("**/api/v1/health", async (route) => {
+    await route.fulfill({
+      json: {
+        status: "ok",
+        service: "@cui/api",
+        time: new Date().toISOString(),
+      },
+    });
+  });
   let catalogRequests = 0;
   page.on("request", (request) => {
     if (new URL(request.url()).pathname === "/api/v1/models") catalogRequests++;
   });
   await page.goto("/config");
+  await expect(page.getByRole("status").filter({ hasText: "Server latency" })).toContainText(
+    /\d+ ms/,
+  );
   await expect(page.getByLabel("AI harness", { exact: true })).toHaveValue("traex");
   await expect.poll(() => catalogRequests).toBeGreaterThan(0);
   await page.getByLabel("AI harness", { exact: true }).selectOption("codex");

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Check, KeyRound, RotateCcw, Server } from "lucide-react";
+import { Activity, Check, KeyRound, RotateCcw, Server } from "lucide-react";
+import { resolveApiUrl } from "../../../shared/api/apiBaseUrl";
 import {
   AI_HARNESSES,
   AI_HARNESS_LABELS,
@@ -35,12 +36,24 @@ type ConfigPageProps = {
   onConfigChange: (config: AppConfig) => void;
 };
 
+type ServerLatencyState = {
+  latencyMs: number | null;
+  status: "checking" | "connected" | "unavailable";
+};
+
+const LATENCY_CHECK_INTERVAL_MS = 5_000;
+const LATENCY_CHECK_TIMEOUT_MS = 4_000;
+
 export function ConfigPage({ config, models, modelsError, onConfigChange }: ConfigPageProps) {
   const modelOptions = createVisibleModelOptions(models, config);
   const sshBridgeAvailable = isAndroidSshTunnelAvailable();
   const [sshTunnelDraft, setSshTunnelDraft] = useState(config.sshTunnel);
   const [sshTunnelStatus, setSshTunnelStatus] = useState<AndroidSshTunnelStatus | null>(null);
   const [sshTunnelError, setSshTunnelError] = useState<string | null>(null);
+  const [serverLatency, setServerLatency] = useState<ServerLatencyState>({
+    latencyMs: null,
+    status: "checking",
+  });
 
   useEffect(() => {
     const androidConfig = loadAndroidSshTunnelConfig();
@@ -53,6 +66,68 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
     setSshTunnelDraft(androidConfig);
     setSshTunnelStatus(getAndroidSshTunnelStatus());
   }, [config.sshTunnel]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timeoutId: number | undefined;
+    let intervalId: number | undefined;
+    let abortController: AbortController | null = null;
+
+    const measureLatency = async () => {
+      abortController?.abort();
+      abortController = new AbortController();
+
+      const startedAt = performance.now();
+      timeoutId = window.setTimeout(() => abortController?.abort(), LATENCY_CHECK_TIMEOUT_MS);
+
+      setServerLatency((current) => ({
+        ...current,
+        status: current.latencyMs === null ? "checking" : current.status,
+      }));
+
+      try {
+        const response = await fetch(resolveApiUrl("/api/v1/health"), {
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache",
+          },
+          signal: abortController.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const latencyMs = Math.max(0, Math.round(performance.now() - startedAt));
+
+        if (!cancelled) {
+          setServerLatency({ latencyMs, status: "connected" });
+        }
+      } catch {
+        if (!cancelled) {
+          setServerLatency({ latencyMs: null, status: "unavailable" });
+        }
+      } finally {
+        if (timeoutId !== undefined) {
+          window.clearTimeout(timeoutId);
+        }
+      }
+    };
+
+    void measureLatency();
+    intervalId = window.setInterval(measureLatency, LATENCY_CHECK_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      abortController?.abort();
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
+      if (intervalId !== undefined) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, []);
 
   function saveSshTunnel() {
     try {
@@ -161,6 +236,24 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
 
   return (
     <div className="config-page">
+      <div
+        className={`server-latency-floating is-${serverLatency.status}`}
+        role="status"
+        aria-live="polite"
+      >
+        <Activity size={16} aria-hidden="true" />
+        <span>
+          <strong>Server latency</strong>
+          <span>
+            {serverLatency.status === "connected" && serverLatency.latencyMs !== null
+              ? `${serverLatency.latencyMs} ms`
+              : serverLatency.status === "checking"
+                ? "Checking"
+                : "Unavailable"}
+          </span>
+        </span>
+      </div>
+
       <section className="config-section" aria-labelledby="vscode-config-heading">
         <div className="config-section-header">
           <div>
