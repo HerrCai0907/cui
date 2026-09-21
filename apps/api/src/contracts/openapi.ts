@@ -40,6 +40,8 @@ import {
   WithdrawQueuedPromptsResponseSchema,
   WorkspaceGitInfoQuerySchema,
   WorkspaceGitInfoResponseSchema,
+  WorkspacePathSuggestionsQuerySchema,
+  WorkspacePathSuggestionsResponseSchema,
 } from "./apiSchemas.js";
 
 const registry = new OpenAPIRegistry();
@@ -57,6 +59,7 @@ registry.register("QueuedPrompt", QueuedPromptSchema);
 registry.register("AiModelPreferences", AiModelPreferencesSchema);
 registry.register("CodeRangeResponse", CodeRangeResponseSchema);
 registry.register("WorkspaceGitInfoResponse", WorkspaceGitInfoResponseSchema);
+registry.register("WorkspacePathSuggestionsResponse", WorkspacePathSuggestionsResponseSchema);
 registry.register("CreateSessionRequest", CreateSessionRequestSchema);
 registry.register("CreateSessionResponse", CreateSessionResponseSchema);
 registry.register("CreateRunRequest", CreateRunRequestSchema);
@@ -77,6 +80,20 @@ const errorResponse = {
     },
   },
 };
+
+registry.registerPath({
+  method: "get",
+  path: "/api/v1/workspaces/path-suggestions",
+  summary: "Complete a workspace directory path on the API host",
+  request: { query: WorkspacePathSuggestionsQuerySchema },
+  responses: {
+    200: {
+      description: "Matching directory paths with trailing slashes (up to 50).",
+      content: { "application/json": { schema: WorkspacePathSuggestionsResponseSchema } },
+    },
+    400: errorResponse,
+  },
+});
 
 registry.registerPath({
   method: "get",

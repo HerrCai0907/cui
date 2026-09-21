@@ -7,10 +7,30 @@ import {
   type CodeQueryService,
 } from "../../domain/code/CodeQueryService.js";
 import { InvalidPathError } from "../../domain/paths/pathValidation.js";
-import { parseCodeRangeQuery, parseWorkspaceGitInfoQuery } from "../validation/requestParsers.js";
+import { suggestWorkspacePaths } from "../../domain/paths/workspacePaths.js";
+import {
+  parseCodeRangeQuery,
+  parseWorkspaceGitInfoQuery,
+  parseWorkspacePathSuggestionsQuery,
+} from "../validation/requestParsers.js";
 
 export function createCodeRouter(codeQueryService: CodeQueryService): Router {
   const router = Router();
+
+  router.get("/api/v1/workspaces/path-suggestions", async (request, response, next) => {
+    try {
+      const parsed = parseWorkspacePathSuggestionsQuery(request.query);
+
+      if (!parsed.ok) {
+        response.status(400).json({ error: parsed.error });
+        return;
+      }
+
+      response.json({ suggestions: await suggestWorkspacePaths(parsed.value.path) });
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.get("/api/v1/workspaces/git-info", async (request, response, next) => {
     try {

@@ -1153,6 +1153,75 @@
   box-shadow: 0 0 0 3px rgb(109 138 167 / 16%);
 }
 
+.workspace-path-input {
+  position: relative;
+}
+
+.workspace-path-dropdown {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  overflow: hidden;
+  border: 1px solid #cfd8e3;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgb(23 32 42 / 12%);
+}
+
+.workspace-path-dropdown ul {
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+}
+
+.workspace-path-dropdown li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 4px;
+  color: #17202a;
+  padding: 8px;
+  cursor: pointer;
+}
+
+.workspace-path-dropdown li:hover,
+.workspace-path-dropdown li[aria-selected="true"] {
+  background: #edf3f8;
+}
+
+.workspace-path-dropdown svg {
+  flex-shrink: 0;
+  color: #6d8aa7;
+}
+
+.workspace-path-label {
+  display: flex;
+  min-width: 0;
+}
+
+.workspace-path-parent,
+.workspace-path-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-path-name {
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
+.workspace-path-hint {
+  border-top: 1px solid #e7edf3;
+  color: #596675;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+}
+
 .queued-prompts {
   display: grid;
   width: min(760px, 100%);

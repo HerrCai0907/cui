@@ -341,6 +341,17 @@ export const WorkspaceGitInfoQuerySchema = z.object({
   workspace: nonEmptyStringSchema,
 });
 
+export const WorkspacePathSuggestionsQuerySchema = z.object({
+  path: z
+    .string()
+    .max(4096)
+    .refine((path) => !path.includes("\0"), "Invalid path"),
+});
+
+export const WorkspacePathSuggestionsResponseSchema = z.object({
+  suggestions: z.array(z.string()),
+});
+
 const startLineSchema = z.coerce
   .number("startLine must be a positive integer")
   .int("startLine must be a positive integer")

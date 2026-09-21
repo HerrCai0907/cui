@@ -11,6 +11,13 @@ type GetWorkspaceGitInfoResponse =
 export type CodeRangeResult = GetCodeResponse;
 export type WorkspaceGitInfo = GetWorkspaceGitInfoResponse;
 
+export async function getWorkspacePathSuggestions(path: string, signal: AbortSignal) {
+  const params = new URLSearchParams({ path });
+  return fetchJson<
+    paths["/api/v1/workspaces/path-suggestions"]["get"]["responses"][200]["content"]["application/json"]
+  >(`/api/v1/workspaces/path-suggestions?${params.toString()}`, { signal });
+}
+
 export async function getCodeRange(query: GetCodeQuery): Promise<CodeRangeResult> {
   const params = new URLSearchParams({ filePath: query.filePath });
 
