@@ -24,13 +24,9 @@ import {
 import { parseAtomicDiffReviewItems } from "./atomicDiffReviewParser.js";
 import { parseConversationSummary } from "./conversationSummaryParser.js";
 import type { AiHarnessBinaryConfig } from "./aiBinary.js";
-import {
-  extractResponseDeltas,
-  extractThreadId,
-  formatTraceEvents,
-  toTraceEvent,
-} from "./aiEvents.js";
+import { extractResponseDeltas, extractThreadId, toTraceEvent } from "./aiEvents.js";
 import { runAiProcess, type AiProcessRun } from "./aiProcess.js";
+import { formatTraceEventsInWorker } from "./formatTraceEventsInWorker.js";
 
 export type AiProcessRunner = (input: Parameters<typeof runAiProcess>[0]) => AiProcessRun;
 
@@ -301,12 +297,18 @@ export abstract class CliAiModel implements AiModel {
 
         sessionIdSignal.resolve(sessionId);
 
-        const responseContent = this.resolveResponseContent(content, rawEvents);
+        const [responseContent, trace] = await Promise.all([
+          Promise.resolve(this.resolveResponseContent(content, rawEvents)),
+          formatTraceEventsInWorker(rawEvents, binaryConfig.harness, {
+            compact: true,
+            includeRaw: false,
+          }),
+        ]);
 
         return {
           sessionId,
           content: responseContent,
-          trace: formatTraceEvents(rawEvents, binaryConfig.harness),
+          trace,
           ...(captureDiff
             ? {
                 gitDiff: {

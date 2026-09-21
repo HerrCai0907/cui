@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { RunStreamEvent } from "./runEvents.js";
+import { compactRunStreamEvent, type RunStreamEvent } from "./runEvents.js";
 
 const DEFAULT_MAX_STORED_RUN_EVENTS = 500;
 
@@ -101,9 +101,10 @@ export class RunRegistry {
   }
 
   emitRunEvent(run: RunningRun, event: RunStreamEvent): void {
+    const compactedEvent = compactRunStreamEvent(event);
     const storedEvent = {
       id: run.nextEventId,
-      event,
+      event: compactedEvent,
     };
 
     run.nextEventId += 1;
@@ -114,12 +115,12 @@ export class RunRegistry {
     run.subscribers.forEach((subscriber) => subscriber(storedEvent));
 
     if (
-      event.type === "run.succeeded" ||
-      event.type === "run.failed" ||
-      event.type === "run.cancelled"
+      compactedEvent.type === "run.succeeded" ||
+      compactedEvent.type === "run.failed" ||
+      compactedEvent.type === "run.cancelled"
     ) {
       run.completed = true;
-      run.resolveCompletion(event);
+      run.resolveCompletion(compactedEvent);
       this.activeSessionIds.delete(run.sessionId);
       setTimeout(
         () => {

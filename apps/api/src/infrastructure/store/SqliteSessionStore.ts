@@ -59,6 +59,7 @@ type QueuedPromptRow = {
   prompt: string;
   models_json: string | null;
   created_at: string;
+  order_index: number;
 };
 
 export class SqliteSessionStore implements SessionStore {
@@ -128,41 +129,72 @@ export class SqliteSessionStore implements SessionStore {
   }
 
   async appendMessages(sessionId: string, messages: ChatMessage[]): Promise<ChatSession> {
-    return this.updateExistingSession(sessionId, (session) => ({
-      ...session,
-      updatedAt: new Date().toISOString(),
-      doneAt: undefined,
-      messages: [...session.messages, ...messages],
-    }));
+    let updatedSession: ChatSession | undefined;
+
+    this.db.transaction(() => {
+      if (!this.getSessionRow(sessionId)) {
+        return;
+      }
+
+      const firstOrderIndex = this.getNextMessageOrderIndex(sessionId);
+
+      messages.forEach((message, index) =>
+        this.insertMessage(sessionId, message, firstOrderIndex + index),
+      );
+      this.updateSessionRunState(sessionId, {
+        updatedAt: new Date().toISOString(),
+        doneAt: null,
+      });
+      updatedSession = this.getSessionSync(sessionId);
+    })();
+
+    if (!updatedSession) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    return updatedSession;
   }
 
   async enqueuePrompt(sessionId: string, prompt: QueuedPrompt): Promise<ChatSession> {
-    return this.updateExistingSession(sessionId, (session) => ({
-      ...session,
-      updatedAt: new Date().toISOString(),
-      doneAt: undefined,
-      queuedPrompts: [...(session.queuedPrompts ?? []), prompt],
-    }));
+    let updatedSession: ChatSession | undefined;
+
+    this.db.transaction(() => {
+      if (!this.getSessionRow(sessionId)) {
+        return;
+      }
+
+      this.insertQueuedPrompt(sessionId, prompt, this.getNextQueuedPromptOrderIndex(sessionId));
+      this.updateSessionRunState(sessionId, {
+        updatedAt: new Date().toISOString(),
+        doneAt: null,
+      });
+      updatedSession = this.getSessionSync(sessionId);
+    })();
+
+    if (!updatedSession) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    return updatedSession;
   }
 
   async shiftQueuedPrompt(sessionId: string): Promise<QueuedPrompt | undefined> {
     let shiftedPrompt: QueuedPrompt | undefined;
 
     this.db.transaction(() => {
-      const session = this.getSessionSync(sessionId);
+      const row = this.db
+        .prepare(
+          "SELECT * FROM queued_prompts WHERE session_id = ? ORDER BY order_index ASC LIMIT 1",
+        )
+        .get(sessionId) as QueuedPromptRow | undefined;
 
-      if (!session) {
+      if (!row) {
         return;
       }
 
-      const [nextPrompt, ...remainingPrompts] = session.queuedPrompts ?? [];
-
-      if (!nextPrompt) {
-        return;
-      }
-
-      shiftedPrompt = nextPrompt;
-      this.replaceSession({ ...session, queuedPrompts: remainingPrompts });
+      shiftedPrompt = toQueuedPrompt(row);
+      this.db.prepare("DELETE FROM queued_prompts WHERE id = ?").run(row.id);
+      this.updateQueuedPromptCount(sessionId);
     })();
 
     return shiftedPrompt;
@@ -175,32 +207,38 @@ export class SqliteSessionStore implements SessionStore {
     let result: { session: ChatSession; removedPrompts: QueuedPrompt[] } | undefined;
 
     this.db.transaction(() => {
-      const session = this.getSessionSync(sessionId);
+      const session = this.getSessionRow(sessionId);
 
       if (!session) {
         return;
       }
 
-      const queuedPrompts = session.queuedPrompts ?? [];
-      const queuedPromptIndex = queuedPrompts.findIndex(
+      const queuedPromptRows = this.listQueuedPromptRows(sessionId);
+      const queuedPromptIndex = queuedPromptRows.findIndex(
         (queuedPrompt) => queuedPrompt.id === queuedPromptId,
       );
 
       if (queuedPromptIndex === -1) {
-        result = { session, removedPrompts: [] };
+        result = { session: this.hydrateSession(session), removedPrompts: [] };
         return;
       }
 
+      const removedRows = queuedPromptRows.slice(queuedPromptIndex);
       const updatedSession = {
-        ...session,
+        ...this.hydrateSession(session),
         updatedAt: new Date().toISOString(),
-        queuedPrompts: queuedPrompts.slice(0, queuedPromptIndex),
+        queuedPrompts: queuedPromptRows.slice(0, queuedPromptIndex).map(toQueuedPrompt),
       };
 
-      this.replaceSession(updatedSession);
+      this.db
+        .prepare("DELETE FROM queued_prompts WHERE session_id = ? AND order_index >= ?")
+        .run(sessionId, queuedPromptRows[queuedPromptIndex].order_index);
+      this.updateSessionRunState(sessionId, {
+        updatedAt: updatedSession.updatedAt,
+      });
       result = {
         session: updatedSession,
-        removedPrompts: queuedPrompts.slice(queuedPromptIndex),
+        removedPrompts: removedRows.map(toQueuedPrompt),
       };
     })();
 
@@ -212,17 +250,34 @@ export class SqliteSessionStore implements SessionStore {
     round: ChatRound | undefined,
     messages: ChatMessage[],
   ): Promise<ChatSession> {
-    return this.updateExistingSession(sessionId, (session) => {
-      const nextRounds = round ? [...(session.rounds ?? []), round] : (session.rounds ?? []);
+    let updatedSession: ChatSession | undefined;
 
-      return {
-        ...session,
+    this.db.transaction(() => {
+      if (!this.getSessionRow(sessionId)) {
+        return;
+      }
+
+      if (round) {
+        this.upsertRound(sessionId, round);
+      }
+
+      const firstOrderIndex = this.getNextMessageOrderIndex(sessionId);
+
+      messages.forEach((message, index) =>
+        this.insertMessage(sessionId, message, firstOrderIndex + index),
+      );
+      this.updateSessionRunState(sessionId, {
         updatedAt: new Date().toISOString(),
-        doneAt: undefined,
-        messages: [...session.messages, ...messages],
-        ...(nextRounds.length > 0 ? { rounds: nextRounds } : { rounds: undefined }),
-      };
-    });
+        doneAt: null,
+      });
+      updatedSession = this.getSessionSync(sessionId);
+    })();
+
+    if (!updatedSession) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    return updatedSession;
   }
 
   async updateSessionAiThreadId(
@@ -230,11 +285,18 @@ export class SqliteSessionStore implements SessionStore {
     aiThreadId: string,
     aiHarness: ChatSession["aiHarness"],
   ): Promise<ChatSession> {
-    return this.updateExistingSession(sessionId, (session) => ({
-      ...session,
-      aiThreadId,
-      ...(aiHarness ? { aiHarness } : {}),
-    }));
+    const statement = aiHarness
+      ? this.db.prepare("UPDATE sessions SET ai_thread_id = ?, ai_harness = ? WHERE id = ?")
+      : this.db.prepare("UPDATE sessions SET ai_thread_id = ? WHERE id = ?");
+    const result = aiHarness
+      ? statement.run(aiThreadId, aiHarness, sessionId)
+      : statement.run(aiThreadId, sessionId);
+
+    if (result.changes === 0) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    return this.getRequiredSessionSync(sessionId);
   }
 
   async getRound(sessionId: string, roundNumber: number): Promise<ChatRound | undefined> {
@@ -270,19 +332,39 @@ export class SqliteSessionStore implements SessionStore {
     sessionId: string,
     summary: Pick<ChatSession, "title" | "summary">,
   ): Promise<ChatSession> {
-    return this.updateExistingSession(sessionId, (session) => ({
-      ...session,
-      title: summary.title,
-      summary: summary.summary,
-    }));
+    const result = this.db
+      .prepare("UPDATE sessions SET title = ?, summary = ? WHERE id = ?")
+      .run(summary.title, summary.summary, sessionId);
+
+    if (result.changes === 0) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    return this.getRequiredSessionSync(sessionId);
   }
 
   async updateSessionDoneAt(sessionId: string, doneAt: string | undefined): Promise<ChatSession> {
-    return this.updateExistingSession(sessionId, (session) => ({ ...session, doneAt }));
+    const result = this.db
+      .prepare("UPDATE sessions SET done_at = ? WHERE id = ?")
+      .run(doneAt ?? null, sessionId);
+
+    if (result.changes === 0) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    return this.getRequiredSessionSync(sessionId);
   }
 
   async updateSessionPinned(sessionId: string, pinned: boolean): Promise<ChatSession> {
-    return this.updateExistingSession(sessionId, (session) => ({ ...session, pinned }));
+    const result = this.db
+      .prepare("UPDATE sessions SET pinned = ? WHERE id = ?")
+      .run(pinned ? 1 : 0, sessionId);
+
+    if (result.changes === 0) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    return this.getRequiredSessionSync(sessionId);
   }
 
   getArtifactDirectoryPath(): string {
@@ -293,34 +375,20 @@ export class SqliteSessionStore implements SessionStore {
     this.db.close();
   }
 
-  private updateExistingSession(
-    sessionId: string,
-    update: (session: ChatSession) => ChatSession,
-  ): ChatSession {
-    let updatedSession: ChatSession | undefined;
-
-    this.db.transaction(() => {
-      const session = this.getSessionSync(sessionId);
-
-      if (!session) {
-        return;
-      }
-
-      updatedSession = update(session);
-      this.replaceSession(updatedSession);
-    })();
-
-    if (!updatedSession) {
-      throw new Error(`Session not found: ${sessionId}`);
-    }
-
-    return updatedSession;
-  }
-
   private getSessionSync(sessionId: string): ChatSession | undefined {
     const session = this.getSessionRow(sessionId);
 
     return session ? this.hydrateSession(session) : undefined;
+  }
+
+  private getRequiredSessionSync(sessionId: string): ChatSession {
+    const session = this.getSessionSync(sessionId);
+
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    return session;
   }
 
   private listSessionRows(): SessionRow[] {
@@ -373,11 +441,13 @@ export class SqliteSessionStore implements SessionStore {
   }
 
   private listQueuedPrompts(sessionId: string): QueuedPrompt[] {
-    return (
-      this.db
-        .prepare("SELECT * FROM queued_prompts WHERE session_id = ? ORDER BY order_index ASC")
-        .all(sessionId) as QueuedPromptRow[]
-    ).map(toQueuedPrompt);
+    return this.listQueuedPromptRows(sessionId).map(toQueuedPrompt);
+  }
+
+  private listQueuedPromptRows(sessionId: string): QueuedPromptRow[] {
+    return this.db
+      .prepare("SELECT * FROM queued_prompts WHERE session_id = ? ORDER BY order_index ASC")
+      .all(sessionId) as QueuedPromptRow[];
   }
 
   private replaceSession(session: ChatSession): void {
@@ -485,6 +555,94 @@ export class SqliteSessionStore implements SessionStore {
         prompt.createdAt,
         orderIndex,
       );
+  }
+
+  private getNextMessageOrderIndex(sessionId: string): number {
+    return this.getNextOrderIndex("messages", sessionId);
+  }
+
+  private getNextQueuedPromptOrderIndex(sessionId: string): number {
+    return this.getNextOrderIndex("queued_prompts", sessionId);
+  }
+
+  private getNextOrderIndex(tableName: "messages" | "queued_prompts", sessionId: string): number {
+    const row = this.db
+      .prepare(
+        `SELECT COALESCE(MAX(order_index) + 1, 0) AS next_order_index FROM ${tableName} WHERE session_id = ?`,
+      )
+      .get(sessionId) as { next_order_index: number };
+
+    return row.next_order_index;
+  }
+
+  private updateSessionRunState(
+    sessionId: string,
+    options: {
+      updatedAt: string;
+      doneAt?: string | null;
+    },
+  ): void {
+    const currentRound = this.getCurrentRound(sessionId);
+
+    if ("doneAt" in options) {
+      this.db
+        .prepare(
+          `UPDATE sessions
+          SET updated_at = ?, done_at = ?, current_round = ?, queued_prompt_count = (
+            SELECT COUNT(*) FROM queued_prompts WHERE session_id = ?
+          )
+          WHERE id = ?`,
+        )
+        .run(options.updatedAt, options.doneAt ?? null, currentRound, sessionId, sessionId);
+      return;
+    }
+
+    this.db
+      .prepare(
+        `UPDATE sessions
+        SET updated_at = ?, current_round = ?, queued_prompt_count = (
+          SELECT COUNT(*) FROM queued_prompts WHERE session_id = ?
+        )
+        WHERE id = ?`,
+      )
+      .run(options.updatedAt, currentRound, sessionId, sessionId);
+  }
+
+  private updateQueuedPromptCount(sessionId: string): void {
+    this.db
+      .prepare(
+        `UPDATE sessions
+        SET queued_prompt_count = (
+          SELECT COUNT(*) FROM queued_prompts WHERE session_id = ?
+        )
+        WHERE id = ?`,
+      )
+      .run(sessionId, sessionId);
+  }
+
+  private getCurrentRound(sessionId: string): number {
+    const maxStoredRound = this.getIntegerValue(
+      "SELECT COALESCE(MAX(round), 0) AS value FROM rounds WHERE session_id = ?",
+      sessionId,
+    );
+    const maxMessageRound = this.getIntegerValue(
+      "SELECT COALESCE(MAX(round), 0) AS value FROM messages WHERE session_id = ?",
+      sessionId,
+    );
+    const assistantTraceCount = this.getIntegerValue(
+      "SELECT COUNT(*) AS value FROM messages WHERE session_id = ? AND role = 'assistant' AND kind = 'trace'",
+      sessionId,
+    );
+    const assistantResponseCount = this.getIntegerValue(
+      "SELECT COUNT(*) AS value FROM messages WHERE session_id = ? AND role = 'assistant' AND kind = 'response'",
+      sessionId,
+    );
+
+    return Math.max(maxStoredRound, maxMessageRound, assistantTraceCount, assistantResponseCount);
+  }
+
+  private getIntegerValue(sql: string, sessionId: string): number {
+    return (this.db.prepare(sql).get(sessionId) as { value: number }).value;
   }
 
   private getRoundSync(sessionId: string, roundNumber: number): ChatRound | undefined {

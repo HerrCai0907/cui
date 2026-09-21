@@ -301,6 +301,31 @@ test("trace formatting excludes Codex assistant responses", () => {
   );
 });
 
+test("trace formatting can compact persisted trace payloads", () => {
+  const trace = formatTraceEvents(
+    [
+      {
+        type: "item.completed",
+        item: {
+          id: "command_1",
+          type: "command_execution",
+          command: "npm test",
+          aggregated_output: "x".repeat(300_000),
+          raw_payload: "y".repeat(300_000),
+        },
+      },
+    ],
+    undefined,
+    { compact: true, includeRaw: false },
+  );
+  const [event] = trace.split("\n").map((line) => JSON.parse(line));
+
+  assert.equal(event.type, "command_execution");
+  assert.equal("raw" in event, false);
+  assert.ok(event.aggregatedOutput.length < 300_000);
+  assert.match(event.aggregatedOutput, /\[truncated: \d+ more characters\]$/);
+});
+
 test("streaming trace events are already normalized for frontend consumption", () => {
   assert.deepEqual(
     toTraceEvent(
