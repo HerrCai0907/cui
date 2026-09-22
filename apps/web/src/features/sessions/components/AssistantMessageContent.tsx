@@ -45,6 +45,12 @@ type CodeCardDragState = {
   offsetY: number;
 };
 
+type CodeCardPointerDownState = {
+  at: number;
+  x: number;
+  y: number;
+};
+
 export function AssistantMessageContent({
   content,
   workspace,
@@ -144,11 +150,14 @@ function isExternalHref(href: string): boolean {
 function CodePreviewButton({ label, target }: { label: string; target: CodeLinkTarget }) {
   const previewRef = useRef<HTMLSpanElement | null>(null);
   const dragStateRef = useRef<CodeCardDragState | null>(null);
+  const lastHeaderPointerDownRef = useRef<CodeCardPointerDownState | undefined>(undefined);
+  const copyFeedbackTimerRef = useRef<number | undefined>(undefined);
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<CodePreviewState>({ status: "idle" });
   const [query, setQuery] = useState<CodeLinkTarget>(() => getInitialCodePreviewQuery(target));
   const [cardOffset, setCardOffset] = useState<CodeCardOffset>({ x: 0, y: 0 });
   const [isDraggingCard, setIsDraggingCard] = useState(false);
+  const [pathCopied, setPathCopied] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -169,6 +178,14 @@ function CodePreviewButton({ label, target }: { label: string; target: CodeLinkT
       document.removeEventListener("pointerdown", closeOnOutsidePointerDown);
     };
   }, [open]);
+
+  useEffect(() => {
+    return () => {
+      if (copyFeedbackTimerRef.current !== undefined) {
+        window.clearTimeout(copyFeedbackTimerRef.current);
+      }
+    };
+  }, []);
 
   async function openPreview() {
     if (open) {
@@ -224,11 +241,48 @@ function CodePreviewButton({ label, target }: { label: string; target: CodeLinkT
     });
   }
 
+  async function copyCodePath(targetElement: EventTarget) {
+    if (isInteractiveDragTarget(targetElement) || !navigator.clipboard) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(target.filePath);
+    setPathCopied(true);
+
+    if (copyFeedbackTimerRef.current !== undefined) {
+      window.clearTimeout(copyFeedbackTimerRef.current);
+    }
+
+    copyFeedbackTimerRef.current = window.setTimeout(() => {
+      setPathCopied(false);
+      copyFeedbackTimerRef.current = undefined;
+    }, 1200);
+  }
+
   function startCardDrag(event: ReactPointerEvent<HTMLElement>) {
     if (event.button !== 0 || isInteractiveDragTarget(event.target)) {
       return;
     }
 
+    const previousPointerDown = lastHeaderPointerDownRef.current;
+    const isDoublePointerDown =
+      previousPointerDown !== undefined &&
+      window.performance.now() - previousPointerDown.at <= 500 &&
+      Math.abs(event.clientX - previousPointerDown.x) <= 6 &&
+      Math.abs(event.clientY - previousPointerDown.y) <= 6;
+
+    if (event.detail >= 2 || isDoublePointerDown) {
+      lastHeaderPointerDownRef.current = undefined;
+      void copyCodePath(event.target);
+      event.preventDefault();
+      return;
+    }
+
+    lastHeaderPointerDownRef.current = {
+      at: window.performance.now(),
+      x: event.clientX,
+      y: event.clientY,
+    };
     dragStateRef.current = {
       pointerId: event.pointerId,
       originX: event.clientX,
@@ -296,6 +350,8 @@ function CodePreviewButton({ label, target }: { label: string; target: CodeLinkT
             onPointerMove={dragCard}
             onPointerUp={stopCardDrag}
             onPointerCancel={stopCardDrag}
+            onDoubleClick={(event) => void copyCodePath(event.target)}
+            title="Double-click to copy code path"
           >
             <span className="message-code-card-title">
               {target.filePath}
@@ -303,6 +359,7 @@ function CodePreviewButton({ label, target }: { label: string; target: CodeLinkT
                 ? `:${query.startLine}${query.startLine === query.endLine ? "" : `-${query.endLine}`}`
                 : ""}
             </span>
+            {pathCopied && <span className="message-code-card-copy-status">Copied</span>}
             <button
               className="message-code-card-close"
               type="button"

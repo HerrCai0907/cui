@@ -605,6 +605,19 @@ test("supports expandable assistant code previews", async ({ page }) => {
   };
   const requests: string[] = [];
 
+  await page.addInitScript(() => {
+    let clipboardText = "";
+
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        readText: async () => clipboardText,
+        writeText: async (value: string) => {
+          clipboardText = value;
+        },
+      },
+    });
+  });
   await mockSessions(page, [session]);
   await mockSession(page, session);
   await page.route("**/api/v1/source-files/content?**", async (route) => {
@@ -632,6 +645,14 @@ test("supports expandable assistant code previews", async ({ page }) => {
   await expect(preview).toBeVisible();
   await expect(preview).toContainText("Lines 20-30");
   expect(requests).toEqual(["20-30"]);
+
+  await preview.locator(".message-code-card-header").dblclick();
+  await expect(preview.locator(".message-code-card-copy-status")).toHaveText("Copied");
+  await expect
+    .poll(async () => {
+      return await page.evaluate(() => navigator.clipboard.readText());
+    })
+    .toBe(filePath);
 
   await page.getByRole("button", { name: "Show 10 previous lines" }).click();
   await expect(preview).toContainText("Lines 10-30");
