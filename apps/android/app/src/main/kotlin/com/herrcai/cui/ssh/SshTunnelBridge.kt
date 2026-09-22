@@ -3,11 +3,13 @@ package com.herrcai.cui.ssh
 import android.content.Context
 import android.os.PowerManager
 import android.webkit.JavascriptInterface
+import com.herrcai.cui.notifications.SessionCompletionNotifier
 import org.json.JSONException
 
 class SshTunnelBridge(
     context: Context,
     onConnected: () -> Unit,
+    private val sessionCompletionNotifier: SessionCompletionNotifier,
 ) : AutoCloseable {
     private val configStore = TunnelConfigStore(context)
     private val tunnelManager = SshTunnelManager(
@@ -39,6 +41,11 @@ class SshTunnelBridge(
     fun getApiBaseUrl(): String {
         val config = configStore.load()
         return if (config.isReady) "http://localhost:${config.localPort}" else ""
+    }
+
+    @JavascriptInterface
+    fun notifySessionCompleted(sessionId: String, sessionTitle: String) {
+        sessionCompletionNotifier.notifySessionCompleted(sessionId, sessionTitle)
     }
 
     fun startIfEnabled() {
