@@ -556,6 +556,7 @@ test("shows the active session branch in the right side of the title bar", async
 });
 
 test("renders assistant inline and fenced code blocks", async ({ page }) => {
+  const code = "const ok = true;";
   const session = {
     id: "session-1",
     workspace: currentWorkspace,
@@ -567,21 +568,41 @@ test("renders assistant inline and fenced code blocks", async ({ page }) => {
         id: "message-1",
         role: "assistant",
         kind: "response",
-        content: "Use `npm test` before merging.\n\n```ts\nconst ok = true;\n```",
+        content: `Use \`npm test\` before merging.\n\n\`\`\`ts\n${code}\n\`\`\``,
         createdAt: "2026-08-22T00:00:00.000Z",
       },
     ],
     rounds: [],
   };
 
+  await page.addInitScript(() => {
+    let clipboardText = "";
+
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        readText: async () => clipboardText,
+        writeText: async (value: string) => {
+          clipboardText = value;
+        },
+      },
+    });
+  });
   await mockSessions(page, [session]);
   await mockSession(page, session);
 
   await page.goto("/");
 
   await expect(page.locator(".message-inline-code")).toHaveText("npm test");
-  await expect(page.locator(".message-code-block code")).toHaveText("const ok = true;");
+  await expect(page.locator(".message-code-block code")).toHaveText(code);
   await expect(page.locator(".message-code-block code")).toHaveAttribute("data-language", "ts");
+
+  await page.getByRole("button", { name: "Copy code block" }).click();
+  await expect
+    .poll(async () => {
+      return await page.evaluate(() => navigator.clipboard.readText());
+    })
+    .toBe(code);
 });
 
 test("supports expandable assistant code previews", async ({ page }) => {

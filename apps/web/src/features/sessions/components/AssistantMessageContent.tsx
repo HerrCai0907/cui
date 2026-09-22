@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, FileCode, Loader2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Copy, FileCode, Loader2, X } from "lucide-react";
 import {
   useEffect,
   useRef,
@@ -64,9 +64,7 @@ export function AssistantMessageContent({
     <div className="message-content">
       {parts.map((part, index) =>
         part.type === "codeBlock" ? (
-          <pre className="message-code-block" key={index}>
-            <code data-language={part.language}>{part.code}</code>
-          </pre>
+          <MessageCodeBlock code={part.code} key={index} language={part.language} />
         ) : part.type === "heading" ? (
           <MessageHeading key={index} level={part.level}>
             {renderInlineContent(part.text, workspace, index)}
@@ -77,6 +75,54 @@ export function AssistantMessageContent({
           </span>
         ),
       )}
+    </div>
+  );
+}
+
+function MessageCodeBlock({ code, language }: { code: string; language?: string }) {
+  const copyFeedbackTimerRef = useRef<number | undefined>(undefined);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (copyFeedbackTimerRef.current !== undefined) {
+        window.clearTimeout(copyFeedbackTimerRef.current);
+      }
+    };
+  }, []);
+
+  async function copyCodeBlock() {
+    if (!navigator.clipboard) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+
+    if (copyFeedbackTimerRef.current !== undefined) {
+      window.clearTimeout(copyFeedbackTimerRef.current);
+    }
+
+    copyFeedbackTimerRef.current = window.setTimeout(() => {
+      setCopied(false);
+      copyFeedbackTimerRef.current = undefined;
+    }, 1200);
+  }
+
+  return (
+    <div className="message-code-block-shell">
+      <button
+        aria-label="Copy code block"
+        className="message-code-block-copy"
+        onClick={copyCodeBlock}
+        title={copied ? "Copied" : "Copy code"}
+        type="button"
+      >
+        {copied ? <Check size={14} /> : <Copy size={14} />}
+      </button>
+      <pre className="message-code-block">
+        <code data-language={language}>{code}</code>
+      </pre>
     </div>
   );
 }
