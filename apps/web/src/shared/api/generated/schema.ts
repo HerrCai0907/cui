@@ -181,7 +181,9 @@ export interface paths {
     /** List available AI models */
     get: {
       parameters: {
-        query?: never;
+        query?: {
+          harness?: "traex" | "codex";
+        };
         header?: never;
         path?: never;
         cookie?: never;
@@ -200,6 +202,12 @@ export interface paths {
                 provider?: string;
                 description?: string;
                 contextWindow?: number;
+                /** @enum {string} */
+                defaultReasoningEffort?:
+                  "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                supportedReasoningEfforts?: (
+                  "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra"
+                )[];
               }[];
             };
           };
@@ -1014,11 +1022,14 @@ export interface paths {
                   atomicReview?: string;
                   reasoningEfforts?: {
                     /** @enum {string} */
-                    normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+                    normal?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
                     /** @enum {string} */
-                    summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+                    summary?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
                     /** @enum {string} */
-                    atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+                    atomicReview?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
                   };
                 };
               }
@@ -1308,11 +1319,13 @@ export interface paths {
               atomicReview?: string;
               reasoningEfforts?: {
                 /** @enum {string} */
-                normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+                normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
                 /** @enum {string} */
-                summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+                summary?:
+                  "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
                 /** @enum {string} */
-                atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+                atomicReview?:
+                  "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
               };
             };
           };
@@ -1963,11 +1976,11 @@ export interface components {
       atomicReview?: string;
       reasoningEfforts?: {
         /** @enum {string} */
-        normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+        normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
         /** @enum {string} */
-        summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+        summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
         /** @enum {string} */
-        atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+        atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
       };
     };
     CodeRangeResponse: {
@@ -2064,11 +2077,12 @@ export interface components {
             atomicReview?: string;
             reasoningEfforts?: {
               /** @enum {string} */
-              normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+              normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
               /** @enum {string} */
-              summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+              summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
               /** @enum {string} */
-              atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+              atomicReview?:
+                "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
             };
           };
         }
@@ -2090,11 +2104,11 @@ export interface components {
         atomicReview?: string;
         reasoningEfforts?: {
           /** @enum {string} */
-          normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+          normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
           /** @enum {string} */
-          summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+          summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
           /** @enum {string} */
-          atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+          atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
         };
       };
     };
@@ -2396,6 +2410,12 @@ export interface components {
         provider?: string;
         description?: string;
         contextWindow?: number;
+        /** @enum {string} */
+        defaultReasoningEffort?:
+          "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+        supportedReasoningEfforts?: (
+          "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra"
+        )[];
       }[];
     };
     RoundReview: {

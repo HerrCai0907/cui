@@ -10,6 +10,24 @@ type ProcessCall = {
   input: string;
 };
 
+test("Codex lists the hardcoded model catalog with reasoning effort support", async () => {
+  const models = await new CodexModel().listModels();
+
+  assert.deepEqual(
+    models.map((model) => model.name),
+    ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5"],
+  );
+  assert.deepEqual(models[0]?.supportedReasoningEfforts, [
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+    "ultra",
+  ]);
+  assert.deepEqual(models.at(-1)?.supportedReasoningEfforts, ["low", "medium", "high", "xhigh"]);
+});
+
 test("Codex streams completed messages and recovers final output from JSONL", async () => {
   const events: AiRunEvent[] = [];
   const model = new CodexModel({

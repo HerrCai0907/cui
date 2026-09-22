@@ -22,6 +22,7 @@ import {
   GetRoundReviewResponseSchema,
   GetSessionResponseSchema,
   HealthResponseSchema,
+  ListModelsQuerySchema,
   ListSessionsQuerySchema,
   ListSessionsResponseSchema,
   ListModelsResponseSchema,
@@ -139,6 +140,9 @@ registry.registerPath({
   method: "get",
   path: "/api/v1/models",
   summary: "List available AI models",
+  request: {
+    query: ListModelsQuerySchema,
+  },
   responses: {
     200: {
       description: "Available AI models from the configured backend.",

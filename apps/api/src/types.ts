@@ -125,7 +125,8 @@ export type AiContinueSessionInput = {
 
 export type AiModelPurpose = "normal" | "summary" | "atomicReview";
 
-export type AiReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+export type AiReasoningEffort =
+  "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
 
 export type AiHarness = "traex" | "codex";
 
@@ -271,6 +272,8 @@ export type AiModelInfo = {
   provider?: string;
   description?: string;
   contextWindow?: number;
+  defaultReasoningEffort?: AiReasoningEffort;
+  supportedReasoningEfforts?: AiReasoningEffort[];
 };
 
 export type AiRunEvent =

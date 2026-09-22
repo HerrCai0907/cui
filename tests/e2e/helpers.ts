@@ -92,28 +92,50 @@ export async function mockSessions(page: Page, sessions: SessionSource) {
 }
 
 export async function mockModels(page: Page) {
-  await page.route("**/api/v1/models", async (route) => {
+  await page.route("**/api/v1/models**", async (route) => {
+    const url = new URL(route.request().url());
+    const harness = url.searchParams.get("harness") ?? "traex";
+    const models =
+      harness === "codex"
+        ? [
+            {
+              name: "gpt-6-astra",
+              provider: "openai",
+              description: "Mock Codex model",
+              defaultReasoningEffort: "medium",
+              supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max", "ultra"],
+            },
+            {
+              name: "gpt-5.5",
+              provider: "openai",
+              description: "Mock Codex model",
+              defaultReasoningEffort: "medium",
+              supportedReasoningEfforts: ["low", "medium", "high", "xhigh"],
+            },
+          ]
+        : [
+            {
+              name: "GPT-5.4",
+              provider: "trae",
+              description: "Mock model",
+              contextWindow: 200000,
+            },
+            {
+              name: "Seed-2.1-Turbo",
+              provider: "trae",
+              description: "Mock model",
+              contextWindow: 184000,
+            },
+            {
+              name: "DeepSeek-V4-Pro",
+              provider: "trae",
+              description: "Mock model",
+              contextWindow: 200000,
+            },
+          ];
+
     await fulfillJson(route, {
-      models: [
-        {
-          name: "GPT-5.4",
-          provider: "trae",
-          description: "Mock model",
-          contextWindow: 200000,
-        },
-        {
-          name: "Seed-2.1-Turbo",
-          provider: "trae",
-          description: "Mock model",
-          contextWindow: 184000,
-        },
-        {
-          name: "DeepSeek-V4-Pro",
-          provider: "trae",
-          description: "Mock model",
-          contextWindow: 200000,
-        },
-      ],
+      models,
     });
   });
 }

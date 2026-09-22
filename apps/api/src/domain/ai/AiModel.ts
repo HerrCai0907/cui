@@ -8,11 +8,12 @@ import type {
   AiRunEvent,
   AtomicDiffReview,
   ConversationSummary,
+  AiHarness,
 } from "../../types.js";
 
 /** Common backend contract consumed by session services and HTTP routes. */
 export interface AiModel {
-  listModels(): Promise<AiModelInfo[]>;
+  listModels(harness?: AiHarness): Promise<AiModelInfo[]>;
   createSession(input: AiCreateSessionInput): Promise<AiResponse>;
   continueSession(input: AiContinueSessionInput): Promise<AiResponse>;
   createAtomicDiffReview(input: AiAtomicDiffReviewInput): Promise<AtomicDiffReview>;

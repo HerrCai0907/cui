@@ -26,6 +26,17 @@ const traceMessageTypesQuerySchema = z
   )
   .pipe(z.array(traceMessageTypeSchema))
   .optional();
+const aiHarnessSchema = z.enum(["traex", "codex"]);
+const aiReasoningEffortSchema = z.enum([
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+  "ultra",
+]);
 
 export const ErrorResponseSchema = z.object({
   error: z.string(),
@@ -188,7 +199,7 @@ export const QueuedPromptSchema = z.object({
 
 export const ChatSessionOriginSchema = z.enum(["chat", "shell"]);
 
-export const AiHarnessSchema = z.enum(["traex", "codex"]);
+export const AiHarnessSchema = aiHarnessSchema;
 
 export const MessagePageInfoSchema = z.object({
   total: z.number().int().nonnegative(),
@@ -235,9 +246,9 @@ export const AiModelPreferencesSchema = z
     atomicReview: z.string().trim().min(1).optional(),
     reasoningEfforts: z
       .object({
-        normal: z.enum(["none", "minimal", "low", "medium", "high", "xhigh"]).optional(),
-        summary: z.enum(["none", "minimal", "low", "medium", "high", "xhigh"]).optional(),
-        atomicReview: z.enum(["none", "minimal", "low", "medium", "high", "xhigh"]).optional(),
+        normal: aiReasoningEffortSchema.optional(),
+        summary: aiReasoningEffortSchema.optional(),
+        atomicReview: aiReasoningEffortSchema.optional(),
       })
       .strict()
       .optional(),
@@ -249,6 +260,12 @@ export const AiModelInfoSchema = z.object({
   provider: z.string().optional(),
   description: z.string().optional(),
   contextWindow: z.number().int().positive().optional(),
+  defaultReasoningEffort: aiReasoningEffortSchema.optional(),
+  supportedReasoningEfforts: z.array(aiReasoningEffortSchema).optional(),
+});
+
+export const ListModelsQuerySchema = z.object({
+  harness: aiHarnessSchema.optional(),
 });
 
 export const CreateSessionRequestSchema = z.object({

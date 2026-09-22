@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  parseListModelsQuery,
   parseGetSessionMessagesQuery,
   parseGetSessionQuery,
   parseRunEventsQuery,
@@ -51,4 +52,16 @@ test("parseRunEventsQuery accepts trace message type filters", () => {
   assert.deepEqual(parsed.ok ? parsed.value : undefined, {
     traceMessageTypes: ["assistant_message", "todo_list"],
   });
+});
+
+test("parseListModelsQuery accepts supported harness filters", () => {
+  assert.deepEqual(parseListModelsQuery({ harness: "codex" }), {
+    ok: true,
+    value: { harness: "codex" },
+  });
+  assert.deepEqual(parseListModelsQuery({}), {
+    ok: true,
+    value: {},
+  });
+  assert.equal(parseListModelsQuery({ harness: "invalid" }).ok, false);
 });

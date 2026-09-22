@@ -940,15 +940,15 @@
             "properties": {
               "normal": {
                 "type": "string",
-                "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
               },
               "summary": {
                 "type": "string",
-                "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
               },
               "atomicReview": {
                 "type": "string",
-                "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
               }
             },
             "additionalProperties": false
@@ -1252,15 +1252,42 @@
                     "properties": {
                       "normal": {
                         "type": "string",
-                        "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                        "enum": [
+                          "none",
+                          "minimal",
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max",
+                          "ultra"
+                        ]
                       },
                       "summary": {
                         "type": "string",
-                        "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                        "enum": [
+                          "none",
+                          "minimal",
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max",
+                          "ultra"
+                        ]
                       },
                       "atomicReview": {
                         "type": "string",
-                        "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                        "enum": [
+                          "none",
+                          "minimal",
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max",
+                          "ultra"
+                        ]
                       }
                     },
                     "additionalProperties": false
@@ -1326,15 +1353,15 @@
                 "properties": {
                   "normal": {
                     "type": "string",
-                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
                   },
                   "summary": {
                     "type": "string",
-                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
                   },
                   "atomicReview": {
                     "type": "string",
-                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
                   }
                 },
                 "additionalProperties": false
@@ -2252,6 +2279,17 @@
                 "contextWindow": {
                   "type": "integer",
                   "exclusiveMinimum": 0
+                },
+                "defaultReasoningEffort": {
+                  "type": "string",
+                  "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+                },
+                "supportedReasoningEfforts": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+                  }
                 }
               },
               "required": ["name"]
@@ -2831,6 +2869,17 @@
     "/api/v1/models": {
       "get": {
         "summary": "List available AI models",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["traex", "codex"]
+            },
+            "required": false,
+            "name": "harness",
+            "in": "query"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Available AI models from the configured backend.",
@@ -2856,6 +2905,35 @@
                           "contextWindow": {
                             "type": "integer",
                             "exclusiveMinimum": 0
+                          },
+                          "defaultReasoningEffort": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "minimal",
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "max",
+                              "ultra"
+                            ]
+                          },
+                          "supportedReasoningEfforts": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "none",
+                                "minimal",
+                                "low",
+                                "medium",
+                                "high",
+                                "xhigh",
+                                "max",
+                                "ultra"
+                              ]
+                            }
                           }
                         },
                         "required": ["name"]
@@ -4629,15 +4707,42 @@
                             "properties": {
                               "normal": {
                                 "type": "string",
-                                "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                                "enum": [
+                                  "none",
+                                  "minimal",
+                                  "low",
+                                  "medium",
+                                  "high",
+                                  "xhigh",
+                                  "max",
+                                  "ultra"
+                                ]
                               },
                               "summary": {
                                 "type": "string",
-                                "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                                "enum": [
+                                  "none",
+                                  "minimal",
+                                  "low",
+                                  "medium",
+                                  "high",
+                                  "xhigh",
+                                  "max",
+                                  "ultra"
+                                ]
                               },
                               "atomicReview": {
                                 "type": "string",
-                                "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                                "enum": [
+                                  "none",
+                                  "minimal",
+                                  "low",
+                                  "medium",
+                                  "high",
+                                  "xhigh",
+                                  "max",
+                                  "ultra"
+                                ]
                               }
                             },
                             "additionalProperties": false
@@ -5273,15 +5378,42 @@
                         "properties": {
                           "normal": {
                             "type": "string",
-                            "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                            "enum": [
+                              "none",
+                              "minimal",
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "max",
+                              "ultra"
+                            ]
                           },
                           "summary": {
                             "type": "string",
-                            "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                            "enum": [
+                              "none",
+                              "minimal",
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "max",
+                              "ultra"
+                            ]
                           },
                           "atomicReview": {
                             "type": "string",
-                            "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                            "enum": [
+                              "none",
+                              "minimal",
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "max",
+                              "ultra"
+                            ]
                           }
                         },
                         "additionalProperties": false
