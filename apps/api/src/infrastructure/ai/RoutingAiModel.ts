@@ -12,9 +12,8 @@ import type {
 export class RoutingAiModel implements AiModel {
   constructor(private readonly backends: Record<AiHarness, AiModel>) {}
 
-  listModels() {
-    // Preserve the existing model-list API, which supplies TraeX model choices.
-    return this.backends.traex.listModels();
+  listModels(harness: AiHarness = "traex") {
+    return this.backends[harness].listModels();
   }
 
   createSession(input: AiCreateSessionInput) {

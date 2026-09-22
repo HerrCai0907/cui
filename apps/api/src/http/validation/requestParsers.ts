@@ -9,6 +9,7 @@ import {
   RoundDiffFileParamsSchema,
   GetSessionMessagesQuerySchema,
   GetSessionQuerySchema,
+  ListModelsQuerySchema,
   ListSessionsQuerySchema,
   QueuedPromptParamsSchema,
   RoundReviewParamsSchema,
@@ -47,6 +48,12 @@ export function parseListSessionsQuery(
   query: unknown,
 ): ParsedBody<z.infer<typeof ListSessionsQuerySchema>> {
   return parseWithSchema(ListSessionsQuerySchema, query);
+}
+
+export function parseListModelsQuery(
+  query: unknown,
+): ParsedBody<z.infer<typeof ListModelsQuerySchema>> {
+  return parseWithSchema(ListModelsQuerySchema, query);
 }
 
 export function parseGetSessionQuery(

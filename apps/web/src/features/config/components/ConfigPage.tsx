@@ -43,6 +43,14 @@ type ServerLatencyState = {
 
 const LATENCY_CHECK_INTERVAL_MS = 5_000;
 const LATENCY_CHECK_TIMEOUT_MS = 4_000;
+const DEFAULT_VISIBLE_REASONING_EFFORTS: ReasoningEffort[] = [
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+];
 
 export function ConfigPage({ config, models, modelsError, onConfigChange }: ConfigPageProps) {
   const modelOptions = createVisibleModelOptions(models, config);
@@ -160,11 +168,21 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
   }
 
   function setModel(purpose: ModelPurpose, model: string) {
+    const reasoningOptions = createVisibleReasoningEffortOptions(model, modelOptions);
+    const currentReasoningEffort = config.reasoningEfforts[purpose];
+    const nextReasoningEffort = reasoningOptions.includes(currentReasoningEffort)
+      ? currentReasoningEffort
+      : (findModelOption(model, modelOptions)?.defaultReasoningEffort ?? reasoningOptions[0]);
+
     onConfigChange({
       ...config,
       models: {
         ...config.models,
         [purpose]: model,
+      },
+      reasoningEfforts: {
+        ...config.reasoningEfforts,
+        [purpose]: nextReasoningEffort,
       },
     });
   }
@@ -504,26 +522,18 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
                 <strong>{MODEL_PURPOSE_LABELS[purpose]}</strong>
               </span>
               <span className="config-select-controls">
-                {config.harness === "codex" ? (
-                  <input
-                    aria-label={`${MODEL_PURPOSE_LABELS[purpose]} model`}
-                    placeholder="Harness default"
-                    value={config.models[purpose]}
-                    onChange={(event) => setModel(purpose, event.target.value)}
-                  />
-                ) : (
-                  <select
-                    value={config.models[purpose]}
-                    onChange={(event) => setModel(purpose, event.target.value)}
-                  >
-                    <option value="">Harness default</option>
-                    {modelOptions.map((model) => (
-                      <option value={model.name} key={model.name}>
-                        {model.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                <select
+                  aria-label={`${MODEL_PURPOSE_LABELS[purpose]} model`}
+                  value={config.models[purpose]}
+                  onChange={(event) => setModel(purpose, event.target.value)}
+                >
+                  <option value="">Harness default</option>
+                  {modelOptions.map((model) => (
+                    <option value={model.name} key={model.name}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
                 <select
                   aria-label={`${MODEL_PURPOSE_LABELS[purpose]} reasoning effort`}
                   value={config.reasoningEfforts[purpose]}
@@ -531,11 +541,13 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
                     setReasoningEffort(purpose, event.target.value as ReasoningEffort)
                   }
                 >
-                  {REASONING_EFFORTS.map((reasoningEffort) => (
-                    <option value={reasoningEffort} key={reasoningEffort}>
-                      {REASONING_EFFORT_LABELS[reasoningEffort]}
-                    </option>
-                  ))}
+                  {createVisibleReasoningEffortOptions(config.models[purpose], modelOptions).map(
+                    (reasoningEffort) => (
+                      <option value={reasoningEffort} key={reasoningEffort}>
+                        {REASONING_EFFORT_LABELS[reasoningEffort]}
+                      </option>
+                    ),
+                  )}
                 </select>
               </span>
             </label>
@@ -619,4 +631,31 @@ function createVisibleModelOptions(models: ModelOption[], config: AppConfig): Mo
   }
 
   return [...modelByName.values()];
+}
+
+function createVisibleReasoningEffortOptions(
+  selectedModelName: string,
+  modelOptions: ModelOption[],
+): ReasoningEffort[] {
+  const selectedModel = findModelOption(selectedModelName, modelOptions);
+
+  if (selectedModel?.supportedReasoningEfforts?.length) {
+    return uniqueReasoningEfforts(selectedModel.supportedReasoningEfforts);
+  }
+
+  const catalogReasoningEfforts = uniqueReasoningEfforts(
+    modelOptions.flatMap((model) => model.supportedReasoningEfforts ?? []),
+  );
+
+  return catalogReasoningEfforts.length
+    ? catalogReasoningEfforts
+    : DEFAULT_VISIBLE_REASONING_EFFORTS;
+}
+
+function findModelOption(modelName: string, modelOptions: ModelOption[]): ModelOption | undefined {
+  return modelOptions.find((model) => model.name === modelName);
+}
+
+function uniqueReasoningEfforts(reasoningEfforts: ReasoningEffort[]): ReasoningEffort[] {
+  return REASONING_EFFORTS.filter((reasoningEffort) => reasoningEfforts.includes(reasoningEffort));
 }

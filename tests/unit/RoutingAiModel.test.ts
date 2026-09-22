@@ -98,14 +98,19 @@ for (const harness of [undefined, "traex", "codex"] as const) {
   });
 }
 
-test("model-list API preserves the TraeX catalog while Codex accepts configured model IDs", async () => {
+test("model-list API selects the requested harness catalog", async () => {
   const codex = new CodexModel();
   const router = new RoutingAiModel({
     traex: new TraexModel({ modelListRunner: async () => [{ name: "traex-model" }] }),
     codex,
   });
   assert.deepEqual(await router.listModels(), [{ name: "traex-model" }]);
-  assert.deepEqual(await codex.listModels(), []);
+  assert.deepEqual(await router.listModels("traex"), [{ name: "traex-model" }]);
+  assert.deepEqual(
+    (await router.listModels("codex")).map((model) => model.name),
+    ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5"],
+  );
+  assert.deepEqual(await codex.listModels(), await router.listModels("codex"));
 });
 
 for (const harness of ["traex", "codex"] as const) {

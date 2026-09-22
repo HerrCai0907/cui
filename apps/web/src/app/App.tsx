@@ -49,14 +49,7 @@ export function App() {
   useEffect(() => {
     let cancelled = false;
 
-    // Codex uses its own model IDs/configuration; `traex models` is not its catalog.
-    if (config.harness === "codex") {
-      setModels([]);
-      setModelsError(null);
-      return;
-    }
-
-    listModels()
+    listModels(config.harness)
       .then((loadedModels) => {
         if (!cancelled) {
           setModels(loadedModels);

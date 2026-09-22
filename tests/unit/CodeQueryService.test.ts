@@ -289,9 +289,9 @@ test("session request parsers accept model preferences", () => {
         summary: "Seed-2.1-Turbo",
         atomicReview: "DeepSeek-V4-Pro",
         reasoningEfforts: {
-          normal: "high",
+          normal: "ultra",
           summary: "low",
-          atomicReview: "xhigh",
+          atomicReview: "max",
         },
       },
     }),
@@ -308,9 +308,9 @@ test("session request parsers accept model preferences", () => {
           summary: "Seed-2.1-Turbo",
           atomicReview: "DeepSeek-V4-Pro",
           reasoningEfforts: {
-            normal: "high",
+            normal: "ultra",
             summary: "low",
-            atomicReview: "xhigh",
+            atomicReview: "max",
           },
         },
       },

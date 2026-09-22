@@ -27,7 +27,16 @@ export type AiHarness = (typeof AI_HARNESSES)[number];
 
 export type ModelPreferences = Record<ModelPurpose, string>;
 
-export const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh"] as const;
+export const REASONING_EFFORTS = [
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+  "ultra",
+] as const;
 
 export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
@@ -43,6 +52,8 @@ export type ModelOption = {
   provider?: string;
   description?: string;
   contextWindow?: number;
+  defaultReasoningEffort?: ReasoningEffort;
+  supportedReasoningEfforts?: ReasoningEffort[];
 };
 
 export type SshTunnelConfig = {
@@ -122,6 +133,8 @@ export const REASONING_EFFORT_LABELS: Record<ReasoningEffort, string> = {
   medium: "Medium",
   high: "High",
   xhigh: "XHigh",
+  max: "Max",
+  ultra: "Ultra",
 };
 
 export const DEFAULT_SSH_TUNNEL_CONFIG: SshTunnelConfig = {
