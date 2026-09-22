@@ -59,7 +59,7 @@ test("keeps only the running session blocked while another run is active", async
     sessionStarted = true;
     await fulfillJson(route, createSubmittedRunResponse(startedSessionOne, "run-1"));
   });
-  await page.route("**/api/v1/runs/run-1/events", async () => {
+  await page.route(/\/api\/v1\/runs\/run-1\/events(?:\?.*)?$/, async () => {
     // Keep the stream open so session-1 remains blocked.
   });
 
@@ -323,6 +323,8 @@ test("queues a prompt while a session is running and sends it after stop", async
 
   await page.addInitScript(() => {
     const eventSources = new Map<string, EventTarget>();
+    const getRunEventsPath = (url: string | URL) =>
+      new URL(String(url), window.location.href).pathname;
 
     (
       window as Window & {
@@ -379,12 +381,12 @@ test("queues a prompt while a session is running and sends it after stop", async
         super();
         this.url = String(url);
         this.readyState = MockEventSource.OPEN;
-        eventSources.set(this.url, this);
+        eventSources.set(getRunEventsPath(url), this);
       }
 
       close() {
         this.readyState = MockEventSource.CLOSED;
-        eventSources.delete(this.url);
+        eventSources.delete(getRunEventsPath(this.url));
       }
     }
 
@@ -567,7 +569,7 @@ test("edits a queued prompt by withdrawing it and later queued prompts", async (
       ),
     );
   });
-  await page.route("**/api/v1/runs/run-1/events", async () => {
+  await page.route(/\/api\/v1\/runs\/run-1\/events(?:\?.*)?$/, async () => {
     // Keep the stream open so queued prompts remain queued.
   });
 
@@ -700,6 +702,8 @@ test("queues a prompt while a session is running and sends it after completion",
 
   await page.addInitScript(() => {
     const eventSources = new Map<string, EventTarget>();
+    const getRunEventsPath = (url: string | URL) =>
+      new URL(String(url), window.location.href).pathname;
 
     (
       window as Window & {
@@ -758,12 +762,12 @@ test("queues a prompt while a session is running and sends it after completion",
         super();
         this.url = String(url);
         this.readyState = MockEventSource.OPEN;
-        eventSources.set(this.url, this);
+        eventSources.set(getRunEventsPath(url), this);
       }
 
       close() {
         this.readyState = MockEventSource.CLOSED;
-        eventSources.delete(this.url);
+        eventSources.delete(getRunEventsPath(this.url));
       }
     }
 
@@ -1010,6 +1014,33 @@ test("highlights running and unread sidebar sessions", async ({ page }) => {
   await page.addInitScript(() => {
     (
       window as Window & {
+        CuiAndroid?: {
+          notifySessionCompleted: (sessionId: string, sessionTitle: string) => void;
+        };
+        __sessionCompletionNotifications?: Array<{ sessionId: string; sessionTitle: string }>;
+      }
+    ).__sessionCompletionNotifications = [];
+    (
+      window as Window & {
+        CuiAndroid?: {
+          notifySessionCompleted: (sessionId: string, sessionTitle: string) => void;
+        };
+        __sessionCompletionNotifications?: Array<{ sessionId: string; sessionTitle: string }>;
+      }
+    ).CuiAndroid = {
+      notifySessionCompleted: (sessionId, sessionTitle) => {
+        (
+          window as Window & {
+            __sessionCompletionNotifications?: Array<{
+              sessionId: string;
+              sessionTitle: string;
+            }>;
+          }
+        ).__sessionCompletionNotifications?.push({ sessionId, sessionTitle });
+      },
+    };
+    (
+      window as Window & {
         __completeRun?: () => void;
       }
     ).__completeRun = undefined;
@@ -1111,6 +1142,21 @@ test("highlights running and unread sidebar sessions", async ({ page }) => {
     ).__completeRun?.(),
   );
   await expect.poll(() => sessionListRequests).toBeGreaterThan(1);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            window as Window & {
+              __sessionCompletionNotifications?: Array<{
+                sessionId: string;
+                sessionTitle: string;
+              }>;
+            }
+          ).__sessionCompletionNotifications,
+      ),
+    )
+    .toEqual([{ sessionId: "session-1", sessionTitle: "Running session" }]);
   await expect(runningButton).not.toHaveClass(/is-running-session/);
   await expect(runningButton).toHaveClass(/is-unread-session/);
   await runningButton.click();
@@ -1413,7 +1459,7 @@ test("reconnects to a running run after page reload", async ({ page }) => {
           ).__eventSourceUrls ?? [],
       ),
     )
-    .toContain("/api/v1/runs/run-1/events");
+    .toContainEqual(expect.stringContaining("/api/v1/runs/run-1/events"));
 });
 
 test("applies summary updates without replacing streamed messages", async ({ page }) => {

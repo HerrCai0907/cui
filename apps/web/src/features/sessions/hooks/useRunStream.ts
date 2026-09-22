@@ -260,6 +260,7 @@ export function useRunStream({
         return;
       }
 
+      notifyAndroidSessionCompleted(data.session);
       streamStateRefs.current.delete(sessionId);
       streamMessageIdRefs.current.delete(sessionId);
       if (activeSessionRef.current?.id === data.session.id) {
@@ -470,4 +471,22 @@ export function createRunEventsPath(
 
 function findInitialTraceInsertIndex(session: ApiSession | null, sessionId: string): number {
   return session?.id === sessionId ? session.messages.length : 0;
+}
+
+type AndroidSessionCompletionBridge = {
+  notifySessionCompleted?: (sessionId: string, sessionTitle: string) => void;
+};
+
+function notifyAndroidSessionCompleted(session: ApiSession): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const bridge = (window as Window & { CuiAndroid?: AndroidSessionCompletionBridge }).CuiAndroid;
+
+  try {
+    bridge?.notifySessionCompleted?.(session.id, session.title);
+  } catch {
+    // Native notification delivery is best-effort and should not affect session state.
+  }
 }
