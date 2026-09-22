@@ -8,6 +8,7 @@ import {
   type AppConfig,
   type ModelOption,
 } from "../features/config/model/appConfig";
+import { isAndroidSshTunnelAvailable } from "../features/config/model/androidSshTunnel";
 import { ReviewPage } from "../features/review/components/ReviewPage";
 import { getRoundReview } from "../features/review/api/reviewApi";
 import type {
@@ -32,6 +33,7 @@ export function App() {
   const initialPath = getAppPath();
   const [configOpen, setConfigOpen] = useState(() => initialPath === "/config");
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const [mobileLayout, setMobileLayout] = useState(isMobileLayoutViewport);
   const [config, setConfig] = useState<AppConfig>(loadAppConfig);
   const [models, setModels] = useState<ModelOption[]>([]);
   const [modelsError, setModelsError] = useState<string | null>(null);
@@ -45,6 +47,23 @@ export function App() {
   const [reviewNavigationTarget, setReviewNavigationTarget] =
     useState<ReviewNavigationTarget | null>(null);
   const sessionController = useSessionController(DEFAULT_WORKSPACE, config);
+  const mobileClient = mobileLayout || isEmbeddedAndroidApp();
+  const showVscodeControls = !mobileClient;
+  const showSshTunnelConfig = isAndroidSshTunnelAvailable();
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const query = window.matchMedia("(max-width: 760px)");
+    const handleChange = () => setMobileLayout(query.matches);
+
+    handleChange();
+    query.addEventListener("change", handleChange);
+
+    return () => query.removeEventListener("change", handleChange);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -274,6 +293,7 @@ export function App() {
         onOpenConfig={openConfig}
         onStartNewSession={startNewSession}
         onToggleWorkspace={sessionController.toggleWorkspace}
+        showVscodeWorkspaceLinks={showVscodeControls}
         vscodeConfig={config.vscode}
         reviewNavigationActive={reviewRoute?.mode === "atomic"}
         reviewNavigation={reviewRoute?.mode === "atomic" ? reviewNavigation : null}
@@ -316,6 +336,8 @@ export function App() {
             models={models}
             modelsError={modelsError}
             onConfigChange={updateConfig}
+            showSshTunnelConfig={showSshTunnelConfig}
+            showVscodeConfig={showVscodeControls}
           />
         ) : reviewRoute ? (
           <ReviewPage
@@ -375,4 +397,8 @@ export function App() {
       </section>
     </main>
   );
+}
+
+function isMobileLayoutViewport(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
 }

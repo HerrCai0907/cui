@@ -141,13 +141,21 @@
 
 .workspace-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 28px 28px;
+  grid-template-columns: minmax(0, 1fr) 28px;
   align-items: center;
   gap: 4px;
   padding-left: calc(var(--workspace-depth, 0) * 14px);
 }
 
 .workspace-row.has-workspace-toggle {
+  grid-template-columns: minmax(0, 1fr) 28px 28px;
+}
+
+.workspace-row.has-vscode-link {
+  grid-template-columns: minmax(0, 1fr) 28px 28px;
+}
+
+.workspace-row.has-workspace-toggle.has-vscode-link {
   grid-template-columns: minmax(0, 1fr) 28px 28px 28px;
 }
 

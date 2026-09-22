@@ -4,7 +4,6 @@ import { resolveApiUrl } from "../../../shared/api/apiBaseUrl";
 import {
   AI_HARNESSES,
   AI_HARNESS_LABELS,
-  DEFAULT_SSH_TUNNEL_CONFIG,
   EXECUTION_TRACE_MESSAGE_TYPES,
   EXECUTION_TRACE_MESSAGE_TYPE_LABELS,
   MODEL_PURPOSES,
@@ -23,7 +22,6 @@ import {
 } from "../model/appConfig";
 import {
   getAndroidSshTunnelStatus,
-  isAndroidSshTunnelAvailable,
   loadAndroidSshTunnelConfig,
   saveAndroidSshTunnelConfig,
   type AndroidSshTunnelStatus,
@@ -34,6 +32,8 @@ type ConfigPageProps = {
   models: ModelOption[];
   modelsError?: string | null;
   onConfigChange: (config: AppConfig) => void;
+  showSshTunnelConfig: boolean;
+  showVscodeConfig: boolean;
 };
 
 type ServerLatencyState = {
@@ -52,9 +52,15 @@ const DEFAULT_VISIBLE_REASONING_EFFORTS: ReasoningEffort[] = [
   "xhigh",
 ];
 
-export function ConfigPage({ config, models, modelsError, onConfigChange }: ConfigPageProps) {
+export function ConfigPage({
+  config,
+  models,
+  modelsError,
+  onConfigChange,
+  showSshTunnelConfig,
+  showVscodeConfig,
+}: ConfigPageProps) {
   const modelOptions = createVisibleModelOptions(models, config);
-  const sshBridgeAvailable = isAndroidSshTunnelAvailable();
   const [sshTunnelDraft, setSshTunnelDraft] = useState(config.sshTunnel);
   const [sshTunnelStatus, setSshTunnelStatus] = useState<AndroidSshTunnelStatus | null>(null);
   const [sshTunnelError, setSshTunnelError] = useState<string | null>(null);
@@ -64,6 +70,13 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
   });
 
   useEffect(() => {
+    if (!showSshTunnelConfig) {
+      setSshTunnelDraft(config.sshTunnel);
+      setSshTunnelStatus(null);
+      setSshTunnelError(null);
+      return;
+    }
+
     const androidConfig = loadAndroidSshTunnelConfig();
 
     if (!androidConfig) {
@@ -73,7 +86,7 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
 
     setSshTunnelDraft(androidConfig);
     setSshTunnelStatus(getAndroidSshTunnelStatus());
-  }, [config.sshTunnel]);
+  }, [config.sshTunnel, showSshTunnelConfig]);
 
   useEffect(() => {
     let cancelled = false;
@@ -148,7 +161,7 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
       });
       setSshTunnelDraft(sshTunnel);
 
-      if (sshBridgeAvailable) {
+      if (showSshTunnelConfig) {
         setSshTunnelStatus(saveAndroidSshTunnelConfig(sshTunnel));
         window.setTimeout(refreshSshTunnelStatus, 800);
         window.setTimeout(refreshSshTunnelStatus, 2_500);
@@ -272,215 +285,220 @@ export function ConfigPage({ config, models, modelsError, onConfigChange }: Conf
         </span>
       </div>
 
-      <section className="config-section" aria-labelledby="vscode-config-heading">
-        <div className="config-section-header">
-          <div>
-            <span className="section-label">Editor</span>
-            <h2 id="vscode-config-heading">VSCode</h2>
+      {showVscodeConfig && (
+        <section className="config-section" aria-labelledby="vscode-config-heading">
+          <div className="config-section-header">
+            <div>
+              <span className="section-label">Editor</span>
+              <h2 id="vscode-config-heading">VSCode</h2>
+            </div>
           </div>
-        </div>
 
-        <div className="vscode-config-card">
-          <label className="config-toggle-row vscode-config-toggle">
-            <span>
-              <strong>Open workspaces over Remote SSH</strong>
-            </span>
-            <input
-              type="checkbox"
-              checked={config.vscode.remoteSsh.enabled}
-              onChange={(event) => setVscodeRemoteSshField("enabled", event.target.checked)}
-            />
-            <span
-              className={`config-switch ${config.vscode.remoteSsh.enabled ? "is-on" : ""}`}
-              aria-hidden="true"
-            >
-              <span>{config.vscode.remoteSsh.enabled && <Check size={13} />}</span>
-            </span>
-          </label>
+          <div className="vscode-config-card">
+            <label className="config-toggle-row vscode-config-toggle">
+              <span>
+                <strong>Open workspaces over Remote SSH</strong>
+              </span>
+              <input
+                type="checkbox"
+                checked={config.vscode.remoteSsh.enabled}
+                onChange={(event) => setVscodeRemoteSshField("enabled", event.target.checked)}
+              />
+              <span
+                className={`config-switch ${config.vscode.remoteSsh.enabled ? "is-on" : ""}`}
+                aria-hidden="true"
+              >
+                <span>{config.vscode.remoteSsh.enabled && <Check size={13} />}</span>
+              </span>
+            </label>
 
-          <div className="vscode-config-grid">
-            <label>
-              <span>SSH host alias</span>
-              <span className="api-server-input">
-                <Server size={17} aria-hidden="true" />
+            <div className="vscode-config-grid">
+              <label>
+                <span>SSH host alias</span>
+                <span className="api-server-input">
+                  <Server size={17} aria-hidden="true" />
+                  <input
+                    type="text"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder="Host from ~/.ssh/config"
+                    value={config.vscode.remoteSsh.host}
+                    onChange={(event) => setVscodeRemoteSshField("host", event.target.value)}
+                  />
+                </span>
+              </label>
+              <label>
+                <span>Local workspace prefix</span>
                 <input
                   type="text"
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
-                  placeholder="Host from ~/.ssh/config"
-                  value={config.vscode.remoteSsh.host}
-                  onChange={(event) => setVscodeRemoteSshField("host", event.target.value)}
+                  placeholder="/Users/me/mapped"
+                  value={config.vscode.remoteSsh.localPathPrefix}
+                  onChange={(event) =>
+                    setVscodeRemoteSshField("localPathPrefix", event.target.value)
+                  }
                 />
+              </label>
+              <label>
+                <span>Remote workspace prefix</span>
+                <input
+                  type="text"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  placeholder="/home/me"
+                  value={config.vscode.remoteSsh.remotePathPrefix}
+                  onChange={(event) =>
+                    setVscodeRemoteSshField("remotePathPrefix", event.target.value)
+                  }
+                />
+              </label>
+            </div>
+
+            <p className="config-help">
+              Workspace buttons use VSCode URL handlers. With Remote SSH enabled, the local prefix
+              is rewritten to the remote prefix before opening the SSH host.
+            </p>
+          </div>
+        </section>
+      )}
+
+      {showSshTunnelConfig && (
+        <section className="config-section" aria-labelledby="ssh-tunnel-heading">
+          <div className="config-section-header">
+            <div>
+              <span className="section-label">Advanced</span>
+              <h2 id="ssh-tunnel-heading">SSH Tunnel</h2>
+            </div>
+          </div>
+
+          <div className="ssh-tunnel-card">
+            <label className="config-toggle-row ssh-tunnel-toggle">
+              <span>
+                <strong>Use SSH tunnel</strong>
+              </span>
+              <input
+                type="checkbox"
+                checked={sshTunnelDraft.enabled}
+                onChange={(event) => setSshTunnelField("enabled", event.target.checked)}
+              />
+              <span
+                className={`config-switch ${sshTunnelDraft.enabled ? "is-on" : ""}`}
+                aria-hidden="true"
+              >
+                <span>{sshTunnelDraft.enabled && <Check size={13} />}</span>
               </span>
             </label>
-            <label>
-              <span>Local workspace prefix</span>
-              <input
-                type="text"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                placeholder="/Users/me/mapped"
-                value={config.vscode.remoteSsh.localPathPrefix}
-                onChange={(event) => setVscodeRemoteSshField("localPathPrefix", event.target.value)}
-              />
-            </label>
-            <label>
-              <span>Remote workspace prefix</span>
-              <input
-                type="text"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                placeholder="/home/me"
-                value={config.vscode.remoteSsh.remotePathPrefix}
-                onChange={(event) =>
-                  setVscodeRemoteSshField("remotePathPrefix", event.target.value)
-                }
-              />
-            </label>
-          </div>
 
-          <p className="config-help">
-            Workspace buttons use VSCode URL handlers. With Remote SSH enabled, the local prefix is
-            rewritten to the remote prefix before opening the SSH host.
-          </p>
-        </div>
-      </section>
-
-      <section className="config-section" aria-labelledby="ssh-tunnel-heading">
-        <div className="config-section-header">
-          <div>
-            <span className="section-label">Advanced</span>
-            <h2 id="ssh-tunnel-heading">SSH Tunnel</h2>
-          </div>
-        </div>
-
-        <div className="ssh-tunnel-card">
-          <label className="config-toggle-row ssh-tunnel-toggle">
-            <span>
-              <strong>Use SSH tunnel</strong>
-            </span>
-            <input
-              type="checkbox"
-              checked={sshTunnelDraft.enabled}
-              onChange={(event) => setSshTunnelField("enabled", event.target.checked)}
-            />
-            <span
-              className={`config-switch ${sshTunnelDraft.enabled ? "is-on" : ""}`}
-              aria-hidden="true"
-            >
-              <span>{sshTunnelDraft.enabled && <Check size={13} />}</span>
-            </span>
-          </label>
-
-          <div className="ssh-tunnel-grid">
-            <label>
-              <span>SSH host</span>
-              <span className="api-server-input">
-                <Server size={17} aria-hidden="true" />
+            <div className="ssh-tunnel-grid">
+              <label>
+                <span>SSH host</span>
+                <span className="api-server-input">
+                  <Server size={17} aria-hidden="true" />
+                  <input
+                    type="text"
+                    inputMode="url"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder="SSH server host"
+                    value={sshTunnelDraft.host}
+                    onChange={(event) => setSshTunnelField("host", event.target.value)}
+                  />
+                </span>
+              </label>
+              <label>
+                <span>SSH port</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={65535}
+                  placeholder="SSH port"
+                  value={sshTunnelDraft.port || ""}
+                  onChange={(event) => setSshTunnelField("port", Number(event.target.value))}
+                />
+              </label>
+              <label>
+                <span>Username</span>
+                <input
+                  type="text"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  placeholder="SSH username"
+                  value={sshTunnelDraft.username}
+                  onChange={(event) => setSshTunnelField("username", event.target.value)}
+                />
+              </label>
+              <label>
+                <span>Password</span>
+                <span className="api-server-input">
+                  <KeyRound size={17} aria-hidden="true" />
+                  <input
+                    type="password"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    placeholder="SSH password"
+                    value={sshTunnelDraft.password}
+                    onChange={(event) => setSshTunnelField("password", event.target.value)}
+                  />
+                </span>
+              </label>
+              <label>
+                <span>Local port</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={65535}
+                  placeholder="Local port"
+                  value={sshTunnelDraft.localPort || ""}
+                  onChange={(event) => setSshTunnelField("localPort", Number(event.target.value))}
+                />
+              </label>
+              <label>
+                <span>Remote host</span>
                 <input
                   type="text"
                   inputMode="url"
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
-                  placeholder="SSH server host"
-                  value={sshTunnelDraft.host}
-                  onChange={(event) => setSshTunnelField("host", event.target.value)}
+                  placeholder="Remote loopback or host"
+                  value={sshTunnelDraft.remoteHost}
+                  onChange={(event) => setSshTunnelField("remoteHost", event.target.value)}
                 />
-              </span>
-            </label>
-            <label>
-              <span>SSH port</span>
-              <input
-                type="number"
-                min={1}
-                max={65535}
-                placeholder="SSH port"
-                value={sshTunnelDraft.port || ""}
-                onChange={(event) => setSshTunnelField("port", Number(event.target.value))}
-              />
-            </label>
-            <label>
-              <span>Username</span>
-              <input
-                type="text"
-                autoCapitalize="none"
-                autoCorrect="off"
-                placeholder="SSH username"
-                value={sshTunnelDraft.username}
-                onChange={(event) => setSshTunnelField("username", event.target.value)}
-              />
-            </label>
-            <label>
-              <span>Password</span>
-              <span className="api-server-input">
-                <KeyRound size={17} aria-hidden="true" />
+              </label>
+              <label>
+                <span>Remote port</span>
                 <input
-                  type="password"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  placeholder="SSH password"
-                  value={sshTunnelDraft.password}
-                  onChange={(event) => setSshTunnelField("password", event.target.value)}
+                  type="number"
+                  min={1}
+                  max={65535}
+                  placeholder="Remote port"
+                  value={sshTunnelDraft.remotePort || ""}
+                  onChange={(event) => setSshTunnelField("remotePort", Number(event.target.value))}
                 />
-              </span>
-            </label>
-            <label>
-              <span>Local port</span>
-              <input
-                type="number"
-                min={1}
-                max={65535}
-                placeholder="Local port"
-                value={sshTunnelDraft.localPort || ""}
-                onChange={(event) => setSshTunnelField("localPort", Number(event.target.value))}
-              />
-            </label>
-            <label>
-              <span>Remote host</span>
-              <input
-                type="text"
-                inputMode="url"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                placeholder="Remote loopback or host"
-                value={sshTunnelDraft.remoteHost}
-                onChange={(event) => setSshTunnelField("remoteHost", event.target.value)}
-              />
-            </label>
-            <label>
-              <span>Remote port</span>
-              <input
-                type="number"
-                min={1}
-                max={65535}
-                placeholder="Remote port"
-                value={sshTunnelDraft.remotePort || ""}
-                onChange={(event) => setSshTunnelField("remotePort", Number(event.target.value))}
-              />
-            </label>
-          </div>
+              </label>
+            </div>
 
-          <p className="config-help">
-            Android sends API requests to the local port you configure here, then forwards them over
-            SSH to the remote host and port.
-          </p>
-          {!sshBridgeAvailable && <p className="config-help">Preview only in the browser.</p>}
-          {sshTunnelStatus && (
-            <p className={`config-status ${sshTunnelStatus.connected ? "is-connected" : ""}`}>
-              {sshTunnelStatus.message}
+            <p className="config-help">
+              Android sends API requests to the local port you configure here, then forwards them
+              over SSH to the remote host and port.
             </p>
-          )}
-          {sshTunnelError && <p className="config-error">{sshTunnelError}</p>}
-          <button className="secondary-button" type="button" onClick={saveSshTunnel}>
-            Apply
-          </button>
-        </div>
-      </section>
+            {sshTunnelStatus && (
+              <p className={`config-status ${sshTunnelStatus.connected ? "is-connected" : ""}`}>
+                {sshTunnelStatus.message}
+              </p>
+            )}
+            {sshTunnelError && <p className="config-error">{sshTunnelError}</p>}
+            <button className="secondary-button" type="button" onClick={saveSshTunnel}>
+              Apply
+            </button>
+          </div>
+        </section>
+      )}
 
       <section className="config-section" aria-labelledby="model-config-heading">
         <div className="config-section-header">

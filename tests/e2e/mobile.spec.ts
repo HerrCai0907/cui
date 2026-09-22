@@ -24,6 +24,9 @@ test("uses an overlay session drawer on a portrait phone", async ({ page }) => {
   await page.getByRole("button", { name: "Open session menu" }).click();
   await expect(sidebar).toBeInViewport();
   await expect(page.getByRole("button", { name: "Mobile session" })).toBeVisible();
+  await expect(page.getByRole("link", { name: `Open ${currentWorkspace} in VSCode` })).toHaveCount(
+    0,
+  );
 
   await page.getByRole("button", { name: "Close session menu" }).click();
   await expect(sidebar).not.toBeInViewport();
@@ -63,18 +66,20 @@ test("shows git details from a compact mobile header action", async ({ page }) =
   await expect(gitDialog.getByText("abcdef1234567890abcdef1234567890abcdef12")).toBeVisible();
 });
 
-test("config exposes touch-friendly SSH tunnel settings", async ({ page }) => {
+test("config hides desktop editor and unavailable SSH tunnel settings on a phone browser", async ({
+  page,
+}) => {
   await mockSessions(page, []);
 
   await page.goto("/");
   await page.getByRole("button", { name: "Open session menu" }).click();
   await page.getByRole("button", { name: "Config" }).click();
 
-  await expect(page.getByRole("heading", { name: "SSH Tunnel" })).toBeVisible();
-  await expect(page.getByText("SSH host", { exact: true })).toBeVisible();
-  await expect(page.getByText("Remote host", { exact: true })).toBeVisible();
-  await expect(page.getByText("Remote port", { exact: true })).toBeVisible();
-  await expect(page.getByText("API Server")).not.toBeVisible();
+  await expect(page.getByRole("heading", { name: "VSCode" })).toHaveCount(0);
+  await expect(page.getByText("Open workspaces over Remote SSH")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "SSH Tunnel" })).toHaveCount(0);
+  await expect(page.getByText("SSH host", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Model Selection" })).toBeVisible();
 });
 
 test("keeps long message content inside the phone viewport", async ({ page }) => {
