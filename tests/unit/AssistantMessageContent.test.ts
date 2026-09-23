@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  formatCodePathForClipboard,
   formatCodeLinkLabel,
   parseInlineContent,
   parseMessageContent,
@@ -169,6 +170,24 @@ test("formatCodeLinkLabel keeps non-workspace local paths absolute", () => {
       "/Users/bytedance/cui_workspace/3",
     ),
     "/tmp/rog-stack-growth-gc-repro-goroutine.go:12",
+  );
+});
+
+test("formatCodePathForClipboard uses absolute path with first line only", () => {
+  assert.equal(
+    formatCodePathForClipboard({
+      filePath: "/Users/bytedance/cui_workspace/3/apps/api/src/http/routes/codeRoutes.ts",
+      startLine: 10,
+      endLine: 20,
+    }),
+    "/Users/bytedance/cui_workspace/3/apps/api/src/http/routes/codeRoutes.ts:10",
+  );
+
+  assert.equal(
+    formatCodePathForClipboard({
+      filePath: "/Users/bytedance/cui_workspace/3/README.md",
+    }),
+    "/Users/bytedance/cui_workspace/3/README.md",
   );
 });
 

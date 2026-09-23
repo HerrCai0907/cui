@@ -9,6 +9,7 @@ import {
 import { HighlightedCode } from "../../review/components/HighlightedCode";
 import { getCodeRange, type CodeRangeResult } from "../api/codeApi";
 import {
+  formatCodePathForClipboard,
   formatCodeLinkLabel,
   parseInlineContent,
   parseMessageContent,
@@ -292,7 +293,7 @@ function CodePreviewButton({ label, target }: { label: string; target: CodeLinkT
       return;
     }
 
-    await navigator.clipboard.writeText(target.filePath);
+    await navigator.clipboard.writeText(formatCodePathForClipboard(query));
     setPathCopied(true);
 
     if (copyFeedbackTimerRef.current !== undefined) {

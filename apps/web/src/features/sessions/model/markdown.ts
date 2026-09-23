@@ -70,6 +70,14 @@ export function formatCodeLinkLabel(target: CodeLinkTarget, workspace: string): 
   return `${displayPath}:${target.startLine}-${target.endLine}`;
 }
 
+export function formatCodePathForClipboard(target: CodeLinkTarget): string {
+  if (target.startLine === undefined) {
+    return target.filePath;
+  }
+
+  return `${target.filePath}:${target.startLine}`;
+}
+
 class BlockMarkdownParser {
   private cursor = 0;
 
