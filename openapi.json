@@ -1007,6 +1007,18 @@
         },
         "required": ["workspace"]
       },
+      "WorkspacePathSuggestionsResponse": {
+        "type": "object",
+        "properties": {
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["suggestions"]
+      },
       "CreateSessionRequest": {
         "type": "object",
         "properties": {
@@ -2667,6 +2679,59 @@
     "parameters": {}
   },
   "paths": {
+    "/api/v1/workspaces/path-suggestions": {
+      "get": {
+        "summary": "Complete a workspace directory path on the API host",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "required": true,
+            "name": "path",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching directory paths with trailing slashes (up to 50).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "suggestions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["suggestions"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/health": {
       "get": {
         "summary": "Get API health",

@@ -4,6 +4,57 @@
  */
 
 export interface paths {
+  "/api/v1/workspaces/path-suggestions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Complete a workspace directory path on the API host */
+    get: {
+      parameters: {
+        query: {
+          path: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Matching directory paths with trailing slashes (up to 50). */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              suggestions: string[];
+            };
+          };
+        };
+        /** @description Error response. */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/health": {
     parameters: {
       query?: never;
@@ -1997,6 +2048,9 @@ export interface components {
       workspace: string;
       gitBranch?: string;
       gitCommitSha?: string;
+    };
+    WorkspacePathSuggestionsResponse: {
+      suggestions: string[];
     };
     CreateSessionRequest: {
       workspace: string;
