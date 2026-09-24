@@ -89,6 +89,11 @@ test("createRun refreshes summary after user input and assistant response", asyn
     });
     assert.match(aiModel.summaryPrompts[1], /用户：Explain when the summary should run\./);
     assert.match(aiModel.summaryPrompts[1], /助手：Done\./);
+    assert.deepEqual(
+      events.map((event) => eventType(event)),
+      ["session.updated", "session.updated"],
+    );
+    assert.equal(events.at(-1)?.session.messages.at(-1)?.content, "Done.");
     assert.equal(events.some(isDoneEvent), false);
 
     aiModel.resolveSummary(
@@ -98,7 +103,7 @@ test("createRun refreshes summary after user input and assistant response", asyn
       },
       1,
     );
-    await waitFor(() => events.length === 3);
+    await waitFor(() => events.some(isDoneEvent));
 
     assert.equal(aiModel.summaryPrompts.length, 2);
     assert.deepEqual(aiModel.runModels[0], {
@@ -107,7 +112,7 @@ test("createRun refreshes summary after user input and assistant response", asyn
     });
     assert.deepEqual(
       events.map((event) => eventType(event)),
-      ["session.updated", "session.updated", "run.succeeded"],
+      ["session.updated", "session.updated", "session.updated", "run.succeeded"],
     );
     assert.equal(await getStoredTitle(store), "Summary timing");
 

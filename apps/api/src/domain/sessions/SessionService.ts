@@ -769,17 +769,26 @@ export class SessionService {
           },
           models: request.models,
         });
-        await inputSummaryPromise;
         const completedSession = await this.store.getSession(run.sessionId);
-        const latestSession = completedSession
-          ? await this.refreshSessionSummary(completedSession, run, request.models)
+        const completedSessionView = completedSession
+          ? await this.toWindowedSessionView(completedSession, run.id)
+          : session;
+
+        this.runRegistry.emitRunEvent(run, {
+          type: "session.updated",
+          session: completedSessionView,
+        });
+        await inputSummaryPromise;
+        const summaryBaseSession = (await this.store.getSession(run.sessionId)) ?? completedSession;
+        const latestSession = summaryBaseSession
+          ? await this.refreshSessionSummary(summaryBaseSession, run, request.models)
           : undefined;
 
         this.runRegistry.emitRunEvent(run, {
           type: "run.succeeded",
           session: latestSession
             ? await this.toWindowedSessionView(latestSession, run.id)
-            : session,
+            : completedSessionView,
         });
         this.scheduleNextQueuedPrompt(run.sessionId);
       })

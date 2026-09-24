@@ -192,7 +192,32 @@ export function useRunStream({
       });
     };
 
-    const updateSessionMetadata = (updatedSession: ApiSession) => {
+    const updateSession = (updatedSession: ApiSession) => {
+      if (updatedSession.messagePageInfo) {
+        const currentSession = activeSessionRef.current;
+
+        if (currentSession?.id !== updatedSession.id) {
+          updateSessionSummary(updatedSession);
+          return;
+        }
+
+        if (sessionHasNewPersistedAssistantMessage(currentSession, updatedSession)) {
+          streamStateRefs.current.delete(sessionId);
+          streamMessageIdRefs.current.delete(sessionId);
+          setExpandedTraceIds((current) => {
+            const next = new Set(current);
+
+            next.delete(streamingTraceMessageId);
+
+            return next;
+          });
+        }
+
+        setCurrentActiveSession(updatedSession, { recordAttention: false });
+        updateSessionSummary(updatedSession);
+        return;
+      }
+
       setActiveSession((session) => {
         const currentSession = session ?? activeSessionRef.current;
 
@@ -216,6 +241,10 @@ export function useRunStream({
         activeSessionRef.current = nextSession;
         return nextSession;
       });
+      updateSessionSummary(updatedSession);
+    };
+
+    const updateSessionSummary = (updatedSession: ApiSession) => {
       setSessions((current) => {
         const nextSummary = toSessionSummary(updatedSession);
 
@@ -250,7 +279,7 @@ export function useRunStream({
         return;
       }
 
-      updateSessionMetadata(data.session);
+      updateSession(data.session);
     });
 
     eventSource.addEventListener("run.succeeded", (event) => {
@@ -471,6 +500,21 @@ export function createRunEventsPath(
 
 function findInitialTraceInsertIndex(session: ApiSession | null, sessionId: string): number {
   return session?.id === sessionId ? session.messages.length : 0;
+}
+
+function sessionHasNewPersistedAssistantMessage(
+  currentSession: ApiSession | null,
+  incomingSession: ApiSession,
+): boolean {
+  const currentMessageIds = new Set(currentSession?.messages.map((message) => message.id) ?? []);
+
+  return incomingSession.messages.some(
+    (message) =>
+      !message.id.startsWith("stream-") &&
+      !currentMessageIds.has(message.id) &&
+      message.role === "assistant" &&
+      (message.kind === "response" || message.kind === "trace"),
+  );
 }
 
 type AndroidSessionCompletionBridge = {
