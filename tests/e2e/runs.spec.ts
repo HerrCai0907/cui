@@ -1612,3 +1612,129 @@ test("applies summary updates without replacing streamed messages", async ({ pag
   ).toBeVisible();
   await expect(conversation.getByText("Streamed answer.")).toBeVisible();
 });
+
+test("shows persisted assistant trace messages as soon as a run completes", async ({ page }) => {
+  const initialSession = {
+    id: "session-1",
+    workspace: currentWorkspace,
+    title: "Trace completion session",
+    summary: "",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [],
+    currentRound: 0,
+    isRunning: false,
+  };
+  const startedSession = {
+    ...initialSession,
+    messages: [
+      {
+        id: "message-1",
+        role: "user",
+        content: "Show the completed trace",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    isRunning: true,
+    runningRunId: "run-1",
+  };
+
+  await page.addInitScript(() => {
+    class MockEventSource extends EventTarget {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSED = 2;
+      readonly CONNECTING = 0;
+      readonly OPEN = 1;
+      readonly CLOSED = 2;
+      readonly url: string;
+      readonly withCredentials = false;
+      readyState = MockEventSource.CONNECTING;
+      onerror: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onopen: ((event: Event) => void) | null = null;
+
+      constructor(url: string | URL) {
+        super();
+        this.url = String(url);
+
+        window.setTimeout(() => {
+          this.readyState = MockEventSource.OPEN;
+          this.dispatchEvent(new Event("open"));
+          this.dispatchEvent(
+            new MessageEvent("session.updated", {
+              data: JSON.stringify({
+                type: "session.updated",
+                session: {
+                  id: "session-1",
+                  workspace: "/Users/bytedance/cui",
+                  title: "Trace completion session",
+                  summary: "",
+                  createdAt: "2026-08-22T00:00:00.000Z",
+                  updatedAt: "2026-08-22T00:00:01.000Z",
+                  messages: [
+                    {
+                      id: "message-2",
+                      role: "assistant",
+                      kind: "trace",
+                      content: JSON.stringify({
+                        type: "assistant_message",
+                        id: "assistant-message-1",
+                        phase: "completed",
+                        text: "Completed assistant trace.",
+                      }),
+                      createdAt: "2026-08-22T00:00:01.000Z",
+                    },
+                    {
+                      id: "message-3",
+                      role: "assistant",
+                      kind: "response",
+                      content: "Completed assistant response.",
+                      createdAt: "2026-08-22T00:00:01.000Z",
+                    },
+                  ],
+                  messagePageInfo: {
+                    total: 3,
+                    returned: 2,
+                    hasMoreBefore: true,
+                    hasMoreAfter: false,
+                    oldestMessageId: "message-2",
+                    newestMessageId: "message-3",
+                  },
+                  rounds: [],
+                  currentRound: 1,
+                  isRunning: true,
+                  runningRunId: "run-1",
+                },
+              }),
+            }),
+          );
+        }, 0);
+      }
+
+      close() {
+        this.readyState = MockEventSource.CLOSED;
+      }
+    }
+
+    window.EventSource = MockEventSource as typeof EventSource;
+  });
+
+  await mockSessions(page, [initialSession]);
+  await mockSession(page, initialSession);
+  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
+    await fulfillJson(route, createSubmittedRunResponse(startedSession, "run-1"));
+  });
+
+  await page.goto("/");
+  await page.getByPlaceholder("Continue this session...").fill("Show the completed trace");
+  await page.getByRole("button", { name: "Send message" }).click();
+
+  const conversation = page.getByLabel("AI conversation");
+
+  await expect(conversation.getByText("Completed assistant response.")).toBeVisible();
+  await expect(conversation.getByText("Show execution trace")).toBeVisible();
+  await conversation.getByText("Show execution trace").click();
+  await expect(conversation.getByText("Completed assistant trace.")).toBeVisible();
+});
