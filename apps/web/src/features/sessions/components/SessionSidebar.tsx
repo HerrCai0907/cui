@@ -13,7 +13,6 @@ import {
   LoaderCircle,
   PanelLeftClose,
   PanelLeftOpen,
-  Pin,
   Plus,
   Settings,
 } from "lucide-react";
@@ -62,7 +61,6 @@ type SessionSidebarProps = {
   onToggleWorkspace: (workspace: string) => void;
   onOpenSession: (sessionId: string) => void;
   onMarkSessionDone: (sessionId: string) => void;
-  onToggleSessionPinned: (sessionId: string) => void;
   onNavigateReview?: (target: ReviewNavigationTarget) => void;
   onOpenConfig: () => void;
 };
@@ -96,7 +94,6 @@ export function SessionSidebar({
   onToggleWorkspace,
   onOpenSession,
   onMarkSessionDone,
-  onToggleSessionPinned,
   onNavigateReview,
   onOpenConfig,
 }: SessionSidebarProps) {
@@ -236,7 +233,6 @@ export function SessionSidebar({
                   runningSessionIds={runningSessionIds}
                   onOpenSession={onOpenSession}
                   onMarkSessionDone={onMarkSessionDone}
-                  onToggleSessionPinned={onToggleSessionPinned}
                   onStartNewSession={onStartNewSession}
                   onToggleWorkspace={onToggleWorkspace}
                 />
@@ -314,7 +310,6 @@ function WorkspaceGroupList({
   runningSessionIds,
   onOpenSession,
   onMarkSessionDone,
-  onToggleSessionPinned,
   onStartNewSession,
   onToggleWorkspace,
   showVscodeWorkspaceLinks,
@@ -330,7 +325,6 @@ function WorkspaceGroupList({
   runningSessionIds: Set<string>;
   onOpenSession: (sessionId: string) => void;
   onMarkSessionDone: (sessionId: string) => void;
-  onToggleSessionPinned: (sessionId: string) => void;
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
 }) {
@@ -348,7 +342,6 @@ function WorkspaceGroupList({
           sessionListMode={sessionListMode}
           onOpenSession={onOpenSession}
           onMarkSessionDone={onMarkSessionDone}
-          onToggleSessionPinned={onToggleSessionPinned}
           onStartNewSession={onStartNewSession}
           onToggleWorkspace={onToggleWorkspace}
           showVscodeWorkspaceLinks={showVscodeWorkspaceLinks}
@@ -369,7 +362,6 @@ function WorkspaceTreeNodeView({
   sessionListMode,
   onOpenSession,
   onMarkSessionDone,
-  onToggleSessionPinned,
   onStartNewSession,
   onToggleWorkspace,
   showVscodeWorkspaceLinks,
@@ -384,7 +376,6 @@ function WorkspaceTreeNodeView({
   sessionListMode: SessionListMode;
   onOpenSession: (sessionId: string) => void;
   onMarkSessionDone: (sessionId: string) => void;
-  onToggleSessionPinned: (sessionId: string) => void;
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
   showVscodeWorkspaceLinks: boolean;
@@ -412,7 +403,6 @@ function WorkspaceTreeNodeView({
           label={node.label}
           onOpenSession={onOpenSession}
           onMarkSessionDone={onMarkSessionDone}
-          onToggleSessionPinned={onToggleSessionPinned}
           onStartNewSession={onStartNewSession}
           onToggleWorkspace={onToggleWorkspace}
           showVscodeWorkspaceLinks={showVscodeWorkspaceLinks}
@@ -441,7 +431,6 @@ function WorkspaceTreeNodeView({
               sessionListMode={sessionListMode}
               onOpenSession={onOpenSession}
               onMarkSessionDone={onMarkSessionDone}
-              onToggleSessionPinned={onToggleSessionPinned}
               onStartNewSession={onStartNewSession}
               onToggleWorkspace={onToggleWorkspace}
               showVscodeWorkspaceLinks={showVscodeWorkspaceLinks}
@@ -523,7 +512,6 @@ function WorkspaceGroup({
   workspace,
   onOpenSession,
   onMarkSessionDone,
-  onToggleSessionPinned,
   onStartNewSession,
   onToggleWorkspace,
   showVscodeWorkspaceLinks,
@@ -540,7 +528,6 @@ function WorkspaceGroup({
   workspace: WorkspaceDisplayItem;
   onOpenSession: (sessionId: string) => void;
   onMarkSessionDone: (sessionId: string) => void;
-  onToggleSessionPinned: (sessionId: string) => void;
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
   showVscodeWorkspaceLinks: boolean;
@@ -657,16 +644,6 @@ function WorkspaceGroup({
                       ? session.summary
                       : formatRelativeTime(session.updatedAt)}
                   </small>
-                </button>
-                <button
-                  className={`session-pin-button ${session.pinned ? "is-pinned" : ""}`}
-                  type="button"
-                  aria-label={session.pinned ? "Unpin session" : "Pin session"}
-                  aria-pressed={Boolean(session.pinned)}
-                  title={session.pinned ? `Unpin ${session.title}` : `Pin ${session.title}`}
-                  onClick={() => onToggleSessionPinned(session.id)}
-                >
-                  <Pin size={13} aria-hidden="true" />
                 </button>
                 <button
                   className={`session-done-button ${isDone ? "is-done" : ""}`}

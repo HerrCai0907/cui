@@ -137,36 +137,25 @@ test("groupWorkspacesForDisplay includes unrelated paths under their roots", () 
   );
 });
 
-test("partitionActiveSessionsForSidebar keeps active sessions and one recent session per active workspace", () => {
+test("partitionActiveSessionsForSidebar keeps every unfinished session active", () => {
   const sessions = createSessions(6);
-  sessions[2] = {
-    ...sessions[2],
-    isRunning: true,
-  };
-  sessions[5] = {
-    ...sessions[5],
-    hasUnreadRound: true,
-  };
 
-  const partition = partitionActiveSessionsForSidebar(
-    sessions,
-    {
-      sessions: {
-        "session-1": 200,
-        "session-4": 100,
-      },
-      workspaces: {
-        "/workspace/a": 20,
-        "/workspace/b": 10,
-      },
+  const partition = partitionActiveSessionsForSidebar(sessions, {
+    sessions: {
+      "session-1": 200,
+      "session-4": 100,
     },
-    new Set(["session-0"]),
-  );
+    workspaces: {
+      "/workspace/a": 20,
+      "/workspace/b": 10,
+    },
+  });
 
   assert.deepEqual(
     partition.active.map((session) => session.id),
-    ["session-4", "session-2", "session-0", "session-5", "session-1"],
+    ["session-4", "session-2", "session-0", "session-5", "session-3", "session-1"],
   );
+  assert.deepEqual(partition.activeWorkspaces, ["/workspace/a", "/workspace/b"]);
   assert.deepEqual(
     partition.more.map((session) => session.id),
     ["session-1", "session-4", "session-0", "session-2", "session-3", "session-5"],
@@ -192,7 +181,6 @@ test("partitionActiveSessionsForSidebar sorts Active by immutable workspace and 
         "/workspace/a": 10,
       },
     },
-    new Set(sessions.map((session) => session.id)),
     new Set(["/workspace/a", "/workspace/b"]),
   );
 
@@ -202,7 +190,7 @@ test("partitionActiveSessionsForSidebar sorts Active by immutable workspace and 
   );
 });
 
-test("partitionActiveSessionsForSidebar excludes workspaces without attention from Active", () => {
+test("partitionActiveSessionsForSidebar includes unfinished sessions without attention", () => {
   const sessions = createSessions(4);
 
   const partition = partitionActiveSessionsForSidebar(sessions, {
@@ -210,7 +198,10 @@ test("partitionActiveSessionsForSidebar excludes workspaces without attention fr
     workspaces: {},
   });
 
-  assert.deepEqual(partition.active, []);
+  assert.deepEqual(
+    partition.active.map((session) => session.id),
+    ["session-2", "session-0", "session-3", "session-1"],
+  );
   assert.deepEqual(
     partition.more.map((session) => session.id),
     ["session-0", "session-1", "session-2", "session-3"],
@@ -224,20 +215,16 @@ test("partitionActiveSessionsForSidebar keeps done sessions out of Active only",
     doneAt: "2026-08-22T00:00:00.000Z",
   };
 
-  const partition = partitionActiveSessionsForSidebar(
-    sessions,
-    {
-      sessions: {
-        "session-0": 300,
-        "session-1": 200,
-      },
-      workspaces: {
-        "/workspace/a": 100,
-        "/workspace/b": 90,
-      },
+  const partition = partitionActiveSessionsForSidebar(sessions, {
+    sessions: {
+      "session-0": 300,
+      "session-1": 200,
     },
-    new Set(["session-0"]),
-  );
+    workspaces: {
+      "/workspace/a": 100,
+      "/workspace/b": 90,
+    },
+  });
 
   assert.equal(
     partition.active.some((session) => session.id === "session-0"),
@@ -249,15 +236,11 @@ test("partitionActiveSessionsForSidebar keeps done sessions out of Active only",
   );
 });
 
-test("partitionActiveSessionsForSidebar keeps pinned sessions active without consuming automatic slots", () => {
+test("partitionActiveSessionsForSidebar includes all unfinished sessions in an active workspace", () => {
   const sessions = createSessions(4).map((session) => ({
     ...session,
     workspace: "/workspace/a",
   }));
-  sessions[0] = {
-    ...sessions[0],
-    pinned: true,
-  };
 
   const partition = partitionActiveSessionsForSidebar(sessions, {
     sessions: {
@@ -271,12 +254,12 @@ test("partitionActiveSessionsForSidebar keeps pinned sessions active without con
 
   assert.deepEqual(
     partition.active.map((session) => session.id),
-    ["session-1", "session-0"],
+    ["session-3", "session-2", "session-1", "session-0"],
   );
   assert.deepEqual(partition.activeWorkspaces, ["/workspace/a"]);
 });
 
-test("partitionActiveSessionsForSidebar uses done sessions when retaining active workspaces", () => {
+test("partitionActiveSessionsForSidebar excludes done-only workspaces from Active", () => {
   const sessions = createSessions(4);
   sessions[0] = {
     ...sessions[0],
@@ -288,29 +271,25 @@ test("partitionActiveSessionsForSidebar uses done sessions when retaining active
     doneAt: "2026-08-22T00:00:00.000Z",
   };
 
-  const partition = partitionActiveSessionsForSidebar(
-    sessions,
-    {
-      sessions: {
-        "session-0": 300,
-        "session-1": 200,
-      },
-      workspaces: {
-        "/workspace/a": 100,
-        "/workspace/done-only": 90,
-      },
+  const partition = partitionActiveSessionsForSidebar(sessions, {
+    sessions: {
+      "session-0": 300,
+      "session-1": 200,
     },
-    new Set(["session-0"]),
-  );
+    workspaces: {
+      "/workspace/a": 100,
+      "/workspace/done-only": 90,
+    },
+  });
 
-  assert.deepEqual(partition.activeWorkspaces, ["/workspace/a", "/workspace/done-only"]);
+  assert.deepEqual(partition.activeWorkspaces, ["/workspace/a", "/workspace/b"]);
   assert.deepEqual(
     partition.active.map((session) => session.id),
-    ["session-2"],
+    ["session-2", "session-3"],
   );
 });
 
-test("partitionActiveSessionsForSidebar limits recent workspaces but always keeps running workspaces", () => {
+test("partitionActiveSessionsForSidebar keeps all unfinished workspaces", () => {
   const sessions = createSessions(8).map((session, index) => ({
     ...session,
     workspace: `/workspace/${index}`,
@@ -320,24 +299,27 @@ test("partitionActiveSessionsForSidebar limits recent workspaces but always keep
     isRunning: true,
   };
 
-  const partition = partitionActiveSessionsForSidebar(
-    sessions,
-    {
-      sessions: {},
-      workspaces: {
-        "/workspace/0": 100,
-        "/workspace/1": 90,
-        "/workspace/2": 80,
-      },
+  const partition = partitionActiveSessionsForSidebar(sessions, {
+    sessions: {},
+    workspaces: {
+      "/workspace/0": 100,
+      "/workspace/1": 90,
+      "/workspace/2": 80,
     },
-    new Set(),
-    new Set(),
-    2,
-  );
+  });
 
   assert.deepEqual(
     partition.active.map((session) => session.id),
-    ["session-0", "session-1", "session-7"],
+    [
+      "session-0",
+      "session-1",
+      "session-2",
+      "session-3",
+      "session-4",
+      "session-5",
+      "session-6",
+      "session-7",
+    ],
   );
 });
 
@@ -348,7 +330,6 @@ test("partitionActiveSessionsForSidebar keeps highlighted workspaces without ses
       sessions: {},
       workspaces: {},
     },
-    new Set(),
     new Set(["/workspace/empty"]),
   );
 

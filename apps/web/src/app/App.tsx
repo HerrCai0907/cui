@@ -288,7 +288,6 @@ export function App() {
         onSessionPageChange={sessionController.setSessionListPage}
         onOpenSession={openSession}
         onMarkSessionDone={sessionController.markSessionDone}
-        onToggleSessionPinned={sessionController.toggleSessionPinned}
         onNavigateReview={reviewRoute?.mode === "atomic" ? navigateToReviewTarget : undefined}
         onOpenConfig={openConfig}
         onStartNewSession={startNewSession}

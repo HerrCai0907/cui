@@ -67,9 +67,10 @@ test("SqliteSessionStore runs SQL migrations and persists sessions", async () =>
   }
 });
 
-test("SqliteSessionStore paginates index entries and includes pinned sessions first", async () => {
+test("SqliteSessionStore paginates index entries without promoting pinned sessions", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-sqlite-session-store-"));
-  const store = new SqliteSessionStore(join(cwd, "cui.sqlite"));
+  const databasePath = join(cwd, "cui.sqlite");
+  const store = new SqliteSessionStore(databasePath);
 
   try {
     for (const index of [0, 1, 2, 3]) {
@@ -77,10 +78,16 @@ test("SqliteSessionStore paginates index entries and includes pinned sessions fi
         createSession(cwd, {
           id: `session-${index}`,
           title: `Session ${index}`,
-          pinned: index === 0,
           updatedAt: new Date(Date.UTC(2026, 7, 22, 0, 0, index)).toISOString(),
         }),
       );
+    }
+
+    const db = new Database(databasePath);
+    try {
+      db.prepare("UPDATE sessions SET pinned = 1 WHERE id = ?").run("session-0");
+    } finally {
+      db.close();
     }
 
     const firstPage = await store.listSessionIndexEntries({ page: 1, pageSize: 2 });
@@ -88,7 +95,7 @@ test("SqliteSessionStore paginates index entries and includes pinned sessions fi
 
     assert.deepEqual(
       firstPage.sessions.map((session) => session.id),
-      ["session-0", "session-3", "session-2"],
+      ["session-3", "session-2"],
     );
     assert.deepEqual(
       secondPage.sessions.map((session) => session.id),

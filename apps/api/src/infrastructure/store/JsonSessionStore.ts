@@ -99,11 +99,8 @@ export class JsonSessionStore implements SessionStore {
       (pagination.page - 1) * pagination.pageSize,
       pagination.page * pagination.pageSize,
     );
-    const pinnedSessions =
-      pagination.page === 1 ? sortedSessions.filter((session) => session.pinned) : [];
-    const pageSessions = uniqueStoredSessionsById([...pinnedSessions, ...pagedSessions]);
     const sessions = await Promise.all(
-      pageSessions.map(async (session) => {
+      pagedSessions.map(async (session) => {
         const detail =
           session.currentRound === undefined || (session.queuedPromptCount ?? 0) > 0
             ? await this.readSessionDetail(session.id)
@@ -542,43 +539,6 @@ export class JsonSessionStore implements SessionStore {
     return updatedSession;
   }
 
-  async updateSessionPinned(sessionId: string, pinned: boolean): Promise<ChatSession> {
-    let updatedSession: ChatSession | undefined;
-
-    await this.enqueueWrite(async () => {
-      const index = await this.readIndex();
-      let updatedStoredSession: StoredSession | undefined;
-      const sessions = index.sessions.map((session) => {
-        if (session.id !== sessionId) {
-          return session;
-        }
-
-        updatedStoredSession = {
-          ...session,
-          pinned,
-        };
-
-        return toStoredSession(updatedStoredSession);
-      });
-
-      if (!updatedStoredSession) {
-        return;
-      }
-
-      await this.writeIndex({ ...index, sessions });
-      updatedSession = hydrateSession(
-        updatedStoredSession,
-        await this.readSessionDetail(updatedStoredSession.id),
-      );
-    });
-
-    if (!updatedSession) {
-      throw new Error(`Session not found: ${sessionId}`);
-    }
-
-    return updatedSession;
-  }
-
   getArtifactDirectoryPath(): string {
     return join(dirname(this.filePath), "session-artifacts");
   }
@@ -728,7 +688,6 @@ function toStoredSession(session: ChatSession | StoredSession): StoredSession {
     workspace: session.workspace,
     title: session.title,
     summary: session.summary,
-    ...(session.pinned ? { pinned: session.pinned } : {}),
     ...(session.doneAt ? { doneAt: session.doneAt } : {}),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
@@ -752,7 +711,6 @@ function toSessionIndexEntry(session: StoredSession): ChatSessionIndexEntry {
     workspace: session.workspace,
     title: session.title,
     summary: session.summary,
-    ...(session.pinned ? { pinned: session.pinned } : {}),
     ...(session.doneAt ? { doneAt: session.doneAt } : {}),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
@@ -783,20 +741,6 @@ function toQueuedPromptViewsProperty(
 
 function sortStoredSessions(sessions: StoredSession[]): StoredSession[] {
   return [...sessions].sort((left, right) => compareSessionsByUpdatedAt(left, right));
-}
-
-function uniqueStoredSessionsById(sessions: StoredSession[]): StoredSession[] {
-  const seen = new Set<string>();
-
-  return sessions.filter((session) => {
-    if (seen.has(session.id)) {
-      return false;
-    }
-
-    seen.add(session.id);
-
-    return true;
-  });
 }
 
 function compareSessionsByUpdatedAt(

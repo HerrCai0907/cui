@@ -105,12 +105,9 @@ export class SqliteSessionStore implements SessionStore {
       (pagination.page - 1) * pagination.pageSize,
       pagination.page * pagination.pageSize,
     );
-    const pinnedSessions =
-      pagination.page === 1 ? sortedSessions.filter((session) => Boolean(session.pinned)) : [];
-    const pageSessions = uniqueSessionRowsById([...pinnedSessions, ...pagedSessions]);
 
     return {
-      sessions: pageSessions.map((session) => ({
+      sessions: pagedSessions.map((session) => ({
         ...toSessionIndexEntry(session),
         ...toQueuedPromptViewsProperty(this.listQueuedPrompts(session.id)),
       })),
@@ -355,18 +352,6 @@ export class SqliteSessionStore implements SessionStore {
     return this.getRequiredSessionSync(sessionId);
   }
 
-  async updateSessionPinned(sessionId: string, pinned: boolean): Promise<ChatSession> {
-    const result = this.db
-      .prepare("UPDATE sessions SET pinned = ? WHERE id = ?")
-      .run(pinned ? 1 : 0, sessionId);
-
-    if (result.changes === 0) {
-      throw new Error(`Session not found: ${sessionId}`);
-    }
-
-    return this.getRequiredSessionSync(sessionId);
-  }
-
   getArtifactDirectoryPath(): string {
     return join(dirname(this.databasePath), "session-artifacts");
   }
@@ -414,7 +399,6 @@ export class SqliteSessionStore implements SessionStore {
       workspace: session.workspace,
       title: session.title,
       summary: session.summary ?? undefined,
-      ...(session.pinned ? { pinned: true } : {}),
       ...(session.done_at ? { doneAt: session.done_at } : {}),
       createdAt: session.created_at,
       updatedAt: session.updated_at,
@@ -476,7 +460,7 @@ export class SqliteSessionStore implements SessionStore {
         session.workspace,
         session.title,
         session.summary ?? null,
-        session.pinned ? 1 : 0,
+        0,
         session.doneAt ?? null,
         session.createdAt,
         session.updatedAt,
@@ -704,7 +688,6 @@ function toSessionIndexEntry(session: SessionRow): ChatSessionIndexEntry {
     workspace: session.workspace,
     title: session.title,
     summary: session.summary ?? undefined,
-    ...(session.pinned ? { pinned: true } : {}),
     ...(session.done_at ? { doneAt: session.done_at } : {}),
     createdAt: session.created_at,
     updatedAt: session.updated_at,
@@ -770,20 +753,6 @@ function toQueuedPromptViewsProperty(
   const queuedPromptViews = toQueuedPromptViews(queuedPrompts);
 
   return queuedPromptViews ? { queuedPrompts: queuedPromptViews } : {};
-}
-
-function uniqueSessionRowsById(sessions: SessionRow[]): SessionRow[] {
-  const seen = new Set<string>();
-
-  return sessions.filter((session) => {
-    if (seen.has(session.id)) {
-      return false;
-    }
-
-    seen.add(session.id);
-
-    return true;
-  });
 }
 
 function createPagination(
