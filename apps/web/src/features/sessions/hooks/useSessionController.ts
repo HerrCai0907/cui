@@ -160,15 +160,6 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     ? (activeSession.queuedPrompts ?? EMPTY_QUEUED_PROMPTS)
     : EMPTY_QUEUED_PROMPTS;
   const composerSubmitDisabled = activeSession ? activeSessionSubmitting : creatingSession;
-  const highlightedSessionIds = useMemo(() => {
-    const ids = new Set([...runningSessionIds, ...submittingSessionIds]);
-
-    if (activeSession) {
-      ids.add(activeSession.id);
-    }
-
-    return ids;
-  }, [activeSession?.id, runningSessionIds, submittingSessionIds]);
   const highlightedWorkspaceIds = useMemo(
     () =>
       new Set(
@@ -184,13 +175,8 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   );
   const sidebarSessionPartition = useMemo(
     () =>
-      partitionActiveSessionsForSidebar(
-        sessions,
-        sessionAttentionState,
-        highlightedSessionIds,
-        highlightedWorkspaceIds,
-      ),
-    [highlightedSessionIds, highlightedWorkspaceIds, sessionAttentionState, sessions],
+      partitionActiveSessionsForSidebar(sessions, sessionAttentionState, highlightedWorkspaceIds),
+    [highlightedWorkspaceIds, sessionAttentionState, sessions],
   );
 
   const workspaces = useMemo(
@@ -571,7 +557,6 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
                 currentActiveSession.currentRound,
                 nextActiveSessionSummary.currentRound,
               ),
-              pinned: nextActiveSessionSummary.pinned,
               gitBranch: nextActiveSessionSummary.gitBranch ?? currentActiveSession.gitBranch,
               gitCommitSha:
                 nextActiveSessionSummary.gitCommitSha ?? currentActiveSession.gitCommitSha,
@@ -1039,41 +1024,6 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     }
   }
 
-  async function toggleSessionPinned(sessionId: string) {
-    const session = sessions.find((current) => current.id === sessionId);
-
-    if (!session) {
-      return;
-    }
-
-    const pinned = !session.pinned;
-    setError(null);
-    updateSessions((current) =>
-      current.map((currentSession) =>
-        currentSession.id === sessionId ? { ...currentSession, pinned } : currentSession,
-      ),
-    );
-
-    try {
-      const updatedSession = await updateSession(sessionId, { pinned });
-      const updatedSummary = toCachedSessionListItem(updatedSession);
-
-      updateSessions((current) =>
-        current.map((currentSession) =>
-          currentSession.id === sessionId ? updatedSummary : currentSession,
-        ),
-      );
-      if (activeSessionRef.current?.id === sessionId) {
-        setCurrentActiveSession(updatedSession, {
-          recordAttention: false,
-        });
-      }
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Failed to update session pin");
-      await refreshSessions();
-    }
-  }
-
   function startNewSession(workspace?: string) {
     autoRestoreSessionRef.current = false;
     setCurrentActiveSession(null);
@@ -1414,7 +1364,6 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     refreshSessions,
     openSession,
     markSessionDone,
-    toggleSessionPinned,
     olderMessagesLoading,
     notification,
     newSessionGitInfo,
@@ -1603,7 +1552,6 @@ function createSessionShell(session: ApiSessionListItem): ApiSession {
     workspace: session.workspace,
     title: session.title,
     summary: session.summary,
-    pinned: session.pinned,
     doneAt: session.doneAt,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,

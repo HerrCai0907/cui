@@ -50,6 +50,5 @@ export interface SessionStore {
     summary: Pick<ChatSession, "title" | "summary">,
   ): Promise<ChatSession>;
   updateSessionDoneAt(sessionId: string, doneAt: string | undefined): Promise<ChatSession>;
-  updateSessionPinned(sessionId: string, pinned: boolean): Promise<ChatSession>;
   getArtifactDirectoryPath(): string;
 }

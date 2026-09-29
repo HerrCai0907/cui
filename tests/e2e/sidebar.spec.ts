@@ -97,7 +97,9 @@ test("opens workspace links in VSCode with configured Remote SSH mapping", async
   );
 });
 
-test("shows a focused Active list and keeps all sessions in More", async ({ page }) => {
+test("shows every unfinished session in Active and keeps all sessions in More", async ({
+  page,
+}) => {
   const sessions = Array.from({ length: 4 }, (_, index) => ({
     id: `session-${index}`,
     workspace: index < 3 ? currentWorkspace : "/Users/bytedance/other",
@@ -128,9 +130,11 @@ test("shows a focused Active list and keeps all sessions in More", async ({ page
     "true",
   );
   await expect(page.getByRole("button", { name: "Session 3" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Session 2" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Session 0" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Session 1" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Pin session" })).toHaveCount(0);
+  await page.getByRole("button", { name: `Expand ${currentWorkspace}`, exact: true }).click();
+  await expect(page.getByRole("button", { name: "Session 2" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Session 0" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Session 1" })).toBeVisible();
 
   await page.getByRole("button", { name: "More" }).click();
 
@@ -353,9 +357,7 @@ test("restores session sidebar expansion state after a browser refresh", async (
   await expect(
     page.getByRole("button", { name: `New session in ${currentWorkspace}` }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "New session in /Users/bytedance/other" }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Session 1" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "More" }).click();
   await page.getByRole("button", { name: "/Users/bytedance/other", exact: true }).click();
@@ -385,6 +387,7 @@ test("restores session sidebar expansion state after a browser refresh", async (
   await expect(
     page.getByRole("button", { name: "New session in /Users/bytedance/other" }),
   ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Session 1" })).toBeVisible();
   await expect(
     page.getByRole("button", {
       name: "/Users/bytedance/archive",

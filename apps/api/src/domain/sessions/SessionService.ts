@@ -285,10 +285,6 @@ export class SessionService {
       session = await this.store.updateSessionDoneAt(sessionId, doneAt);
     }
 
-    if (request.pinned !== undefined) {
-      session = await this.store.updateSessionPinned(sessionId, request.pinned);
-    }
-
     return this.toWindowedSessionView(session);
   }
 

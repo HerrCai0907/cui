@@ -20,9 +20,6 @@ export type ActiveSidebarSessionPartition = {
   more: SessionSummary[];
 };
 
-export const ACTIVE_RECENT_SESSION_COUNT_PER_WORKSPACE = 1;
-export const ACTIVE_RECENT_WORKSPACE_COUNT = 6;
-
 export function toSessionSummary(session: ApiSession | ApiSessionListItem): SessionSummary {
   const lastSeenRound = getLastSeenRound(session.id);
   const currentRound = getCurrentRound(session);
@@ -32,7 +29,6 @@ export function toSessionSummary(session: ApiSession | ApiSessionListItem): Sess
     workspace: session.workspace,
     title: session.title,
     summary: session.summary,
-    pinned: session.pinned,
     doneAt: session.doneAt,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
@@ -59,66 +55,16 @@ export function groupSessionsByWorkspace(
 export function partitionActiveSessionsForSidebar(
   sessions: SessionSummary[],
   attentionState: SessionAttentionState,
-  highlightedSessionIds: Set<string> = new Set(),
   highlightedWorkspaceIds: Set<string> = new Set(),
-  recentWorkspaceCount = ACTIVE_RECENT_WORKSPACE_COUNT,
 ): ActiveSidebarSessionPartition {
   const activeCandidateSessions = sessions.filter((session) => !session.doneAt);
-  const pinnedActiveCandidateSessions = activeCandidateSessions.filter((session) => session.pinned);
-  const activeSidebarSessionIds = new Set<string>();
-  const sessionsByWorkspace = groupSessionsByWorkspace(sessions);
-  const activeCandidateSessionsByWorkspace = groupSessionsByWorkspace(activeCandidateSessions);
-  const activeWorkspaceIds = new Set(highlightedWorkspaceIds);
-
-  pinnedActiveCandidateSessions.forEach((session) => {
-    activeSidebarSessionIds.add(session.id);
-    activeWorkspaceIds.add(session.workspace);
-  });
-
-  Object.entries(sessionsByWorkspace).forEach(([workspace, workspaceSessions]) => {
-    if (
-      workspaceSessions.some(
-        (session) =>
-          highlightedSessionIds.has(session.id) || session.isRunning || session.hasUnreadRound,
-      )
-    ) {
-      activeWorkspaceIds.add(workspace);
-    }
-  });
-
-  Object.keys(sessionsByWorkspace)
-    .filter((workspace) => (attentionState.workspaces[workspace] ?? 0) > 0)
-    .sort((left, right) => compareWorkspacesByAttention(left, right, attentionState))
-    .slice(0, recentWorkspaceCount)
-    .forEach((workspace) => {
-      activeWorkspaceIds.add(workspace);
-    });
-
-  Object.entries(activeCandidateSessionsByWorkspace).forEach(([workspace, workspaceSessions]) => {
-    if (!activeWorkspaceIds.has(workspace)) {
-      return;
-    }
-
-    workspaceSessions.forEach((session) => {
-      if (highlightedSessionIds.has(session.id) || session.isRunning || session.hasUnreadRound) {
-        activeSidebarSessionIds.add(session.id);
-      }
-    });
-
-    workspaceSessions
-      .filter((session) => !activeSidebarSessionIds.has(session.id))
-      .filter((session) => !session.pinned)
-      .sort((left, right) => compareSessionsByAttention(left, right, attentionState))
-      .slice(0, ACTIVE_RECENT_SESSION_COUNT_PER_WORKSPACE)
-      .forEach((session) => {
-        activeSidebarSessionIds.add(session.id);
-      });
-  });
+  const activeWorkspaceIds = new Set([
+    ...highlightedWorkspaceIds,
+    ...activeCandidateSessions.map((session) => session.workspace),
+  ]);
 
   return {
-    active: sortSessionsForActiveSidebar(
-      activeCandidateSessions.filter((session) => activeSidebarSessionIds.has(session.id)),
-    ),
+    active: sortSessionsForActiveSidebar(activeCandidateSessions),
     activeWorkspaces: sortActiveWorkspaces([...activeWorkspaceIds]),
     more: sortSessionsForAllSessions(sessions, attentionState),
   };
@@ -214,21 +160,6 @@ function getSessionAttention(
   attentionState: SessionAttentionState,
 ): number {
   return attentionState.sessions[session.id] ?? 0;
-}
-
-function compareWorkspacesByAttention(
-  left: string,
-  right: string,
-  attentionState: SessionAttentionState,
-): number {
-  const attentionOrder =
-    (attentionState.workspaces[right] ?? 0) - (attentionState.workspaces[left] ?? 0);
-
-  if (attentionOrder !== 0) {
-    return attentionOrder;
-  }
-
-  return left.localeCompare(right);
 }
 
 export function groupWorkspacesForDisplay(

@@ -47,7 +47,6 @@ export type ChatSession = {
   workspace: string;
   title: string;
   summary?: string;
-  pinned?: boolean;
   doneAt?: string;
   createdAt: string;
   updatedAt: string;

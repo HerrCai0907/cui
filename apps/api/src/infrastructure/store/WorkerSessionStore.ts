@@ -53,8 +53,7 @@ type SessionStoreMethod =
   | "getRound"
   | "updateRoundAtomicReview"
   | "updateSessionSummary"
-  | "updateSessionDoneAt"
-  | "updateSessionPinned";
+  | "updateSessionDoneAt";
 
 type PendingCall = {
   resolve: (value: unknown) => void;
@@ -172,10 +171,6 @@ export class WorkerSessionStore implements SessionStore {
 
   updateSessionDoneAt(sessionId: string, doneAt: string | undefined): Promise<ChatSession> {
     return this.call("updateSessionDoneAt", sessionId, doneAt);
-  }
-
-  updateSessionPinned(sessionId: string, pinned: boolean): Promise<ChatSession> {
-    return this.call("updateSessionPinned", sessionId, pinned);
   }
 
   getArtifactDirectoryPath(): string {
