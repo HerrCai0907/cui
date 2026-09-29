@@ -568,7 +568,7 @@ test("renders assistant inline and fenced code blocks", async ({ page }) => {
         id: "message-1",
         role: "assistant",
         kind: "response",
-        content: `Use \`npm test\` before merging.\n\n\`\`\`ts\n${code}\n\`\`\``,
+        content: `Use \`npm test\` before merging.\n\n   \`\`\`ts\n   ${code}\n   \`\`\``,
         createdAt: "2026-08-22T00:00:00.000Z",
       },
     ],
