@@ -281,6 +281,33 @@ test("parseMessageContent parses headings, text, and fenced code blocks", () => 
   );
 });
 
+test("parseMessageContent accepts fenced code blocks indented up to three spaces", () => {
+  assert.deepEqual(parseMessageContent("Before\n   ```ts\n   const value = 1;\n   ```\nAfter\n"), [
+    {
+      type: "text",
+      text: "Before\n",
+    },
+    {
+      type: "codeBlock",
+      language: "ts",
+      code: "const value = 1;",
+    },
+    {
+      type: "text",
+      text: "After\n",
+    },
+  ]);
+});
+
+test("parseMessageContent treats fences indented four spaces as text", () => {
+  assert.deepEqual(parseMessageContent("    ```ts\nconst value = 1;\n    ```\n"), [
+    {
+      type: "text",
+      text: "    ```ts\nconst value = 1;\n    ```\n",
+    },
+  ]);
+});
+
 test("parseMessageContent keeps unmatched fences as text", () => {
   assert.deepEqual(parseMessageContent("Before\n```ts\nconst value = 1;\n"), [
     {

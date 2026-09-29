@@ -78,6 +78,14 @@ export function formatCodePathForClipboard(target: CodeLinkTarget): string {
   return `${target.filePath}:${target.startLine}`;
 }
 
+type CodeFence = {
+  indent: number;
+  marker: "`" | "~";
+  length: number;
+  info: string;
+  lineEnd: number;
+};
+
 class BlockMarkdownParser {
   private cursor = 0;
 
@@ -108,30 +116,30 @@ class BlockMarkdownParser {
   }
 
   private parseFencedCodeBlock(): MessagePart | undefined {
-    if (!this.startsWith("```")) {
+    const openingFence = this.matchOpeningCodeFence();
+
+    if (!openingFence) {
       return undefined;
     }
 
     const blockStart = this.cursor;
-    this.cursor += 3;
-    const infoStart = this.cursor;
-    this.cursor = this.readToLineEnd();
-    const info = this.source.slice(infoStart, this.cursor).trim();
+    this.cursor = openingFence.lineEnd;
     this.consumeLineBreak();
-    const codeStart = this.cursor;
+    const codeLines: string[] = [];
 
     while (!this.isAtEnd()) {
-      if (this.startsWith("```")) {
-        const code = this.stripTrailingLineBreak(this.source.slice(codeStart, this.cursor));
-        this.cursor += 3;
-        this.cursor = this.readToLineEnd();
+      const closingFence = this.matchClosingCodeFence(openingFence);
+
+      if (closingFence) {
+        const code = this.stripTrailingLineBreak(codeLines.join(""));
+        this.cursor = closingFence.lineEnd;
         this.consumeLineBreak();
 
-        return isLanguageMarker(info)
+        return isLanguageMarker(openingFence.info)
           ? {
               type: "codeBlock",
               code,
-              language: info,
+              language: openingFence.info,
             }
           : {
               type: "codeBlock",
@@ -139,7 +147,11 @@ class BlockMarkdownParser {
             };
       }
 
+      const lineStart = this.cursor;
       this.cursor = this.readLine();
+      codeLines.push(
+        this.stripOpeningIndent(this.source.slice(lineStart, this.cursor), openingFence.indent),
+      );
     }
 
     return {
@@ -165,7 +177,10 @@ class BlockMarkdownParser {
     const textStart = this.cursor;
 
     while (!this.isAtEnd()) {
-      if (this.cursor > textStart && (this.startsWith("```") || this.currentLineIsHeading())) {
+      if (
+        this.cursor > textStart &&
+        (this.matchOpeningCodeFence() || this.currentLineIsHeading())
+      ) {
         break;
       }
 
@@ -184,6 +199,101 @@ class BlockMarkdownParser {
 
   private currentLineIsHeading(): boolean {
     return Boolean(parseAtxHeading(this.source.slice(this.cursor, this.readToLineEnd())));
+  }
+
+  private matchOpeningCodeFence(): CodeFence | undefined {
+    const lineEnd = this.readToLineEnd();
+    const fenceStart = this.skipOptionalFenceIndent(this.cursor, lineEnd);
+
+    if (fenceStart === undefined) {
+      return undefined;
+    }
+
+    const marker = this.source[fenceStart];
+
+    if (marker !== "`" && marker !== "~") {
+      return undefined;
+    }
+
+    const fenceEnd = this.readFenceRun(fenceStart, lineEnd, marker);
+    const length = fenceEnd - fenceStart;
+
+    if (length < 3) {
+      return undefined;
+    }
+
+    const info = this.source.slice(fenceEnd, lineEnd).trim();
+
+    if (marker === "`" && info.includes("`")) {
+      return undefined;
+    }
+
+    return {
+      indent: fenceStart - this.cursor,
+      marker,
+      length,
+      info,
+      lineEnd,
+    };
+  }
+
+  private matchClosingCodeFence(openingFence: CodeFence): CodeFence | undefined {
+    const lineEnd = this.readToLineEnd();
+    const fenceStart = this.skipOptionalFenceIndent(this.cursor, lineEnd);
+
+    if (fenceStart === undefined || this.source[fenceStart] !== openingFence.marker) {
+      return undefined;
+    }
+
+    const fenceEnd = this.readFenceRun(fenceStart, lineEnd, openingFence.marker);
+
+    if (fenceEnd - fenceStart < openingFence.length) {
+      return undefined;
+    }
+
+    for (let index = fenceEnd; index < lineEnd; index += 1) {
+      if (!isSpaceOrTab(this.source[index])) {
+        return undefined;
+      }
+    }
+
+    return {
+      indent: fenceStart - this.cursor,
+      marker: openingFence.marker,
+      length: fenceEnd - fenceStart,
+      info: "",
+      lineEnd,
+    };
+  }
+
+  private skipOptionalFenceIndent(lineStart: number, lineEnd: number): number | undefined {
+    let cursor = lineStart;
+
+    while (cursor < lineEnd && cursor - lineStart < 4 && this.source[cursor] === " ") {
+      cursor += 1;
+    }
+
+    return cursor - lineStart <= 3 ? cursor : undefined;
+  }
+
+  private readFenceRun(start: number, lineEnd: number, marker: "`" | "~"): number {
+    let cursor = start;
+
+    while (cursor < lineEnd && this.source[cursor] === marker) {
+      cursor += 1;
+    }
+
+    return cursor;
+  }
+
+  private stripOpeningIndent(line: string, indent: number): string {
+    let cursor = 0;
+
+    while (cursor < line.length && cursor < indent && line[cursor] === " ") {
+      cursor += 1;
+    }
+
+    return line.slice(cursor);
   }
 
   private readLine(): number {
