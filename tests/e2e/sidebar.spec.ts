@@ -237,31 +237,36 @@ test("marks a session done and removes it from Active after feedback", async ({ 
   await expect(page.getByRole("button", { name: "Finishable session" })).toBeVisible();
 });
 
-test("keeps the last four inactive workspaces available in Active", async ({ page }) => {
-  const sessions = [0, 1, 2, 3].map((index) => ({
+test("keeps inactive workspaces active when used within seven days", async ({ page }) => {
+  const sessions = [0, 1, 2, 3, 4].map((index) => ({
     id: `session-${index}`,
     workspace: `/workspace/${index}`,
     title: `Done session ${index}`,
-    createdAt: new Date(Date.UTC(2026, 7, 22, 0, 0, index)).toISOString(),
-    updatedAt: new Date(Date.UTC(2026, 7, 22, 0, 0, index)).toISOString(),
-    doneAt: "2026-08-22T00:00:10.000Z",
+    createdAt: new Date(Date.now() - index * 1_000).toISOString(),
+    updatedAt: new Date(Date.now() - index * 1_000).toISOString(),
+    doneAt: new Date(Date.now() - index * 1_000).toISOString(),
     messages: [],
     rounds: [],
   }));
 
   await page.addInitScript(() => {
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1_000;
+
     localStorage.setItem(
       "cui:session-attention:v1",
       JSON.stringify({
         version: 1,
         sessions: {},
         workspaces: {
-          "/workspace/0": 100,
-          "/workspace/1": 200,
-          "/workspace/2": 300,
-          "/workspace/3": 400,
+          "/workspace/0": now - dayMs,
+          "/workspace/1": now - 2 * dayMs,
+          "/workspace/2": now - 3 * dayMs,
+          "/workspace/3": now - 4 * dayMs,
+          "/workspace/4": now - 5 * dayMs,
+          "/workspace/stale": now - 8 * dayMs,
         },
-        updatedAt: Date.now(),
+        updatedAt: now,
       }),
     );
   });
@@ -279,6 +284,10 @@ test("keeps the last four inactive workspaces available in Active", async ({ pag
   await expect(sidebar.getByRole("button", { name: "New session in /workspace/1" })).toBeVisible();
   await expect(sidebar.getByRole("button", { name: "New session in /workspace/2" })).toBeVisible();
   await expect(sidebar.getByRole("button", { name: "New session in /workspace/3" })).toBeVisible();
+  await expect(sidebar.getByRole("button", { name: "New session in /workspace/4" })).toBeVisible();
+  await expect(
+    sidebar.getByRole("button", { name: "New session in /workspace/stale" }),
+  ).toHaveCount(0);
   await expect(sidebar.getByRole("button", { name: "Done session 0" })).toHaveCount(0);
 });
 

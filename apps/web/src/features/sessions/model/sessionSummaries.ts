@@ -20,7 +20,7 @@ export type ActiveSidebarSessionPartition = {
   more: SessionSummary[];
 };
 
-const ACTIVE_SIDEBAR_RECENT_WORKSPACE_LIMIT = 4;
+export const ACTIVE_SIDEBAR_WORKSPACE_ACTIVITY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function toSessionSummary(session: ApiSession | ApiSessionListItem): SessionSummary {
   const lastSeenRound = getLastSeenRound(session.id);
@@ -58,13 +58,14 @@ export function partitionActiveSessionsForSidebar(
   sessions: SessionSummary[],
   attentionState: SessionAttentionState,
   highlightedWorkspaceIds: Set<string> = new Set(),
+  now = Date.now(),
 ): ActiveSidebarSessionPartition {
   const activeCandidateSessions = sessions.filter((session) => !session.doneAt);
-  const knownWorkspaceIds = new Set(sessions.map((session) => session.workspace));
   const recentWorkspaceIds = getRecentWorkspaceIds(
+    sessions,
     attentionState,
-    knownWorkspaceIds,
-    ACTIVE_SIDEBAR_RECENT_WORKSPACE_LIMIT,
+    now,
+    ACTIVE_SIDEBAR_WORKSPACE_ACTIVITY_WINDOW_MS,
   );
   const activeWorkspaceIds = new Set([
     ...highlightedWorkspaceIds,
@@ -80,21 +81,40 @@ export function partitionActiveSessionsForSidebar(
 }
 
 function getRecentWorkspaceIds(
+  sessions: SessionSummary[],
   attentionState: SessionAttentionState,
-  knownWorkspaceIds: Set<string>,
-  limit: number,
+  now: number,
+  windowMs: number,
 ): string[] {
-  return Object.entries(attentionState.workspaces)
-    .filter(
-      ([workspace, lastSeenAt]) => knownWorkspaceIds.has(workspace) && Number.isFinite(lastSeenAt),
-    )
-    .sort((left, right) => {
-      const attentionOrder = right[1] - left[1];
+  const workspaceActivity = new Map<string, number>();
 
-      return attentionOrder !== 0 ? attentionOrder : left[0].localeCompare(right[0]);
-    })
-    .slice(0, limit)
+  sessions.forEach((session) => {
+    const updatedAt = Date.parse(session.updatedAt);
+
+    if (Number.isFinite(updatedAt)) {
+      workspaceActivity.set(
+        session.workspace,
+        Math.max(workspaceActivity.get(session.workspace) ?? 0, updatedAt),
+      );
+    }
+  });
+  Object.entries(attentionState.workspaces).forEach(([workspace, lastSeenAt]) => {
+    if (Number.isFinite(lastSeenAt)) {
+      workspaceActivity.set(workspace, Math.max(workspaceActivity.get(workspace) ?? 0, lastSeenAt));
+    }
+  });
+
+  return [...workspaceActivity.entries()]
+    .filter(([, lastActiveAt]) => isRecentWorkspaceActivity(lastActiveAt, now, windowMs))
     .map(([workspace]) => workspace);
+}
+
+export function isRecentWorkspaceActivity(
+  lastActiveAt: number,
+  now = Date.now(),
+  windowMs = ACTIVE_SIDEBAR_WORKSPACE_ACTIVITY_WINDOW_MS,
+): boolean {
+  return Number.isFinite(lastActiveAt) && lastActiveAt >= now - windowMs;
 }
 
 function sortActiveWorkspaces(workspaces: string[]): string[] {

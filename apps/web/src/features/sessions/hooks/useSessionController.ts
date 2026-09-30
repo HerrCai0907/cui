@@ -20,6 +20,7 @@ import { getWorkspaceGitInfo, type WorkspaceGitInfo } from "../api/codeApi";
 import {
   getCurrentRound,
   groupSessionsByWorkspace,
+  isRecentWorkspaceActivity,
   partitionActiveSessionsForSidebar,
   toSessionSummary,
 } from "../model/sessionSummaries";
@@ -1289,11 +1290,12 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   function pruneSessionAttention(sessionSummaries: SessionSummary[]) {
     const sessionIds = new Set(sessionSummaries.map((session) => session.id));
     const workspaceIds = new Set(sessionSummaries.map((session) => session.workspace));
+    const now = Date.now();
 
     updateSessionAttentionState((current) => {
       const next = {
         sessions: filterKnownKeys(current.sessions, sessionIds),
-        workspaces: filterKnownKeys(current.workspaces, workspaceIds),
+        workspaces: filterKnownOrRecentWorkspaceKeys(current.workspaces, workspaceIds, now),
       };
 
       return isSameAttentionState(current, next) ? current : next;
@@ -1428,6 +1430,20 @@ function filterKnownKeys(
 ): Record<string, number> {
   return Object.entries(values).reduce<Record<string, number>>((filtered, [key, value]) => {
     if (knownKeys.has(key)) {
+      filtered[key] = value;
+    }
+
+    return filtered;
+  }, {});
+}
+
+function filterKnownOrRecentWorkspaceKeys(
+  values: Record<string, number>,
+  knownKeys: Set<string>,
+  now: number,
+): Record<string, number> {
+  return Object.entries(values).reduce<Record<string, number>>((filtered, [key, value]) => {
+    if (knownKeys.has(key) || isRecentWorkspaceActivity(value, now)) {
       filtered[key] = value;
     }
 
