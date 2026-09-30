@@ -20,6 +20,8 @@ export type ActiveSidebarSessionPartition = {
   more: SessionSummary[];
 };
 
+const ACTIVE_SIDEBAR_RECENT_WORKSPACE_LIMIT = 4;
+
 export function toSessionSummary(session: ApiSession | ApiSessionListItem): SessionSummary {
   const lastSeenRound = getLastSeenRound(session.id);
   const currentRound = getCurrentRound(session);
@@ -58,9 +60,16 @@ export function partitionActiveSessionsForSidebar(
   highlightedWorkspaceIds: Set<string> = new Set(),
 ): ActiveSidebarSessionPartition {
   const activeCandidateSessions = sessions.filter((session) => !session.doneAt);
+  const knownWorkspaceIds = new Set(sessions.map((session) => session.workspace));
+  const recentWorkspaceIds = getRecentWorkspaceIds(
+    attentionState,
+    knownWorkspaceIds,
+    ACTIVE_SIDEBAR_RECENT_WORKSPACE_LIMIT,
+  );
   const activeWorkspaceIds = new Set([
     ...highlightedWorkspaceIds,
     ...activeCandidateSessions.map((session) => session.workspace),
+    ...recentWorkspaceIds,
   ]);
 
   return {
@@ -68,6 +77,24 @@ export function partitionActiveSessionsForSidebar(
     activeWorkspaces: sortActiveWorkspaces([...activeWorkspaceIds]),
     more: sortSessionsForAllSessions(sessions, attentionState),
   };
+}
+
+function getRecentWorkspaceIds(
+  attentionState: SessionAttentionState,
+  knownWorkspaceIds: Set<string>,
+  limit: number,
+): string[] {
+  return Object.entries(attentionState.workspaces)
+    .filter(
+      ([workspace, lastSeenAt]) => knownWorkspaceIds.has(workspace) && Number.isFinite(lastSeenAt),
+    )
+    .sort((left, right) => {
+      const attentionOrder = right[1] - left[1];
+
+      return attentionOrder !== 0 ? attentionOrder : left[0].localeCompare(right[0]);
+    })
+    .slice(0, limit)
+    .map(([workspace]) => workspace);
 }
 
 function sortActiveWorkspaces(workspaces: string[]): string[] {

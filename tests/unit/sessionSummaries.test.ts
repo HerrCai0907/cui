@@ -259,7 +259,7 @@ test("partitionActiveSessionsForSidebar includes all unfinished sessions in an a
   assert.deepEqual(partition.activeWorkspaces, ["/workspace/a"]);
 });
 
-test("partitionActiveSessionsForSidebar excludes done-only workspaces from Active", () => {
+test("partitionActiveSessionsForSidebar keeps recent done-only workspaces in Active", () => {
   const sessions = createSessions(4);
   sessions[0] = {
     ...sessions[0],
@@ -282,11 +282,43 @@ test("partitionActiveSessionsForSidebar excludes done-only workspaces from Activ
     },
   });
 
-  assert.deepEqual(partition.activeWorkspaces, ["/workspace/a", "/workspace/b"]);
+  assert.deepEqual(partition.activeWorkspaces, [
+    "/workspace/a",
+    "/workspace/b",
+    "/workspace/done-only",
+  ]);
   assert.deepEqual(
     partition.active.map((session) => session.id),
     ["session-2", "session-3"],
   );
+});
+
+test("partitionActiveSessionsForSidebar keeps only the four latest inactive workspaces", () => {
+  const sessions = createSessions(6).map((session, index) => ({
+    ...session,
+    workspace: `/workspace/${index}`,
+    doneAt: "2026-08-22T00:00:00.000Z",
+  }));
+
+  const partition = partitionActiveSessionsForSidebar(sessions, {
+    sessions: {},
+    workspaces: {
+      "/workspace/0": 100,
+      "/workspace/1": 200,
+      "/workspace/2": 300,
+      "/workspace/3": 400,
+      "/workspace/4": 500,
+      "/workspace/5": 600,
+    },
+  });
+
+  assert.deepEqual(partition.activeWorkspaces, [
+    "/workspace/2",
+    "/workspace/3",
+    "/workspace/4",
+    "/workspace/5",
+  ]);
+  assert.deepEqual(partition.active, []);
 });
 
 test("partitionActiveSessionsForSidebar keeps all unfinished workspaces", () => {
