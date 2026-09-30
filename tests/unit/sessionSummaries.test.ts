@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  ACTIVE_SIDEBAR_WORKSPACE_ACTIVITY_WINDOW_MS,
   groupWorkspacesForDisplay,
   partitionActiveSessionsForSidebar,
   type WorkspaceTreeNode,
 } from "../../apps/web/src/features/sessions/model/sessionSummaries.js";
 import type { SessionSummary } from "../../apps/web/src/types.js";
+
+const NOW = Date.UTC(2026, 8, 30, 0, 0, 0);
 
 test("groupWorkspacesForDisplay builds a workspace file tree", () => {
   assert.deepEqual(
@@ -271,16 +274,21 @@ test("partitionActiveSessionsForSidebar keeps recent done-only workspaces in Act
     doneAt: "2026-08-22T00:00:00.000Z",
   };
 
-  const partition = partitionActiveSessionsForSidebar(sessions, {
-    sessions: {
-      "session-0": 300,
-      "session-1": 200,
+  const partition = partitionActiveSessionsForSidebar(
+    sessions,
+    {
+      sessions: {
+        "session-0": 300,
+        "session-1": 200,
+      },
+      workspaces: {
+        "/workspace/a": NOW - 1_000,
+        "/workspace/done-only": NOW - 2_000,
+      },
     },
-    workspaces: {
-      "/workspace/a": 100,
-      "/workspace/done-only": 90,
-    },
-  });
+    new Set(),
+    NOW,
+  );
 
   assert.deepEqual(partition.activeWorkspaces, [
     "/workspace/a",
@@ -293,30 +301,53 @@ test("partitionActiveSessionsForSidebar keeps recent done-only workspaces in Act
   );
 });
 
-test("partitionActiveSessionsForSidebar keeps only the four latest inactive workspaces", () => {
-  const sessions = createSessions(6).map((session, index) => ({
-    ...session,
-    workspace: `/workspace/${index}`,
-    doneAt: "2026-08-22T00:00:00.000Z",
-  }));
-
-  const partition = partitionActiveSessionsForSidebar(sessions, {
-    sessions: {},
-    workspaces: {
-      "/workspace/0": 100,
-      "/workspace/1": 200,
-      "/workspace/2": 300,
-      "/workspace/3": 400,
-      "/workspace/4": 500,
-      "/workspace/5": 600,
+test("partitionActiveSessionsForSidebar keeps every inactive workspace active within seven days", () => {
+  const sessions = [
+    ...Array.from({ length: 6 }, (_, index) => ({
+      id: `session-${index}`,
+      workspace: `/workspace/${index}`,
+      title: `Session ${index}`,
+      createdAt: new Date(NOW - (index + 1) * 1_000).toISOString(),
+      updatedAt: new Date(NOW - (index + 1) * 1_000).toISOString(),
+      doneAt: new Date(NOW - (index + 1) * 1_000).toISOString(),
+      currentRound: 1,
+      isRunning: false,
+      hasUnreadRound: false,
+    })),
+    {
+      id: "session-stale",
+      workspace: "/workspace/stale",
+      title: "Stale session",
+      createdAt: new Date(NOW - 8 * 24 * 60 * 60 * 1_000).toISOString(),
+      updatedAt: new Date(NOW - ACTIVE_SIDEBAR_WORKSPACE_ACTIVITY_WINDOW_MS - 1).toISOString(),
+      doneAt: new Date(NOW - ACTIVE_SIDEBAR_WORKSPACE_ACTIVITY_WINDOW_MS - 1).toISOString(),
+      currentRound: 1,
+      isRunning: false,
+      hasUnreadRound: false,
     },
-  });
+  ];
+
+  const partition = partitionActiveSessionsForSidebar(
+    sessions,
+    {
+      sessions: {},
+      workspaces: {
+        "/workspace/attention-only": NOW - 60_000,
+        "/workspace/stale-attention": NOW - ACTIVE_SIDEBAR_WORKSPACE_ACTIVITY_WINDOW_MS - 1,
+      },
+    },
+    new Set(),
+    NOW,
+  );
 
   assert.deepEqual(partition.activeWorkspaces, [
+    "/workspace/0",
+    "/workspace/1",
     "/workspace/2",
     "/workspace/3",
     "/workspace/4",
     "/workspace/5",
+    "/workspace/attention-only",
   ]);
   assert.deepEqual(partition.active, []);
 });
