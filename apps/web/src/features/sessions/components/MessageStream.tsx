@@ -13,6 +13,7 @@ import { formatMessageTime } from "../../../shared/lib/dates";
 import type { AppConfig } from "../../config/model/appConfig";
 import type { ApiMessage, ApiSession } from "../../../types";
 import { AssistantMessageContent } from "./AssistantMessageContent";
+import { WorkspacePathInput } from "./WorkspacePathInput";
 import { getMessageTitle } from "../model/messages";
 import type { QueuedPromptView } from "../hooks/useSessionController";
 
@@ -121,11 +122,7 @@ export function MessageStream({
               Pick a workspace path, type the initial prompt, and the backend will create a
               persistent session.
             </p>
-            <input
-              value={workspaceDraft}
-              aria-label="Workspace path"
-              onChange={(event) => onWorkspaceDraftChange(event.target.value)}
-            />
+            <WorkspacePathInput value={workspaceDraft} onChange={onWorkspaceDraftChange} />
           </div>
         )}
 

@@ -16,6 +16,7 @@ import {
   RunEventsQuerySchema,
   UpdateSessionRequestSchema,
   WorkspaceGitInfoQuerySchema,
+  WorkspacePathSuggestionsQuerySchema,
 } from "../../contracts/apiSchemas.js";
 
 export type ParsedBody<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -108,6 +109,12 @@ export function parseWorkspaceGitInfoQuery(
   query: unknown,
 ): ParsedBody<z.infer<typeof WorkspaceGitInfoQuerySchema>> {
   return parseWithSchema(WorkspaceGitInfoQuerySchema, query);
+}
+
+export function parseWorkspacePathSuggestionsQuery(
+  query: unknown,
+): ParsedBody<z.infer<typeof WorkspacePathSuggestionsQuerySchema>> {
+  return parseWithSchema(WorkspacePathSuggestionsQuerySchema, query);
 }
 
 function parseWithSchema<T extends z.ZodType>(schema: T, input: unknown): ParsedBody<z.infer<T>> {
