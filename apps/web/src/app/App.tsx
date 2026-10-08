@@ -5,8 +5,10 @@ import { ConfigPage } from "../features/config/components/ConfigPage";
 import {
   loadAppConfig,
   saveAppConfig,
+  createVisibleModelOptions,
   type AppConfig,
   type ModelOption,
+  type ReasoningEffort,
 } from "../features/config/model/appConfig";
 import { isAndroidSshTunnelAvailable } from "../features/config/model/androidSshTunnel";
 import { ReviewPage } from "../features/review/components/ReviewPage";
@@ -47,6 +49,7 @@ export function App() {
   const [reviewNavigationTarget, setReviewNavigationTarget] =
     useState<ReviewNavigationTarget | null>(null);
   const sessionController = useSessionController(DEFAULT_WORKSPACE, config);
+  const visibleModels = createVisibleModelOptions(models, config);
   const mobileClient = mobileLayout || isEmbeddedAndroidApp();
   const showVscodeControls = !mobileClient;
   const showSshTunnelConfig = isAndroidSshTunnelAvailable();
@@ -109,6 +112,20 @@ export function App() {
   function updateConfig(nextConfig: AppConfig) {
     setConfig(nextConfig);
     saveAppConfig(nextConfig);
+  }
+
+  function updateNormalModelSelection(model: string, reasoningEffort: ReasoningEffort) {
+    updateConfig({
+      ...config,
+      models: {
+        ...config.models,
+        normal: model,
+      },
+      reasoningEfforts: {
+        ...config.reasoningEfforts,
+        normal: reasoningEffort,
+      },
+    });
   }
 
   useEffect(() => {
@@ -379,12 +396,17 @@ export function App() {
               active={Boolean(sessionController.activeSession)}
               disabled={sessionController.composerSubmitDisabled}
               draft={sessionController.draft}
+              modelOptions={visibleModels}
+              modelsError={modelsError}
+              selectedModel={config.models.normal}
+              selectedReasoningEffort={config.reasoningEfforts.normal}
               shellMode={sessionController.composerMode === "shell"}
               stopping={sessionController.activeSessionRunning}
               stopDisabled={sessionController.activeSessionStopping}
               lastEnterKeyDownRef={sessionController.lastEnterKeyDownRef}
               textareaRef={sessionController.composerTextareaRef}
               onDraftChange={sessionController.setDraft}
+              onModelSelectionChange={updateNormalModelSelection}
               onShellModeChange={(shellMode) =>
                 sessionController.setComposerMode(shellMode ? "shell" : "chat")
               }

@@ -213,10 +213,15 @@
   }
 
   .composer {
-    grid-template-columns: 44px minmax(0, 1fr) auto;
+    grid-template-columns: 44px minmax(0, 1fr) auto 44px;
     gap: 8px;
     padding-top: 10px;
     padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  .composer-model-popover {
+    right: 0;
+    grid-template-columns: minmax(150px, 1fr) minmax(120px, 0.75fr);
   }
 
   .send-button {

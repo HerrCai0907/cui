@@ -8,6 +8,7 @@ import {
   mockSessionById,
   mockSessions,
   mockWorkspaceGitInfo,
+  storeAppConfig,
 } from "./helpers";
 
 test("loads the new session screen without browser errors", async ({ page }) => {
@@ -180,7 +181,7 @@ test("loads twice the current message count when requesting earlier messages", a
   await expect.poll(() => requestedLimit).toBe("4");
 });
 
-test("sends configured models when starting a chat session", async ({ page }) => {
+test("sends composer-selected model preferences when starting a chat session", async ({ page }) => {
   const startedSession = {
     id: "session-models",
     workspace: currentWorkspace,
@@ -237,21 +238,22 @@ test("sends configured models when starting a chat session", async ({ page }) =>
   await page.route("**/api/v1/runs/run-models/events", async () => {
     // Keep the stream open so the submitted session remains visible.
   });
+  await storeAppConfig(page, {
+    harness: "traex",
+    models: {
+      summary: "GPT-5.4",
+      atomicReview: "GPT-5.5",
+    },
+    reasoningEfforts: {
+      summary: "low",
+      atomicReview: "medium",
+    },
+  });
 
-  await page.goto("/config");
-
-  const modelChoices = page.getByRole("group", { name: "Model choices" });
-
-  await page.getByRole("combobox", { name: "AI harness" }).selectOption("codex");
-  await modelChoices.getByRole("textbox", { name: "Normal model", exact: true }).fill("gpt-5.5");
-  await modelChoices.getByLabel("Normal reasoning effort").selectOption("medium");
-  await modelChoices.getByRole("textbox", { name: "Summary model", exact: true }).fill("gpt-5.4");
-  await modelChoices.getByLabel("Summary reasoning effort").selectOption("low");
-  await modelChoices
-    .getByRole("textbox", { name: "Atomic Review model", exact: true })
-    .fill("gpt-5.5");
-  await modelChoices.getByLabel("Atomic Review reasoning effort").selectOption("xhigh");
-  await page.getByRole("button", { name: "New session", exact: true }).click();
+  await page.goto("/");
+  await page.getByRole("button", { name: "Select model and reasoning effort" }).click();
+  await page.getByRole("menuitem", { name: "Seed-2.1-Turbo" }).click();
+  await page.getByRole("menuitem", { name: "High", exact: true }).click();
   await page.getByPlaceholder("Start with an initial prompt...").fill("Use the selected models.");
   await page.getByRole("button", { name: "Send message" }).click();
 
@@ -270,14 +272,14 @@ test("sends configured models when starting a chat session", async ({ page }) =>
         prompt: "Use the selected models.",
       },
       models: {
-        harness: "codex",
-        normal: "gpt-5.5",
-        summary: "gpt-5.4",
-        atomicReview: "gpt-5.5",
+        harness: "traex",
+        normal: "Seed-2.1-Turbo",
+        summary: "GPT-5.4",
+        atomicReview: "GPT-5.5",
         reasoningEfforts: {
-          normal: "medium",
+          normal: "high",
           summary: "low",
-          atomicReview: "xhigh",
+          atomicReview: "medium",
         },
       },
     });
