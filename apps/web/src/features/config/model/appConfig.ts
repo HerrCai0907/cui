@@ -137,6 +137,15 @@ export const REASONING_EFFORT_LABELS: Record<ReasoningEffort, string> = {
   ultra: "Ultra",
 };
 
+const DEFAULT_VISIBLE_REASONING_EFFORTS: ReasoningEffort[] = [
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+];
+
 export const DEFAULT_SSH_TUNNEL_CONFIG: SshTunnelConfig = {
   enabled: false,
   host: "",
@@ -381,6 +390,44 @@ export function createModelRequestPreferences(
   return Object.keys(preferences).length > 0 ? preferences : undefined;
 }
 
+export function createVisibleModelOptions(models: ModelOption[], config: AppConfig): ModelOption[] {
+  const modelByName = new Map(models.map((model) => [model.name, model]));
+
+  for (const model of Object.values(config.models)) {
+    if (model && !modelByName.has(model)) {
+      modelByName.set(model, { name: model });
+    }
+  }
+
+  return [...modelByName.values()];
+}
+
+export function createVisibleReasoningEffortOptions(
+  selectedModelName: string,
+  modelOptions: ModelOption[],
+): ReasoningEffort[] {
+  const selectedModel = findModelOption(selectedModelName, modelOptions);
+
+  if (selectedModel?.supportedReasoningEfforts?.length) {
+    return uniqueReasoningEfforts(selectedModel.supportedReasoningEfforts);
+  }
+
+  const catalogReasoningEfforts = uniqueReasoningEfforts(
+    modelOptions.flatMap((model) => model.supportedReasoningEfforts ?? []),
+  );
+
+  return catalogReasoningEfforts.length
+    ? catalogReasoningEfforts
+    : DEFAULT_VISIBLE_REASONING_EFFORTS;
+}
+
+export function findModelOption(
+  modelName: string,
+  modelOptions: ModelOption[],
+): ModelOption | undefined {
+  return modelOptions.find((model) => model.name === modelName);
+}
+
 export function createVscodeWorkspaceUrl(workspace: string, config: VscodeConfig): string {
   const remoteSsh = config.remoteSsh;
 
@@ -574,6 +621,10 @@ function isReasoningEffort(value: unknown): value is ReasoningEffort {
 
 function isAiHarness(value: unknown): value is AiHarness {
   return typeof value === "string" && AI_HARNESSES.includes(value as AiHarness);
+}
+
+function uniqueReasoningEfforts(reasoningEfforts: ReasoningEffort[]): ReasoningEffort[] {
+  return REASONING_EFFORTS.filter((reasoningEffort) => reasoningEfforts.includes(reasoningEffort));
 }
 
 function isFileChangeItem(type: string | undefined): boolean {

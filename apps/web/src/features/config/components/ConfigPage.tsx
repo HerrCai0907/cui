@@ -11,6 +11,9 @@ import {
   REASONING_EFFORTS,
   REASONING_EFFORT_LABELS,
   createDefaultAppConfig,
+  createVisibleModelOptions,
+  createVisibleReasoningEffortOptions,
+  findModelOption,
   type AiHarness,
   type AppConfig,
   type ExecutionTraceMessageType,
@@ -43,14 +46,6 @@ type ServerLatencyState = {
 
 const LATENCY_CHECK_INTERVAL_MS = 5_000;
 const LATENCY_CHECK_TIMEOUT_MS = 4_000;
-const DEFAULT_VISIBLE_REASONING_EFFORTS: ReasoningEffort[] = [
-  "none",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-];
 
 export function ConfigPage({
   config,
@@ -637,43 +632,4 @@ function requirePort(value: number, label: string): number {
   }
 
   return value;
-}
-
-function createVisibleModelOptions(models: ModelOption[], config: AppConfig): ModelOption[] {
-  const modelByName = new Map(models.map((model) => [model.name, model]));
-
-  for (const model of Object.values(config.models)) {
-    if (model && !modelByName.has(model)) {
-      modelByName.set(model, { name: model });
-    }
-  }
-
-  return [...modelByName.values()];
-}
-
-function createVisibleReasoningEffortOptions(
-  selectedModelName: string,
-  modelOptions: ModelOption[],
-): ReasoningEffort[] {
-  const selectedModel = findModelOption(selectedModelName, modelOptions);
-
-  if (selectedModel?.supportedReasoningEfforts?.length) {
-    return uniqueReasoningEfforts(selectedModel.supportedReasoningEfforts);
-  }
-
-  const catalogReasoningEfforts = uniqueReasoningEfforts(
-    modelOptions.flatMap((model) => model.supportedReasoningEfforts ?? []),
-  );
-
-  return catalogReasoningEfforts.length
-    ? catalogReasoningEfforts
-    : DEFAULT_VISIBLE_REASONING_EFFORTS;
-}
-
-function findModelOption(modelName: string, modelOptions: ModelOption[]): ModelOption | undefined {
-  return modelOptions.find((model) => model.name === modelName);
-}
-
-function uniqueReasoningEfforts(reasoningEfforts: ReasoningEffort[]): ReasoningEffort[] {
-  return REASONING_EFFORTS.filter((reasoningEffort) => reasoningEfforts.includes(reasoningEffort));
 }
