@@ -503,6 +503,49 @@ export class JsonSessionStore implements SessionStore {
     return updatedSession;
   }
 
+  async updateSessionModels(
+    sessionId: string,
+    models: ChatSession["models"] | undefined,
+  ): Promise<ChatSession> {
+    let updatedSession: ChatSession | undefined;
+
+    await this.enqueueWrite(async () => {
+      const index = await this.readIndex();
+      let updatedStoredSession: StoredSession | undefined;
+      const sessions = index.sessions.map((session) => {
+        if (session.id !== sessionId) {
+          return session;
+        }
+
+        updatedStoredSession = {
+          ...session,
+          ...(models ? { models } : {}),
+        };
+        if (!models) {
+          delete updatedStoredSession.models;
+        }
+
+        return toStoredSession(updatedStoredSession);
+      });
+
+      if (!updatedStoredSession) {
+        return;
+      }
+
+      await this.writeIndex({ ...index, sessions });
+      updatedSession = hydrateSession(
+        updatedStoredSession,
+        await this.readSessionDetail(updatedStoredSession.id),
+      );
+    });
+
+    if (!updatedSession) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    return updatedSession;
+  }
+
   async updateSessionDoneAt(sessionId: string, doneAt: string | undefined): Promise<ChatSession> {
     let updatedSession: ChatSession | undefined;
 
@@ -739,6 +782,7 @@ function toStoredSession(session: ChatSession | StoredSession): StoredSession {
     ...(session.origin ? { origin: session.origin } : {}),
     ...(session.aiThreadId ? { aiThreadId: session.aiThreadId } : {}),
     ...(isAiHarness(session.aiHarness) ? { aiHarness: session.aiHarness } : {}),
+    ...(session.models ? { models: session.models } : {}),
     workspace: session.workspace,
     title: session.title,
     summary: session.summary,
@@ -762,6 +806,7 @@ function toSessionIndexEntry(session: StoredSession): ChatSessionIndexEntry {
   return {
     id: session.id,
     ...(session.origin ? { origin: session.origin } : {}),
+    ...(session.models ? { models: session.models } : {}),
     workspace: session.workspace,
     title: session.title,
     summary: session.summary,

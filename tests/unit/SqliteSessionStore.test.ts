@@ -19,6 +19,13 @@ test("SqliteSessionStore runs SQL migrations and persists sessions", async () =>
   try {
     const store = new SqliteSessionStore(databasePath);
     const session = createSession(cwd, {
+      models: {
+        harness: "traex",
+        normal: "GPT-5.4",
+        reasoningEfforts: {
+          normal: "low",
+        },
+      },
       messages: [createMessage("message-1")],
       rounds: [createRound(1)],
     });
@@ -50,7 +57,13 @@ test("SqliteSessionStore runs SQL migrations and persists sessions", async () =>
     try {
       assert.deepEqual(db.prepare("SELECT version FROM schema_migrations").all(), [
         { version: "001_initial_schema" },
+        { version: "002_session_models" },
       ]);
+      const sessionRow = db.prepare("SELECT models_json FROM sessions").get() as {
+        models_json: string;
+      };
+
+      assert.equal(JSON.parse(sessionRow.models_json).normal, "GPT-5.4");
       assert.equal(
         (db.prepare("SELECT COUNT(*) AS total FROM messages").get() as { total: number }).total,
         1,
@@ -63,6 +76,31 @@ test("SqliteSessionStore runs SQL migrations and persists sessions", async () =>
       db.close();
     }
   } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("SqliteSessionStore updates session model preferences", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-sqlite-session-store-"));
+  const store = new SqliteSessionStore(join(cwd, "cui.sqlite"));
+
+  try {
+    await store.createSession(createSession(cwd));
+
+    const updatedSession = await store.updateSessionModels("session-1", {
+      harness: "traex",
+      normal: "Seed-2.1-Turbo",
+      reasoningEfforts: {
+        normal: "high",
+      },
+    });
+    const listedSession = (await store.listSessionIndexEntries()).sessions[0];
+
+    assert.equal(updatedSession.models?.normal, "Seed-2.1-Turbo");
+    assert.equal(listedSession?.models?.normal, "Seed-2.1-Turbo");
+    assert.equal((await store.getSession("session-1"))?.models?.reasoningEfforts?.normal, "high");
+  } finally {
+    store.close();
     await rm(cwd, { force: true, recursive: true });
   }
 });

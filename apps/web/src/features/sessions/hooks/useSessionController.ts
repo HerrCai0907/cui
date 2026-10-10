@@ -2,8 +2,12 @@ import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState }
 import {
   createModelRequestPreferences,
   getVisibleExecutionTraceMessageTypes,
+  type AiHarness,
   type ExecutionTraceMessageType,
   type AppConfig,
+  type ModelPreferences,
+  type ReasoningEffort,
+  type ReasoningEffortPreferences,
 } from "../../config/model/appConfig";
 import {
   cancelRun,
@@ -161,6 +165,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   const activeSessionQueuedPrompts = activeSession
     ? (activeSession.queuedPrompts ?? EMPTY_QUEUED_PROMPTS)
     : EMPTY_QUEUED_PROMPTS;
+  const composerModelSelection = getSessionModelSelection(activeSession, config);
   const composerSubmitDisabled = activeSession ? activeSessionSubmitting : creatingSession;
   const highlightedWorkspaceIds = useMemo(
     () =>
@@ -854,17 +859,14 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
 
     try {
       const workspace = normalizeWorkspacePath(workspaceDraft.trim() || defaultWorkspace);
-      const models = createModelRequestPreferences(
-        config.harness,
-        config.models,
-        config.reasoningEfforts,
-      );
+      const models = createSessionModelRequestPreferences(activeSession, config);
       const targetSession =
         activeSession ??
         (await createSession({
           workspace,
           origin: mode,
           title: mode === "shell" ? `$ ${trimmed}` : trimmed,
+          models,
         }));
       const data = await createRun(
         targetSession.id,
@@ -876,7 +878,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
           : {
               type: "assistant_response",
               input: { prompt: trimmed },
-              models,
+              models: createSessionModelRequestPreferences(targetSession, config),
             },
       );
 
@@ -1056,6 +1058,49 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     }
   }
 
+  async function updateActiveSessionModelSelection(
+    model: string,
+    reasoningEffort: ReasoningEffort,
+  ) {
+    const currentSession = activeSessionRef.current;
+
+    if (!currentSession) {
+      return;
+    }
+
+    const currentSelection = getSessionModelSelection(currentSession, config);
+    const nextModels = createModelRequestPreferences(
+      currentSelection.harness,
+      {
+        ...currentSelection.models,
+        normal: model,
+      },
+      {
+        ...currentSelection.reasoningEfforts,
+        normal: reasoningEffort,
+      },
+    );
+    const optimisticSession = {
+      ...currentSession,
+      models: nextModels,
+    };
+
+    setCurrentActiveSession(optimisticSession, { recordAttention: false });
+    setError(null);
+
+    try {
+      const updatedSession = await updateSession(currentSession.id, { models: nextModels });
+
+      if (activeSessionRef.current?.id === currentSession.id) {
+        setCurrentActiveSession(updatedSession, { recordAttention: false });
+      }
+    } catch (reason) {
+      if (activeSessionRef.current?.id === currentSession.id) {
+        setError(reason instanceof Error ? reason.message : "Failed to update session model");
+      }
+    }
+  }
+
   function setTraceExpanded(messageId: string, open: boolean) {
     setExpandedTraceIds((current) => {
       const next = new Set(current);
@@ -1111,6 +1156,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
             ? {
                 ...summary,
                 doneAt: visibleSession.doneAt,
+                models: visibleSession.models,
                 currentRound: getCurrentRound(visibleSession),
                 queuedPrompts: visibleSession.queuedPrompts,
                 isRunning: visibleSession.isRunning ?? Boolean(visibleSession.runningRunId),
@@ -1388,6 +1434,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     runningSessionIds,
     setDraft,
     setComposerMode,
+    updateActiveSessionModelSelection,
     setSessionListMode,
     setSessionListPage,
     setSidebarOpen,
@@ -1412,7 +1459,43 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
         ? sidebarSessionPartition.active.length
         : (sessionPageCacheRef.current.get(sessionPage)?.sessions.length ?? 0),
     sessionCount: sessionPagination.total,
+    selectedModel: composerModelSelection.models.normal,
+    selectedReasoningEffort: composerModelSelection.reasoningEfforts.normal,
   };
+}
+
+function getSessionModelSelection(
+  session: ApiSession | null,
+  config: AppConfig,
+): {
+  harness: AiHarness;
+  models: ModelPreferences;
+  reasoningEfforts: ReasoningEffortPreferences;
+} {
+  return {
+    harness: session?.models?.harness ?? config.harness,
+    models: {
+      normal: session?.models?.normal ?? config.models.normal,
+      summary: session?.models?.summary ?? config.models.summary,
+      atomicReview: session?.models?.atomicReview ?? config.models.atomicReview,
+    },
+    reasoningEfforts: {
+      normal: session?.models?.reasoningEfforts?.normal ?? config.reasoningEfforts.normal,
+      summary: session?.models?.reasoningEfforts?.summary ?? config.reasoningEfforts.summary,
+      atomicReview:
+        session?.models?.reasoningEfforts?.atomicReview ?? config.reasoningEfforts.atomicReview,
+    },
+  };
+}
+
+function createSessionModelRequestPreferences(session: ApiSession | null, config: AppConfig) {
+  const selection = getSessionModelSelection(session, config);
+
+  return createModelRequestPreferences(
+    selection.harness,
+    selection.models,
+    selection.reasoningEfforts,
+  );
 }
 
 function readLastActiveSessionId(): string | null {

@@ -253,6 +253,7 @@ export class SessionService {
     const session: ChatSession = {
       id: sessionId,
       origin,
+      ...(request.models ? { models: request.models } : {}),
       workspace,
       title: request.title ?? "Untitled session",
       summary: origin === "shell" ? "Shell session" : "",
@@ -283,6 +284,10 @@ export class SessionService {
       const doneAt = request.done ? new Date().toISOString() : undefined;
 
       session = await this.store.updateSessionDoneAt(sessionId, doneAt);
+    }
+
+    if (request.models !== undefined) {
+      session = await this.store.updateSessionModels(sessionId, request.models);
     }
 
     return this.toWindowedSessionView(session);
@@ -431,13 +436,13 @@ export class SessionService {
         return this.enqueuePrompt(sessionId, {
           mode: "chat",
           prompt: request.input.prompt,
-          models: request.models,
+          models: request.models ?? session.models,
         });
       }
 
       return this.startAssistantRun(session, {
         prompt: request.input.prompt,
-        models: request.models,
+        models: request.models ?? session.models,
       });
     });
 
@@ -585,8 +590,11 @@ export class SessionService {
     options: StartRunOptions = {},
   ): Promise<SubmittedRun> {
     const workspace = await assertExistingDirectory(session.workspace);
+    const runSession = request.models
+      ? await this.store.updateSessionModels(session.id, request.models)
+      : session;
     const userMessage = createMessage("user", request.prompt);
-    const updatedSession = await this.store.appendMessages(session.id, [userMessage]);
+    const updatedSession = await this.store.appendMessages(runSession.id, [userMessage]);
     const bufferedEvents: RunStreamEvent[] = [];
     let runningRun: RunningRun | undefined;
     const onAiRunEvent = (event: AiRunEvent) => {
@@ -598,7 +606,7 @@ export class SessionService {
         }
       });
     };
-    const runInput = this.createChatRunInput(session, request, workspace);
+    const runInput = this.createChatRunInput(runSession, request, workspace);
     const run =
       runInput.kind === "continue"
         ? this.aiModel.continueSessionStream(runInput.input, onAiRunEvent)
@@ -608,10 +616,15 @@ export class SessionService {
       void run.sessionId.catch(() => undefined);
     }
 
-    runningRun = this.runRegistry.createRunningRun(session.id, "assistant_response", run.cancel, {
-      runId: options.runId,
-      createdAt: options.createdAt,
-    });
+    runningRun = this.runRegistry.createRunningRun(
+      runSession.id,
+      "assistant_response",
+      run.cancel,
+      {
+        runId: options.runId,
+        createdAt: options.createdAt,
+      },
+    );
     const inputSummaryPromise = this.refreshSessionSummary(
       updatedSession,
       runningRun,

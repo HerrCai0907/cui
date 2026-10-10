@@ -306,6 +306,24 @@ export interface paths {
                 origin?: "chat" | "shell";
                 /** @enum {string} */
                 aiHarness?: "traex" | "codex";
+                models?: {
+                  /** @enum {string} */
+                  harness?: "traex" | "codex";
+                  normal?: string;
+                  summary?: string;
+                  atomicReview?: string;
+                  reasoningEfforts?: {
+                    /** @enum {string} */
+                    normal?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                    /** @enum {string} */
+                    summary?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                    /** @enum {string} */
+                    atomicReview?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                  };
+                };
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -369,6 +387,23 @@ export interface paths {
             /** @enum {string} */
             origin?: "chat" | "shell";
             title?: string;
+            models?: {
+              /** @enum {string} */
+              harness?: "traex" | "codex";
+              normal?: string;
+              summary?: string;
+              atomicReview?: string;
+              reasoningEfforts?: {
+                /** @enum {string} */
+                normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                /** @enum {string} */
+                summary?:
+                  "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                /** @enum {string} */
+                atomicReview?:
+                  "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+              };
+            };
           };
         };
       };
@@ -386,6 +421,24 @@ export interface paths {
                 origin?: "chat" | "shell";
                 /** @enum {string} */
                 aiHarness?: "traex" | "codex";
+                models?: {
+                  /** @enum {string} */
+                  harness?: "traex" | "codex";
+                  normal?: string;
+                  summary?: string;
+                  atomicReview?: string;
+                  reasoningEfforts?: {
+                    /** @enum {string} */
+                    normal?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                    /** @enum {string} */
+                    summary?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                    /** @enum {string} */
+                    atomicReview?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                  };
+                };
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -493,6 +546,24 @@ export interface paths {
                 origin?: "chat" | "shell";
                 /** @enum {string} */
                 aiHarness?: "traex" | "codex";
+                models?: {
+                  /** @enum {string} */
+                  harness?: "traex" | "codex";
+                  normal?: string;
+                  summary?: string;
+                  atomicReview?: string;
+                  reasoningEfforts?: {
+                    /** @enum {string} */
+                    normal?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                    /** @enum {string} */
+                    summary?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                    /** @enum {string} */
+                    atomicReview?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                  };
+                };
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -577,6 +648,23 @@ export interface paths {
         content: {
           "application/json": {
             done?: boolean;
+            models?: {
+              /** @enum {string} */
+              harness?: "traex" | "codex";
+              normal?: string;
+              summary?: string;
+              atomicReview?: string;
+              reasoningEfforts?: {
+                /** @enum {string} */
+                normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                /** @enum {string} */
+                summary?:
+                  "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                /** @enum {string} */
+                atomicReview?:
+                  "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+              };
+            };
           };
         };
       };
@@ -594,6 +682,24 @@ export interface paths {
                 origin?: "chat" | "shell";
                 /** @enum {string} */
                 aiHarness?: "traex" | "codex";
+                models?: {
+                  /** @enum {string} */
+                  harness?: "traex" | "codex";
+                  normal?: string;
+                  summary?: string;
+                  atomicReview?: string;
+                  reasoningEfforts?: {
+                    /** @enum {string} */
+                    normal?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                    /** @enum {string} */
+                    summary?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                    /** @enum {string} */
+                    atomicReview?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                  };
+                };
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -1112,6 +1218,24 @@ export interface paths {
                 origin?: "chat" | "shell";
                 /** @enum {string} */
                 aiHarness?: "traex" | "codex";
+                models?: {
+                  /** @enum {string} */
+                  harness?: "traex" | "codex";
+                  normal?: string;
+                  summary?: string;
+                  atomicReview?: string;
+                  reasoningEfforts?: {
+                    /** @enum {string} */
+                    normal?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                    /** @enum {string} */
+                    summary?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                    /** @enum {string} */
+                    atomicReview?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                  };
+                };
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -1241,6 +1365,24 @@ export interface paths {
                 origin?: "chat" | "shell";
                 /** @enum {string} */
                 aiHarness?: "traex" | "codex";
+                models?: {
+                  /** @enum {string} */
+                  harness?: "traex" | "codex";
+                  normal?: string;
+                  summary?: string;
+                  atomicReview?: string;
+                  reasoningEfforts?: {
+                    /** @enum {string} */
+                    normal?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                    /** @enum {string} */
+                    summary?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                    /** @enum {string} */
+                    atomicReview?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                  };
+                };
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -1399,6 +1541,24 @@ export interface paths {
                 origin?: "chat" | "shell";
                 /** @enum {string} */
                 aiHarness?: "traex" | "codex";
+                models?: {
+                  /** @enum {string} */
+                  harness?: "traex" | "codex";
+                  normal?: string;
+                  summary?: string;
+                  atomicReview?: string;
+                  reasoningEfforts?: {
+                    /** @enum {string} */
+                    normal?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                    /** @enum {string} */
+                    summary?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                    /** @enum {string} */
+                    atomicReview?:
+                      "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                  };
+                };
                 workspace: string;
                 title: string;
                 summary?: string;
@@ -1602,6 +1762,45 @@ export interface paths {
                     origin?: "chat" | "shell";
                     /** @enum {string} */
                     aiHarness?: "traex" | "codex";
+                    models?: {
+                      /** @enum {string} */
+                      harness?: "traex" | "codex";
+                      normal?: string;
+                      summary?: string;
+                      atomicReview?: string;
+                      reasoningEfforts?: {
+                        /** @enum {string} */
+                        normal?:
+                          | "none"
+                          | "minimal"
+                          | "low"
+                          | "medium"
+                          | "high"
+                          | "xhigh"
+                          | "max"
+                          | "ultra";
+                        /** @enum {string} */
+                        summary?:
+                          | "none"
+                          | "minimal"
+                          | "low"
+                          | "medium"
+                          | "high"
+                          | "xhigh"
+                          | "max"
+                          | "ultra";
+                        /** @enum {string} */
+                        atomicReview?:
+                          | "none"
+                          | "minimal"
+                          | "low"
+                          | "medium"
+                          | "high"
+                          | "xhigh"
+                          | "max"
+                          | "ultra";
+                      };
+                    };
                     workspace: string;
                     title: string;
                     summary?: string;
@@ -1661,6 +1860,45 @@ export interface paths {
                     origin?: "chat" | "shell";
                     /** @enum {string} */
                     aiHarness?: "traex" | "codex";
+                    models?: {
+                      /** @enum {string} */
+                      harness?: "traex" | "codex";
+                      normal?: string;
+                      summary?: string;
+                      atomicReview?: string;
+                      reasoningEfforts?: {
+                        /** @enum {string} */
+                        normal?:
+                          | "none"
+                          | "minimal"
+                          | "low"
+                          | "medium"
+                          | "high"
+                          | "xhigh"
+                          | "max"
+                          | "ultra";
+                        /** @enum {string} */
+                        summary?:
+                          | "none"
+                          | "minimal"
+                          | "low"
+                          | "medium"
+                          | "high"
+                          | "xhigh"
+                          | "max"
+                          | "ultra";
+                        /** @enum {string} */
+                        atomicReview?:
+                          | "none"
+                          | "minimal"
+                          | "low"
+                          | "medium"
+                          | "high"
+                          | "xhigh"
+                          | "max"
+                          | "ultra";
+                      };
+                    };
                     workspace: string;
                     title: string;
                     summary?: string;
@@ -1913,6 +2151,21 @@ export interface components {
       origin?: "chat" | "shell";
       /** @enum {string} */
       aiHarness?: "traex" | "codex";
+      models?: {
+        /** @enum {string} */
+        harness?: "traex" | "codex";
+        normal?: string;
+        summary?: string;
+        atomicReview?: string;
+        reasoningEfforts?: {
+          /** @enum {string} */
+          normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+          /** @enum {string} */
+          summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+          /** @enum {string} */
+          atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+        };
+      };
       workspace: string;
       title: string;
       summary?: string;
@@ -1968,6 +2221,21 @@ export interface components {
       origin?: "chat" | "shell";
       /** @enum {string} */
       aiHarness?: "traex" | "codex";
+      models?: {
+        /** @enum {string} */
+        harness?: "traex" | "codex";
+        normal?: string;
+        summary?: string;
+        atomicReview?: string;
+        reasoningEfforts?: {
+          /** @enum {string} */
+          normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+          /** @enum {string} */
+          summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+          /** @enum {string} */
+          atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+        };
+      };
       workspace: string;
       title: string;
       summary?: string;
@@ -2045,6 +2313,21 @@ export interface components {
       /** @enum {string} */
       origin?: "chat" | "shell";
       title?: string;
+      models?: {
+        /** @enum {string} */
+        harness?: "traex" | "codex";
+        normal?: string;
+        summary?: string;
+        atomicReview?: string;
+        reasoningEfforts?: {
+          /** @enum {string} */
+          normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+          /** @enum {string} */
+          summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+          /** @enum {string} */
+          atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+        };
+      };
     };
     CreateSessionResponse: {
       session: {
@@ -2053,6 +2336,22 @@ export interface components {
         origin?: "chat" | "shell";
         /** @enum {string} */
         aiHarness?: "traex" | "codex";
+        models?: {
+          /** @enum {string} */
+          harness?: "traex" | "codex";
+          normal?: string;
+          summary?: string;
+          atomicReview?: string;
+          reasoningEfforts?: {
+            /** @enum {string} */
+            normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+            /** @enum {string} */
+            summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+            /** @enum {string} */
+            atomicReview?:
+              "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+          };
+        };
         workspace: string;
         title: string;
         summary?: string;
@@ -2165,6 +2464,21 @@ export interface components {
     };
     UpdateSessionRequest: {
       done?: boolean;
+      models?: {
+        /** @enum {string} */
+        harness?: "traex" | "codex";
+        normal?: string;
+        summary?: string;
+        atomicReview?: string;
+        reasoningEfforts?: {
+          /** @enum {string} */
+          normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+          /** @enum {string} */
+          summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+          /** @enum {string} */
+          atomicReview?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+        };
+      };
     };
     SubmittedRunResponse: {
       run: {
@@ -2183,6 +2497,22 @@ export interface components {
         origin?: "chat" | "shell";
         /** @enum {string} */
         aiHarness?: "traex" | "codex";
+        models?: {
+          /** @enum {string} */
+          harness?: "traex" | "codex";
+          normal?: string;
+          summary?: string;
+          atomicReview?: string;
+          reasoningEfforts?: {
+            /** @enum {string} */
+            normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+            /** @enum {string} */
+            summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+            /** @enum {string} */
+            atomicReview?:
+              "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+          };
+        };
         workspace: string;
         title: string;
         summary?: string;
@@ -2240,6 +2570,22 @@ export interface components {
         origin?: "chat" | "shell";
         /** @enum {string} */
         aiHarness?: "traex" | "codex";
+        models?: {
+          /** @enum {string} */
+          harness?: "traex" | "codex";
+          normal?: string;
+          summary?: string;
+          atomicReview?: string;
+          reasoningEfforts?: {
+            /** @enum {string} */
+            normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+            /** @enum {string} */
+            summary?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+            /** @enum {string} */
+            atomicReview?:
+              "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+          };
+        };
         workspace: string;
         title: string;
         summary?: string;
@@ -2322,6 +2668,23 @@ export interface components {
             origin?: "chat" | "shell";
             /** @enum {string} */
             aiHarness?: "traex" | "codex";
+            models?: {
+              /** @enum {string} */
+              harness?: "traex" | "codex";
+              normal?: string;
+              summary?: string;
+              atomicReview?: string;
+              reasoningEfforts?: {
+                /** @enum {string} */
+                normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                /** @enum {string} */
+                summary?:
+                  "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                /** @enum {string} */
+                atomicReview?:
+                  "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+              };
+            };
             workspace: string;
             title: string;
             summary?: string;
@@ -2381,6 +2744,23 @@ export interface components {
             origin?: "chat" | "shell";
             /** @enum {string} */
             aiHarness?: "traex" | "codex";
+            models?: {
+              /** @enum {string} */
+              harness?: "traex" | "codex";
+              normal?: string;
+              summary?: string;
+              atomicReview?: string;
+              reasoningEfforts?: {
+                /** @enum {string} */
+                normal?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                /** @enum {string} */
+                summary?:
+                  "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+                /** @enum {string} */
+                atomicReview?:
+                  "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+              };
+            };
             workspace: string;
             title: string;
             summary?: string;

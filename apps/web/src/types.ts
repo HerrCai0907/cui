@@ -32,6 +32,7 @@ export type SessionSummary = {
   createdAt: string;
   updatedAt: string;
   currentRound: number;
+  models?: ApiSession["models"];
   queuedPrompts?: ApiSession["queuedPrompts"];
   gitBranch?: string;
   gitCommitSha?: string;

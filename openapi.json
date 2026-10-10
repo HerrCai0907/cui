@@ -618,6 +618,46 @@
             "type": "string",
             "enum": ["traex", "codex"]
           },
+          "models": {
+            "type": "object",
+            "properties": {
+              "harness": {
+                "type": "string",
+                "enum": ["traex", "codex"]
+              },
+              "normal": {
+                "type": "string",
+                "minLength": 1
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1
+              },
+              "atomicReview": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reasoningEfforts": {
+                "type": "object",
+                "properties": {
+                  "normal": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+                  },
+                  "summary": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+                  },
+                  "atomicReview": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
           "workspace": {
             "type": "string"
           },
@@ -792,6 +832,46 @@
           "aiHarness": {
             "type": "string",
             "enum": ["traex", "codex"]
+          },
+          "models": {
+            "type": "object",
+            "properties": {
+              "harness": {
+                "type": "string",
+                "enum": ["traex", "codex"]
+              },
+              "normal": {
+                "type": "string",
+                "minLength": 1
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1
+              },
+              "atomicReview": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reasoningEfforts": {
+                "type": "object",
+                "properties": {
+                  "normal": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+                  },
+                  "summary": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+                  },
+                  "atomicReview": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
           },
           "workspace": {
             "type": "string"
@@ -1027,6 +1107,46 @@
           "title": {
             "type": "string",
             "minLength": 1
+          },
+          "models": {
+            "type": "object",
+            "properties": {
+              "harness": {
+                "type": "string",
+                "enum": ["traex", "codex"]
+              },
+              "normal": {
+                "type": "string",
+                "minLength": 1
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1
+              },
+              "atomicReview": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reasoningEfforts": {
+                "type": "object",
+                "properties": {
+                  "normal": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+                  },
+                  "summary": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+                  },
+                  "atomicReview": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
           }
         },
         "required": ["workspace"]
@@ -1047,6 +1167,73 @@
               "aiHarness": {
                 "type": "string",
                 "enum": ["traex", "codex"]
+              },
+              "models": {
+                "type": "object",
+                "properties": {
+                  "harness": {
+                    "type": "string",
+                    "enum": ["traex", "codex"]
+                  },
+                  "normal": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "summary": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "atomicReview": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reasoningEfforts": {
+                    "type": "object",
+                    "properties": {
+                      "normal": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "minimal",
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max",
+                          "ultra"
+                        ]
+                      },
+                      "summary": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "minimal",
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max",
+                          "ultra"
+                        ]
+                      },
+                      "atomicReview": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "minimal",
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max",
+                          "ultra"
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
               },
               "workspace": {
                 "type": "string"
@@ -1404,6 +1591,46 @@
         "properties": {
           "done": {
             "type": "boolean"
+          },
+          "models": {
+            "type": "object",
+            "properties": {
+              "harness": {
+                "type": "string",
+                "enum": ["traex", "codex"]
+              },
+              "normal": {
+                "type": "string",
+                "minLength": 1
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1
+              },
+              "atomicReview": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reasoningEfforts": {
+                "type": "object",
+                "properties": {
+                  "normal": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+                  },
+                  "summary": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+                  },
+                  "atomicReview": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
           }
         }
       },
@@ -1447,6 +1674,73 @@
               "aiHarness": {
                 "type": "string",
                 "enum": ["traex", "codex"]
+              },
+              "models": {
+                "type": "object",
+                "properties": {
+                  "harness": {
+                    "type": "string",
+                    "enum": ["traex", "codex"]
+                  },
+                  "normal": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "summary": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "atomicReview": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reasoningEfforts": {
+                    "type": "object",
+                    "properties": {
+                      "normal": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "minimal",
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max",
+                          "ultra"
+                        ]
+                      },
+                      "summary": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "minimal",
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max",
+                          "ultra"
+                        ]
+                      },
+                      "atomicReview": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "minimal",
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max",
+                          "ultra"
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
               },
               "workspace": {
                 "type": "string"
@@ -1628,6 +1922,73 @@
               "aiHarness": {
                 "type": "string",
                 "enum": ["traex", "codex"]
+              },
+              "models": {
+                "type": "object",
+                "properties": {
+                  "harness": {
+                    "type": "string",
+                    "enum": ["traex", "codex"]
+                  },
+                  "normal": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "summary": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "atomicReview": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reasoningEfforts": {
+                    "type": "object",
+                    "properties": {
+                      "normal": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "minimal",
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max",
+                          "ultra"
+                        ]
+                      },
+                      "summary": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "minimal",
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max",
+                          "ultra"
+                        ]
+                      },
+                      "atomicReview": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "minimal",
+                          "low",
+                          "medium",
+                          "high",
+                          "xhigh",
+                          "max",
+                          "ultra"
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
               },
               "workspace": {
                 "type": "string"
@@ -1873,6 +2234,73 @@
                     "type": "string",
                     "enum": ["traex", "codex"]
                   },
+                  "models": {
+                    "type": "object",
+                    "properties": {
+                      "harness": {
+                        "type": "string",
+                        "enum": ["traex", "codex"]
+                      },
+                      "normal": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "summary": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "atomicReview": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "reasoningEfforts": {
+                        "type": "object",
+                        "properties": {
+                          "normal": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "minimal",
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "max",
+                              "ultra"
+                            ]
+                          },
+                          "summary": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "minimal",
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "max",
+                              "ultra"
+                            ]
+                          },
+                          "atomicReview": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "minimal",
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "max",
+                              "ultra"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
                   "workspace": {
                     "type": "string"
                   },
@@ -2057,6 +2485,73 @@
                   "aiHarness": {
                     "type": "string",
                     "enum": ["traex", "codex"]
+                  },
+                  "models": {
+                    "type": "object",
+                    "properties": {
+                      "harness": {
+                        "type": "string",
+                        "enum": ["traex", "codex"]
+                      },
+                      "normal": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "summary": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "atomicReview": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "reasoningEfforts": {
+                        "type": "object",
+                        "properties": {
+                          "normal": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "minimal",
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "max",
+                              "ultra"
+                            ]
+                          },
+                          "summary": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "minimal",
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "max",
+                              "ultra"
+                            ]
+                          },
+                          "atomicReview": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "minimal",
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "max",
+                              "ultra"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
                   },
                   "workspace": {
                     "type": "string"
@@ -3037,6 +3532,73 @@
                             "type": "string",
                             "enum": ["traex", "codex"]
                           },
+                          "models": {
+                            "type": "object",
+                            "properties": {
+                              "harness": {
+                                "type": "string",
+                                "enum": ["traex", "codex"]
+                              },
+                              "normal": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "summary": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "atomicReview": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "reasoningEfforts": {
+                                "type": "object",
+                                "properties": {
+                                  "normal": {
+                                    "type": "string",
+                                    "enum": [
+                                      "none",
+                                      "minimal",
+                                      "low",
+                                      "medium",
+                                      "high",
+                                      "xhigh",
+                                      "max",
+                                      "ultra"
+                                    ]
+                                  },
+                                  "summary": {
+                                    "type": "string",
+                                    "enum": [
+                                      "none",
+                                      "minimal",
+                                      "low",
+                                      "medium",
+                                      "high",
+                                      "xhigh",
+                                      "max",
+                                      "ultra"
+                                    ]
+                                  },
+                                  "atomicReview": {
+                                    "type": "string",
+                                    "enum": [
+                                      "none",
+                                      "minimal",
+                                      "low",
+                                      "medium",
+                                      "high",
+                                      "xhigh",
+                                      "max",
+                                      "ultra"
+                                    ]
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            },
+                            "additionalProperties": false
+                          },
                           "workspace": {
                             "type": "string"
                           },
@@ -3188,6 +3750,73 @@
                   "title": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "models": {
+                    "type": "object",
+                    "properties": {
+                      "harness": {
+                        "type": "string",
+                        "enum": ["traex", "codex"]
+                      },
+                      "normal": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "summary": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "atomicReview": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "reasoningEfforts": {
+                        "type": "object",
+                        "properties": {
+                          "normal": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "minimal",
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "max",
+                              "ultra"
+                            ]
+                          },
+                          "summary": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "minimal",
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "max",
+                              "ultra"
+                            ]
+                          },
+                          "atomicReview": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "minimal",
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "max",
+                              "ultra"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": ["workspace"]
@@ -3216,6 +3845,73 @@
                         "aiHarness": {
                           "type": "string",
                           "enum": ["traex", "codex"]
+                        },
+                        "models": {
+                          "type": "object",
+                          "properties": {
+                            "harness": {
+                              "type": "string",
+                              "enum": ["traex", "codex"]
+                            },
+                            "normal": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "summary": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "atomicReview": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "reasoningEfforts": {
+                              "type": "object",
+                              "properties": {
+                                "normal": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                },
+                                "summary": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                },
+                                "atomicReview": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "additionalProperties": false
                         },
                         "workspace": {
                           "type": "string"
@@ -3476,6 +4172,73 @@
                           "type": "string",
                           "enum": ["traex", "codex"]
                         },
+                        "models": {
+                          "type": "object",
+                          "properties": {
+                            "harness": {
+                              "type": "string",
+                              "enum": ["traex", "codex"]
+                            },
+                            "normal": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "summary": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "atomicReview": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "reasoningEfforts": {
+                              "type": "object",
+                              "properties": {
+                                "normal": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                },
+                                "summary": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                },
+                                "atomicReview": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "additionalProperties": false
+                        },
                         "workspace": {
                           "type": "string"
                         },
@@ -3683,6 +4446,73 @@
                 "properties": {
                   "done": {
                     "type": "boolean"
+                  },
+                  "models": {
+                    "type": "object",
+                    "properties": {
+                      "harness": {
+                        "type": "string",
+                        "enum": ["traex", "codex"]
+                      },
+                      "normal": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "summary": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "atomicReview": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "reasoningEfforts": {
+                        "type": "object",
+                        "properties": {
+                          "normal": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "minimal",
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "max",
+                              "ultra"
+                            ]
+                          },
+                          "summary": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "minimal",
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "max",
+                              "ultra"
+                            ]
+                          },
+                          "atomicReview": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "minimal",
+                              "low",
+                              "medium",
+                              "high",
+                              "xhigh",
+                              "max",
+                              "ultra"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 }
               }
@@ -3710,6 +4540,73 @@
                         "aiHarness": {
                           "type": "string",
                           "enum": ["traex", "codex"]
+                        },
+                        "models": {
+                          "type": "object",
+                          "properties": {
+                            "harness": {
+                              "type": "string",
+                              "enum": ["traex", "codex"]
+                            },
+                            "normal": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "summary": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "atomicReview": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "reasoningEfforts": {
+                              "type": "object",
+                              "properties": {
+                                "normal": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                },
+                                "summary": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                },
+                                "atomicReview": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "additionalProperties": false
                         },
                         "workspace": {
                           "type": "string"
@@ -4852,6 +5749,73 @@
                           "type": "string",
                           "enum": ["traex", "codex"]
                         },
+                        "models": {
+                          "type": "object",
+                          "properties": {
+                            "harness": {
+                              "type": "string",
+                              "enum": ["traex", "codex"]
+                            },
+                            "normal": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "summary": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "atomicReview": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "reasoningEfforts": {
+                              "type": "object",
+                              "properties": {
+                                "normal": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                },
+                                "summary": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                },
+                                "atomicReview": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "additionalProperties": false
+                        },
                         "workspace": {
                           "type": "string"
                         },
@@ -5114,6 +6078,73 @@
                         "aiHarness": {
                           "type": "string",
                           "enum": ["traex", "codex"]
+                        },
+                        "models": {
+                          "type": "object",
+                          "properties": {
+                            "harness": {
+                              "type": "string",
+                              "enum": ["traex", "codex"]
+                            },
+                            "normal": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "summary": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "atomicReview": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "reasoningEfforts": {
+                              "type": "object",
+                              "properties": {
+                                "normal": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                },
+                                "summary": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                },
+                                "atomicReview": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "additionalProperties": false
                         },
                         "workspace": {
                           "type": "string"
@@ -5493,6 +6524,73 @@
                           "type": "string",
                           "enum": ["traex", "codex"]
                         },
+                        "models": {
+                          "type": "object",
+                          "properties": {
+                            "harness": {
+                              "type": "string",
+                              "enum": ["traex", "codex"]
+                            },
+                            "normal": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "summary": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "atomicReview": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "reasoningEfforts": {
+                              "type": "object",
+                              "properties": {
+                                "normal": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                },
+                                "summary": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                },
+                                "atomicReview": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max",
+                                    "ultra"
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "additionalProperties": false
+                        },
                         "workspace": {
                           "type": "string"
                         },
@@ -5862,6 +6960,73 @@
                               "type": "string",
                               "enum": ["traex", "codex"]
                             },
+                            "models": {
+                              "type": "object",
+                              "properties": {
+                                "harness": {
+                                  "type": "string",
+                                  "enum": ["traex", "codex"]
+                                },
+                                "normal": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "summary": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "atomicReview": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "reasoningEfforts": {
+                                  "type": "object",
+                                  "properties": {
+                                    "normal": {
+                                      "type": "string",
+                                      "enum": [
+                                        "none",
+                                        "minimal",
+                                        "low",
+                                        "medium",
+                                        "high",
+                                        "xhigh",
+                                        "max",
+                                        "ultra"
+                                      ]
+                                    },
+                                    "summary": {
+                                      "type": "string",
+                                      "enum": [
+                                        "none",
+                                        "minimal",
+                                        "low",
+                                        "medium",
+                                        "high",
+                                        "xhigh",
+                                        "max",
+                                        "ultra"
+                                      ]
+                                    },
+                                    "atomicReview": {
+                                      "type": "string",
+                                      "enum": [
+                                        "none",
+                                        "minimal",
+                                        "low",
+                                        "medium",
+                                        "high",
+                                        "xhigh",
+                                        "max",
+                                        "ultra"
+                                      ]
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                }
+                              },
+                              "additionalProperties": false
+                            },
                             "workspace": {
                               "type": "string"
                             },
@@ -6046,6 +7211,73 @@
                             "aiHarness": {
                               "type": "string",
                               "enum": ["traex", "codex"]
+                            },
+                            "models": {
+                              "type": "object",
+                              "properties": {
+                                "harness": {
+                                  "type": "string",
+                                  "enum": ["traex", "codex"]
+                                },
+                                "normal": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "summary": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "atomicReview": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "reasoningEfforts": {
+                                  "type": "object",
+                                  "properties": {
+                                    "normal": {
+                                      "type": "string",
+                                      "enum": [
+                                        "none",
+                                        "minimal",
+                                        "low",
+                                        "medium",
+                                        "high",
+                                        "xhigh",
+                                        "max",
+                                        "ultra"
+                                      ]
+                                    },
+                                    "summary": {
+                                      "type": "string",
+                                      "enum": [
+                                        "none",
+                                        "minimal",
+                                        "low",
+                                        "medium",
+                                        "high",
+                                        "xhigh",
+                                        "max",
+                                        "ultra"
+                                      ]
+                                    },
+                                    "atomicReview": {
+                                      "type": "string",
+                                      "enum": [
+                                        "none",
+                                        "minimal",
+                                        "low",
+                                        "medium",
+                                        "high",
+                                        "xhigh",
+                                        "max",
+                                        "ultra"
+                                      ]
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                }
+                              },
+                              "additionalProperties": false
                             },
                             "workspace": {
                               "type": "string"

@@ -124,6 +124,47 @@ test("createRun refreshes summary after user input and assistant response", asyn
   }
 });
 
+test("createRun uses session model preferences when request omits models", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    await store.createSession({
+      id: "session-1",
+      aiThreadId: "traex-thread-1",
+      workspace: cwd,
+      title: "Initial title",
+      summary: "",
+      models: {
+        harness: "traex",
+        normal: "Seed-2.1-Turbo",
+        reasoningEfforts: {
+          normal: "high",
+        },
+      },
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [],
+      rounds: [],
+    });
+
+    await service.createRun("session-1", createAssistantRunRequest("Use the session model."));
+
+    assert.deepEqual(aiModel.runModels[0], {
+      harness: "traex",
+      normal: "Seed-2.1-Turbo",
+      reasoningEfforts: {
+        normal: "high",
+      },
+    });
+    assert.equal((await store.getSession("session-1"))?.models?.normal, "Seed-2.1-Turbo");
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 test("createRun completes without waiting for atomic review generation", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));

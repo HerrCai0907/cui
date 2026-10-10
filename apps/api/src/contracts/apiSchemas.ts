@@ -201,6 +201,23 @@ export const ChatSessionOriginSchema = z.enum(["chat", "shell"]);
 
 export const AiHarnessSchema = aiHarnessSchema;
 
+export const AiModelPreferencesSchema = z
+  .object({
+    harness: AiHarnessSchema.optional(),
+    normal: z.string().trim().min(1).optional(),
+    summary: z.string().trim().min(1).optional(),
+    atomicReview: z.string().trim().min(1).optional(),
+    reasoningEfforts: z
+      .object({
+        normal: aiReasoningEffortSchema.optional(),
+        summary: aiReasoningEffortSchema.optional(),
+        atomicReview: aiReasoningEffortSchema.optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
 export const MessagePageInfoSchema = z.object({
   total: z.number().int().nonnegative(),
   returned: z.number().int().nonnegative(),
@@ -214,6 +231,7 @@ export const ChatSessionViewSchema = z.object({
   id: z.string(),
   origin: ChatSessionOriginSchema.optional(),
   aiHarness: AiHarnessSchema.optional(),
+  models: AiModelPreferencesSchema.optional(),
   workspace: z.string(),
   title: z.string(),
   summary: z.string().optional(),
@@ -237,23 +255,6 @@ export const ChatSessionListItemSchema = ChatSessionViewSchema.omit({
   rounds: true,
 });
 
-export const AiModelPreferencesSchema = z
-  .object({
-    harness: AiHarnessSchema.optional(),
-    normal: z.string().trim().min(1).optional(),
-    summary: z.string().trim().min(1).optional(),
-    atomicReview: z.string().trim().min(1).optional(),
-    reasoningEfforts: z
-      .object({
-        normal: aiReasoningEffortSchema.optional(),
-        summary: aiReasoningEffortSchema.optional(),
-        atomicReview: aiReasoningEffortSchema.optional(),
-      })
-      .strict()
-      .optional(),
-  })
-  .strict();
-
 export const AiModelInfoSchema = z.object({
   name: z.string(),
   provider: z.string().optional(),
@@ -271,6 +272,7 @@ export const CreateSessionRequestSchema = z.object({
   workspace: nonEmptyStringSchema,
   origin: ChatSessionOriginSchema.optional(),
   title: z.string().trim().min(1).optional(),
+  models: AiModelPreferencesSchema.optional(),
 });
 
 export const CreateAssistantRunRequestSchema = z
@@ -307,8 +309,9 @@ export const CreateRoundReviewRunRequestSchema = z
 export const UpdateSessionRequestSchema = z
   .object({
     done: z.boolean().optional(),
+    models: AiModelPreferencesSchema.optional(),
   })
-  .refine((value) => value.done !== undefined, {
+  .refine((value) => value.done !== undefined || value.models !== undefined, {
     message: "At least one session field must be provided",
   });
 

@@ -44,6 +44,7 @@ export type ChatSession = {
   origin?: ChatSessionOrigin;
   aiThreadId?: string;
   aiHarness?: AiHarness;
+  models?: AiModelPreferences;
   workspace: string;
   title: string;
   summary?: string;
