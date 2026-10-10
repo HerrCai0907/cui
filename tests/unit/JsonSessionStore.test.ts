@@ -230,6 +230,55 @@ test("JsonSessionStore paginates index entries without promoting pinned sessions
   }
 });
 
+test("JsonSessionStore deletes sessions older than the TTL cutoff", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-json-session-store-"));
+  const storePath = join(cwd, "sessions.json");
+  const detailDirectory = join(cwd, "sessions");
+  const artifactDirectory = join(cwd, "session-artifacts", "expired-session");
+  const expiredSession: ChatSession = {
+    id: "expired-session",
+    workspace: cwd,
+    title: "Expired session",
+    summary: "",
+    createdAt: "2026-08-01T00:00:00.000Z",
+    updatedAt: "2026-08-01T00:00:00.000Z",
+    messages: [createMessage("expired-message")],
+  };
+  const retainedSession: ChatSession = {
+    id: "retained-session",
+    workspace: cwd,
+    title: "Retained session",
+    summary: "",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [createMessage("retained-message")],
+  };
+
+  try {
+    const store = new JsonSessionStore(storePath);
+
+    await store.createSession(expiredSession);
+    await store.createSession(retainedSession);
+    await mkdir(artifactDirectory, { recursive: true });
+    await writeFile(join(artifactDirectory, "index.json"), "{}", "utf8");
+
+    assert.equal(await store.deleteExpiredSessions("2026-08-15T00:00:00.000Z"), 1);
+    assert.deepEqual(
+      (await store.listSessionIndexEntries()).sessions.map((session) => session.id),
+      ["retained-session"],
+    );
+    await assert.rejects(
+      () => readFile(join(detailDirectory, "expired-session.json"), "utf8"),
+      /ENOENT/,
+    );
+    await assert.rejects(() => readFile(join(artifactDirectory, "index.json"), "utf8"), /ENOENT/);
+    assert.equal((await store.getSession("retained-session"))?.messages[0]?.id, "retained-message");
+    assert.equal(await store.deleteExpiredSessions("2026-08-15T00:00:00.000Z"), 0);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 test("JsonSessionStore stores done state and clears it when appending messages", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-json-session-store-"));
   const storePath = join(cwd, "sessions.json");
