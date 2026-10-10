@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
@@ -352,6 +352,27 @@ export class SqliteSessionStore implements SessionStore {
     return this.getRequiredSessionSync(sessionId);
   }
 
+  async deleteExpiredSessions(cutoffIso: string): Promise<number> {
+    const expiredSessionIds = (
+      this.db.prepare("SELECT id FROM sessions WHERE updated_at < ?").all(cutoffIso) as Array<
+        Pick<SessionRow, "id">
+      >
+    ).map((session) => session.id);
+
+    if (expiredSessionIds.length === 0) {
+      return 0;
+    }
+
+    this.db.transaction(() => {
+      const statement = this.db.prepare("DELETE FROM sessions WHERE id = ?");
+
+      expiredSessionIds.forEach((sessionId) => statement.run(sessionId));
+    })();
+    expiredSessionIds.forEach((sessionId) => this.deleteSessionArtifactDirectory(sessionId));
+
+    return expiredSessionIds.length;
+  }
+
   getArtifactDirectoryPath(): string {
     return join(dirname(this.databasePath), "session-artifacts");
   }
@@ -442,6 +463,14 @@ export class SqliteSessionStore implements SessionStore {
 
   private deleteSession(sessionId: string): void {
     this.db.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
+    this.deleteSessionArtifactDirectory(sessionId);
+  }
+
+  private deleteSessionArtifactDirectory(sessionId: string): void {
+    rmSync(join(this.getArtifactDirectoryPath(), encodeURIComponent(sessionId)), {
+      force: true,
+      recursive: true,
+    });
   }
 
   private insertSession(session: ChatSession): void {

@@ -24,6 +24,8 @@ test("WorkerSessionStore proxies SQLite session operations through a worker thre
       ["session-1"],
     );
     assert.equal((await store.getRound("session-1", 1))?.diff, "diff --git a/a.ts b/a.ts");
+    assert.equal(await store.deleteExpiredSessions("2027-08-23T00:00:00.000Z"), 1);
+    assert.equal(await store.getSession("session-1"), undefined);
   } finally {
     store.close();
     await rm(cwd, { force: true, recursive: true });

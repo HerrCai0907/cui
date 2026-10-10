@@ -53,7 +53,8 @@ type SessionStoreMethod =
   | "getRound"
   | "updateRoundAtomicReview"
   | "updateSessionSummary"
-  | "updateSessionDoneAt";
+  | "updateSessionDoneAt"
+  | "deleteExpiredSessions";
 
 type PendingCall = {
   resolve: (value: unknown) => void;
@@ -171,6 +172,10 @@ export class WorkerSessionStore implements SessionStore {
 
   updateSessionDoneAt(sessionId: string, doneAt: string | undefined): Promise<ChatSession> {
     return this.call("updateSessionDoneAt", sessionId, doneAt);
+  }
+
+  deleteExpiredSessions(cutoffIso: string): Promise<number> {
+    return this.call("deleteExpiredSessions", cutoffIso);
   }
 
   getArtifactDirectoryPath(): string {

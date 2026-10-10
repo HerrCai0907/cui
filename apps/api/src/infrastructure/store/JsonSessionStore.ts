@@ -1,3 +1,4 @@
+import { rm } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { defaultJsonFileDb, type JsonFileDb } from "./JsonFileDb.js";
 import {
@@ -539,6 +540,31 @@ export class JsonSessionStore implements SessionStore {
     return updatedSession;
   }
 
+  async deleteExpiredSessions(cutoffIso: string): Promise<number> {
+    let deletedSessionIds: string[] = [];
+
+    await this.enqueueWrite(async () => {
+      const index = await this.readIndex();
+      const [expiredSessions, retainedSessions] = partitionSessions(
+        index.sessions,
+        (session) => session.updatedAt < cutoffIso,
+      );
+
+      if (expiredSessions.length === 0) {
+        return;
+      }
+
+      deletedSessionIds = expiredSessions.map((session) => session.id);
+      await Promise.all(deletedSessionIds.map((sessionId) => this.deleteSessionFiles(sessionId)));
+      await this.writeIndex({
+        ...index,
+        sessions: retainedSessions,
+      });
+    });
+
+    return deletedSessionIds.length;
+  }
+
   getArtifactDirectoryPath(): string {
     return join(dirname(this.filePath), "session-artifacts");
   }
@@ -584,6 +610,34 @@ export class JsonSessionStore implements SessionStore {
   private getSessionDetailPath(sessionId: string): string {
     return join(this.detailDirectoryPath, `${encodeURIComponent(sessionId)}.json`);
   }
+
+  private async deleteSessionFiles(sessionId: string): Promise<void> {
+    const detailPath = this.getSessionDetailPath(sessionId);
+
+    await Promise.all([
+      rm(detailPath, { force: true }),
+      rm(join(this.getArtifactDirectoryPath(), encodeURIComponent(sessionId)), {
+        force: true,
+        recursive: true,
+      }),
+    ]);
+    this.db.clearCache(detailPath);
+  }
+}
+
+function partitionSessions<T>(items: T[], predicate: (item: T) => boolean): [T[], T[]] {
+  const matches: T[] = [];
+  const misses: T[] = [];
+
+  for (const item of items) {
+    if (predicate(item)) {
+      matches.push(item);
+    } else {
+      misses.push(item);
+    }
+  }
+
+  return [matches, misses];
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {

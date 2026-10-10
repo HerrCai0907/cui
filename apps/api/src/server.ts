@@ -24,6 +24,8 @@ const sessionStore = new WorkerSessionStore();
 const sessionService = new SessionService(aiModel, sessionStore, logger);
 const codeQueryService = new CodeQueryService();
 const app = createApp({ logger, aiModel, sessionService, codeQueryService });
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const SESSION_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 const harnessAvailability = await Promise.allSettled([
   assertAiHarnessBinaryAvailable(getAiHarnessBinaryConfig("traex")),
@@ -48,11 +50,14 @@ const server = app.listen(port);
 server.on("listening", () => {
   console.log(`API listening on http://localhost:${port}`);
   void logger.framework.info("server.started", { port });
-  void sessionService.resumeQueuedPrompts().catch((error: unknown) => {
-    console.error("Failed to resume queued prompts", error);
-    void logger.framework.error("server.queue_resume.failed", error);
-  });
+  void runStartupSessionMaintenance();
 });
+
+const sessionCleanupTimer = setInterval(() => {
+  void deleteExpiredSessions();
+}, SESSION_CLEANUP_INTERVAL_MS);
+
+sessionCleanupTimer.unref();
 
 server.on("error", (error) => {
   console.error("Failed to start API server", error);
@@ -64,10 +69,40 @@ server.on("error", (error) => {
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
+    clearInterval(sessionCleanupTimer);
     server.close(() => {
       sessionStore.close();
       void logger.framework.info("server.stopped", { signal });
       process.exit(0);
     });
   });
+}
+
+async function deleteExpiredSessions(): Promise<void> {
+  const cutoffIso = new Date(Date.now() - SESSION_TTL_MS).toISOString();
+
+  try {
+    const deletedSessionCount = await sessionStore.deleteExpiredSessions(cutoffIso);
+
+    if (deletedSessionCount > 0) {
+      await logger.framework.info("server.sessions.expired_deleted", {
+        cutoffIso,
+        deletedSessionCount,
+      });
+    }
+  } catch (error) {
+    console.error("Failed to delete expired sessions", error);
+    await logger.framework.error("server.sessions.expiration_cleanup.failed", error);
+  }
+}
+
+async function runStartupSessionMaintenance(): Promise<void> {
+  await deleteExpiredSessions();
+
+  try {
+    await sessionService.resumeQueuedPrompts();
+  } catch (error) {
+    console.error("Failed to resume queued prompts", error);
+    await logger.framework.error("server.queue_resume.failed", error);
+  }
 }

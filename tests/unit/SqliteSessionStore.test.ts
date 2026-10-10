@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -102,6 +102,71 @@ test("SqliteSessionStore paginates index entries without promoting pinned sessio
       ["session-1", "session-0"],
     );
     assert.equal(firstPage.pagination.total, 4);
+  } finally {
+    store.close();
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
+test("SqliteSessionStore deletes expired sessions and cascades session data", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-sqlite-session-store-"));
+  const databasePath = join(cwd, "cui.sqlite");
+  const store = new SqliteSessionStore(databasePath);
+  const artifactDirectory = join(cwd, "session-artifacts", "expired-session");
+
+  try {
+    await store.createSession(
+      createSession(cwd, {
+        id: "expired-session",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+        messages: [createMessage("expired-message")],
+        rounds: [createRound(1)],
+      }),
+    );
+    await store.enqueuePrompt("expired-session", {
+      id: "queued-1",
+      mode: "chat",
+      prompt: "Queued follow-up.",
+      createdAt: "2026-08-01T00:00:01.000Z",
+    });
+    await store.createSession(
+      createSession(cwd, {
+        id: "retained-session",
+        updatedAt: "2028-08-22T00:00:00.000Z",
+      }),
+    );
+    await mkdir(artifactDirectory, { recursive: true });
+    await writeFile(join(artifactDirectory, "index.json"), "{}", "utf8");
+
+    assert.equal(await store.deleteExpiredSessions("2027-08-15T00:00:00.000Z"), 1);
+    assert.deepEqual(
+      (await store.listSessionIndexEntries()).sessions.map((session) => session.id),
+      ["retained-session"],
+    );
+    assert.equal(await store.getSession("expired-session"), undefined);
+    await assert.rejects(
+      () => writeFile(join(artifactDirectory, "index.json"), "{}", "utf8"),
+      /ENOENT/,
+    );
+
+    const db = new Database(databasePath, { readonly: true });
+    try {
+      assert.equal(
+        (db.prepare("SELECT COUNT(*) AS total FROM messages").get() as { total: number }).total,
+        0,
+      );
+      assert.equal(
+        (db.prepare("SELECT COUNT(*) AS total FROM rounds").get() as { total: number }).total,
+        0,
+      );
+      assert.equal(
+        (db.prepare("SELECT COUNT(*) AS total FROM queued_prompts").get() as { total: number })
+          .total,
+        0,
+      );
+    } finally {
+      db.close();
+    }
   } finally {
     store.close();
     await rm(cwd, { force: true, recursive: true });
