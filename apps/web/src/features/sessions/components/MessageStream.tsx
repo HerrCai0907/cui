@@ -14,7 +14,7 @@ import type { AppConfig } from "../../config/model/appConfig";
 import type { ApiMessage, ApiSession } from "../../../types";
 import { AssistantMessageContent } from "./AssistantMessageContent";
 import { WorkspacePathInput } from "./WorkspacePathInput";
-import { getMessageTitle } from "../model/messages";
+import { formatModelLabel, getMessageTitle } from "../model/messages";
 import type { QueuedPromptView } from "../hooks/useSessionController";
 
 type MessageStreamProps = {
@@ -234,6 +234,9 @@ function MessageItem({
   const hasReviewDiff = Boolean(reviewRound);
   const hasAtomicReview = Boolean(reviewRound?.atomicReviewStatus);
   const atomicReviewPending = hasReviewDiff && !reviewRound?.atomicReviewStatus;
+  const fallbackModelLabel = activeSession.models
+    ? formatModelLabel(activeSession.models.normal, activeSession.models.reasoningEfforts?.normal)
+    : undefined;
 
   return (
     <article
@@ -247,7 +250,7 @@ function MessageItem({
       <div className="message-body">
         <div className="message-meta">
           <div className="message-title-row">
-            <strong>{getMessageTitle(message, activeSession.models?.normal)}</strong>
+            <strong>{getMessageTitle(message, fallbackModelLabel)}</strong>
             {message.round && hasReviewDiff && (
               <span
                 className="review-button-group"
