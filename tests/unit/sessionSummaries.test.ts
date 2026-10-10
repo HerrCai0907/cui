@@ -91,6 +91,23 @@ test("groupWorkspacesForDisplay keeps workspace nodes that also have descendants
   );
 });
 
+test("groupWorkspacesForDisplay merges trailing-separator workspace aliases", () => {
+  const session = {
+    ...createSessions(1)[0],
+    workspace: "/workspace/project",
+  };
+  const [node] = groupWorkspacesForDisplay({
+    "/workspace/project": [session],
+    "/workspace/project/": [],
+  });
+
+  assert.equal(node.workspace?.workspace, "/workspace/project");
+  assert.deepEqual(
+    node.workspace?.sessions.map((workspaceSession) => workspaceSession.id),
+    [session.id],
+  );
+});
+
 test("groupWorkspacesForDisplay includes unrelated paths under their roots", () => {
   assert.deepEqual(
     stripSessions(

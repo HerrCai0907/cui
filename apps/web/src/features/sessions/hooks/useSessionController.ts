@@ -35,6 +35,7 @@ import {
   type SessionListMode,
   type SessionSidebarBrowserState,
 } from "../model/sessionBrowserState";
+import { normalizeWorkspacePath } from "../model/workspacePaths";
 import { useRunStream } from "./useRunStream";
 import type { ApiSession, ApiSessionListItem, SessionSummary } from "../../../types";
 
@@ -164,9 +165,9 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   const highlightedWorkspaceIds = useMemo(
     () =>
       new Set(
-        [activeSession?.workspace, workspaceDraft.trim() || defaultWorkspace].filter(
-          (workspace): workspace is string => Boolean(workspace),
-        ),
+        [activeSession?.workspace, workspaceDraft.trim() || defaultWorkspace]
+          .filter((workspace): workspace is string => Boolean(workspace))
+          .map(normalizeWorkspacePath),
       ),
     [activeSession?.workspace, defaultWorkspace, workspaceDraft],
   );
@@ -339,7 +340,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       return;
     }
 
-    const workspace = workspaceDraft.trim() || defaultWorkspace;
+    const workspace = normalizeWorkspacePath(workspaceDraft.trim() || defaultWorkspace);
     let cancelled = false;
     const timeout = window.setTimeout(() => {
       void getWorkspaceGitInfo({ workspace })
@@ -362,15 +363,17 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   }, [activeSession?.id, defaultWorkspace, workspaceDraft]);
 
   function toggleWorkspace(workspaceId: string) {
+    const normalizedWorkspaceId = normalizeWorkspacePath(workspaceId);
+
     updateSidebarBrowserState((current) => {
       const nextExpandedWorkspaces = new Set(
-        current.expandedWorkspacesByMode[current.sessionListMode],
+        [...current.expandedWorkspacesByMode[current.sessionListMode]].map(normalizeWorkspacePath),
       );
 
-      if (nextExpandedWorkspaces.has(workspaceId)) {
-        nextExpandedWorkspaces.delete(workspaceId);
+      if (nextExpandedWorkspaces.has(normalizedWorkspaceId)) {
+        nextExpandedWorkspaces.delete(normalizedWorkspaceId);
       } else {
-        nextExpandedWorkspaces.add(workspaceId);
+        nextExpandedWorkspaces.add(normalizedWorkspaceId);
       }
 
       return {
@@ -381,7 +384,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
         },
       };
     });
-    recordWorkspaceAttention(workspaceId);
+    recordWorkspaceAttention(normalizedWorkspaceId);
   }
 
   function setSidebarOpen(open: boolean) {
@@ -406,23 +409,31 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   }
 
   function expandWorkspace(workspaceId: string) {
+    const normalizedWorkspaceId = normalizeWorkspacePath(workspaceId);
+
     updateSidebarBrowserState((current) => ({
       ...current,
       expandedWorkspacesByMode: {
         ...current.expandedWorkspacesByMode,
         [current.sessionListMode]: new Set(
-          current.expandedWorkspacesByMode[current.sessionListMode],
-        ).add(workspaceId),
+          [...current.expandedWorkspacesByMode[current.sessionListMode]].map(
+            normalizeWorkspacePath,
+          ),
+        ).add(normalizedWorkspaceId),
       },
     }));
   }
 
   function expandWorkspaceForMode(workspaceId: string, mode: SessionListMode) {
+    const normalizedWorkspaceId = normalizeWorkspacePath(workspaceId);
+
     updateSidebarBrowserState((current) => ({
       ...current,
       expandedWorkspacesByMode: {
         ...current.expandedWorkspacesByMode,
-        [mode]: new Set(current.expandedWorkspacesByMode[mode]).add(workspaceId),
+        [mode]: new Set(
+          [...current.expandedWorkspacesByMode[mode]].map(normalizeWorkspacePath),
+        ).add(normalizedWorkspaceId),
       },
     }));
   }
@@ -842,7 +853,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     }
 
     try {
-      const workspace = workspaceDraft.trim() || defaultWorkspace;
+      const workspace = normalizeWorkspacePath(workspaceDraft.trim() || defaultWorkspace);
       const models = createModelRequestPreferences(
         config.harness,
         config.models,
@@ -1265,6 +1276,8 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   }
 
   function recordSessionAttention(session: Pick<ApiSession, "id" | "workspace">) {
+    const workspace = normalizeWorkspacePath(session.workspace);
+
     updateSessionAttentionState((current) => ({
       sessions: {
         ...current.sessions,
@@ -1272,17 +1285,19 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       },
       workspaces: {
         ...current.workspaces,
-        [session.workspace]: Date.now(),
+        [workspace]: Date.now(),
       },
     }));
   }
 
   function recordWorkspaceAttention(workspace: string) {
+    const normalizedWorkspace = normalizeWorkspacePath(workspace);
+
     updateSessionAttentionState((current) => ({
       ...current,
       workspaces: {
         ...current.workspaces,
-        [workspace]: Date.now(),
+        [normalizedWorkspace]: Date.now(),
       },
     }));
   }
@@ -1458,7 +1473,9 @@ function createWorkspaceGroups(
   const workspaces = groupSessionsByWorkspace(sessions);
 
   extraWorkspaces.forEach((workspace) => {
-    workspaces[workspace] = workspaces[workspace] ?? [];
+    const normalizedWorkspace = normalizeWorkspacePath(workspace);
+
+    workspaces[normalizedWorkspace] = workspaces[normalizedWorkspace] ?? [];
   });
 
   return workspaces;
