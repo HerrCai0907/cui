@@ -1,4 +1,4 @@
-import { BrainCircuit, Check, ChevronRight, Send, Square, Terminal } from "lucide-react";
+import { Check, ChevronRight, Cpu, Send, Square, Terminal } from "lucide-react";
 import {
   useEffect,
   useMemo,
@@ -225,7 +225,7 @@ export function Composer({
           title={modelButtonTitle}
           onClick={() => setModelMenuOpen((open) => !open)}
         >
-          <BrainCircuit size={18} />
+          <Cpu size={18} />
         </button>
         {modelMenuOpen && (
           <div className="composer-model-popover" role="menu" aria-label="Model and reasoning">
