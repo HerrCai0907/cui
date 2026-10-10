@@ -1447,6 +1447,10 @@
   color: #1d4ed8;
 }
 
+.composer-control-label {
+  display: none;
+}
+
 .composer-model-menu {
   position: relative;
 }
@@ -1579,6 +1583,12 @@
   color: #ffffff;
   padding: 0 16px;
   font-weight: 750;
+}
+
+.composer-send-button {
+  width: 44px;
+  min-width: 44px;
+  padding: 0;
 }
 
 .send-button:hover {

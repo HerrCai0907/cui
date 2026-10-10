@@ -175,6 +175,7 @@ export function Composer({
         onClick={() => onShellModeChange(!shellMode)}
       >
         <Terminal size={18} />
+        <span className="composer-control-label">{shellMode ? "Chat" : "Shell"}</span>
       </button>
       <textarea
         id="message-input"
@@ -194,7 +195,7 @@ export function Composer({
       <div className="composer-actions">
         {stopping ? (
           <button
-            className="send-button is-stop"
+            className="send-button composer-send-button is-stop"
             type="button"
             aria-label="Stop generation"
             title="Stop"
@@ -202,18 +203,18 @@ export function Composer({
             onClick={onStop}
           >
             <Square size={17} fill="currentColor" />
-            <span>Stop</span>
+            <span className="composer-control-label">Stop</span>
           </button>
         ) : null}
         <button
-          className="send-button"
+          className="send-button composer-send-button"
           type="submit"
           aria-label="Send message"
           title="Send"
           disabled={disabled}
         >
           <Send size={18} />
-          <span>Send</span>
+          <span className="composer-control-label">Send</span>
         </button>
       </div>
       <div className="composer-model-menu" ref={modelMenuRef}>
@@ -226,6 +227,7 @@ export function Composer({
           onClick={() => setModelMenuOpen((open) => !open)}
         >
           <Cpu size={18} />
+          <span className="composer-control-label">Model</span>
         </button>
         {modelMenuOpen && (
           <div className="composer-model-popover" role="menu" aria-label="Model and reasoning">

@@ -213,30 +213,59 @@
   }
 
   .composer {
-    grid-template-columns: 44px minmax(0, 1fr) auto 44px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "mode actions model"
+      "input input input";
     gap: 8px;
+    align-items: center;
     padding-top: 10px;
     padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  .composer-mode-button {
+    grid-area: mode;
+  }
+
+  .composer textarea {
+    grid-area: input;
+  }
+
+  .composer-actions {
+    display: flex;
+    grid-area: actions;
+    justify-content: center;
+  }
+
+  .composer-model-menu {
+    grid-area: model;
+  }
+
+  .composer-mode-button,
+  .composer-model-button,
+  .composer-send-button {
+    width: auto;
+    min-width: 0;
+    height: 32px;
+    gap: 6px;
+    padding: 0 10px;
+    font-size: 0.8rem;
+    font-weight: 750;
+  }
+
+  .composer-mode-button svg,
+  .composer-model-button svg,
+  .composer-send-button svg {
+    display: none;
+  }
+
+  .composer-control-label {
+    display: inline;
   }
 
   .composer-model-popover {
     right: 0;
     grid-template-columns: minmax(150px, 1fr) minmax(120px, 0.75fr);
-  }
-
-  .send-button {
-    width: 44px;
-    min-width: 44px;
-    padding: 0;
-  }
-
-  .send-button span {
-    display: none;
-  }
-
-  .composer-actions {
-    display: flex;
-    grid-column: auto;
   }
 
   .ssh-tunnel-grid {
