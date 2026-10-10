@@ -193,7 +193,7 @@ test("shows model names on assistant message titles", async ({ page }) => {
         id: "message-trace",
         role: "assistant",
         kind: "trace",
-        model: "GPT-5.4",
+        model: "GPT-5.4 / High",
         content: "TRAEX run completed.",
         createdAt: "2026-08-22T00:01:00.000Z",
       },
@@ -201,7 +201,7 @@ test("shows model names on assistant message titles", async ({ page }) => {
         id: "message-response",
         role: "assistant",
         kind: "response",
-        model: "GPT-5.4",
+        model: "GPT-5.4 / High",
         content: "Done.",
         createdAt: "2026-08-22T00:02:00.000Z",
       },
@@ -214,8 +214,8 @@ test("shows model names on assistant message titles", async ({ page }) => {
 
   await page.goto("/");
 
-  await expect(page.getByText("Execution Trace (GPT-5.4)")).toBeVisible();
-  await expect(page.getByText("Assistant (GPT-5.4)")).toBeVisible();
+  await expect(page.getByText("Execution Trace (GPT-5.4 / High)")).toBeVisible();
+  await expect(page.getByText("Assistant (GPT-5.4 / High)")).toBeVisible();
 });
 
 test("sends composer-selected model preferences when starting a chat session", async ({ page }) => {

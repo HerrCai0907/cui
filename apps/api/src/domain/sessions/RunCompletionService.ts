@@ -4,7 +4,7 @@ import type { AppLogger } from "../../infrastructure/logging/AppLogger.js";
 import { DiffArtifactService } from "../../infrastructure/diff/DiffArtifactService.js";
 import { AtomicReviewService } from "../reviews/AtomicReviewService.js";
 import { RoundService } from "../reviews/RoundService.js";
-import { createAssistantMessages } from "./sessionMessages.js";
+import { createAssistantMessages, formatNormalModelLabel } from "./sessionMessages.js";
 import { toSessionView } from "./sessionViews.js";
 import { createSessionInputTranscript } from "./transcripts.js";
 
@@ -43,7 +43,7 @@ export class RunCompletionService {
     const assistantMessages = createAssistantMessages(
       input.aiResponse,
       round,
-      input.models?.normal,
+      formatNormalModelLabel(input.models),
     );
     const updatedSession = await this.store.appendRoundAndMessages(
       input.aiResponse.sessionId,

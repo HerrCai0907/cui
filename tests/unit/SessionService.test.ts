@@ -52,6 +52,10 @@ test("createRun refreshes summary after user input and assistant response", asyn
       createAssistantRunRequest("Explain when the summary should run.", {
         normal: "GPT-5.4",
         summary: "Seed-2.1-Turbo",
+        reasoningEfforts: {
+          normal: "high",
+          summary: "low",
+        },
       }),
     );
     const events: unknown[] = [];
@@ -64,6 +68,10 @@ test("createRun refreshes summary after user input and assistant response", asyn
     assert.deepEqual(aiModel.summaryModels[0], {
       normal: "GPT-5.4",
       summary: "Seed-2.1-Turbo",
+      reasoningEfforts: {
+        normal: "high",
+        summary: "low",
+      },
     });
     assert.match(aiModel.summaryPrompts[0], /用户：Explain when the summary should run\./);
     assert.doesNotMatch(aiModel.summaryPrompts[0], /助手：Done\./);
@@ -86,6 +94,10 @@ test("createRun refreshes summary after user input and assistant response", asyn
     assert.deepEqual(aiModel.summaryModels[1], {
       normal: "GPT-5.4",
       summary: "Seed-2.1-Turbo",
+      reasoningEfforts: {
+        normal: "high",
+        summary: "low",
+      },
     });
     assert.match(aiModel.summaryPrompts[1], /用户：Explain when the summary should run\./);
     assert.match(aiModel.summaryPrompts[1], /助手：Done\./);
@@ -94,7 +106,8 @@ test("createRun refreshes summary after user input and assistant response", asyn
       ["session.updated", "session.updated"],
     );
     assert.equal(events.at(-1)?.session.messages.at(-1)?.content, "Done.");
-    assert.equal(events.at(-1)?.session.messages.at(-1)?.model, "GPT-5.4");
+    assert.equal(events.at(-1)?.session.messages.at(-1)?.model, "GPT-5.4 / High");
+    assert.equal(events.at(-1)?.session.messages.at(-2)?.model, "GPT-5.4 / High");
     assert.equal(events.some(isDoneEvent), false);
 
     aiModel.resolveSummary(
@@ -110,6 +123,10 @@ test("createRun refreshes summary after user input and assistant response", asyn
     assert.deepEqual(aiModel.runModels[0], {
       normal: "GPT-5.4",
       summary: "Seed-2.1-Turbo",
+      reasoningEfforts: {
+        normal: "high",
+        summary: "low",
+      },
     });
     assert.deepEqual(
       events.map((event) => eventType(event)),

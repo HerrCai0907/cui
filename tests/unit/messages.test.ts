@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getMessageTitle } from "../../apps/web/src/features/sessions/model/messages.js";
+import {
+  formatModelLabel,
+  getMessageTitle,
+} from "../../apps/web/src/features/sessions/model/messages.js";
 import type { ApiMessage } from "../../apps/web/src/types.js";
 
 test("getMessageTitle appends model names to assistant messages", () => {
@@ -22,14 +25,21 @@ test("getMessageTitle keeps legacy and user titles unchanged", () => {
 
 test("getMessageTitle uses a fallback model for legacy assistant messages", () => {
   assert.equal(
-    getMessageTitle(createMessage({ kind: "trace" }), "GPT-5.5"),
-    "Execution Trace (GPT-5.5)",
+    getMessageTitle(createMessage({ kind: "trace" }), formatModelLabel("GPT-5.5", "high")),
+    "Execution Trace (GPT-5.5 / High)",
   );
   assert.equal(
-    getMessageTitle(createMessage({ kind: "response" }), "GPT-5.5"),
-    "Assistant (GPT-5.5)",
+    getMessageTitle(createMessage({ kind: "response" }), formatModelLabel("GPT-5.5", "high")),
+    "Assistant (GPT-5.5 / High)",
   );
   assert.equal(getMessageTitle(createMessage({ role: "user" }), "GPT-5.5"), "You");
+});
+
+test("formatModelLabel includes reasoning effort in model labels", () => {
+  assert.equal(formatModelLabel("GPT-5.4", "xhigh"), "GPT-5.4 / XHigh");
+  assert.equal(formatModelLabel(undefined, "low"), "Harness default / Low");
+  assert.equal(formatModelLabel("Seed-2.1-Turbo", undefined), "Seed-2.1-Turbo");
+  assert.equal(formatModelLabel(undefined, undefined), undefined);
 });
 
 function createMessage(overrides: Partial<ApiMessage>): ApiMessage {

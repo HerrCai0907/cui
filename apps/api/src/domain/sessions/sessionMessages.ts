@@ -1,5 +1,22 @@
 import { randomUUID } from "node:crypto";
-import type { AiResponse, ChatMessage, ChatRound } from "../../types.js";
+import type {
+  AiModelPreferences,
+  AiReasoningEffort,
+  AiResponse,
+  ChatMessage,
+  ChatRound,
+} from "../../types.js";
+
+const REASONING_EFFORT_LABELS: Record<AiReasoningEffort, string> = {
+  none: "None",
+  minimal: "Minimal",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  xhigh: "XHigh",
+  max: "Max",
+  ultra: "Ultra",
+};
 
 export function createMessage(
   role: ChatMessage["role"],
@@ -35,4 +52,26 @@ export function createAssistantMessages(
   }
 
   return messages;
+}
+
+export function formatNormalModelLabel(models: AiModelPreferences | undefined): string | undefined {
+  if (!models) {
+    return undefined;
+  }
+
+  return formatModelLabel(models.normal, models.reasoningEfforts?.normal);
+}
+
+export function formatModelLabel(
+  model: string | undefined,
+  reasoningEffort: AiReasoningEffort | undefined,
+): string | undefined {
+  const trimmedModel = model?.trim();
+  const reasoningEffortLabel = reasoningEffort ? REASONING_EFFORT_LABELS[reasoningEffort] : "";
+
+  if (!trimmedModel && !reasoningEffortLabel) {
+    return undefined;
+  }
+
+  return [trimmedModel || "Harness default", reasoningEffortLabel].filter(Boolean).join(" / ");
 }
