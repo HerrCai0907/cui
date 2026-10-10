@@ -1,3 +1,5 @@
+import { normalizeWorkspacePath } from "./workspacePaths";
+
 const LAST_SEEN_ROUND_PREFIX = "cui:session-last-seen-round:v1:";
 const SIDEBAR_STATE_STORAGE_KEY = "cui:session-sidebar-state:v2";
 const SESSION_ATTENTION_STORAGE_KEY = "cui:session-attention:v1";
@@ -158,13 +160,15 @@ export function saveSessionSidebarBrowserState(state: SessionSidebarBrowserState
 }
 
 function createDefaultSidebarBrowserState(defaultWorkspace: string): SessionSidebarBrowserState {
+  const normalizedDefaultWorkspace = normalizeWorkspacePath(defaultWorkspace);
+
   return {
     sidebarOpen: true,
     sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
     sessionListMode: "active",
     expandedWorkspacesByMode: {
-      active: new Set([defaultWorkspace]),
-      more: new Set([defaultWorkspace]),
+      active: new Set([normalizedDefaultWorkspace]),
+      more: new Set([normalizedDefaultWorkspace]),
     },
   };
 }
@@ -205,7 +209,7 @@ export function loadSessionAttentionState(): SessionAttentionState {
 
     return {
       sessions: parseNumberRecord(parsed.sessions),
-      workspaces: parseNumberRecord(parsed.workspaces),
+      workspaces: normalizeWorkspaceNumberRecord(parseNumberRecord(parsed.workspaces)),
     };
   } catch {
     window.localStorage.removeItem(SESSION_ATTENTION_STORAGE_KEY);
@@ -237,7 +241,9 @@ function parseStringSet(value: unknown, fallback: Set<string>): Set<string> {
     return new Set(fallback);
   }
 
-  return new Set(value.filter((item): item is string => typeof item === "string"));
+  return new Set(
+    value.filter((item): item is string => typeof item === "string").map(normalizeWorkspacePath),
+  );
 }
 
 function parseSessionListMode(value: unknown, fallback: SessionListMode): SessionListMode {
@@ -255,5 +261,15 @@ function parseNumberRecord(value: unknown): Record<string, number> {
     }
 
     return record;
+  }, {});
+}
+
+function normalizeWorkspaceNumberRecord(values: Record<string, number>): Record<string, number> {
+  return Object.entries(values).reduce<Record<string, number>>((normalized, [workspace, value]) => {
+    const normalizedWorkspace = normalizeWorkspacePath(workspace);
+
+    normalized[normalizedWorkspace] = Math.max(normalized[normalizedWorkspace] ?? 0, value);
+
+    return normalized;
   }, {});
 }

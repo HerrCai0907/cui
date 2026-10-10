@@ -1,5 +1,6 @@
 import type { ApiSession, ApiSessionListItem, SessionSummary } from "../../../types";
 import { getLastSeenRound, type SessionAttentionState } from "./sessionBrowserState";
+import { normalizeWorkspacePath } from "./workspacePaths";
 
 export type WorkspaceDisplayItem = {
   workspace: string;
@@ -28,7 +29,7 @@ export function toSessionSummary(session: ApiSession | ApiSessionListItem): Sess
 
   return {
     id: session.id,
-    workspace: session.workspace,
+    workspace: normalizeWorkspacePath(session.workspace),
     title: session.title,
     summary: session.summary,
     doneAt: session.doneAt,
@@ -47,8 +48,10 @@ export function groupSessionsByWorkspace(
   sessions: SessionSummary[],
 ): Record<string, SessionSummary[]> {
   return sessions.reduce<Record<string, SessionSummary[]>>((groups, session) => {
-    groups[session.workspace] = groups[session.workspace] ?? [];
-    groups[session.workspace].push(session);
+    const workspace = normalizeWorkspacePath(session.workspace);
+
+    groups[workspace] = groups[workspace] ?? [];
+    groups[workspace].push(session);
 
     return groups;
   }, {});
@@ -68,8 +71,8 @@ export function partitionActiveSessionsForSidebar(
     ACTIVE_SIDEBAR_WORKSPACE_ACTIVITY_WINDOW_MS,
   );
   const activeWorkspaceIds = new Set([
-    ...highlightedWorkspaceIds,
-    ...activeCandidateSessions.map((session) => session.workspace),
+    ...[...highlightedWorkspaceIds].map(normalizeWorkspacePath),
+    ...activeCandidateSessions.map((session) => normalizeWorkspacePath(session.workspace)),
     ...recentWorkspaceIds,
   ]);
 
@@ -92,15 +95,22 @@ function getRecentWorkspaceIds(
     const updatedAt = Date.parse(session.updatedAt);
 
     if (Number.isFinite(updatedAt)) {
+      const normalizedWorkspace = normalizeWorkspacePath(session.workspace);
+
       workspaceActivity.set(
-        session.workspace,
-        Math.max(workspaceActivity.get(session.workspace) ?? 0, updatedAt),
+        normalizedWorkspace,
+        Math.max(workspaceActivity.get(normalizedWorkspace) ?? 0, updatedAt),
       );
     }
   });
   Object.entries(attentionState.workspaces).forEach(([workspace, lastSeenAt]) => {
     if (Number.isFinite(lastSeenAt)) {
-      workspaceActivity.set(workspace, Math.max(workspaceActivity.get(workspace) ?? 0, lastSeenAt));
+      const normalizedWorkspace = normalizeWorkspacePath(workspace);
+
+      workspaceActivity.set(
+        normalizedWorkspace,
+        Math.max(workspaceActivity.get(normalizedWorkspace) ?? 0, lastSeenAt),
+      );
     }
   });
 
@@ -213,12 +223,21 @@ export function groupWorkspacesForDisplay(
   workspaces: Record<string, SessionSummary[]>,
 ): WorkspaceTreeNode[] {
   const roots = new Map<string, WorkspaceTreeBuildNode>();
+  const normalizedWorkspaces = new Map<string, Map<string, SessionSummary>>();
 
   Object.entries(workspaces).forEach(([workspace, sessions]) => {
+    const normalizedWorkspace = normalizeWorkspacePath(workspace);
+    const sessionsById = normalizedWorkspaces.get(normalizedWorkspace) ?? new Map();
+
+    sessions.forEach((session) => sessionsById.set(session.id, session));
+    normalizedWorkspaces.set(normalizedWorkspace, sessionsById);
+  });
+
+  normalizedWorkspaces.forEach((sessionsById, workspace) => {
     const parsed = parseWorkspacePath(workspace);
     const item = {
       workspace,
-      sessions,
+      sessions: [...sessionsById.values()],
     };
 
     insertWorkspacePath(roots, parsed, item);
