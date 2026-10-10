@@ -247,7 +247,7 @@ function MessageItem({
       <div className="message-body">
         <div className="message-meta">
           <div className="message-title-row">
-            <strong>{getMessageTitle(message)}</strong>
+            <strong>{getMessageTitle(message, activeSession.models?.normal)}</strong>
             {message.round && hasReviewDiff && (
               <span
                 className="review-button-group"

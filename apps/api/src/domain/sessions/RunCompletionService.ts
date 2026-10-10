@@ -40,7 +40,11 @@ export class RunCompletionService {
       };
     }
 
-    const assistantMessages = createAssistantMessages(input.aiResponse, round);
+    const assistantMessages = createAssistantMessages(
+      input.aiResponse,
+      round,
+      input.models?.normal,
+    );
     const updatedSession = await this.store.appendRoundAndMessages(
       input.aiResponse.sessionId,
       round,

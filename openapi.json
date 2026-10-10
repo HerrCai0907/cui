@@ -51,6 +51,9 @@
             "type": "integer",
             "exclusiveMinimum": 0
           },
+          "model": {
+            "type": "string"
+          },
           "content": {
             "type": "string"
           },
@@ -699,6 +702,9 @@
                   "type": "integer",
                   "exclusiveMinimum": 0
                 },
+                "model": {
+                  "type": "string"
+                },
                 "content": {
                   "type": "string"
                 },
@@ -1276,6 +1282,9 @@
                       "type": "integer",
                       "exclusiveMinimum": 0
                     },
+                    "model": {
+                      "type": "string"
+                    },
                     "content": {
                       "type": "string"
                     },
@@ -1783,6 +1792,9 @@
                       "type": "integer",
                       "exclusiveMinimum": 0
                     },
+                    "model": {
+                      "type": "string"
+                    },
                     "content": {
                       "type": "string"
                     },
@@ -2030,6 +2042,9 @@
                     "round": {
                       "type": "integer",
                       "exclusiveMinimum": 0
+                    },
+                    "model": {
+                      "type": "string"
                     },
                     "content": {
                       "type": "string"
@@ -2342,6 +2357,9 @@
                           "type": "integer",
                           "exclusiveMinimum": 0
                         },
+                        "model": {
+                          "type": "string"
+                        },
                         "content": {
                           "type": "string"
                         },
@@ -2593,6 +2611,9 @@
                         "round": {
                           "type": "integer",
                           "exclusiveMinimum": 0
+                        },
+                        "model": {
+                          "type": "string"
                         },
                         "content": {
                           "type": "string"
@@ -3954,6 +3975,9 @@
                                 "type": "integer",
                                 "exclusiveMinimum": 0
                               },
+                              "model": {
+                                "type": "string"
+                              },
                               "content": {
                                 "type": "string"
                               },
@@ -4279,6 +4303,9 @@
                               "round": {
                                 "type": "integer",
                                 "exclusiveMinimum": 0
+                              },
+                              "model": {
+                                "type": "string"
                               },
                               "content": {
                                 "type": "string"
@@ -4649,6 +4676,9 @@
                                 "type": "integer",
                                 "exclusiveMinimum": 0
                               },
+                              "model": {
+                                "type": "string"
+                              },
                               "content": {
                                 "type": "string"
                               },
@@ -4888,6 +4918,9 @@
                           "round": {
                             "type": "integer",
                             "exclusiveMinimum": 0
+                          },
+                          "model": {
+                            "type": "string"
                           },
                           "content": {
                             "type": "string"
@@ -5857,6 +5890,9 @@
                                 "type": "integer",
                                 "exclusiveMinimum": 0
                               },
+                              "model": {
+                                "type": "string"
+                              },
                               "content": {
                                 "type": "string"
                               },
@@ -6186,6 +6222,9 @@
                               "round": {
                                 "type": "integer",
                                 "exclusiveMinimum": 0
+                              },
+                              "model": {
+                                "type": "string"
                               },
                               "content": {
                                 "type": "string"
@@ -6632,6 +6671,9 @@
                                 "type": "integer",
                                 "exclusiveMinimum": 0
                               },
+                              "model": {
+                                "type": "string"
+                              },
                               "content": {
                                 "type": "string"
                               },
@@ -7068,6 +7110,9 @@
                                     "type": "integer",
                                     "exclusiveMinimum": 0
                                   },
+                                  "model": {
+                                    "type": "string"
+                                  },
                                   "content": {
                                     "type": "string"
                                   },
@@ -7319,6 +7364,9 @@
                                   "round": {
                                     "type": "integer",
                                     "exclusiveMinimum": 0
+                                  },
+                                  "model": {
+                                    "type": "string"
                                   },
                                   "content": {
                                     "type": "string"
