@@ -5,6 +5,7 @@ export type ChatMessage = {
   role: ChatRole;
   kind?: "response" | "trace";
   round?: number;
+  model?: string;
   content: string;
   createdAt: string;
 };

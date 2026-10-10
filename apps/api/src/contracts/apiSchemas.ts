@@ -53,6 +53,7 @@ export const ChatMessageSchema = z.object({
   role: z.enum(["assistant", "user"]),
   kind: z.enum(["response", "trace"]).optional(),
   round: z.number().int().positive().optional(),
+  model: z.string().optional(),
   content: z.string(),
   createdAt: z.string().datetime(),
 });

@@ -40,6 +40,7 @@ type MessageRow = {
   role: ChatMessage["role"];
   kind: ChatMessage["kind"] | null;
   round: number | null;
+  model: string | null;
   content: string;
   created_at: string;
 };
@@ -528,8 +529,8 @@ export class SqliteSessionStore implements SessionStore {
     this.db
       .prepare(
         `INSERT INTO messages (
-          id, session_id, role, kind, round, content, created_at, order_index
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          id, session_id, role, kind, round, model, content, created_at, order_index
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         message.id,
@@ -537,6 +538,7 @@ export class SqliteSessionStore implements SessionStore {
         message.role,
         message.kind ?? null,
         message.round ?? null,
+        message.model ?? null,
         message.content,
         message.createdAt,
         orderIndex,
@@ -717,6 +719,10 @@ function getMigrations(): Array<{ version: string; sql: string }> {
       version: "002_session_models",
       sql: readMigration("002_session_models.sql"),
     },
+    {
+      version: "003_message_models",
+      sql: readMigration("003_message_models.sql"),
+    },
   ];
 }
 
@@ -753,6 +759,7 @@ function toChatMessage(row: MessageRow): ChatMessage {
     role: row.role,
     ...(row.kind ? { kind: row.kind } : {}),
     ...(row.round !== null ? { round: row.round } : {}),
+    ...(row.model ? { model: row.model } : {}),
     content: row.content,
     createdAt: row.created_at,
   };

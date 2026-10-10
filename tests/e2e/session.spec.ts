@@ -181,6 +181,43 @@ test("loads twice the current message count when requesting earlier messages", a
   await expect.poll(() => requestedLimit).toBe("4");
 });
 
+test("shows model names on assistant message titles", async ({ page }) => {
+  const session = {
+    id: "session-message-model-title",
+    workspace: currentWorkspace,
+    title: "Model title conversation",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-trace",
+        role: "assistant",
+        kind: "trace",
+        model: "GPT-5.4",
+        content: "TRAEX run completed.",
+        createdAt: "2026-08-22T00:01:00.000Z",
+      },
+      {
+        id: "message-response",
+        role: "assistant",
+        kind: "response",
+        model: "GPT-5.4",
+        content: "Done.",
+        createdAt: "2026-08-22T00:02:00.000Z",
+      },
+    ],
+    rounds: [],
+  };
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+
+  await page.goto("/");
+
+  await expect(page.getByText("Execution Trace (GPT-5.4)")).toBeVisible();
+  await expect(page.getByText("Assistant (GPT-5.4)")).toBeVisible();
+});
+
 test("sends composer-selected model preferences when starting a chat session", async ({ page }) => {
   const startedSession = {
     id: "session-models",

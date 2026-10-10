@@ -455,6 +455,7 @@ export interface paths {
                   /** @enum {string} */
                   kind?: "response" | "trace";
                   round?: number;
+                  model?: string;
                   content: string;
                   /** Format: date-time */
                   createdAt: string;
@@ -580,6 +581,7 @@ export interface paths {
                   /** @enum {string} */
                   kind?: "response" | "trace";
                   round?: number;
+                  model?: string;
                   content: string;
                   /** Format: date-time */
                   createdAt: string;
@@ -716,6 +718,7 @@ export interface paths {
                   /** @enum {string} */
                   kind?: "response" | "trace";
                   round?: number;
+                  model?: string;
                   content: string;
                   /** Format: date-time */
                   createdAt: string;
@@ -815,6 +818,7 @@ export interface paths {
                 /** @enum {string} */
                 kind?: "response" | "trace";
                 round?: number;
+                model?: string;
                 content: string;
                 /** Format: date-time */
                 createdAt: string;
@@ -1252,6 +1256,7 @@ export interface paths {
                   /** @enum {string} */
                   kind?: "response" | "trace";
                   round?: number;
+                  model?: string;
                   content: string;
                   /** Format: date-time */
                   createdAt: string;
@@ -1399,6 +1404,7 @@ export interface paths {
                   /** @enum {string} */
                   kind?: "response" | "trace";
                   round?: number;
+                  model?: string;
                   content: string;
                   /** Format: date-time */
                   createdAt: string;
@@ -1575,6 +1581,7 @@ export interface paths {
                   /** @enum {string} */
                   kind?: "response" | "trace";
                   round?: number;
+                  model?: string;
                   content: string;
                   /** Format: date-time */
                   createdAt: string;
@@ -1817,6 +1824,7 @@ export interface paths {
                       /** @enum {string} */
                       kind?: "response" | "trace";
                       round?: number;
+                      model?: string;
                       content: string;
                       /** Format: date-time */
                       createdAt: string;
@@ -1915,6 +1923,7 @@ export interface paths {
                       /** @enum {string} */
                       kind?: "response" | "trace";
                       round?: number;
+                      model?: string;
                       content: string;
                       /** Format: date-time */
                       createdAt: string;
@@ -2003,6 +2012,7 @@ export interface components {
       /** @enum {string} */
       kind?: "response" | "trace";
       round?: number;
+      model?: string;
       content: string;
       /** Format: date-time */
       createdAt: string;
@@ -2182,6 +2192,7 @@ export interface components {
         /** @enum {string} */
         kind?: "response" | "trace";
         round?: number;
+        model?: string;
         content: string;
         /** Format: date-time */
         createdAt: string;
@@ -2368,6 +2379,7 @@ export interface components {
           /** @enum {string} */
           kind?: "response" | "trace";
           round?: number;
+          model?: string;
           content: string;
           /** Format: date-time */
           createdAt: string;
@@ -2529,6 +2541,7 @@ export interface components {
           /** @enum {string} */
           kind?: "response" | "trace";
           round?: number;
+          model?: string;
           content: string;
           /** Format: date-time */
           createdAt: string;
@@ -2602,6 +2615,7 @@ export interface components {
           /** @enum {string} */
           kind?: "response" | "trace";
           round?: number;
+          model?: string;
           content: string;
           /** Format: date-time */
           createdAt: string;
@@ -2701,6 +2715,7 @@ export interface components {
               /** @enum {string} */
               kind?: "response" | "trace";
               round?: number;
+              model?: string;
               content: string;
               /** Format: date-time */
               createdAt: string;
@@ -2777,6 +2792,7 @@ export interface components {
               /** @enum {string} */
               kind?: "response" | "trace";
               round?: number;
+              model?: string;
               content: string;
               /** Format: date-time */
               createdAt: string;

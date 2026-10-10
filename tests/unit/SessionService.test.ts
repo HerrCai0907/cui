@@ -94,6 +94,7 @@ test("createRun refreshes summary after user input and assistant response", asyn
       ["session.updated", "session.updated"],
     );
     assert.equal(events.at(-1)?.session.messages.at(-1)?.content, "Done.");
+    assert.equal(events.at(-1)?.session.messages.at(-1)?.model, "GPT-5.4");
     assert.equal(events.some(isDoneEvent), false);
 
     aiModel.resolveSummary(

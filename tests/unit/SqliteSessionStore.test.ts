@@ -48,6 +48,7 @@ test("SqliteSessionStore runs SQL migrations and persists sessions", async () =>
     const reopenedStore = new SqliteSessionStore(databasePath);
 
     assert.equal((await reopenedStore.getSession("session-1"))?.messages[0]?.id, "message-1");
+    assert.equal((await reopenedStore.getSession("session-1"))?.messages[0]?.model, "GPT-5.4");
     assert.equal((await reopenedStore.getRound("session-1", 1))?.diff, "diff --git a/a.ts b/a.ts");
 
     reopenedStore.close();
@@ -58,6 +59,7 @@ test("SqliteSessionStore runs SQL migrations and persists sessions", async () =>
       assert.deepEqual(db.prepare("SELECT version FROM schema_migrations").all(), [
         { version: "001_initial_schema" },
         { version: "002_session_models" },
+        { version: "003_message_models" },
       ]);
       const sessionRow = db.prepare("SELECT models_json FROM sessions").get() as {
         models_json: string;
@@ -67,6 +69,10 @@ test("SqliteSessionStore runs SQL migrations and persists sessions", async () =>
       assert.equal(
         (db.prepare("SELECT COUNT(*) AS total FROM messages").get() as { total: number }).total,
         1,
+      );
+      assert.equal(
+        (db.prepare("SELECT model FROM messages").get() as { model: string }).model,
+        "GPT-5.4",
       );
       assert.equal(
         (db.prepare("SELECT COUNT(*) AS total FROM rounds").get() as { total: number }).total,
@@ -298,6 +304,7 @@ function createMessage(id: string): ChatMessage {
     role: "assistant",
     kind: "response",
     round: 1,
+    model: "GPT-5.4",
     content: `Message ${id}`,
     createdAt: "2026-08-22T00:00:00.000Z",
   };
