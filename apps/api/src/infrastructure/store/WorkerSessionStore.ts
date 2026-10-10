@@ -53,6 +53,7 @@ type SessionStoreMethod =
   | "getRound"
   | "updateRoundAtomicReview"
   | "updateSessionSummary"
+  | "updateSessionModels"
   | "updateSessionDoneAt"
   | "deleteExpiredSessions";
 
@@ -168,6 +169,13 @@ export class WorkerSessionStore implements SessionStore {
     summary: Pick<ChatSession, "title" | "summary">,
   ): Promise<ChatSession> {
     return this.call("updateSessionSummary", sessionId, summary);
+  }
+
+  updateSessionModels(
+    sessionId: string,
+    models: ChatSession["models"] | undefined,
+  ): Promise<ChatSession> {
+    return this.call("updateSessionModels", sessionId, models);
   }
 
   updateSessionDoneAt(sessionId: string, doneAt: string | undefined): Promise<ChatSession> {

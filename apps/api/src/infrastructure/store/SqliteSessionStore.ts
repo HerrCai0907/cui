@@ -23,6 +23,7 @@ type SessionRow = {
   origin: string | null;
   ai_thread_id: string | null;
   ai_harness: string | null;
+  models_json: string | null;
   workspace: string;
   title: string;
   summary: string | null;
@@ -340,6 +341,21 @@ export class SqliteSessionStore implements SessionStore {
     return this.getRequiredSessionSync(sessionId);
   }
 
+  async updateSessionModels(
+    sessionId: string,
+    models: ChatSession["models"] | undefined,
+  ): Promise<ChatSession> {
+    const result = this.db
+      .prepare("UPDATE sessions SET models_json = ? WHERE id = ?")
+      .run(stringifyJsonField(models), sessionId);
+
+    if (result.changes === 0) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    return this.getRequiredSessionSync(sessionId);
+  }
+
   async updateSessionDoneAt(sessionId: string, doneAt: string | undefined): Promise<ChatSession> {
     const result = this.db
       .prepare("UPDATE sessions SET done_at = ? WHERE id = ?")
@@ -417,6 +433,7 @@ export class SqliteSessionStore implements SessionStore {
       ...(session.origin ? { origin: toSessionOrigin(session.origin) } : {}),
       ...(session.ai_thread_id ? { aiThreadId: session.ai_thread_id } : {}),
       ...(session.ai_harness ? { aiHarness: toAiHarness(session.ai_harness) } : {}),
+      ...(session.models_json ? { models: parseJsonField(session.models_json) } : {}),
       workspace: session.workspace,
       title: session.title,
       summary: session.summary ?? undefined,
@@ -477,15 +494,16 @@ export class SqliteSessionStore implements SessionStore {
     this.db
       .prepare(
         `INSERT INTO sessions (
-          id, origin, ai_thread_id, ai_harness, workspace, title, summary, pinned, done_at,
-          created_at, updated_at, current_round, queued_prompt_count
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          id, origin, ai_thread_id, ai_harness, models_json, workspace, title, summary, pinned,
+          done_at, created_at, updated_at, current_round, queued_prompt_count
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         session.id,
         session.origin ?? null,
         session.aiThreadId ?? null,
         session.aiHarness ?? null,
+        stringifyJsonField(session.models),
         session.workspace,
         session.title,
         session.summary ?? null,
@@ -695,6 +713,10 @@ function getMigrations(): Array<{ version: string; sql: string }> {
       version: "001_initial_schema",
       sql: readMigration("001_initial_schema.sql"),
     },
+    {
+      version: "002_session_models",
+      sql: readMigration("002_session_models.sql"),
+    },
   ];
 }
 
@@ -714,6 +736,7 @@ function toSessionIndexEntry(session: SessionRow): ChatSessionIndexEntry {
   return {
     id: session.id,
     ...(session.origin ? { origin: toSessionOrigin(session.origin) } : {}),
+    ...(session.models_json ? { models: parseJsonField(session.models_json) } : {}),
     workspace: session.workspace,
     title: session.title,
     summary: session.summary ?? undefined,

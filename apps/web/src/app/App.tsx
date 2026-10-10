@@ -128,6 +128,15 @@ export function App() {
     });
   }
 
+  function updateComposerModelSelection(model: string, reasoningEffort: ReasoningEffort) {
+    if (sessionController.activeSession) {
+      void sessionController.updateActiveSessionModelSelection(model, reasoningEffort);
+      return;
+    }
+
+    updateNormalModelSelection(model, reasoningEffort);
+  }
+
   useEffect(() => {
     if (!reviewRoute) {
       setReview(null);
@@ -398,15 +407,15 @@ export function App() {
               draft={sessionController.draft}
               modelOptions={visibleModels}
               modelsError={modelsError}
-              selectedModel={config.models.normal}
-              selectedReasoningEffort={config.reasoningEfforts.normal}
+              selectedModel={sessionController.selectedModel}
+              selectedReasoningEffort={sessionController.selectedReasoningEffort}
               shellMode={sessionController.composerMode === "shell"}
               stopping={sessionController.activeSessionRunning}
               stopDisabled={sessionController.activeSessionStopping}
               lastEnterKeyDownRef={sessionController.lastEnterKeyDownRef}
               textareaRef={sessionController.composerTextareaRef}
               onDraftChange={sessionController.setDraft}
-              onModelSelectionChange={updateNormalModelSelection}
+              onModelSelectionChange={updateComposerModelSelection}
               onShellModeChange={(shellMode) =>
                 sessionController.setComposerMode(shellMode ? "shell" : "chat")
               }

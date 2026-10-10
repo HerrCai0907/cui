@@ -49,6 +49,10 @@ export interface SessionStore {
     sessionId: string,
     summary: Pick<ChatSession, "title" | "summary">,
   ): Promise<ChatSession>;
+  updateSessionModels(
+    sessionId: string,
+    models: ChatSession["models"] | undefined,
+  ): Promise<ChatSession>;
   updateSessionDoneAt(sessionId: string, doneAt: string | undefined): Promise<ChatSession>;
   deleteExpiredSessions(cutoffIso: string): Promise<number>;
   getArtifactDirectoryPath(): string;

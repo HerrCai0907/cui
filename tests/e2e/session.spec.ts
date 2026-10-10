@@ -263,6 +263,17 @@ test("sends composer-selected model preferences when starting a chat session", a
       workspace: "~",
       origin: "chat",
       title: "Use the selected models.",
+      models: {
+        harness: "traex",
+        normal: "Seed-2.1-Turbo",
+        summary: "GPT-5.4",
+        atomicReview: "GPT-5.5",
+        reasoningEfforts: {
+          normal: "high",
+          summary: "low",
+          atomicReview: "medium",
+        },
+      },
     });
   await expect
     .poll(() => createRunBody)
@@ -283,6 +294,59 @@ test("sends composer-selected model preferences when starting a chat session", a
         },
       },
     });
+});
+
+test("switches the composer model selector with the active session", async ({ page }) => {
+  const firstSession = {
+    id: "session-model-one",
+    workspace: currentWorkspace,
+    title: "First model session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:01.000Z",
+    messages: [],
+    rounds: [],
+    currentRound: 0,
+    isRunning: false,
+    models: {
+      harness: "traex",
+      normal: "GPT-5.4",
+      reasoningEfforts: {
+        normal: "low",
+      },
+    },
+  };
+  const secondSession = {
+    id: "session-model-two",
+    workspace: currentWorkspace,
+    title: "Second model session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [],
+    currentRound: 0,
+    isRunning: false,
+    models: {
+      harness: "traex",
+      normal: "Seed-2.1-Turbo",
+      reasoningEfforts: {
+        normal: "high",
+      },
+    },
+  };
+
+  await mockSessions(page, [firstSession, secondSession]);
+
+  await page.goto("/");
+
+  const modelButton = page.getByRole("button", {
+    name: "Select model and reasoning effort",
+  });
+
+  await expect(modelButton).toHaveAttribute("title", "GPT-5.4 / Low");
+  await page.getByRole("button", { name: "Second model session" }).click();
+  await expect(modelButton).toHaveAttribute("title", "Seed-2.1-Turbo / High");
+  await page.getByRole("button", { name: "New session", exact: true }).click();
+  await expect(modelButton).toHaveAttribute("title", "GPT-5.5 / High");
 });
 
 test("sends a shell command on a single Enter key press", async ({ page }) => {
@@ -351,6 +415,17 @@ test("sends a shell command on a single Enter key press", async ({ page }) => {
       workspace: "~",
       origin: "shell",
       title: "$ pwd",
+      models: {
+        harness: "traex",
+        normal: "GPT-5.5",
+        summary: "GPT-5.4",
+        atomicReview: "GPT-5.5",
+        reasoningEfforts: {
+          normal: "high",
+          summary: "low",
+          atomicReview: "medium",
+        },
+      },
     });
   await expect
     .poll(() => createRunBody)

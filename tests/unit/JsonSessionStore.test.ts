@@ -186,6 +186,40 @@ test("JsonSessionStore paginates session index entries by updated time", async (
   }
 });
 
+test("JsonSessionStore updates session model preferences", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-json-session-store-"));
+  const storePath = join(cwd, "sessions.json");
+
+  try {
+    const store = new JsonSessionStore(storePath);
+
+    await store.createSession({
+      id: "session-1",
+      workspace: cwd,
+      title: "JSON session",
+      summary: "",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [],
+    });
+
+    const updatedSession = await store.updateSessionModels("session-1", {
+      harness: "traex",
+      normal: "Seed-2.1-Turbo",
+      reasoningEfforts: {
+        normal: "high",
+      },
+    });
+    const listedSession = (await store.listSessionIndexEntries()).sessions[0];
+
+    assert.equal(updatedSession.models?.normal, "Seed-2.1-Turbo");
+    assert.equal(listedSession?.models?.normal, "Seed-2.1-Turbo");
+    assert.equal((await store.getSession("session-1"))?.models?.reasoningEfforts?.normal, "high");
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 test("JsonSessionStore paginates index entries without promoting pinned sessions", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-json-session-store-"));
   const storePath = join(cwd, "sessions.json");
