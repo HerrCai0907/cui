@@ -836,7 +836,7 @@ test("supports expandable assistant code previews", async ({ page }) => {
     .poll(async () => {
       return await page.evaluate(() => navigator.clipboard.readText());
     })
-    .toBe(filePath);
+    .toBe(`${filePath}:20`);
 
   await page.getByRole("button", { name: "Show 10 previous lines" }).click();
   await expect(preview).toContainText("Lines 10-30");
