@@ -2,12 +2,14 @@ import { encodeExecutionTraceEvent } from "../../trace/model/parseExecutionTrace
 import type { ApiMessage, ApiSession } from "../../../types";
 
 export type StreamMessageState = {
+  model?: string;
   streamedTrace: string;
   streamedResponse: string;
 };
 
-export function createStreamMessageState(): StreamMessageState {
+export function createStreamMessageState(model?: string): StreamMessageState {
   return {
+    ...(model ? { model } : {}),
     streamedTrace: "",
     streamedResponse: "",
   };
@@ -56,6 +58,7 @@ export function applyStreamMessageState(
       traceMessageId: input.traceMessageId,
       responseMessageId: input.responseMessageId,
       insertIndex: input.traceInsertIndex,
+      model: input.state.model,
       content: input.state.streamedTrace,
     });
   }
@@ -63,6 +66,7 @@ export function applyStreamMessageState(
   if (input.state.streamedResponse) {
     nextSession = upsertResponseMessage(nextSession, {
       responseMessageId: input.responseMessageId,
+      model: input.state.model,
       content: input.state.streamedResponse,
     });
   }
@@ -85,6 +89,7 @@ export function appendResponseDelta(
 
   return upsertResponseMessage(session, {
     responseMessageId: input.responseMessageId,
+    model: input.state.model,
     content: input.state.streamedResponse,
   });
 }
@@ -93,6 +98,7 @@ function upsertResponseMessage(
   session: ApiSession,
   input: {
     responseMessageId: string;
+    model?: string;
     content: string;
   },
 ): ApiSession {
@@ -104,7 +110,9 @@ function upsertResponseMessage(
     return {
       ...session,
       messages: session.messages.map((message) =>
-        message.id === input.responseMessageId ? { ...message, content: input.content } : message,
+        message.id === input.responseMessageId
+          ? { ...message, ...(input.model ? { model: input.model } : {}), content: input.content }
+          : message,
       ),
     };
   }
@@ -113,6 +121,7 @@ function upsertResponseMessage(
     id: input.responseMessageId,
     role: "assistant",
     kind: "response",
+    ...(input.model ? { model: input.model } : {}),
     content: input.content,
     createdAt: new Date().toISOString(),
   };
@@ -150,6 +159,7 @@ function upsertTraceMessage(
     traceMessageId: string;
     responseMessageId: string;
     insertIndex?: number;
+    model?: string;
     content: string;
   },
 ): ApiSession {
@@ -159,7 +169,9 @@ function upsertTraceMessage(
     return {
       ...session,
       messages: session.messages.map((message) =>
-        message.id === input.traceMessageId ? { ...message, content: input.content } : message,
+        message.id === input.traceMessageId
+          ? { ...message, ...(input.model ? { model: input.model } : {}), content: input.content }
+          : message,
       ),
     };
   }
@@ -168,6 +180,7 @@ function upsertTraceMessage(
     id: input.traceMessageId,
     role: "assistant",
     kind: "trace",
+    ...(input.model ? { model: input.model } : {}),
     content: input.content,
     createdAt: new Date().toISOString(),
   };

@@ -14,6 +14,7 @@ import {
   type StreamMessageState,
 } from "../model/streamMessages";
 import { toSessionSummary } from "../model/sessionSummaries";
+import { formatModelLabel } from "../model/messages";
 import { parseRunStreamEvent } from "../model/runStream";
 import type { SessionSummary } from "../../../types";
 import { resolveApiUrl } from "../../../shared/api/apiBaseUrl";
@@ -38,6 +39,7 @@ type UseRunStreamInput = {
 type StoppedTraceOverlay = {
   traceMessageId: string;
   insertIndex: number;
+  model?: string;
   content: string;
 };
 
@@ -105,10 +107,16 @@ export function useRunStream({
     const streamingTraceMessageId = `stream-${runId}-trace`;
     const streamingResponseMessageId = `stream-${runId}-response`;
     const existingStreamMessageIds = streamMessageIdRefs.current.get(sessionId);
+    const streamModel = getSessionNormalModelLabel(activeSessionRef.current, sessionId);
     const streamMessageState =
       existingStreamMessageIds?.traceMessageId === streamingTraceMessageId
-        ? (streamStateRefs.current.get(sessionId) ?? createStreamMessageState())
-        : createStreamMessageState();
+        ? (streamStateRefs.current.get(sessionId) ?? createStreamMessageState(streamModel))
+        : createStreamMessageState(streamModel);
+
+    if (!streamMessageState.model && streamModel) {
+      streamMessageState.model = streamModel;
+    }
+
     const traceInsertIndex =
       existingStreamMessageIds?.traceMessageId === streamingTraceMessageId
         ? existingStreamMessageIds.traceInsertIndex
@@ -156,6 +164,7 @@ export function useRunStream({
           sessionId,
           traceMessageId: streamingTraceMessageId,
           responseMessageId: streamingResponseMessageId,
+          traceInsertIndex,
         });
 
         activeSessionRef.current = nextSession;
@@ -184,6 +193,7 @@ export function useRunStream({
           sessionId,
           traceMessageId: streamingTraceMessageId,
           responseMessageId: streamingResponseMessageId,
+          traceInsertIndex,
         });
 
         activeSessionRef.current = nextSession;
@@ -361,11 +371,17 @@ export function useRunStream({
       return sessionWithStoppedTrace;
     }
 
+    const streamModel = getSessionNormalModelLabel(session, session.id);
+    if (!streamMessageState.model && streamModel) {
+      streamMessageState.model = streamModel;
+    }
+
     return applyStreamMessageState(sessionWithStoppedTrace, {
       state: streamMessageState,
       sessionId: session.id,
       traceMessageId: streamMessageIds.traceMessageId,
       responseMessageId: streamMessageIds.responseMessageId,
+      traceInsertIndex: streamMessageIds.traceInsertIndex,
     });
   }
 
@@ -413,6 +429,7 @@ export function useRunStream({
         {
           traceMessageId: streamMessageIds.traceMessageId,
           insertIndex: streamMessageIds.traceInsertIndex,
+          model: streamMessageState.model,
           content: streamMessageState.streamedTrace,
         },
       ]);
@@ -465,6 +482,7 @@ export function useRunStream({
       remainingOverlays.push(overlay);
       nextSession = applyStreamMessageState(nextSession, {
         state: {
+          ...(overlay.model ? { model: overlay.model } : {}),
           streamedTrace: overlay.content,
           streamedResponse: "",
         },
@@ -500,6 +518,17 @@ export function createRunEventsPath(
 
 function findInitialTraceInsertIndex(session: ApiSession | null, sessionId: string): number {
   return session?.id === sessionId ? session.messages.length : 0;
+}
+
+function getSessionNormalModelLabel(
+  session: ApiSession | null,
+  sessionId: string,
+): string | undefined {
+  if (session?.id !== sessionId || !session.models) {
+    return undefined;
+  }
+
+  return formatModelLabel(session.models.normal, session.models.reasoningEfforts?.normal);
 }
 
 function sessionHasNewPersistedAssistantMessage(
