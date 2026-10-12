@@ -768,6 +768,73 @@ test("renders assistant inline and fenced code blocks", async ({ page }) => {
     .toBe(code);
 });
 
+test("renders assistant markdown tables with a raw markdown copy action", async ({ page }) => {
+  const tableMarkdown = [
+    "| case | binary/config | ns/op | vs baseline | vs currentoff | NumGC | peak RSS |",
+    "|---|---:|---:|---:|---:|---:|---:|",
+    "| baseline | ~/ROG + auto off | 3,132,694 | baseline | -0.47% | 474 | 2,205,065,216 |",
+    "| currentoff | current + auto off | 3,147,455 | +0.47% | baseline | 446 | 2,597,347,328 |",
+    "| currentauto | current + auto on | 3,179,743 | +1.50% | +1.03% | 350 | 2,910,654,464 |",
+  ].join("\n");
+  const session = {
+    id: "session-table-rendering",
+    workspace: currentWorkspace,
+    title: "Table rendering session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-1",
+        role: "assistant",
+        kind: "response",
+        content: `Benchmark result:\n\n${tableMarkdown}\n`,
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    rounds: [],
+  };
+
+  await page.addInitScript(() => {
+    let clipboardText = "";
+
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        readText: async () => clipboardText,
+        writeText: async (value: string) => {
+          clipboardText = value;
+        },
+      },
+    });
+  });
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+
+  await page.goto("/");
+
+  const table = page.locator(".message-table");
+  await expect(table).toBeVisible();
+  await expect(table.locator("thead th")).toHaveText([
+    "case",
+    "binary/config",
+    "ns/op",
+    "vs baseline",
+    "vs currentoff",
+    "NumGC",
+    "peak RSS",
+  ]);
+  await expect(table.locator("tbody tr")).toHaveCount(3);
+  await expect(table.locator("tbody tr").nth(2).locator("td").nth(4)).toHaveText("+1.03%");
+  await expect(table.locator("thead th").nth(1)).toHaveClass(/is-right-aligned/);
+
+  await page.getByRole("button", { name: "Copy markdown table" }).click();
+  await expect
+    .poll(async () => {
+      return await page.evaluate(() => navigator.clipboard.readText());
+    })
+    .toBe(tableMarkdown);
+});
+
 test("supports expandable assistant code previews", async ({ page }) => {
   const filePath = `${currentWorkspace}/apps/web/src/app/App.tsx`;
   const session = {

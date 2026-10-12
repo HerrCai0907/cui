@@ -281,6 +281,36 @@ test("parseMessageContent parses headings, text, and fenced code blocks", () => 
   );
 });
 
+test("parseMessageContent parses markdown tables with alignments and raw markdown", () => {
+  const table = [
+    "| case | binary/config | ns/op | vs baseline |",
+    "|---|---:|---:|:---:|",
+    "| baseline | ~/ROG + auto off | 3,132,694 | baseline |",
+    "| currentoff | current + auto off | 3,147,455 | +0.47% |",
+  ].join("\n");
+
+  assert.deepEqual(parseMessageContent(`Before\n${table}\nAfter\n`), [
+    {
+      type: "text",
+      text: "Before\n",
+    },
+    {
+      type: "table",
+      header: ["case", "binary/config", "ns/op", "vs baseline"],
+      alignments: [undefined, "right", "right", "center"],
+      rows: [
+        ["baseline", "~/ROG + auto off", "3,132,694", "baseline"],
+        ["currentoff", "current + auto off", "3,147,455", "+0.47%"],
+      ],
+      rawMarkdown: table,
+    },
+    {
+      type: "text",
+      text: "After\n",
+    },
+  ]);
+});
+
 test("parseMessageContent accepts fenced code blocks indented up to three spaces", () => {
   assert.deepEqual(parseMessageContent("Before\n   ```ts\n   const value = 1;\n   ```\nAfter\n"), [
     {

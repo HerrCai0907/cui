@@ -15,6 +15,7 @@ import {
   parseMessageContent,
   type CodeLinkTarget,
   type InlinePart,
+  type TableCellAlignment,
 } from "../model/markdown";
 
 type CodePreviewState =
@@ -66,6 +67,16 @@ export function AssistantMessageContent({
       {parts.map((part, index) =>
         part.type === "codeBlock" ? (
           <MessageCodeBlock code={part.code} key={index} language={part.language} />
+        ) : part.type === "table" ? (
+          <MessageTable
+            alignments={part.alignments}
+            header={part.header}
+            key={index}
+            rawMarkdown={part.rawMarkdown}
+            rows={part.rows}
+            workspace={workspace}
+            blockIndex={index}
+          />
         ) : part.type === "heading" ? (
           <MessageHeading key={index} level={part.level}>
             {renderInlineContent(part.text, workspace, index)}
@@ -78,6 +89,100 @@ export function AssistantMessageContent({
       )}
     </div>
   );
+}
+
+function MessageTable({
+  alignments,
+  blockIndex,
+  header,
+  rawMarkdown,
+  rows,
+  workspace,
+}: {
+  alignments: TableCellAlignment[];
+  blockIndex: number;
+  header: string[];
+  rawMarkdown: string;
+  rows: string[][];
+  workspace: string;
+}) {
+  const copyFeedbackTimerRef = useRef<number | undefined>(undefined);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (copyFeedbackTimerRef.current !== undefined) {
+        window.clearTimeout(copyFeedbackTimerRef.current);
+      }
+    };
+  }, []);
+
+  async function copyMarkdownTable() {
+    if (!navigator.clipboard) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(rawMarkdown);
+    setCopied(true);
+
+    if (copyFeedbackTimerRef.current !== undefined) {
+      window.clearTimeout(copyFeedbackTimerRef.current);
+    }
+
+    copyFeedbackTimerRef.current = window.setTimeout(() => {
+      setCopied(false);
+      copyFeedbackTimerRef.current = undefined;
+    }, 1200);
+  }
+
+  return (
+    <div className="message-table-shell">
+      <button
+        aria-label="Copy markdown table"
+        className="message-table-copy"
+        onClick={copyMarkdownTable}
+        title={copied ? "Copied" : "Copy markdown table"}
+        type="button"
+      >
+        {copied ? <Check size={14} /> : <Copy size={14} />}
+      </button>
+      <div className="message-table-scroll">
+        <table className="message-table">
+          <thead>
+            <tr>
+              {header.map((cell, cellIndex) => (
+                <th
+                  className={getTableCellClassName(alignments[cellIndex])}
+                  key={`head-${cellIndex}`}
+                  scope="col"
+                >
+                  {renderInlineContent(cell, workspace, blockIndex)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => (
+              <tr key={`row-${rowIndex}`}>
+                {row.map((cell, cellIndex) => (
+                  <td
+                    className={getTableCellClassName(alignments[cellIndex])}
+                    key={`cell-${rowIndex}-${cellIndex}`}
+                  >
+                    {renderInlineContent(cell, workspace, blockIndex)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function getTableCellClassName(alignment: TableCellAlignment): string {
+  return alignment ? `message-table-cell is-${alignment}-aligned` : "message-table-cell";
 }
 
 function MessageCodeBlock({ code, language }: { code: string; language?: string }) {
