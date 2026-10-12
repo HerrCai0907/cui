@@ -892,6 +892,113 @@
   text-decoration: underline;
 }
 
+.message-table-shell {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin: 10px 0;
+}
+
+.message-table-shell:first-child {
+  margin-top: 0;
+}
+
+.message-table-shell:last-child {
+  margin-bottom: 0;
+}
+
+.message-table-scroll {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid #d8e1eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.message-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  color: #273444;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.message-table th,
+.message-table td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 9px 12px;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.message-table th:last-child {
+  padding-right: 48px;
+}
+
+.message-table th {
+  background: #f8fafc;
+  color: #1f2937;
+  font-weight: 720;
+}
+
+.message-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.message-table tbody tr:nth-child(even) td {
+  background: #fbfdff;
+}
+
+.message-table-cell.is-left-aligned {
+  text-align: left;
+}
+
+.message-table-cell.is-center-aligned {
+  text-align: center;
+}
+
+.message-table-cell.is-right-aligned {
+  text-align: right;
+}
+
+.message-table-copy {
+  position: absolute;
+  z-index: 1;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #526174;
+  padding: 0;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 8%);
+}
+
+.message-table-copy:hover {
+  border-color: #9fb1c4;
+  background: #eef6ff;
+  color: #123b61;
+}
+
+.message-table-copy:focus-visible {
+  outline: 2px solid #7aa7d9;
+  outline-offset: 2px;
+}
+
+.message-table-copy svg {
+  flex: 0 0 auto;
+}
+
 .message-code-preview {
   position: relative;
   display: inline-flex;

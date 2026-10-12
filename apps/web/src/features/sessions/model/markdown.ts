@@ -12,6 +12,13 @@ export type MessagePart =
       type: "codeBlock";
       code: string;
       language?: string;
+    }
+  | {
+      type: "table";
+      header: string[];
+      alignments: TableCellAlignment[];
+      rows: string[][];
+      rawMarkdown: string;
     };
 
 export type InlinePart =
@@ -47,6 +54,8 @@ export type CodeLinkTarget = {
   startLine?: number;
   endLine?: number;
 };
+
+export type TableCellAlignment = "left" | "center" | "right" | undefined;
 
 export function parseMessageContent(content: string): MessagePart[] {
   return new BlockMarkdownParser(content).parse();
@@ -106,6 +115,13 @@ class BlockMarkdownParser {
 
       if (heading) {
         parts.push(heading);
+        continue;
+      }
+
+      const table = this.parseMarkdownTable();
+
+      if (table) {
+        parts.push(table);
         continue;
       }
 
@@ -179,7 +195,7 @@ class BlockMarkdownParser {
     while (!this.isAtEnd()) {
       if (
         this.cursor > textStart &&
-        (this.matchOpeningCodeFence() || this.currentLineIsHeading())
+        (this.matchOpeningCodeFence() || this.currentLineIsHeading() || this.currentLineIsTable())
       ) {
         break;
       }
@@ -199,6 +215,83 @@ class BlockMarkdownParser {
 
   private currentLineIsHeading(): boolean {
     return Boolean(parseAtxHeading(this.source.slice(this.cursor, this.readToLineEnd())));
+  }
+
+  private currentLineIsTable(): boolean {
+    return Boolean(this.readMarkdownTableAt(this.cursor));
+  }
+
+  private parseMarkdownTable(): MessagePart | undefined {
+    const table = this.readMarkdownTableAt(this.cursor);
+
+    if (!table) {
+      return undefined;
+    }
+
+    this.cursor = table.end;
+    return {
+      type: "table",
+      header: table.header,
+      alignments: table.alignments,
+      rows: table.rows,
+      rawMarkdown: this.stripTrailingLineBreak(this.source.slice(table.start, table.end)),
+    };
+  }
+
+  private readMarkdownTableAt(start: number):
+    | {
+        start: number;
+        end: number;
+        header: string[];
+        alignments: TableCellAlignment[];
+        rows: string[][];
+      }
+    | undefined {
+    const headerLineEnd = this.readToLineEndFrom(start);
+    const headerCells = parseMarkdownTableRow(this.source.slice(start, headerLineEnd));
+
+    if (!headerCells || headerCells.length === 0) {
+      return undefined;
+    }
+
+    const delimiterStart = this.readLineFrom(start);
+
+    if (delimiterStart >= this.source.length) {
+      return undefined;
+    }
+
+    const delimiterLineEnd = this.readToLineEndFrom(delimiterStart);
+    const alignments = parseMarkdownTableDelimiterRow(
+      this.source.slice(delimiterStart, delimiterLineEnd),
+      headerCells.length,
+    );
+
+    if (!alignments) {
+      return undefined;
+    }
+
+    const rows: string[][] = [];
+    let cursor = this.readLineFrom(delimiterStart);
+
+    while (cursor < this.source.length) {
+      const lineEnd = this.readToLineEndFrom(cursor);
+      const rowCells = parseMarkdownTableRow(this.source.slice(cursor, lineEnd));
+
+      if (!rowCells) {
+        break;
+      }
+
+      rows.push(normalizeMarkdownTableCells(rowCells, headerCells.length));
+      cursor = this.readLineFrom(cursor);
+    }
+
+    return {
+      start,
+      end: cursor,
+      header: normalizeMarkdownTableCells(headerCells, headerCells.length),
+      alignments,
+      rows,
+    };
   }
 
   private matchOpeningCodeFence(): CodeFence | undefined {
@@ -297,7 +390,11 @@ class BlockMarkdownParser {
   }
 
   private readLine(): number {
-    const lineEnd = this.readToLineEnd();
+    return this.readLineFrom(this.cursor);
+  }
+
+  private readLineFrom(start: number): number {
+    const lineEnd = this.readToLineEndFrom(start);
 
     if (this.source[lineEnd] === "\r" && this.source[lineEnd + 1] === "\n") {
       return lineEnd + 2;
@@ -311,7 +408,11 @@ class BlockMarkdownParser {
   }
 
   private readToLineEnd(): number {
-    let index = this.cursor;
+    return this.readToLineEndFrom(this.cursor);
+  }
+
+  private readToLineEndFrom(start: number): number {
+    let index = start;
 
     while (
       index < this.source.length &&
@@ -827,6 +928,105 @@ function isRelativePreviewFilePath(filePath: string): boolean {
 
 function isLanguageMarker(value: string): boolean {
   return Boolean(value) && /^[A-Za-z0-9_+.#-]+$/.test(value);
+}
+
+function parseMarkdownTableRow(line: string): string[] | undefined {
+  if (!line.includes("|")) {
+    return undefined;
+  }
+
+  const cells = splitMarkdownTableRow(line);
+  const trimmedLine = line.trim();
+  const normalizedCells =
+    trimmedLine.startsWith("|") && cells[0]?.trim() === "" ? cells.slice(1) : cells;
+  const withoutTrailingPipe =
+    trimmedLine.endsWith("|") && normalizedCells.at(-1)?.trim() === ""
+      ? normalizedCells.slice(0, -1)
+      : normalizedCells;
+
+  if (withoutTrailingPipe.length === 0) {
+    return undefined;
+  }
+
+  return withoutTrailingPipe.map((cell) => cell.trim().replace(/\\\|/g, "|"));
+}
+
+function splitMarkdownTableRow(line: string): string[] {
+  const cells: string[] = [];
+  let cellStart = 0;
+  let inCodeSpan = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+
+    if (char === "`" && !isEscapedMarkdownCharacter(line, index)) {
+      inCodeSpan = !inCodeSpan;
+      continue;
+    }
+
+    if (char === "|" && !inCodeSpan && !isEscapedMarkdownCharacter(line, index)) {
+      cells.push(line.slice(cellStart, index));
+      cellStart = index + 1;
+    }
+  }
+
+  cells.push(line.slice(cellStart));
+  return cells;
+}
+
+function parseMarkdownTableDelimiterRow(
+  line: string,
+  expectedCellCount: number,
+): TableCellAlignment[] | undefined {
+  const cells = parseMarkdownTableRow(line);
+
+  if (!cells || cells.length !== expectedCellCount) {
+    return undefined;
+  }
+
+  const alignments: TableCellAlignment[] = [];
+
+  for (const cell of cells) {
+    const marker = cell.replace(/[ \t]/g, "");
+
+    if (!/^:?-{3,}:?$/.test(marker)) {
+      return undefined;
+    }
+
+    if (marker.startsWith(":") && marker.endsWith(":")) {
+      alignments.push("center");
+    } else if (marker.endsWith(":")) {
+      alignments.push("right");
+    } else if (marker.startsWith(":")) {
+      alignments.push("left");
+    } else {
+      alignments.push(undefined);
+    }
+  }
+
+  return alignments;
+}
+
+function normalizeMarkdownTableCells(cells: string[], expectedCellCount: number): string[] {
+  if (cells.length === expectedCellCount) {
+    return cells;
+  }
+
+  if (cells.length > expectedCellCount) {
+    return cells.slice(0, expectedCellCount);
+  }
+
+  return [...cells, ...Array.from({ length: expectedCellCount - cells.length }, () => "")];
+}
+
+function isEscapedMarkdownCharacter(value: string, index: number): boolean {
+  let slashCount = 0;
+
+  for (let cursor = index - 1; cursor >= 0 && value[cursor] === "\\"; cursor -= 1) {
+    slashCount += 1;
+  }
+
+  return slashCount % 2 === 1;
 }
 
 function parseAtxHeading(line: string): MessagePart | undefined {
