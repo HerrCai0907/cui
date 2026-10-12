@@ -38,7 +38,7 @@ type UseRunStreamInput = {
 
 type StoppedTraceOverlay = {
   traceMessageId: string;
-  insertIndex: number;
+  insertAfterMessageId?: string;
   model?: string;
   content: string;
 };
@@ -65,7 +65,7 @@ export function useRunStream({
       {
         traceMessageId: string;
         responseMessageId: string;
-        traceInsertIndex: number;
+        traceInsertAfterMessageId?: string;
       }
     >
   >(new Map());
@@ -117,15 +117,15 @@ export function useRunStream({
       streamMessageState.model = streamModel;
     }
 
-    const traceInsertIndex =
+    const traceInsertAfterMessageId =
       existingStreamMessageIds?.traceMessageId === streamingTraceMessageId
-        ? existingStreamMessageIds.traceInsertIndex
-        : findInitialTraceInsertIndex(activeSessionRef.current, sessionId);
+        ? existingStreamMessageIds.traceInsertAfterMessageId
+        : findInitialTraceInsertAfterMessageId(activeSessionRef.current, sessionId);
     streamStateRefs.current.set(sessionId, streamMessageState);
     streamMessageIdRefs.current.set(sessionId, {
       traceMessageId: streamingTraceMessageId,
       responseMessageId: streamingResponseMessageId,
-      traceInsertIndex,
+      traceInsertAfterMessageId,
     });
     let streamClosed = false;
 
@@ -164,7 +164,7 @@ export function useRunStream({
           sessionId,
           traceMessageId: streamingTraceMessageId,
           responseMessageId: streamingResponseMessageId,
-          traceInsertIndex,
+          traceInsertAfterMessageId,
         });
 
         activeSessionRef.current = nextSession;
@@ -193,7 +193,7 @@ export function useRunStream({
           sessionId,
           traceMessageId: streamingTraceMessageId,
           responseMessageId: streamingResponseMessageId,
-          traceInsertIndex,
+          traceInsertAfterMessageId,
         });
 
         activeSessionRef.current = nextSession;
@@ -381,7 +381,7 @@ export function useRunStream({
       sessionId: session.id,
       traceMessageId: streamMessageIds.traceMessageId,
       responseMessageId: streamMessageIds.responseMessageId,
-      traceInsertIndex: streamMessageIds.traceInsertIndex,
+      traceInsertAfterMessageId: streamMessageIds.traceInsertAfterMessageId,
     });
   }
 
@@ -428,7 +428,7 @@ export function useRunStream({
         ...overlays,
         {
           traceMessageId: streamMessageIds.traceMessageId,
-          insertIndex: streamMessageIds.traceInsertIndex,
+          insertAfterMessageId: streamMessageIds.traceInsertAfterMessageId,
           model: streamMessageState.model,
           content: streamMessageState.streamedTrace,
         },
@@ -489,7 +489,7 @@ export function useRunStream({
         sessionId: session.id,
         traceMessageId: overlay.traceMessageId,
         responseMessageId: "",
-        traceInsertIndex: overlay.insertIndex,
+        traceInsertAfterMessageId: overlay.insertAfterMessageId,
       });
     }
 
@@ -516,8 +516,11 @@ export function createRunEventsPath(
   return `/api/v1/runs/${encodeURIComponent(runId)}/events?${params.toString()}`;
 }
 
-function findInitialTraceInsertIndex(session: ApiSession | null, sessionId: string): number {
-  return session?.id === sessionId ? session.messages.length : 0;
+function findInitialTraceInsertAfterMessageId(
+  session: ApiSession | null,
+  sessionId: string,
+): string | undefined {
+  return session?.id === sessionId ? session.messages.at(-1)?.id : undefined;
 }
 
 function getSessionNormalModelLabel(

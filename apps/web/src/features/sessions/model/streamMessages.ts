@@ -44,6 +44,7 @@ export function applyStreamMessageState(
     sessionId: string;
     traceMessageId: string;
     responseMessageId: string;
+    traceInsertAfterMessageId?: string;
     traceInsertIndex?: number;
   },
 ): ApiSession {
@@ -57,6 +58,7 @@ export function applyStreamMessageState(
     nextSession = upsertTraceMessage(nextSession, {
       traceMessageId: input.traceMessageId,
       responseMessageId: input.responseMessageId,
+      insertAfterMessageId: input.traceInsertAfterMessageId,
       insertIndex: input.traceInsertIndex,
       model: input.state.model,
       content: input.state.streamedTrace,
@@ -139,6 +141,7 @@ export function appendTraceEvent(
     sessionId: string;
     traceMessageId: string;
     responseMessageId: string;
+    traceInsertAfterMessageId?: string;
     rawEvent: unknown;
   },
 ): ApiSession | undefined {
@@ -158,6 +161,7 @@ function upsertTraceMessage(
   input: {
     traceMessageId: string;
     responseMessageId: string;
+    insertAfterMessageId?: string;
     insertIndex?: number;
     model?: string;
     content: string;
@@ -188,7 +192,12 @@ function upsertTraceMessage(
     (message) => message.id === input.responseMessageId,
   );
   const insertionIndex =
-    responseIndex === -1 ? clampMessageInsertionIndex(session, input.insertIndex) : responseIndex;
+    responseIndex === -1
+      ? getTraceInsertionIndex(session, {
+          insertAfterMessageId: input.insertAfterMessageId,
+          insertIndex: input.insertIndex,
+        })
+      : responseIndex;
   const messages =
     insertionIndex === session.messages.length
       ? [...session.messages, streamMessage]
@@ -202,6 +211,26 @@ function upsertTraceMessage(
     ...session,
     messages,
   };
+}
+
+function getTraceInsertionIndex(
+  session: ApiSession,
+  input: {
+    insertAfterMessageId?: string;
+    insertIndex?: number;
+  },
+): number {
+  if (input.insertAfterMessageId) {
+    const anchorIndex = session.messages.findIndex(
+      (message) => message.id === input.insertAfterMessageId,
+    );
+
+    if (anchorIndex !== -1) {
+      return anchorIndex + 1;
+    }
+  }
+
+  return clampMessageInsertionIndex(session, input.insertIndex);
 }
 
 function clampMessageInsertionIndex(session: ApiSession, insertIndex: number | undefined): number {

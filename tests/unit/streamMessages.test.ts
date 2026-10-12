@@ -38,15 +38,52 @@ test("appendResponseDelta preserves the streaming response model", () => {
   assert.equal(session.messages[0]?.model, "Seed-2.1-Turbo");
 });
 
-function createSession(): ApiSession {
+test("applyStreamMessageState anchors streaming traces after the prompt message", () => {
+  const state = createStreamMessageState("GPT-5.4");
+  state.streamedTrace = JSON.stringify({ type: "turn.started" });
+  const session = applyStreamMessageState(
+    createSession([
+      createMessage("older-message", "user", "Older loaded message"),
+      createMessage("prompt-message", "user", "Current prompt"),
+    ]),
+    {
+      state,
+      sessionId: "session-1",
+      traceMessageId: "stream-run-1-trace",
+      responseMessageId: "stream-run-1-response",
+      traceInsertAfterMessageId: "prompt-message",
+      traceInsertIndex: 1,
+    },
+  );
+
+  assert.deepEqual(
+    session.messages.map((message) => message.id),
+    ["older-message", "prompt-message", "stream-run-1-trace"],
+  );
+});
+
+function createSession(messages: ApiSession["messages"] = []): ApiSession {
   return {
     id: "session-1",
     workspace: "/tmp/cui",
     title: "Streaming model labels",
     createdAt: "2026-08-22T00:00:00.000Z",
     updatedAt: "2026-08-22T00:00:00.000Z",
-    messages: [],
+    messages,
     currentRound: 0,
     isRunning: true,
+  };
+}
+
+function createMessage(
+  id: string,
+  role: ApiSession["messages"][number]["role"],
+  content: string,
+): ApiSession["messages"][number] {
+  return {
+    id,
+    role,
+    content,
+    createdAt: "2026-08-22T00:00:00.000Z",
   };
 }
