@@ -333,6 +333,55 @@ test("sends composer-selected model preferences when starting a chat session", a
     });
 });
 
+test("keeps a newly created session visible when starting its run fails", async ({ page }) => {
+  const createdSession = {
+    id: "session-created-run-failed",
+    workspace: currentWorkspace,
+    title: "Prompt that creates a session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [],
+  };
+  const sessions: (typeof createdSession)[] = [];
+
+  await mockSessions(page, () => sessions);
+  await page.route("**/api/v1/sessions", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+
+    sessions.push(createdSession);
+    await fulfillJson(route, { session: createdSession });
+  });
+  await page.route(`**/api/v1/sessions/${createdSession.id}/runs`, async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: {
+          message: "run failed after session creation",
+        },
+      }),
+    });
+  });
+
+  await page.goto("/");
+  await page.getByLabel("Workspace path").fill(currentWorkspace);
+  await page
+    .getByPlaceholder("Start with an initial prompt...")
+    .fill("Prompt that creates a session");
+  await page.getByRole("button", { name: "Send message" }).click();
+
+  await expect(page.getByRole("heading", { name: "Prompt that creates a session" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Prompt that creates a session" })).toBeVisible();
+  await expect(page.getByPlaceholder("Continue this session...")).toHaveValue(
+    "Prompt that creates a session",
+  );
+  await expect(page.getByText("run failed after session creation")).toBeVisible();
+});
+
 test("switches the composer model selector with the active session", async ({ page }) => {
   const firstSession = {
     id: "session-model-one",

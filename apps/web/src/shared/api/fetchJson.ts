@@ -34,7 +34,13 @@ export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> 
   }
 
   if (!response.ok) {
-    throw new Error(`Request failed: HTTP ${response.status}`);
+    const detail = await readResponseErrorMessage(response);
+
+    throw new Error(
+      detail
+        ? `Request failed: HTTP ${response.status}: ${detail}`
+        : `Request failed: HTTP ${response.status}`,
+    );
   }
 
   const body = (await response.json()) as T;
@@ -50,6 +56,49 @@ export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> 
   }
 
   return body;
+}
+
+async function readResponseErrorMessage(response: Response): Promise<string | undefined> {
+  try {
+    const contentType = response.headers.get("Content-Type") ?? "";
+
+    if (contentType.includes("application/json")) {
+      return extractErrorMessage(await response.json());
+    }
+
+    const text = (await response.text()).trim();
+
+    return text || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function extractErrorMessage(body: unknown): string | undefined {
+  if (typeof body === "string") {
+    return body.trim() || undefined;
+  }
+
+  if (!body || typeof body !== "object") {
+    return undefined;
+  }
+
+  const record = body as Record<string, unknown>;
+  const directMessage = readMessageValue(record.message);
+
+  if (directMessage) {
+    return directMessage;
+  }
+
+  if (record.error && typeof record.error === "object") {
+    return readMessageValue((record.error as Record<string, unknown>).message);
+  }
+
+  return readMessageValue(record.error);
+}
+
+function readMessageValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
 function createCacheKey(url: string): string {

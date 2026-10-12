@@ -192,6 +192,27 @@ test("fetchJson clears cached GET responses after a successful mutation", async 
   );
 });
 
+test("fetchJson includes API error messages from JSON responses", async () => {
+  const storage = createMemoryStorage();
+
+  await withBrowserStubs(
+    {
+      sessionStorage: storage,
+      fetch: async () =>
+        new Response(JSON.stringify({ error: { message: "run failed after session creation" } }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }),
+    },
+    async () => {
+      await assert.rejects(
+        fetchJson("/api/v1/sessions/session-1/runs", { method: "POST" }),
+        /Request failed: HTTP 500: run failed after session creation/,
+      );
+    },
+  );
+});
+
 test("fetchJson stores GET responses in Cache API when available", async () => {
   const storage = createMemoryStorage();
   const caches = createCacheStorageStub();
