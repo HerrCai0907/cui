@@ -857,12 +857,14 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       setDraft("");
     }
 
+    let createdSession: ApiSession | null = null;
+
     try {
       const workspace = normalizeWorkspacePath(workspaceDraft.trim() || defaultWorkspace);
       const models = createSessionModelRequestPreferences(activeSession, config);
       const targetSession =
         activeSession ??
-        (await createSession({
+        (createdSession = await createSession({
           workspace,
           origin: mode,
           title: mode === "shell" ? `$ ${trimmed}` : trimmed,
@@ -913,6 +915,18 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
         (submittedSessionId && activeSessionRef.current?.id === submittedSessionId) ||
         (!submittedSessionId && !activeSessionRef.current)
       ) {
+        const recoveredSession = !submittedSessionId ? createdSession : null;
+
+        if (recoveredSession) {
+          recordSessionAttention(recoveredSession);
+          updateSessions((current) =>
+            current.some((session) => session.id === recoveredSession.id)
+              ? current
+              : [toCachedSessionListItem(recoveredSession), ...current],
+          );
+          setCurrentActiveSession(recoveredSession);
+          expandWorkspace(recoveredSession.workspace);
+        }
         if (options.restoreDraftOnFailure ?? true) {
           setDraft(trimmed);
         }
