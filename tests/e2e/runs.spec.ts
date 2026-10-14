@@ -249,6 +249,141 @@ test("stops a running session and restores the send button", async ({ page }) =>
   await expect(page.getByText("Trace before stop.")).toBeVisible();
 });
 
+test("keeps streamed execution trace visible when a run fails", async ({ page }) => {
+  const initialSession = {
+    id: "session-1",
+    workspace: currentWorkspace,
+    title: "Failing session",
+    createdAt: "2026-08-22T00:00:01.000Z",
+    updatedAt: "2026-08-22T00:00:01.000Z",
+    messages: [],
+    rounds: [],
+    currentRound: 0,
+    isRunning: false,
+  };
+  const startedSession = {
+    ...initialSession,
+    messages: [
+      {
+        id: "message-1",
+        role: "user",
+        content: "Run until failure",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    isRunning: true,
+    runningRunId: "run-1",
+  };
+  const failedSession = {
+    ...startedSession,
+    isRunning: false,
+    runningRunId: undefined,
+  };
+  let running = false;
+
+  await page.addInitScript(() => {
+    class MockEventSource extends EventTarget {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSED = 2;
+      readonly CONNECTING = 0;
+      readonly OPEN = 1;
+      readonly CLOSED = 2;
+      readonly url: string;
+      readonly withCredentials = false;
+      readyState = MockEventSource.CONNECTING;
+      onerror: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onopen: ((event: Event) => void) | null = null;
+
+      constructor(url: string | URL) {
+        super();
+        this.url = String(url);
+
+        (
+          window as Window & {
+            __failRunWithTrace?: () => void;
+          }
+        ).__failRunWithTrace = () => {
+          this.dispatchEvent(
+            new MessageEvent("run.trace", {
+              data: JSON.stringify({
+                type: "run.trace",
+                event: {
+                  type: "item.completed",
+                  item: {
+                    id: "item-failure",
+                    type: "agent_message",
+                    text: "Trace before failure.",
+                  },
+                },
+              }),
+            }),
+          );
+          this.dispatchEvent(
+            new MessageEvent("run.failed", {
+              data: JSON.stringify({
+                type: "run.failed",
+                error: "TraeX command produced no output for 1000ms",
+              }),
+            }),
+          );
+        };
+      }
+
+      close() {
+        this.readyState = MockEventSource.CLOSED;
+      }
+    }
+
+    window.EventSource = MockEventSource as typeof EventSource;
+  });
+
+  await mockSessions(page, () => [running ? startedSession : failedSession]);
+  await mockSessionById(page, "session-1", () => (running ? startedSession : failedSession));
+  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
+    running = true;
+    await fulfillJson(route, createSubmittedRunResponse(startedSession, "run-1"));
+  });
+
+  await page.goto("/");
+  await page.getByPlaceholder("Continue this session...").fill("Run until failure");
+  await page.getByRole("button", { name: "Send message" }).click();
+
+  await expect(page.getByRole("button", { name: "Stop generation" })).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          typeof (
+            window as Window & {
+              __failRunWithTrace?: () => void;
+            }
+          ).__failRunWithTrace,
+      ),
+    )
+    .toBe("function");
+
+  running = false;
+  await page.evaluate(() =>
+    (
+      window as Window & {
+        __failRunWithTrace?: () => void;
+      }
+    ).__failRunWithTrace?.(),
+  );
+
+  await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
+  await expect(page.getByText("Waiting for the AI harness...")).not.toBeVisible();
+  await expect(page.getByText(/Show execution trace|Hide execution trace/)).toBeVisible();
+  await expect(page.getByText("1 event / 1 message")).toBeVisible();
+
+  if (await page.getByText("Show execution trace").isVisible()) {
+    await page.getByText("Show execution trace").click();
+  }
+  await expect(page.getByText("Trace before failure.")).toBeVisible();
+});
+
 test("queues a prompt while a session is running and sends it after stop", async ({ page }) => {
   const initialSession = {
     id: "session-1",

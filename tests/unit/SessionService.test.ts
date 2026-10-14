@@ -460,6 +460,64 @@ test("cancelRun stops an active stream and emits a cancellation event", async ()
   }
 });
 
+test("createRun stores streamed execution trace when the assistant run fails", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    await store.createSession({
+      id: "session-1",
+      aiThreadId: "traex-thread-1",
+      workspace: cwd,
+      title: "Initial title",
+      summary: "",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [],
+      rounds: [],
+    });
+
+    const submitted = await service.createRun(
+      "session-1",
+      createAssistantRunRequest("Run until it fails."),
+    );
+    const events: unknown[] = [];
+
+    service.subscribeToRun(submitted.run.id, (event) => {
+      events.push(event);
+    });
+
+    aiModel.emitRawEvent({
+      type: "item.completed",
+      item: {
+        id: "item-1",
+        type: "command_execution",
+        command: "printf trace",
+        aggregated_output: "Trace before failure.",
+        status: "failed",
+        exit_code: 1,
+      },
+    });
+    aiModel.rejectRun(new Error("TraeX command produced no output for 1000ms"));
+
+    await waitFor(() => events.some((event) => eventType(event) === "run.failed"));
+
+    const session = await service.getSessionView("session-1");
+
+    assert.equal(
+      events.some((event) => eventType(event) === "run.failed"),
+      true,
+    );
+    assert.equal(session?.isRunning, false);
+    assert.equal(session?.messages[1]?.kind, "trace");
+    assert.match(session?.messages[1]?.content ?? "", /Trace before failure/);
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 test("createRun queues prompts while a session is running", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
@@ -1153,6 +1211,10 @@ class FakeAiModel implements AiModel {
 
   resolveRun(result: AiRunResult, index = 0) {
     this.runs[index]?.resolve(result);
+  }
+
+  rejectRun(error: unknown, index = 0) {
+    this.runs[index]?.reject(error);
   }
 
   resolveSummary(summary: ConversationSummary, index = 0) {

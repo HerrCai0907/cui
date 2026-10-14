@@ -332,12 +332,11 @@ export function useRunStream({
       if (activeSessionRef.current?.id === sessionId) {
         setError(data?.type === "run.failed" ? data.error : "Request failed");
       }
-      streamStateRefs.current.delete(sessionId);
-      streamMessageIdRefs.current.delete(sessionId);
+      preserveStoppedStreamOverlay(sessionId);
       setRunningSession(sessionId, false, runId);
       onRunSettled?.(sessionId);
       streamClosed = true;
-      closeCurrentStream();
+      closeCurrentStream({ preserveOverlay: true });
     });
 
     eventSource.addEventListener("run.cancelled", () => {
@@ -357,8 +356,9 @@ export function useRunStream({
       if (activeSessionRef.current?.id === sessionId) {
         setError("Stream connection failed");
       }
+      preserveStoppedStreamOverlay(sessionId);
       setRunningSession(sessionId, false, runId);
-      closeCurrentStream();
+      closeCurrentStream({ preserveOverlay: true });
     };
   }
 
