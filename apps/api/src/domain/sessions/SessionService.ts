@@ -806,7 +806,7 @@ export class SessionService {
           void this.logger.framework.info("run.assistant.cancelled", {
             sessionId: run.sessionId,
           });
-          await this.persistCancelledTrace(run);
+          await this.persistInterruptedTrace(run, "session.cancelled_trace.persist_failed");
           this.runRegistry.emitRunEvent(run, { type: "run.cancelled" });
           this.scheduleNextQueuedPrompt(run.sessionId);
           return;
@@ -816,6 +816,7 @@ export class SessionService {
           sessionId: run.sessionId,
           error,
         });
+        await this.persistInterruptedTrace(run, "session.failed_trace.persist_failed");
         this.runRegistry.emitRunEvent(run, {
           type: "run.failed",
           error: error instanceof Error ? error.message : "Assistant run failed",
@@ -1034,7 +1035,7 @@ export class SessionService {
       });
   }
 
-  private async persistCancelledTrace(run: RunningRun): Promise<void> {
+  private async persistInterruptedTrace(run: RunningRun, failureLogEvent: string): Promise<void> {
     const rawEvents = run.events.flatMap(({ event }) =>
       event.type === "run.trace" ? [event.event] : [],
     );
@@ -1052,7 +1053,7 @@ export class SessionService {
         ),
       ]);
     } catch (error) {
-      void this.logger.session(run.sessionId).warn("session.cancelled_trace.persist_failed", {
+      void this.logger.session(run.sessionId).warn(failureLogEvent, {
         sessionId: run.sessionId,
         error,
       });
