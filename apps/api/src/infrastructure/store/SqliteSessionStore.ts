@@ -14,7 +14,12 @@ import type {
   RoundDiffSummary,
   SessionListPage,
 } from "../../types.js";
-import type { ListSessionIndexEntriesOptions, SessionStore } from "./SessionStore.js";
+import type {
+  ListRunEventsOptions,
+  ListSessionIndexEntriesOptions,
+  PersistedRunStreamEvent,
+  SessionStore,
+} from "./SessionStore.js";
 
 type SqliteDatabase = Database.Database;
 
@@ -48,6 +53,7 @@ type MessageRow = {
 type RoundRow = {
   round: number;
   base_commit: string | null;
+  trace_run_id: string | null;
   diff: string;
   diff_summary_json: string | null;
   has_changes: 0 | 1;
@@ -62,6 +68,14 @@ type QueuedPromptRow = {
   models_json: string | null;
   created_at: string;
   order_index: number;
+};
+
+type RunEventRow = {
+  run_id: string;
+  session_id: string;
+  seq: number;
+  event_json: string;
+  created_at: string;
 };
 
 export class SqliteSessionStore implements SessionStore {
@@ -96,6 +110,57 @@ export class SqliteSessionStore implements SessionStore {
       this.db.prepare("SELECT 1 FROM queued_prompts WHERE id = ? LIMIT 1").get(queuedPromptId) !==
       undefined
     );
+  }
+
+  async hasRunEvents(runId: string): Promise<boolean> {
+    return (
+      this.db.prepare("SELECT 1 FROM run_events WHERE run_id = ? LIMIT 1").get(runId) !== undefined
+    );
+  }
+
+  async appendRunEvents(events: PersistedRunStreamEvent[]): Promise<void> {
+    if (events.length === 0) {
+      return;
+    }
+
+    const statement = this.db.prepare(
+      `INSERT OR IGNORE INTO run_events (
+        run_id, session_id, seq, type, event_json, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+
+    this.db.transaction(() => {
+      events.forEach((event) => {
+        statement.run(
+          event.runId,
+          event.sessionId,
+          event.id,
+          event.event.type,
+          JSON.stringify(event.event),
+          event.createdAt,
+        );
+      });
+    })();
+  }
+
+  async listRunEvents(
+    runId: string,
+    options: ListRunEventsOptions = {},
+  ): Promise<PersistedRunStreamEvent[]> {
+    const afterSeq = normalizeNonNegativeInteger(options.afterSeq, 0);
+    const limit = normalizePositiveInteger(options.limit, 1000);
+
+    return (
+      this.db
+        .prepare(
+          `SELECT run_id, session_id, seq, event_json, created_at
+          FROM run_events
+          WHERE run_id = ? AND seq > ?
+          ORDER BY seq ASC
+          LIMIT ?`,
+        )
+        .all(runId, afterSeq, limit) as RunEventRow[]
+    ).map(toPersistedRunStreamEvent);
   }
 
   async listSessionIndexEntries(
@@ -549,11 +614,12 @@ export class SqliteSessionStore implements SessionStore {
     this.db
       .prepare(
         `INSERT INTO rounds (
-          session_id, round, base_commit, diff, diff_summary_json, has_changes, created_at,
-          atomic_review_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          session_id, round, base_commit, trace_run_id, diff, diff_summary_json, has_changes,
+          created_at, atomic_review_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(session_id, round) DO UPDATE SET
           base_commit = excluded.base_commit,
+          trace_run_id = excluded.trace_run_id,
           diff = excluded.diff,
           diff_summary_json = excluded.diff_summary_json,
           has_changes = excluded.has_changes,
@@ -564,6 +630,7 @@ export class SqliteSessionStore implements SessionStore {
         sessionId,
         round.round,
         round.baseCommit ?? null,
+        round.traceRunId ?? null,
         round.diff,
         stringifyJsonField(round.diffSummary),
         round.hasChanges ? 1 : 0,
@@ -723,6 +790,14 @@ function getMigrations(): Array<{ version: string; sql: string }> {
       version: "003_message_models",
       sql: readMigration("003_message_models.sql"),
     },
+    {
+      version: "004_run_events",
+      sql: readMigration("004_run_events.sql"),
+    },
+    {
+      version: "005_round_trace_run_id",
+      sql: readMigration("005_round_trace_run_id.sql"),
+    },
   ];
 }
 
@@ -769,6 +844,7 @@ function toChatRound(row: RoundRow): ChatRound {
   return {
     round: row.round,
     ...(row.base_commit ? { baseCommit: row.base_commit } : {}),
+    ...(row.trace_run_id ? { traceRunId: row.trace_run_id } : {}),
     beforeDiff: "",
     afterDiff: "",
     diff: row.diff,
@@ -790,6 +866,16 @@ function toQueuedPrompt(row: QueuedPromptRow): QueuedPrompt {
     prompt: row.prompt,
     createdAt: row.created_at,
     ...(row.models_json ? { models: parseJsonField(row.models_json) } : {}),
+  };
+}
+
+function toPersistedRunStreamEvent(row: RunEventRow): PersistedRunStreamEvent {
+  return {
+    runId: row.run_id,
+    sessionId: row.session_id,
+    id: row.seq,
+    event: parseJsonField(row.event_json),
+    createdAt: row.created_at,
   };
 }
 
@@ -835,6 +921,10 @@ function createPagination(
 
 function normalizePositiveInteger(value: number | undefined, fallback: number): number {
   return value !== undefined && Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function normalizeNonNegativeInteger(value: number | undefined, fallback: number): number {
+  return value !== undefined && Number.isInteger(value) && value >= 0 ? value : fallback;
 }
 
 function getCurrentRoundFromSession(session: ChatSession): number {

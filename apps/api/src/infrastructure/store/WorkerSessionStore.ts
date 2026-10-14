@@ -11,7 +11,12 @@ import type {
   QueuedPrompt,
   SessionListPage,
 } from "../../types.js";
-import type { ListSessionIndexEntriesOptions, SessionStore } from "./SessionStore.js";
+import type {
+  ListRunEventsOptions,
+  ListSessionIndexEntriesOptions,
+  PersistedRunStreamEvent,
+  SessionStore,
+} from "./SessionStore.js";
 
 type StoreWorkerRequest = {
   id: number;
@@ -41,6 +46,9 @@ type SessionStoreMethod =
   | "listSessions"
   | "listQueuedSessionIds"
   | "hasQueuedPrompt"
+  | "hasRunEvents"
+  | "appendRunEvents"
+  | "listRunEvents"
   | "listSessionIndexEntries"
   | "getSession"
   | "createSession"
@@ -101,6 +109,18 @@ export class WorkerSessionStore implements SessionStore {
 
   hasQueuedPrompt(queuedPromptId: string): Promise<boolean> {
     return this.call("hasQueuedPrompt", queuedPromptId);
+  }
+
+  hasRunEvents(runId: string): Promise<boolean> {
+    return this.call("hasRunEvents", runId);
+  }
+
+  appendRunEvents(events: PersistedRunStreamEvent[]): Promise<void> {
+    return this.call("appendRunEvents", events);
+  }
+
+  listRunEvents(runId: string, options?: ListRunEventsOptions): Promise<PersistedRunStreamEvent[]> {
+    return this.call("listRunEvents", runId, options);
   }
 
   listSessionIndexEntries(

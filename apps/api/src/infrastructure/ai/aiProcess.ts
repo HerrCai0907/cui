@@ -28,7 +28,7 @@ type RunProcessResult = {
   content: string;
   beforeSnapshot: DiffSnapshot;
   afterSnapshot: DiffSnapshot;
-  rawEvents: unknown[];
+  rawEventCount: number;
 };
 
 export type AiProcessRun = {
@@ -64,11 +64,13 @@ export function runAiProcess({
     }
 
     return new Promise<RunProcessResult>((resolve, reject) => {
-      const events: unknown[] = [];
       let outputPath: string | undefined;
       let stdout = "";
       let stderr = "";
       let stdinError: Error | undefined;
+      let rawEventCount = 0;
+      let processFailure: string | undefined;
+      let failedExitError: string | undefined;
 
       const rejectWithCancellation = () => {
         if (settled) {
@@ -153,7 +155,9 @@ export function runAiProcess({
               const event = parseJsonLine(line);
 
               if (event) {
-                events.push(event);
+                rawEventCount += 1;
+                processFailure = extractProcessError([event], false) ?? processFailure;
+                failedExitError = extractProcessError([event], true) ?? failedExitError;
                 onRawEvent(event);
               }
             }
@@ -204,11 +208,13 @@ export function runAiProcess({
             const trailingEvent = parseJsonLine(stdout);
 
             if (trailingEvent) {
-              events.push(trailingEvent);
+              rawEventCount += 1;
+              processFailure = extractProcessError([trailingEvent], false) ?? processFailure;
+              failedExitError = extractProcessError([trailingEvent], true) ?? failedExitError;
               onRawEvent(trailingEvent);
             }
 
-            const processError = extractProcessError(events, code !== 0);
+            const processError = processFailure || (code !== 0 ? failedExitError : undefined);
             if (code !== 0 || processError || stdinError) {
               reject(
                 new Error(
@@ -239,7 +245,7 @@ export function runAiProcess({
                   content,
                   beforeSnapshot,
                   afterSnapshot,
-                  rawEvents: events,
+                  rawEventCount,
                 });
               })
               .catch(reject)

@@ -2,7 +2,6 @@ import type { AiModel } from "../../domain/ai/AiModel.js";
 import type { AiModelInfo } from "../../types.js";
 import { CliAiModel, DEFAULT_AI_IDLE_TIMEOUT_MS, type CliAiModelOptions } from "./CliAiModel.js";
 import { getAiHarnessBinaryConfig } from "./aiBinary.js";
-import { extractFinalResponse } from "./aiEvents.js";
 
 const CODEX_REASONING_EFFORTS = ["low", "medium", "high", "xhigh"] as const;
 const EXTENDED_CODEX_REASONING_EFFORTS = [...CODEX_REASONING_EFFORTS, "max"] as const;
@@ -71,8 +70,8 @@ export class CodexModel extends CliAiModel implements AiModel {
     return ["--dangerously-bypass-approvals-and-sandbox"];
   }
 
-  protected resolveResponseContent(content: string, rawEvents: unknown[]): string {
-    const response = content.trim() || extractFinalResponse(rawEvents)?.trim() || "";
+  protected resolveResponseContent(content: string, finalResponse?: string): string {
+    const response = content.trim() || finalResponse?.trim() || "";
     if (!response) {
       throw new Error("Codex did not return an assistant message");
     }

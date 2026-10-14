@@ -30,20 +30,20 @@ test("Codex lists the hardcoded model catalog with reasoning effort support", as
 
 test("Codex streams completed messages and recovers final output from JSONL", async () => {
   const events: AiRunEvent[] = [];
+  const rawEvents = [
+    { type: "thread.started", thread_id: "codex-test" },
+    { type: "item.completed", item: { type: "agent_message", text: "Working..." } },
+    { type: "item.completed", item: { type: "agent_message", text: "Done." } },
+    { type: "turn.completed" },
+  ];
   const model = new CodexModel({
     processRunner: (input) => {
-      const rawEvents = [
-        { type: "thread.started", thread_id: "codex-test" },
-        { type: "item.completed", item: { type: "agent_message", text: "Working..." } },
-        { type: "item.completed", item: { type: "agent_message", text: "Done." } },
-        { type: "turn.completed" },
-      ];
       rawEvents.forEach(input.onRawEvent);
       return {
         cancel: () => undefined,
         promise: Promise.resolve({
           content: "",
-          rawEvents,
+          rawEventCount: rawEvents.length,
           beforeSnapshot: { gitCommit: "", diff: "" },
           afterSnapshot: { gitCommit: "", diff: "" },
         }),
@@ -58,19 +58,7 @@ test("Codex streams completed messages and recovers final output from JSONL", as
   const result = await run.result;
 
   assert.equal(result.content, "Done.");
-  assert.equal(
-    result.trace,
-    [
-      {
-        type: "lifecycle",
-        name: "thread.started",
-        threadId: "codex-test",
-      },
-      { type: "lifecycle", name: "turn.completed" },
-    ]
-      .map((event) => JSON.stringify(event))
-      .join("\n"),
-  );
+  assert.equal(result.rawEventCount, rawEvents.length);
   assert.deepEqual(
     events.filter((event) => event.type === "delta"),
     [
@@ -118,6 +106,7 @@ test("Codex uses its own command shape without a harness preference", async () =
     binary: "codex",
     processRunner: (input): AiProcessRun => {
       calls.push({ command: input.command, args: input.args, input: input.input });
+      input.onRawEvent({ type: "session_meta", payload: { id: "codex-session-1" } });
 
       return {
         cancel: () => undefined,
@@ -125,7 +114,7 @@ test("Codex uses its own command shape without a harness preference", async () =
           content: "Done.",
           beforeSnapshot: { gitCommit: "", diff: "" },
           afterSnapshot: { gitCommit: "", diff: "" },
-          rawEvents: [{ type: "session_meta", payload: { id: "codex-session-1" } }],
+          rawEventCount: 1,
         }),
       };
     },

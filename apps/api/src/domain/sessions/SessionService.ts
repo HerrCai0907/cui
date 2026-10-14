@@ -15,7 +15,12 @@ import {
   RoundReview,
   SessionListPage,
 } from "../../types.js";
-import type { SessionStore } from "../../infrastructure/store/SessionStore.js";
+import type {
+  ListRunEventsOptions,
+  PersistedRunStreamEvent,
+  SessionStore,
+  StoredRunStreamEvent,
+} from "../../infrastructure/store/SessionStore.js";
 import { AppLogger } from "../../infrastructure/logging/AppLogger.js";
 import { createMessage } from "./sessionMessages.js";
 import {
@@ -28,7 +33,6 @@ import {
   createRoundInputTranscript,
   createSessionInputTranscript,
   getRoundAssistantOutput,
-  getRoundExecutionTrace,
 } from "./transcripts.js";
 import { RunRegistry, type RunningRun } from "../runs/RunRegistry.js";
 import type { RunStreamEvent } from "../runs/runEvents.js";
@@ -53,7 +57,6 @@ import {
   ShellCommandRunner,
   type ShellCommandResult,
 } from "../../infrastructure/shell/ShellCommandRunner.js";
-import { formatTraceEvents } from "../../infrastructure/ai/aiEvents.js";
 import { assertExistingDirectory } from "../paths/pathValidation.js";
 
 export type { RunStreamEvent } from "../runs/runEvents.js";
@@ -161,7 +164,7 @@ function toSessionMessageWindowOptions(
 }
 
 export class SessionService {
-  private readonly runRegistry = new RunRegistry();
+  private readonly runRegistry: RunRegistry;
   private readonly sessionOperationQueues = new Map<string, Promise<void>>();
   private readonly diffArtifacts: DiffArtifactService;
 
@@ -170,7 +173,7 @@ export class SessionService {
     private readonly store: SessionStore,
     private readonly logger = new AppLogger(),
     private readonly roundService = new RoundService(),
-    private readonly atomicReviewService = new AtomicReviewService(aiModel, logger),
+    private readonly atomicReviewService = new AtomicReviewService(aiModel, logger, store),
     diffArtifactService = new DiffArtifactService(store.getArtifactDirectoryPath()),
     private readonly sessionSummaryService = new SessionSummaryService(aiModel, store, logger),
     private readonly runCompletionService = new RunCompletionService(
@@ -184,6 +187,7 @@ export class SessionService {
     private readonly shellCommandRunner = new ShellCommandRunner(),
   ) {
     this.diffArtifacts = diffArtifactService;
+    this.runRegistry = new RunRegistry(store);
   }
 
   async listSessions(): Promise<ChatSession[]> {
@@ -519,8 +523,8 @@ export class SessionService {
         aiResponse: {
           sessionId,
           content: getRoundAssistantOutput(session, round),
-          trace: getRoundExecutionTrace(session, round),
-          rawEvents: [],
+          traceRunId: review.traceRunId,
+          rawEventCount: 0,
         },
         round: this.roundService.refreshRoundDiff(review),
         models: request.models,
@@ -560,7 +564,7 @@ export class SessionService {
       return true;
     }
 
-    return this.store.hasQueuedPrompt(runId);
+    return (await this.store.hasQueuedPrompt(runId)) || (await this.store.hasRunEvents(runId));
   }
 
   async cancelRun(runId: string): Promise<void> {
@@ -576,6 +580,14 @@ export class SessionService {
 
   subscribeToRun(runId: string, onEvent: (event: RunStreamEvent) => void): () => void {
     return this.runRegistry.subscribeToRun(runId, onEvent);
+  }
+
+  subscribeToRunEvents(runId: string, onEvent: (event: StoredRunStreamEvent) => void): () => void {
+    return this.runRegistry.subscribeToRunEvents(runId, onEvent);
+  }
+
+  listRunEvents(runId: string, options?: ListRunEventsOptions): Promise<PersistedRunStreamEvent[]> {
+    return this.store.listRunEvents(runId, options);
   }
 
   async resumeQueuedPrompts(): Promise<void> {
@@ -769,12 +781,14 @@ export class SessionService {
           );
         }
 
+        await this.runRegistry.flushRunEvents(run);
         const session = await this.runCompletionService.completeRun({
           workspace,
           prompt: request.prompt,
           aiResponse: {
             ...aiResponse,
             sessionId: run.sessionId,
+            traceRunId: run.id,
           },
           models: request.models,
         });
@@ -806,7 +820,7 @@ export class SessionService {
           void this.logger.framework.info("run.assistant.cancelled", {
             sessionId: run.sessionId,
           });
-          await this.persistInterruptedTrace(run, "session.cancelled_trace.persist_failed");
+          await this.flushInterruptedRunEvents(run, "session.cancelled_trace.persist_failed");
           this.runRegistry.emitRunEvent(run, { type: "run.cancelled" });
           this.scheduleNextQueuedPrompt(run.sessionId);
           return;
@@ -816,7 +830,7 @@ export class SessionService {
           sessionId: run.sessionId,
           error,
         });
-        await this.persistInterruptedTrace(run, "session.failed_trace.persist_failed");
+        await this.flushInterruptedRunEvents(run, "session.failed_trace.persist_failed");
         this.runRegistry.emitRunEvent(run, {
           type: "run.failed",
           error: error instanceof Error ? error.message : "Assistant run failed",
@@ -1035,23 +1049,9 @@ export class SessionService {
       });
   }
 
-  private async persistInterruptedTrace(run: RunningRun, failureLogEvent: string): Promise<void> {
-    const rawEvents = run.events.flatMap(({ event }) =>
-      event.type === "run.trace" ? [event.event] : [],
-    );
-
-    if (rawEvents.length === 0) {
-      return;
-    }
-
+  private async flushInterruptedRunEvents(run: RunningRun, failureLogEvent: string): Promise<void> {
     try {
-      await this.store.appendMessages(run.sessionId, [
-        createMessage(
-          "assistant",
-          formatTraceEvents(rawEvents, undefined, { compact: true, includeRaw: false }),
-          "trace",
-        ),
-      ]);
+      await this.runRegistry.flushRunEvents(run);
     } catch (error) {
       void this.logger.session(run.sessionId).warn(failureLogEvent, {
         sessionId: run.sessionId,

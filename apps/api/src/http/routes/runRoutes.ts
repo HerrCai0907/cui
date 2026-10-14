@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { RunStreamEvent } from "../../domain/runs/runEvents.js";
 import type { SessionService } from "../../domain/sessions/SessionService.js";
+import type { StoredRunStreamEvent } from "../../infrastructure/store/SessionStore.js";
 import { filterSessionViewTraceMessages } from "../../domain/sessions/sessionViews.js";
 import { isTraceEventVisible, type TraceMessageType } from "../../domain/sessions/traceMessages.js";
 import { parseRunEventsQuery } from "../validation/requestParsers.js";
@@ -40,11 +41,21 @@ export function createRunRouter(sessionService: SessionService): Router {
       : undefined;
     const sseWriter = createSseStreamWriter(response);
     let unsubscribe = () => {};
-    unsubscribe = sessionService.subscribeToRun(request.params.runId, (event) => {
-      const filteredEvent = filterRunStreamEvent(event, visibleTraceTypes);
+    let closed = false;
+    let replaying = true;
+    let lastSeq = 0;
+    const liveBuffer: StoredRunStreamEvent[] = [];
+
+    const writeStoredEvent = (storedEvent: StoredRunStreamEvent): boolean => {
+      if (closed || storedEvent.id <= lastSeq) {
+        return true;
+      }
+
+      lastSeq = storedEvent.id;
+      const filteredEvent = filterRunStreamEvent(storedEvent.event, visibleTraceTypes);
 
       if (!filteredEvent) {
-        return;
+        return true;
       }
 
       const shouldEnd =
@@ -57,22 +68,64 @@ export function createRunRouter(sessionService: SessionService): Router {
           endAfterWrite: shouldEnd,
         })
       ) {
-        unsubscribe();
-        return;
+        cleanup();
+        return false;
       }
 
       if (shouldEnd) {
-        unsubscribe();
+        cleanup();
+        return false;
       }
+      return true;
+    };
+
+    unsubscribe = sessionService.subscribeToRunEvents(request.params.runId, (event) => {
+      if (replaying) {
+        liveBuffer.push(event);
+        return;
+      }
+
+      writeStoredEvent(event);
     });
 
     const cleanup = () => {
+      closed = true;
       unsubscribe();
       sseWriter.close();
     };
 
     request.on("close", cleanup);
     response.on("close", cleanup);
+
+    try {
+      while (!closed) {
+        const events = await sessionService.listRunEvents(request.params.runId, {
+          afterSeq: lastSeq,
+          limit: 1000,
+        });
+
+        if (events.length === 0) {
+          break;
+        }
+
+        for (const event of events) {
+          if (!writeStoredEvent(event)) {
+            return;
+          }
+        }
+      }
+
+      replaying = false;
+      liveBuffer.sort((left, right) => left.id - right.id);
+      for (const event of liveBuffer) {
+        if (!writeStoredEvent(event)) {
+          return;
+        }
+      }
+    } catch (error) {
+      cleanup();
+      next(error);
+    }
   });
 
   router.post("/api/v1/runs/:runId/cancellation", async (request, response, next) => {

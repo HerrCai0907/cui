@@ -23,6 +23,7 @@ export class RoundService {
     return {
       round: roundNumber,
       ...(aiResponse.gitDiff.baseCommit ? { baseCommit: aiResponse.gitDiff.baseCommit } : {}),
+      ...(aiResponse.traceRunId ? { traceRunId: aiResponse.traceRunId } : {}),
       beforeDiff,
       afterDiff,
       diff,
