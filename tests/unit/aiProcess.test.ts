@@ -26,7 +26,7 @@ async function fixture(t: test.TestContext, script: string) {
       args: [path, "-"],
       cwd,
       input: "",
-      timeoutMs: 5_000,
+      idleTimeoutMs: 5_000,
       captureDiff: false,
       diffService: new GitDiffService(),
       onRawEvent: (event: unknown) => events.push(event),
@@ -86,6 +86,13 @@ test("process keeps CLI errors when a large stdin write is closed early", async 
   );
   input.input = "x".repeat(4 * 1024 * 1024);
   await assert.rejects(runAiProcess(input).promise, /invalid CLI option/);
+});
+
+test("process rejects after the configured idle timeout", async (t) => {
+  const { input } = await fixture(t, "setInterval(() => {}, 1000);");
+  input.idleTimeoutMs = 20;
+
+  await assert.rejects(runAiProcess(input).promise, /Codex command produced no output for 20ms/);
 });
 
 test("process rejects snapshot failures after successful CLI exit", async (t) => {

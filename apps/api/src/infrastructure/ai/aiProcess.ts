@@ -18,7 +18,7 @@ type RunProcessInput = {
   args: string[];
   cwd: string;
   input: string;
-  timeoutMs: number;
+  idleTimeoutMs?: number;
   captureDiff: boolean;
   diffService: GitDiffService;
   onRawEvent: (event: unknown) => void;
@@ -42,7 +42,7 @@ export function runAiProcess({
   args,
   cwd,
   input,
-  timeoutMs,
+  idleTimeoutMs,
   captureDiff,
   diffService,
   onRawEvent,
@@ -118,7 +118,7 @@ export function runAiProcess({
           }
 
           const resetIdleTimer = () => {
-            if (settled) {
+            if (settled || idleTimeoutMs === undefined) {
               return;
             }
             if (idleTimer) {
@@ -130,12 +130,12 @@ export function runAiProcess({
                 killChildProcess(child);
                 reject(
                   new Error(
-                    `${binaryConfig.displayName} command produced no output for ${timeoutMs}ms`,
+                    `${binaryConfig.displayName} command produced no output for ${idleTimeoutMs}ms`,
                   ),
                 );
                 void cleanupOutputDir(outputDir);
               }
-            }, timeoutMs);
+            }, idleTimeoutMs);
           };
 
           resetIdleTimer();
