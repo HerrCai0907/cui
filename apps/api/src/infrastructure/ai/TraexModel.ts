@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import type { AiModel } from "../../domain/ai/AiModel.js";
 import type { AiModelInfo } from "../../types.js";
-import { CliAiModel, type CliAiModelOptions } from "./CliAiModel.js";
+import { CliAiModel, DEFAULT_AI_IDLE_TIMEOUT_MS, type CliAiModelOptions } from "./CliAiModel.js";
 import {
   createAiProcessEnv,
   createTraexNotFoundError,
@@ -23,7 +23,9 @@ export class TraexModel extends CliAiModel implements AiModel {
       { ...config, command: options.binary ?? config.command },
       {
         ...options,
-        timeoutMs: Number(options.timeoutMs ?? process.env.TRAEX_TIMEOUT_MS ?? 10 * 60 * 1000),
+        timeoutMs: Number(
+          options.timeoutMs ?? process.env.TRAEX_TIMEOUT_MS ?? DEFAULT_AI_IDLE_TIMEOUT_MS,
+        ),
       },
     );
     this.permissionMode =

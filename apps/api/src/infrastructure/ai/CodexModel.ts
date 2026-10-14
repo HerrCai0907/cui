@@ -1,6 +1,6 @@
 import type { AiModel } from "../../domain/ai/AiModel.js";
 import type { AiModelInfo } from "../../types.js";
-import { CliAiModel, type CliAiModelOptions } from "./CliAiModel.js";
+import { CliAiModel, DEFAULT_AI_IDLE_TIMEOUT_MS, type CliAiModelOptions } from "./CliAiModel.js";
 import { getAiHarnessBinaryConfig } from "./aiBinary.js";
 import { extractFinalResponse } from "./aiEvents.js";
 
@@ -57,7 +57,7 @@ export class CodexModel extends CliAiModel implements AiModel {
           options.timeoutMs ??
             process.env.CODEX_TIMEOUT_MS ??
             process.env.TRAEX_TIMEOUT_MS ??
-            10 * 60 * 1000,
+            DEFAULT_AI_IDLE_TIMEOUT_MS,
         ),
       },
     );

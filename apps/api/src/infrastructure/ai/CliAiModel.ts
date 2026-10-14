@@ -29,6 +29,7 @@ import { runAiProcess, type AiProcessRun } from "./aiProcess.js";
 import { formatTraceEventsInWorker } from "./formatTraceEventsInWorker.js";
 
 export type AiProcessRunner = (input: Parameters<typeof runAiProcess>[0]) => AiProcessRun;
+export const DEFAULT_AI_IDLE_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 
 export type CliAiModelOptions = {
   binary?: string;
@@ -41,7 +42,7 @@ export type CliAiModelOptions = {
 export abstract class CliAiModel implements AiModel {
   private readonly diffService: GitDiffService;
   private readonly processRunner: AiProcessRunner;
-  private readonly timeoutMs: number;
+  private readonly idleTimeoutMs: number;
 
   protected constructor(
     protected readonly binaryConfig: AiHarnessBinaryConfig,
@@ -49,7 +50,7 @@ export abstract class CliAiModel implements AiModel {
   ) {
     this.diffService = options.diffService ?? new GitDiffService();
     this.processRunner = options.processRunner ?? runAiProcess;
-    this.timeoutMs = options.timeoutMs ?? 10 * 60 * 1000;
+    this.idleTimeoutMs = options.timeoutMs ?? DEFAULT_AI_IDLE_TIMEOUT_MS;
   }
 
   abstract listModels(): Promise<AiModelInfo[]>;
@@ -264,7 +265,7 @@ export abstract class CliAiModel implements AiModel {
       args,
       cwd: workspace,
       input: prompt,
-      timeoutMs: this.timeoutMs,
+      idleTimeoutMs: this.idleTimeoutMs,
       captureDiff,
       diffService: this.diffService,
       onRawEvent: (event) => {
