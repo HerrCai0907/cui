@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { CodexModel } from "../../apps/api/src/infrastructure/ai/CodexModel.js";
 import { TraexModel } from "../../apps/api/src/infrastructure/ai/TraexModel.js";
@@ -13,16 +15,23 @@ type ProcessCall = {
 };
 
 for (const Model of [TraexModel, CodexModel]) {
-  test(`${Model.name} retries atomic review with validation feedback when item diff format is invalid`, async () => {
+  test(`${Model.name} retries atomic review with validation feedback when item diff format is invalid`, async (t) => {
     const calls: ProcessCall[] = [];
     let diffFilePath = "";
     let executionTraceFilePath = "";
     let diffFileContent = "";
     let executionTraceFileContent = "";
+    const traceDirectory = await mkdtemp(join(tmpdir(), "cui-cli-model-trace-"));
+    const inputTraceFilePath = join(traceDirectory, "execution-trace.jsonl");
+
+    t.after(() => rm(traceDirectory, { force: true, recursive: true }));
+    await writeFile(inputTraceFilePath, "large trace payload with TOOL_OUTPUT_123", "utf8");
+
     const model = new Model({
       binary: "/test/ai-cli",
       processRunner: (input): AiProcessRun => {
         calls.push({ command: input.command, args: input.args, input: input.input });
+        input.onRawEvent({ type: "thread.started", thread_id: "analysis-session-1" });
         diffFilePath ||= extractDiffFilePath(input.input);
         executionTraceFilePath ||= extractExecutionTraceFilePath(input.input);
 
@@ -36,7 +45,7 @@ for (const Model of [TraexModel, CodexModel]) {
               content: calls.length === 1 ? invalidAtomicReviewResponse : validAtomicReviewResponse,
               beforeSnapshot: { gitCommit: "", diff: "" },
               afterSnapshot: { gitCommit: "", diff: "" },
-              rawEvents: [{ type: "thread.started", thread_id: "analysis-session-1" }],
+              rawEventCount: 1,
             };
           })(),
         };
@@ -48,7 +57,7 @@ for (const Model of [TraexModel, CodexModel]) {
       originalSessionId: "session-1",
       round: 1,
       sessionInput: "Update sidebar state.",
-      executionTrace: "large trace payload with TOOL_OUTPUT_123",
+      executionTraceFilePath: inputTraceFilePath,
       assistantOutput: "Done.",
       diff: validDiff,
     });
@@ -72,7 +81,10 @@ for (const Model of [TraexModel, CodexModel]) {
     assert.match(calls[1].input, /invalid hunk header \"@@\"/);
     assert.match(calls[1].input, /不要输出 Markdown/);
     await assert.rejects(() => readFile(diffFilePath, "utf8"));
-    await assert.rejects(() => readFile(executionTraceFilePath, "utf8"));
+    assert.equal(
+      await readFile(executionTraceFilePath, "utf8"),
+      "large trace payload with TOOL_OUTPUT_123",
+    );
   });
 
   test(`${Model.name} uses separate configured models for normal, summary, and atomic review runs`, async () => {
@@ -81,6 +93,7 @@ for (const Model of [TraexModel, CodexModel]) {
       binary: "/test/ai-cli",
       processRunner: (input): AiProcessRun => {
         calls.push({ command: input.command, args: input.args, input: input.input });
+        input.onRawEvent({ type: "thread.started", thread_id: `session-${calls.length}` });
 
         return {
           cancel: () => undefined,
@@ -88,7 +101,7 @@ for (const Model of [TraexModel, CodexModel]) {
             content: contentForCall(calls.length),
             beforeSnapshot: { gitCommit: "", diff: "" },
             afterSnapshot: { gitCommit: "", diff: "" },
-            rawEvents: [{ type: "thread.started", thread_id: `session-${calls.length}` }],
+            rawEventCount: 1,
           }),
         };
       },
@@ -119,7 +132,6 @@ for (const Model of [TraexModel, CodexModel]) {
       originalSessionId: "session-1",
       round: 1,
       sessionInput: "Update sidebar state.",
-      executionTrace: "",
       assistantOutput: "Done.",
       diff: validDiff,
       models,
@@ -145,15 +157,19 @@ for (const Model of [TraexModel, CodexModel]) {
 
 test("backend-specific final response handling preserves TraeX empty output and Codex validation", async () => {
   const options = {
-    processRunner: (): AiProcessRun => ({
-      cancel: () => undefined,
-      promise: Promise.resolve({
-        content: "  ",
-        rawEvents: [{ type: "thread.started", thread_id: "session-1" }],
-        beforeSnapshot: { gitCommit: "", diff: "" },
-        afterSnapshot: { gitCommit: "", diff: "" },
-      }),
-    }),
+    processRunner: (input): AiProcessRun => {
+      input.onRawEvent({ type: "thread.started", thread_id: "session-1" });
+
+      return {
+        cancel: () => undefined,
+        promise: Promise.resolve({
+          content: "  ",
+          rawEventCount: 1,
+          beforeSnapshot: { gitCommit: "", diff: "" },
+          afterSnapshot: { gitCommit: "", diff: "" },
+        }),
+      };
+    },
   };
   const input = { workspace: "/tmp", prompt: "test" };
   assert.equal((await new TraexModel(options).createSession(input)).content, "");

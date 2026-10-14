@@ -86,7 +86,7 @@ test("createRun refreshes summary after user input and assistant response", asyn
     aiModel.resolveRun({
       sessionId: "traex-thread-1",
       content: "Done.",
-      rawEvents: [],
+      rawEventCount: 0,
     });
     await waitFor(() => aiModel.summaryPrompts.length === 2);
 
@@ -107,7 +107,6 @@ test("createRun refreshes summary after user input and assistant response", asyn
     );
     assert.equal(events.at(-1)?.session.messages.at(-1)?.content, "Done.");
     assert.equal(events.at(-1)?.session.messages.at(-1)?.model, "GPT-5.4 / High");
-    assert.equal(events.at(-1)?.session.messages.at(-2)?.model, "GPT-5.4 / High");
     assert.equal(events.some(isDoneEvent), false);
 
     aiModel.resolveSummary(
@@ -232,7 +231,7 @@ test("createRun completes without waiting for atomic review generation", async (
           "+export const value = 2;",
         ].join("\n"),
       },
-      rawEvents: [],
+      rawEventCount: 0,
     });
     await waitFor(() => aiModel.summaryPrompts.length === 2);
     aiModel.resolveSummary(
@@ -320,7 +319,7 @@ test("round reviews expose diff summaries and lazy diff pages", async () => {
         beforeDiff: "",
         afterDiff: diff,
       },
-      rawEvents: [],
+      rawEventCount: 0,
     });
     await waitFor(() => aiModel.summaryPrompts.length === 2);
     aiModel.resolveSummary(
@@ -451,10 +450,16 @@ test("cancelRun stops an active stream and emits a cancellation event", async ()
       true,
     );
     const session = await service.getSessionView("session-1");
+    const persistedEvents = await store.listRunEvents(submitted.run.id);
 
     assert.equal(session?.isRunning, false);
-    assert.equal(session?.messages[1]?.kind, "trace");
-    assert.match(session?.messages[1]?.content ?? "", /Trace before stop/);
+    assert.ok(
+      persistedEvents.some(
+        (event) =>
+          event.event.type === "run.trace" &&
+          JSON.stringify(event.event.event).includes("Trace before stop"),
+      ),
+    );
   } finally {
     await rm(cwd, { force: true, recursive: true });
   }
@@ -505,14 +510,20 @@ test("createRun stores streamed execution trace when the assistant run fails", a
     await waitFor(() => events.some((event) => eventType(event) === "run.failed"));
 
     const session = await service.getSessionView("session-1");
+    const persistedEvents = await store.listRunEvents(submitted.run.id);
 
     assert.equal(
       events.some((event) => eventType(event) === "run.failed"),
       true,
     );
     assert.equal(session?.isRunning, false);
-    assert.equal(session?.messages[1]?.kind, "trace");
-    assert.match(session?.messages[1]?.content ?? "", /Trace before failure/);
+    assert.ok(
+      persistedEvents.some(
+        (event) =>
+          event.event.type === "run.trace" &&
+          JSON.stringify(event.event.event).includes("Trace before failure"),
+      ),
+    );
   } finally {
     await rm(cwd, { force: true, recursive: true });
   }
@@ -593,7 +604,7 @@ test("createRun queues prompts while a session is running", async () => {
     aiModel.resolveRun({
       sessionId: "traex-thread-1",
       content: "First response.",
-      rawEvents: [],
+      rawEventCount: 0,
     });
     await waitFor(() => aiModel.summaryPrompts.length === 2);
     aiModel.resolveSummary(
@@ -626,7 +637,7 @@ test("createRun queues prompts while a session is running", async () => {
       {
         sessionId: "traex-thread-1",
         content: "Second response.",
-        rawEvents: [],
+        rawEventCount: 0,
       },
       1,
     );
@@ -880,7 +891,7 @@ test("createRun creates an AI thread before chatting in an unbound shell session
     aiModel.resolveRun({
       sessionId: "codex-thread-1",
       content: "It printed hello.",
-      rawEvents: [],
+      rawEventCount: 0,
     });
     await waitFor(() => aiModel.summaryPrompts.length === 2);
     aiModel.resolveSummary(
@@ -950,7 +961,7 @@ test("createRun resumes a bound Codex thread for later shell-session chat", asyn
     aiModel.resolveRun({
       sessionId: "codex-thread-1",
       content: "Continued.",
-      rawEvents: [],
+      rawEventCount: 0,
     });
     await waitFor(() => aiModel.summaryPrompts.length === 2);
     aiModel.resolveSummary(
@@ -1018,7 +1029,7 @@ test("createRun creates a TraeX thread for any session without a bound TraeX thr
     aiModel.resolveRun({
       sessionId: "traex-thread-legacy",
       content: "Explained.",
-      rawEvents: [],
+      rawEventCount: 0,
     });
     await waitFor(() => aiModel.summaryPrompts.length === 2);
     aiModel.resolveSummary(
@@ -1070,7 +1081,7 @@ test("createSessionContainer expands home workspace before creating a run", asyn
     aiModel.resolveRun({
       sessionId: "created-session-1",
       content: "Done.",
-      rawEvents: [],
+      rawEventCount: 0,
     });
     await waitFor(() => aiModel.summaryPrompts.length === 2);
     aiModel.resolveSummary(

@@ -7,16 +7,36 @@ import type {
   QueuedPrompt,
   SessionListPage,
 } from "../../types.js";
+import type { RunStreamEvent } from "../../domain/runs/runEvents.js";
 
 export type ListSessionIndexEntriesOptions = {
   page?: number;
   pageSize?: number;
 };
 
+export type StoredRunStreamEvent = {
+  id: number;
+  event: RunStreamEvent;
+};
+
+export type PersistedRunStreamEvent = StoredRunStreamEvent & {
+  runId: string;
+  sessionId: string;
+  createdAt: string;
+};
+
+export type ListRunEventsOptions = {
+  afterSeq?: number;
+  limit?: number;
+};
+
 export interface SessionStore {
   listSessions(): Promise<ChatSession[]>;
   listQueuedSessionIds(): Promise<string[]>;
   hasQueuedPrompt(queuedPromptId: string): Promise<boolean>;
+  hasRunEvents(runId: string): Promise<boolean>;
+  appendRunEvents(events: PersistedRunStreamEvent[]): Promise<void>;
+  listRunEvents(runId: string, options?: ListRunEventsOptions): Promise<PersistedRunStreamEvent[]>;
   listSessionIndexEntries(
     options?: ListSessionIndexEntriesOptions,
   ): Promise<SessionListPage<ChatSessionIndexEntry>>;

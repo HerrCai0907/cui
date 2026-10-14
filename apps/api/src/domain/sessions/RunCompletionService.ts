@@ -110,8 +110,8 @@ export class RunCompletionService {
       prompt: input.prompt,
       response: input.aiResponse.content,
       responseLength: input.aiResponse.content.length,
-      rawEventCount: input.aiResponse.rawEvents.length,
-      traceLength: input.aiResponse.trace?.length ?? 0,
+      rawEventCount: input.aiResponse.rawEventCount,
+      traceRunId: input.aiResponse.traceRunId,
     });
     await this.logger.framework.info("run.assistant.completed", {
       sessionId: input.aiResponse.sessionId,

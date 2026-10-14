@@ -2027,6 +2027,7 @@ export interface components {
     ChatRound: {
       round: number;
       baseCommit?: string;
+      traceRunId?: string;
       beforeDiff: string;
       afterDiff: string;
       diff: string;
@@ -2853,6 +2854,7 @@ export interface components {
     RoundReview: {
       round: number;
       baseCommit?: string;
+      traceRunId?: string;
       hasChanges: boolean;
       /** Format: date-time */
       createdAt: string;

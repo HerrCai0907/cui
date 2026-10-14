@@ -13,6 +13,7 @@ export type ChatMessage = {
 export type ChatRound = {
   round: number;
   baseCommit?: string;
+  traceRunId?: string;
   beforeDiff: string;
   afterDiff: string;
   diff: string;
@@ -232,7 +233,6 @@ export type AiAtomicDiffReviewInput = {
   originalSessionId: string;
   round: number;
   sessionInput: string;
-  executionTrace: string;
   assistantOutput: string;
   diff: string;
   diffFilePath?: string;
@@ -249,18 +249,18 @@ export type RoundReview = Omit<ChatRound, "beforeDiff" | "afterDiff" | "diff" | 
 export type AiResponse = {
   sessionId: string;
   content: string;
-  trace?: string;
+  traceRunId?: string;
   gitDiff?: {
     baseCommit?: string;
     beforeDiff: string;
     afterDiff: string;
   };
-  rawEvents: unknown[];
+  rawEventCount: number;
 };
 
 export type AiRunResult = Pick<
   AiResponse,
-  "sessionId" | "content" | "trace" | "gitDiff" | "rawEvents"
+  "sessionId" | "content" | "traceRunId" | "gitDiff" | "rawEventCount"
 >;
 
 export type ConversationSummary = {

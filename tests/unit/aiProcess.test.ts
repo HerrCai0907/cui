@@ -60,7 +60,7 @@ test("process passes exact UTF-8 stdin and output path; parses split JSONL and t
     { type: "item.completed", item: { type: "agent_message", text: input.input } },
     { type: "turn.completed" },
   ]);
-  assert.deepEqual(result.rawEvents, events);
+  assert.equal(result.rawEventCount, events.length);
 });
 
 for (const code of [0, 1]) {

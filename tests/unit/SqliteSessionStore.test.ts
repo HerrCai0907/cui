@@ -60,6 +60,8 @@ test("SqliteSessionStore runs SQL migrations and persists sessions", async () =>
         { version: "001_initial_schema" },
         { version: "002_session_models" },
         { version: "003_message_models" },
+        { version: "004_run_events" },
+        { version: "005_round_trace_run_id" },
       ]);
       const sessionRow = db.prepare("SELECT models_json FROM sessions").get() as {
         models_json: string;

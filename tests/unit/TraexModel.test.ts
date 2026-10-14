@@ -35,24 +35,6 @@ test("TraeX keeps normalized execution trace messages without duplicating respon
     { type: "item.completed", item: { id: "item_0", type: "agent_message", text: "Done." } },
     { type: "turn.completed" },
   ];
-  const traceEvents = [
-    {
-      type: "lifecycle",
-      name: "thread.started",
-      threadId: "traex-test",
-    },
-    {
-      type: "assistant_message",
-      text: "Done",
-    },
-    {
-      type: "assistant_message",
-      id: "item_0",
-      phase: "completed",
-      text: "Done.",
-    },
-    { type: "lifecycle", name: "turn.completed" },
-  ];
   const streamedTraceEvents = [
     {
       type: "lifecycle",
@@ -85,7 +67,7 @@ test("TraeX keeps normalized execution trace messages without duplicating respon
         cancel: () => undefined,
         promise: Promise.resolve({
           content: "Done.",
-          rawEvents,
+          rawEventCount: rawEvents.length,
           beforeSnapshot: { gitCommit: "", diff: "" },
           afterSnapshot: { gitCommit: "", diff: "" },
         }),
@@ -99,7 +81,7 @@ test("TraeX keeps normalized execution trace messages without duplicating respon
   const result = await run.result;
 
   assert.equal(result.content, "Done.");
-  assert.equal(result.trace, traceEvents.map((event) => JSON.stringify(event)).join("\n"));
+  assert.equal(result.rawEventCount, rawEvents.length);
   assert.deepEqual(
     events.filter((event) => event.type === "delta"),
     [{ type: "delta", text: "Done" }],

@@ -159,6 +159,7 @@ export const AtomicDiffReviewSchema = z.discriminatedUnion("status", [
 export const ChatRoundSchema = z.object({
   round: z.number().int().positive(),
   baseCommit: z.string().optional(),
+  traceRunId: z.string().optional(),
   beforeDiff: z.string(),
   afterDiff: z.string(),
   diff: z.string(),

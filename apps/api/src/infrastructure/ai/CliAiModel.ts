@@ -24,9 +24,13 @@ import {
 import { parseAtomicDiffReviewItems } from "./atomicDiffReviewParser.js";
 import { parseConversationSummary } from "./conversationSummaryParser.js";
 import type { AiHarnessBinaryConfig } from "./aiBinary.js";
-import { extractResponseDeltas, extractThreadId, toTraceEvent } from "./aiEvents.js";
+import {
+  extractFinalResponse,
+  extractResponseDeltas,
+  extractThreadId,
+  toTraceEvent,
+} from "./aiEvents.js";
 import { runAiProcess, type AiProcessRun } from "./aiProcess.js";
-import { formatTraceEventsInWorker } from "./formatTraceEventsInWorker.js";
 
 export type AiProcessRunner = (input: Parameters<typeof runAiProcess>[0]) => AiProcessRun;
 export const DEFAULT_AI_IDLE_TIMEOUT_MS = 24 * 60 * 60 * 1000;
@@ -55,7 +59,7 @@ export abstract class CliAiModel implements AiModel {
 
   abstract listModels(): Promise<AiModelInfo[]>;
   protected abstract get permissionArgs(): string[];
-  protected abstract resolveResponseContent(content: string, rawEvents: unknown[]): string;
+  protected abstract resolveResponseContent(content: string, finalResponse?: string): string;
 
   async createSession(input: AiCreateSessionInput): Promise<AiResponse> {
     const args = this.createExecArgs(input.workspace, input.models, "normal");
@@ -87,7 +91,7 @@ export abstract class CliAiModel implements AiModel {
     let response: AiResponse | undefined;
     const inputFiles = await createAtomicReviewInputFiles({
       diff: input.diff,
-      executionTrace: input.executionTrace,
+      executionTraceFilePath: input.executionTraceFilePath,
     });
     const reviewInput = {
       ...input,
@@ -252,6 +256,7 @@ export abstract class CliAiModel implements AiModel {
   ): AiRun {
     const sessionIdSignal = createDeferred<string>();
     let observedSessionId = expectedSessionId;
+    let finalResponse: string | undefined;
     const binaryConfig = this.binaryConfig;
 
     if (expectedSessionId) {
@@ -270,6 +275,7 @@ export abstract class CliAiModel implements AiModel {
       diffService: this.diffService,
       onRawEvent: (event) => {
         const sessionId = extractThreadId([event]);
+        finalResponse = extractFinalResponse([event]) ?? finalResponse;
 
         if (sessionId && !observedSessionId) {
           observedSessionId = sessionId;
@@ -289,8 +295,8 @@ export abstract class CliAiModel implements AiModel {
       },
     });
     const result = processRun.promise.then(
-      async ({ content, beforeSnapshot, afterSnapshot, rawEvents }) => {
-        const sessionId = expectedSessionId ?? observedSessionId ?? extractThreadId(rawEvents);
+      ({ content, beforeSnapshot, afterSnapshot, rawEventCount }) => {
+        const sessionId = expectedSessionId ?? observedSessionId;
 
         if (!sessionId) {
           throw new Error(`${binaryConfig.displayName} did not return a thread id`);
@@ -298,18 +304,11 @@ export abstract class CliAiModel implements AiModel {
 
         sessionIdSignal.resolve(sessionId);
 
-        const [responseContent, trace] = await Promise.all([
-          Promise.resolve(this.resolveResponseContent(content, rawEvents)),
-          formatTraceEventsInWorker(rawEvents, binaryConfig.harness, {
-            compact: true,
-            includeRaw: false,
-          }),
-        ]);
+        const responseContent = this.resolveResponseContent(content, finalResponse);
 
         return {
           sessionId,
           content: responseContent,
-          trace,
           ...(captureDiff
             ? {
                 gitDiff: {
@@ -319,7 +318,7 @@ export abstract class CliAiModel implements AiModel {
                 },
               }
             : {}),
-          rawEvents,
+          rawEventCount,
         };
       },
     );
@@ -351,16 +350,17 @@ function createDeferred<T>() {
 
 async function createAtomicReviewInputFiles(input: {
   diff: string;
-  executionTrace: string;
+  executionTraceFilePath?: string;
 }): Promise<{ directory: string; diffPath: string; executionTracePath: string }> {
   const directory = await mkdtemp(join(tmpdir(), "cui-atomic-review-"));
   const diffPath = join(directory, "round.diff");
-  const executionTracePath = join(directory, "execution-trace.jsonl");
+  const executionTracePath =
+    input.executionTraceFilePath ?? join(directory, "execution-trace.jsonl");
 
-  await Promise.all([
-    writeFile(diffPath, input.diff || "无", "utf8"),
-    writeFile(executionTracePath, input.executionTrace || "无", "utf8"),
-  ]);
+  await writeFile(diffPath, input.diff || "无", "utf8");
+  if (!input.executionTraceFilePath) {
+    await writeFile(executionTracePath, "无", "utf8");
+  }
 
   return { directory, diffPath, executionTracePath };
 }

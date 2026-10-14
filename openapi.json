@@ -103,6 +103,9 @@
           "baseCommit": {
             "type": "string"
           },
+          "traceRunId": {
+            "type": "string"
+          },
           "beforeDiff": {
             "type": "string"
           },
@@ -2810,6 +2813,9 @@
             "exclusiveMinimum": 0
           },
           "baseCommit": {
+            "type": "string"
+          },
+          "traceRunId": {
             "type": "string"
           },
           "hasChanges": {

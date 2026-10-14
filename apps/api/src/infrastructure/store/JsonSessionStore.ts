@@ -1,4 +1,4 @@
-import { rm } from "node:fs/promises";
+import { readdir, rm } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { defaultJsonFileDb, type JsonFileDb } from "./JsonFileDb.js";
 import {
@@ -12,7 +12,12 @@ import {
   QueuedPromptView,
   SessionListPage,
 } from "../../types.js";
-import type { ListSessionIndexEntriesOptions, SessionStore } from "./SessionStore.js";
+import type {
+  ListRunEventsOptions,
+  ListSessionIndexEntriesOptions,
+  PersistedRunStreamEvent,
+  SessionStore,
+} from "./SessionStore.js";
 
 const STORE_VERSION = 3;
 
@@ -37,9 +42,16 @@ type SessionDetailData = {
   queuedPrompts: QueuedPrompt[];
 };
 
+type RunEventsData = {
+  version: typeof STORE_VERSION;
+  runId: string;
+  events: PersistedRunStreamEvent[];
+};
+
 export class JsonSessionStore implements SessionStore {
   private readonly filePath: string;
   private readonly detailDirectoryPath: string;
+  private readonly runEventDirectoryPath: string;
   private writeQueue: Promise<void> = Promise.resolve();
 
   constructor(
@@ -51,6 +63,7 @@ export class JsonSessionStore implements SessionStore {
       dirname(this.filePath),
       basename(this.filePath, extname(this.filePath)),
     );
+    this.runEventDirectoryPath = join(dirname(this.filePath), "run-events");
   }
 
   async listSessions(): Promise<ChatSession[]> {
@@ -88,6 +101,71 @@ export class JsonSessionStore implements SessionStore {
     }
 
     return false;
+  }
+
+  async hasRunEvents(runId: string): Promise<boolean> {
+    try {
+      const data = await this.readRunEventsData(runId);
+
+      return data.events.length > 0;
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return false;
+      }
+
+      throw error;
+    }
+  }
+
+  async appendRunEvents(events: PersistedRunStreamEvent[]): Promise<void> {
+    if (events.length === 0) {
+      return;
+    }
+
+    const eventsByRunId = new Map<string, PersistedRunStreamEvent[]>();
+
+    events.forEach((event) => {
+      const currentEvents = eventsByRunId.get(event.runId) ?? [];
+
+      currentEvents.push(event);
+      eventsByRunId.set(event.runId, currentEvents);
+    });
+
+    await this.enqueueWrite(async () => {
+      for (const [runId, runEvents] of eventsByRunId) {
+        const current = await this.readRunEventsDataOrEmpty(runId);
+        const mergedEvents = new Map<number, PersistedRunStreamEvent>();
+
+        current.events.forEach((event) => mergedEvents.set(event.id, event));
+        runEvents.forEach((event) => mergedEvents.set(event.id, event));
+
+        await this.writeRunEventsData({
+          version: STORE_VERSION,
+          runId,
+          events: [...mergedEvents.values()].sort((left, right) => left.id - right.id),
+        });
+      }
+    });
+  }
+
+  async listRunEvents(
+    runId: string,
+    options: ListRunEventsOptions = {},
+  ): Promise<PersistedRunStreamEvent[]> {
+    const afterSeq = normalizeNonNegativeInteger(options.afterSeq, 0);
+    const limit = normalizePositiveInteger(options.limit, 1000);
+
+    try {
+      const data = await this.readRunEventsData(runId);
+
+      return data.events.filter((event) => event.id > afterSeq).slice(0, limit);
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return [];
+      }
+
+      throw error;
+    }
   }
 
   async listSessionIndexEntries(
@@ -650,8 +728,36 @@ export class JsonSessionStore implements SessionStore {
     await this.db.write(this.getSessionDetailPath(detail.id), compactSessionDetail(detail));
   }
 
+  private async readRunEventsData(runId: string): Promise<RunEventsData> {
+    return normalizeRunEventsData(await this.db.read<unknown>(this.getRunEventsPath(runId)), runId);
+  }
+
+  private async readRunEventsDataOrEmpty(runId: string): Promise<RunEventsData> {
+    try {
+      return await this.readRunEventsData(runId);
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return {
+          version: STORE_VERSION,
+          runId,
+          events: [],
+        };
+      }
+
+      throw error;
+    }
+  }
+
+  private async writeRunEventsData(data: RunEventsData): Promise<void> {
+    await this.db.write(this.getRunEventsPath(data.runId), data);
+  }
+
   private getSessionDetailPath(sessionId: string): string {
     return join(this.detailDirectoryPath, `${encodeURIComponent(sessionId)}.json`);
+  }
+
+  private getRunEventsPath(runId: string): string {
+    return join(this.runEventDirectoryPath, `${encodeURIComponent(runId)}.json`);
   }
 
   private async deleteSessionFiles(sessionId: string): Promise<void> {
@@ -659,12 +765,44 @@ export class JsonSessionStore implements SessionStore {
 
     await Promise.all([
       rm(detailPath, { force: true }),
+      this.deleteRunEventFilesForSession(sessionId),
       rm(join(this.getArtifactDirectoryPath(), encodeURIComponent(sessionId)), {
         force: true,
         recursive: true,
       }),
     ]);
     this.db.clearCache(detailPath);
+  }
+
+  private async deleteRunEventFilesForSession(sessionId: string): Promise<void> {
+    let fileNames: string[];
+
+    try {
+      fileNames = await readdir(this.runEventDirectoryPath);
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return;
+      }
+
+      throw error;
+    }
+
+    await Promise.all(
+      fileNames.map(async (fileName) => {
+        const filePath = join(this.runEventDirectoryPath, fileName);
+
+        try {
+          const data = normalizeRunEventsData(await this.db.read<unknown>(filePath));
+
+          if (data.events.some((event) => event.sessionId === sessionId)) {
+            await rm(filePath, { force: true });
+            this.db.clearCache(filePath);
+          }
+        } catch {
+          // A corrupt auxiliary run-events file should not block session expiry cleanup.
+        }
+      }),
+    );
   }
 }
 
@@ -719,6 +857,28 @@ function normalizeSessionDetail(data: unknown, sessionId: string): SessionDetail
     messages: parseArray<ChatMessage>(detail.messages),
     rounds: parseArray<StoredChatRound>(detail.rounds),
     queuedPrompts: parseArray<QueuedPrompt>(detail.queuedPrompts),
+  };
+}
+
+function normalizeRunEventsData(data: unknown, runId?: string): RunEventsData {
+  const store = isRecord(data) ? data : {};
+
+  if (store.version !== STORE_VERSION) {
+    throw new Error(`Unsupported run event store version: ${String(store.version)}`);
+  }
+
+  if (runId !== undefined && store.runId !== runId) {
+    throw new Error(`Run event id mismatch: expected ${runId}`);
+  }
+
+  const storedRunId = typeof store.runId === "string" ? store.runId : "";
+
+  return {
+    version: STORE_VERSION,
+    runId: storedRunId,
+    events: parseArray<PersistedRunStreamEvent>(store.events).filter(
+      (event) => event.runId === storedRunId,
+    ),
   };
 }
 
@@ -872,6 +1032,10 @@ function createPagination(
 
 function normalizePositiveInteger(value: number | undefined, fallback: number): number {
   return value !== undefined && Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function normalizeNonNegativeInteger(value: number | undefined, fallback: number): number {
+  return value !== undefined && Number.isInteger(value) && value >= 0 ? value : fallback;
 }
 
 function getCurrentRoundFromSession(session: ChatSession): number {

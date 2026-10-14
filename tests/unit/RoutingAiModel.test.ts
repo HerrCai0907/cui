@@ -20,7 +20,7 @@ for (const harness of [undefined, "traex", "codex"] as const) {
         cancel: () => undefined,
         promise: Promise.resolve({
           content: JSON.stringify({ title: "Title", progress: "Progress", items: [] }),
-          rawEvents,
+          rawEventCount: rawEvents.length,
           beforeSnapshot: { gitCommit: "base", diff: "before" },
           afterSnapshot: { gitCommit: "base", diff: "after" },
         }),
@@ -70,7 +70,6 @@ for (const harness of [undefined, "traex", "codex"] as const) {
       originalSessionId: created.sessionId,
       round: 1,
       sessionInput: "test",
-      executionTrace: "",
       assistantOutput: "Done.",
       diff: "",
     });
