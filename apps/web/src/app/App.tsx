@@ -11,7 +11,7 @@ import {
   type ReasoningEffort,
 } from "../features/config/model/appConfig";
 import { isAndroidSshTunnelAvailable } from "../features/config/model/androidSshTunnel";
-import { ReviewPage } from "../features/review/components/ReviewPage";
+import { ReviewPage, type ReviewRoundNavigation } from "../features/review/components/ReviewPage";
 import { getRoundReview } from "../features/review/api/reviewApi";
 import type {
   ReviewNavigation,
@@ -27,7 +27,7 @@ import { Composer } from "../features/sessions/components/Composer";
 import { MessageStream } from "../features/sessions/components/MessageStream";
 import { SessionSidebar } from "../features/sessions/components/SessionSidebar";
 import { useSessionController } from "../features/sessions/hooks/useSessionController";
-import type { ApiRoundReview } from "../types";
+import type { ApiRoundReview, ApiSession } from "../types";
 
 const DEFAULT_WORKSPACE = "~";
 
@@ -53,6 +53,14 @@ export function App() {
   const mobileClient = mobileLayout || isEmbeddedAndroidApp();
   const showVscodeControls = !mobileClient;
   const showSshTunnelConfig = isAndroidSshTunnelAvailable();
+  const reviewRoundNavigation =
+    reviewRoute?.mode === "atomic"
+      ? createReviewRoundNavigation(
+          sessionController.activeSession,
+          reviewRoute.sessionId,
+          reviewRoute.round,
+        )
+      : null;
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -254,6 +262,22 @@ export function App() {
     }
   }
 
+  function openAtomicReviewRound(round: number) {
+    if (!reviewRoute) {
+      return;
+    }
+
+    const path = createReviewPath(reviewRoute.sessionId, round, "atomic");
+
+    navigateApp(path);
+    setReviewRoute(parseReviewRoute(path));
+    setReview(null);
+    setReviewError(null);
+    setReviewNavigation(null);
+    setReviewNavigationTarget(null);
+    setMobileNavigationOpen(false);
+  }
+
   function closeReview() {
     navigateApp("/");
     setConfigOpen(false);
@@ -371,11 +395,13 @@ export function App() {
             navigationTarget={reviewNavigationTarget}
             review={review}
             reviewRoute={reviewRoute}
+            roundNavigation={reviewRoundNavigation}
             sessionBlocked={
               sessionController.activeSessionBlocked ||
               sessionController.activeSession?.id !== reviewRoute.sessionId
             }
             onSubmitPrompt={sessionController.submitPrompt}
+            onOpenAtomicReviewRound={openAtomicReviewRound}
             onOpenFullReview={openFullReview}
             onCloseReview={closeReview}
             onReviewNavigationChange={setReviewNavigation}
@@ -431,4 +457,32 @@ export function App() {
 
 function isMobileLayoutViewport(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
+}
+
+function createReviewRoundNavigation(
+  session: ApiSession | null,
+  sessionId: string,
+  currentRound: number,
+): ReviewRoundNavigation | null {
+  if (!session || session.id !== sessionId) {
+    return null;
+  }
+
+  const rounds = (session.rounds ?? [])
+    .filter((round) => round.hasChanges && round.atomicReviewStatus)
+    .map((round) => round.round)
+    .filter((round) => Number.isInteger(round) && round > 0)
+    .sort((left, right) => left - right);
+  const currentIndex = rounds.indexOf(currentRound);
+
+  if (currentIndex === -1 || rounds.length < 2) {
+    return null;
+  }
+
+  return {
+    previousRound: rounds[currentIndex - 1],
+    nextRound: rounds[currentIndex + 1],
+    currentIndex: currentIndex + 1,
+    total: rounds.length,
+  };
 }

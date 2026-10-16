@@ -238,6 +238,110 @@ test("renders atomic review output for a round diff", async ({ page }) => {
   expect(browserErrors).toEqual([]);
 });
 
+test("switches atomic review between previous and next rounds", async ({ page }) => {
+  const session = {
+    id: "session-round-switch",
+    workspace: currentWorkspace,
+    title: "Round switch session",
+    summary: "A session with multiple reviewed rounds.",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [1, 2, 3].map((round) => ({
+      round,
+      hasChanges: true,
+      atomicReviewStatus: "ready",
+      createdAt: "2026-08-22T00:00:00.000Z",
+    })),
+  };
+
+  function createReview(round: number) {
+    const diff = [
+      `diff --git a/src/round-${round}.ts b/src/round-${round}.ts`,
+      `--- a/src/round-${round}.ts`,
+      `+++ b/src/round-${round}.ts`,
+      "@@ -1 +1 @@",
+      `-export const round = ${round - 1};`,
+      `+export const round = ${round};`,
+    ].join("\n");
+
+    return {
+      round,
+      beforeDiff: "",
+      afterDiff: diff,
+      diff,
+      hasChanges: true,
+      createdAt: "2026-08-22T00:00:00.000Z",
+      atomicReview: {
+        status: "ready",
+        generatedAt: "2026-08-22T00:00:00.000Z",
+        analysisSessionId: `analysis-session-${round}`,
+        rawResponse: "",
+        items: [
+          {
+            id: `atomic-${round}`,
+            order: 1,
+            capabilityType: 3,
+            capabilityLabel: "局部修复",
+            title: `Round ${round} change`,
+            intent: `Review the change from round ${round}.`,
+            files: [`src/round-${round}.ts`],
+            diff,
+            outputJson: {
+              id: `atomic-${round}`,
+              order: 1,
+              capability_type: 3,
+              capability_label: "局部修复",
+              title: `Round ${round} change`,
+              intent: `Review the change from round ${round}.`,
+              files: [`src/round-${round}.ts`],
+            },
+          },
+        ],
+      },
+    };
+  }
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+  await mockRoundReview(page, "session-round-switch", 1, createReview(1));
+  await mockRoundReview(page, "session-round-switch", 2, createReview(2));
+  await mockRoundReview(page, "session-round-switch", 3, createReview(3));
+
+  await page.goto("/ui/sessions/session-round-switch/rounds/2/atomic_review");
+
+  const roundSwitcher = page.getByRole("group", {
+    name: "Atomic review round navigation",
+  });
+
+  await expect(page.getByRole("heading", { name: "Round 2" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Round 2 change" })).toBeVisible();
+  await expect(roundSwitcher.getByText("2 / 3")).toBeVisible();
+  await expect(roundSwitcher.getByRole("button", { name: "Previous round" })).toBeEnabled();
+  await expect(roundSwitcher.getByRole("button", { name: "Next round" })).toBeEnabled();
+
+  await roundSwitcher.getByRole("button", { name: "Previous round" }).click();
+
+  await expect(page).toHaveURL(/\/ui\/sessions\/session-round-switch\/rounds\/1\/atomic_review$/);
+  await expect(page.getByRole("heading", { name: "Round 1" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Round 1 change" })).toBeVisible();
+  await expect(roundSwitcher.getByText("1 / 3")).toBeVisible();
+  await expect(roundSwitcher.getByRole("button", { name: "Previous round" })).toBeDisabled();
+  await expect(roundSwitcher.getByRole("button", { name: "Next round" })).toBeEnabled();
+
+  await roundSwitcher.getByRole("button", { name: "Next round" }).click();
+  await expect(page).toHaveURL(/\/ui\/sessions\/session-round-switch\/rounds\/2\/atomic_review$/);
+  await expect(page.getByRole("heading", { name: "Round 2 change" })).toBeVisible();
+
+  await roundSwitcher.getByRole("button", { name: "Next round" }).click();
+  await expect(page).toHaveURL(/\/ui\/sessions\/session-round-switch\/rounds\/3\/atomic_review$/);
+  await expect(page.getByRole("heading", { name: "Round 3" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Round 3 change" })).toBeVisible();
+  await expect(roundSwitcher.getByText("3 / 3")).toBeVisible();
+  await expect(roundSwitcher.getByRole("button", { name: "Previous round" })).toBeEnabled();
+  await expect(roundSwitcher.getByRole("button", { name: "Next round" })).toBeDisabled();
+});
+
 test("expands review diff context by 10 lines in each direction", async ({ page }) => {
   const session = {
     id: "session-context",

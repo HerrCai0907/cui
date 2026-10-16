@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { formatMessageTime } from "../../../shared/lib/dates";
 import type { ApiAtomicDiffReviewItem, ApiRoundReview } from "../../../types";
 import { createAtomicReviewCommentPrompt } from "../model/atomicReviewCommentPrompt";
@@ -13,17 +14,26 @@ import {
 import { reviewBrowserStateKey, type ReviewRoute } from "../model/reviewRoutes";
 import { ReviewDiff } from "./ReviewDiff";
 
+export type ReviewRoundNavigation = {
+  previousRound?: number;
+  nextRound?: number;
+  currentIndex: number;
+  total: number;
+};
+
 type ReviewPageProps = {
   error: string | null;
   loading: boolean;
   review: ApiRoundReview | null;
   reviewRoute: ReviewRoute;
+  roundNavigation: ReviewRoundNavigation | null;
   navigationTarget: ReviewNavigationTarget | null;
   sessionBlocked: boolean;
   onSubmitPrompt: (
     prompt: string,
     options?: { restoreDraftOnFailure?: boolean },
   ) => Promise<boolean>;
+  onOpenAtomicReviewRound: (round: number) => void;
   onOpenFullReview: () => void;
   onCloseReview: () => void;
   onReviewNavigationChange: (navigation: ReviewNavigation | null) => void;
@@ -34,9 +44,11 @@ export function ReviewPage({
   loading,
   review,
   reviewRoute,
+  roundNavigation,
   navigationTarget,
   sessionBlocked,
   onSubmitPrompt,
+  onOpenAtomicReviewRound,
   onOpenFullReview,
   onCloseReview,
   onReviewNavigationChange,
@@ -199,14 +211,71 @@ export function ReviewPage({
       {!loading && review && (
         <>
           <div className="review-summary">
-            <div>
-              <span className="section-label">Session</span>
-              <strong>{reviewRoute.sessionId}</strong>
+            <div className="review-summary-details">
+              <div>
+                <span className="section-label">Session</span>
+                <strong>{reviewRoute.sessionId}</strong>
+              </div>
+              <div>
+                <span className="section-label">Changed</span>
+                <strong>{formatMessageTime(review.createdAt)}</strong>
+              </div>
             </div>
-            <div>
-              <span className="section-label">Changed</span>
-              <strong>{formatMessageTime(review.createdAt)}</strong>
-            </div>
+            {reviewRoute.mode === "atomic" && roundNavigation && (
+              <div
+                className="review-round-switcher"
+                role="group"
+                aria-label="Atomic review round navigation"
+              >
+                <button
+                  className="secondary-button"
+                  type="button"
+                  aria-label="Previous round"
+                  title={
+                    roundNavigation.previousRound
+                      ? `Open round ${roundNavigation.previousRound}`
+                      : "No previous round"
+                  }
+                  disabled={!roundNavigation.previousRound}
+                  onClick={() => {
+                    if (roundNavigation.previousRound) {
+                      onOpenAtomicReviewRound(roundNavigation.previousRound);
+                    }
+                  }}
+                >
+                  <ChevronLeft size={16} />
+                  <span>
+                    {roundNavigation.previousRound
+                      ? `Round ${roundNavigation.previousRound}`
+                      : "Previous"}
+                  </span>
+                </button>
+                <span className="review-round-position">
+                  {roundNavigation.currentIndex} / {roundNavigation.total}
+                </span>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  aria-label="Next round"
+                  title={
+                    roundNavigation.nextRound
+                      ? `Open round ${roundNavigation.nextRound}`
+                      : "No next round"
+                  }
+                  disabled={!roundNavigation.nextRound}
+                  onClick={() => {
+                    if (roundNavigation.nextRound) {
+                      onOpenAtomicReviewRound(roundNavigation.nextRound);
+                    }
+                  }}
+                >
+                  <span>
+                    {roundNavigation.nextRound ? `Round ${roundNavigation.nextRound}` : "Next"}
+                  </span>
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
           </div>
           <ReviewDiff
             key={reviewBrowserStateKey(reviewRoute)}
