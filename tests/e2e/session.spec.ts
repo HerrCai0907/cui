@@ -933,6 +933,63 @@ test("supports expandable assistant code previews", async ({ page }) => {
   await expect(preview).toBeHidden();
 });
 
+test("keeps the source definition jump menu briefly after hover leaves", async ({ page }) => {
+  const filePath = `${currentWorkspace}/apps/web/src/app/App.tsx`;
+  const session = {
+    id: "session-code-preview-definition-hover",
+    workspace: currentWorkspace,
+    title: "Definition hover session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-1",
+        role: "assistant",
+        kind: "response",
+        content: `See [App.tsx](${filePath}:20).`,
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    rounds: [],
+  };
+
+  await mockSessions(page, [session]);
+  await mockSession(page, session);
+  await page.route("**/api/v1/source-files/content?**", async (route) => {
+    await fulfillJson(route, {
+      filePath,
+      startLine: 20,
+      endLine: 30,
+      code: "export function hoverTarget() {\n  return 1;\n}",
+      lines: [
+        { lineNumber: 20, content: "export function hoverTarget() {" },
+        { lineNumber: 21, content: "  return 1;" },
+        { lineNumber: 22, content: "}" },
+      ],
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "apps/web/src/app/App.tsx:20" }).click();
+
+  const preview = page.getByRole("dialog", { name: "Code preview" });
+  const sourceTarget = preview.locator(".source-definition-target");
+  await expect(sourceTarget).not.toHaveAttribute("title", /.+/);
+
+  const targetBox = await sourceTarget.boundingBox();
+  expect(targetBox).not.toBeNull();
+
+  await page.mouse.move(targetBox!.x + 32, targetBox!.y + 10);
+
+  const jumpButton = page.getByRole("menuitem", { name: "Jump to definition" });
+  await expect(jumpButton).toBeVisible({ timeout: 2000 });
+
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(500);
+  await expect(jumpButton).toBeVisible();
+  await expect(jumpButton).toBeHidden({ timeout: 800 });
+});
+
 test("supports assistant code previews for local markdown links outside the workspace", async ({
   page,
 }) => {
