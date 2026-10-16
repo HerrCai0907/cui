@@ -1075,6 +1075,43 @@
         },
         "required": ["filePath", "startLine", "endLine", "code", "lines"]
       },
+      "SourceDefinitionResponse": {
+        "type": "object",
+        "properties": {
+          "found": {
+            "type": "boolean"
+          },
+          "language": {
+            "type": "string"
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "filePath": {
+                "type": "string"
+              },
+              "startLine": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "startCharacter": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "endLine": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "endCharacter": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": ["filePath", "startLine", "startCharacter", "endLine", "endCharacter"]
+          }
+        },
+        "required": ["found", "language"]
+      },
       "WorkspaceGitInfoResponse": {
         "type": "object",
         "properties": {
@@ -3411,6 +3448,142 @@
             }
           },
           "404": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/source-files/definition": {
+      "get": {
+        "summary": "Jump to the source definition at a file position using a language server",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "workspace",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "filePath",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "required": true,
+            "name": "line",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": ["integer", "null"],
+              "minimum": 0
+            },
+            "required": false,
+            "name": "character",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["rust"]
+            },
+            "required": false,
+            "name": "language",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The definition target, when the language server finds one.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "found": {
+                      "type": "boolean"
+                    },
+                    "language": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "object",
+                      "properties": {
+                        "filePath": {
+                          "type": "string"
+                        },
+                        "startLine": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "startCharacter": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "endLine": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "endCharacter": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "filePath",
+                        "startLine",
+                        "startCharacter",
+                        "endLine",
+                        "endCharacter"
+                      ]
+                    }
+                  },
+                  "required": ["found", "language"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"]
+                }
+              }
+            }
+          },
+          "503": {
             "description": "Error response.",
             "content": {
               "application/json": {

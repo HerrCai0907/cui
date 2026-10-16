@@ -14,6 +14,7 @@ import {
   QueuedPromptParamsSchema,
   RoundReviewParamsSchema,
   RunEventsQuerySchema,
+  SourceDefinitionQuerySchema,
   UpdateSessionRequestSchema,
   WorkspaceGitInfoQuerySchema,
   WorkspacePathSuggestionsQuerySchema,
@@ -131,4 +132,10 @@ export function parseCodeRangeQuery(
   query: unknown,
 ): ParsedBody<z.infer<typeof CodeRangeQuerySchema>> {
   return parseWithSchema(CodeRangeQuerySchema, query);
+}
+
+export function parseSourceDefinitionQuery(
+  query: unknown,
+): ParsedBody<z.infer<typeof SourceDefinitionQuerySchema>> {
+  return parseWithSchema(SourceDefinitionQuerySchema, query);
 }

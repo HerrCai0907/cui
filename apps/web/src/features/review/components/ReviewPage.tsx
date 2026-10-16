@@ -26,6 +26,7 @@ type ReviewPageProps = {
   loading: boolean;
   review: ApiRoundReview | null;
   reviewRoute: ReviewRoute;
+  workspace: string;
   roundNavigation: ReviewRoundNavigation | null;
   navigationTarget: ReviewNavigationTarget | null;
   sessionBlocked: boolean;
@@ -44,6 +45,7 @@ export function ReviewPage({
   loading,
   review,
   reviewRoute,
+  workspace,
   roundNavigation,
   navigationTarget,
   sessionBlocked,
@@ -281,6 +283,7 @@ export function ReviewPage({
             key={reviewBrowserStateKey(reviewRoute)}
             review={review}
             sessionId={reviewRoute.sessionId}
+            workspace={workspace}
             round={reviewRoute.round}
             mode={reviewRoute.mode}
             reviewState={reviewState}

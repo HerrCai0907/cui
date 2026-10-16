@@ -22,6 +22,7 @@ import {
 type AtomicReviewProps = {
   review?: ApiAtomicDiffReview;
   sessionId: string;
+  workspace: string;
   round: number;
   itemStates: Record<string, AtomicReviewItemState>;
   commentCount: number;
@@ -38,6 +39,7 @@ type AtomicReviewProps = {
 export function AtomicReview({
   review,
   sessionId,
+  workspace,
   round,
   itemStates,
   commentCount,
@@ -87,6 +89,7 @@ export function AtomicReview({
           <AtomicReviewItem
             item={item}
             sessionId={sessionId}
+            workspace={workspace}
             round={round}
             itemState={itemStates[item.id] ?? createEmptyAtomicItemState()}
             key={item.id}
@@ -141,12 +144,14 @@ function AtomicReviewTopline({ onOpenFullReview }: { onOpenFullReview?: () => vo
 function AtomicReviewItem({
   item,
   sessionId,
+  workspace,
   round,
   itemState,
   onUpdateItemState,
 }: {
   item: ApiAtomicDiffReviewItem;
   sessionId: string;
+  workspace: string;
   round: number;
   itemState: AtomicReviewItemState;
   onUpdateItemState: (
@@ -257,6 +262,7 @@ function AtomicReviewItem({
         <div className={`atomic-review-change-block ${commentOpen ? "has-comment-open" : ""}`}>
           <DiffFileList
             files={files}
+            workspace={workspace}
             initialPages={initialPages}
             loadFilePage={
               item.diffSummary

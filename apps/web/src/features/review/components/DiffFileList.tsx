@@ -14,6 +14,7 @@ const AUTO_LOAD_DIFF_LINE_THRESHOLD = 80;
 
 type DiffFileListProps = {
   files: DiffFileListFile[];
+  workspace?: string;
   initialPages?: Record<string, ApiDiffFilePage>;
   loadFilePage?: (
     fileId: string,
@@ -31,6 +32,7 @@ type DiffFileListProps = {
 
 export function DiffFileList({
   files,
+  workspace,
   initialPages,
   loadFilePage,
   approvedFileIds,
@@ -84,6 +86,7 @@ export function DiffFileList({
             initialPage={initialPages?.[file.id]}
             key={file.id}
             loadFilePage={loadFilePage}
+            workspace={workspace}
             onToggleCommentLine={onToggleCommentLine}
             onToggleFile={toggleFile}
             onUpdateCommentDraft={onUpdateCommentDraft}
@@ -96,6 +99,7 @@ export function DiffFileList({
 
 function DiffFilePanel({
   file,
+  workspace,
   approved,
   initialPage,
   loadFilePage,
@@ -108,6 +112,7 @@ function DiffFilePanel({
   onUpdateCommentDraft,
 }: {
   file: DiffFileListFile;
+  workspace?: string;
   approved: boolean;
   initialPage?: ApiDiffFilePage;
   loadFilePage?: DiffFileListProps["loadFilePage"];
@@ -266,6 +271,7 @@ function DiffFilePanel({
                 <DiffRow
                   filePath={file.path}
                   line={line}
+                  workspace={workspace}
                   key={line.id}
                   commentOpen={commentLineId === line.id}
                   commentDraft={commentDraft}

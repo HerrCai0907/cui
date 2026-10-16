@@ -425,6 +425,31 @@ export const CodeRangeResponseSchema = z.object({
   lines: z.array(CodeLineSchema),
 });
 
+export const SourceDefinitionQuerySchema = z.object({
+  workspace: nonEmptyStringSchema,
+  filePath: z.string().trim().min(1, "filePath must be a non-empty string"),
+  line: startLineSchema,
+  character: z.coerce
+    .number("character must be a non-negative integer")
+    .int("character must be a non-negative integer")
+    .nonnegative("character must be a non-negative integer"),
+  language: z.enum(["rust"]).optional(),
+});
+
+export const SourceLocationRangeSchema = z.object({
+  filePath: z.string(),
+  startLine: z.number().int().positive(),
+  startCharacter: z.number().int().nonnegative(),
+  endLine: z.number().int().positive(),
+  endCharacter: z.number().int().nonnegative(),
+});
+
+export const SourceDefinitionResponseSchema = z.object({
+  found: z.boolean(),
+  language: z.string(),
+  target: SourceLocationRangeSchema.optional(),
+});
+
 export const WorkspaceGitInfoResponseSchema = z.object({
   workspace: z.string(),
   gitBranch: z.string().optional(),
@@ -560,5 +585,7 @@ export type QueuedPromptParamsContract = z.infer<typeof QueuedPromptParamsSchema
 export type RunEventsQueryContract = z.infer<typeof RunEventsQuerySchema>;
 export type CodeRangeRequestContract = z.infer<typeof CodeRangeQuerySchema>;
 export type CodeRangeResponseContract = z.infer<typeof CodeRangeResponseSchema>;
+export type SourceDefinitionRequestContract = z.infer<typeof SourceDefinitionQuerySchema>;
+export type SourceDefinitionResponseContract = z.infer<typeof SourceDefinitionResponseSchema>;
 export type WorkspaceGitInfoRequestContract = z.infer<typeof WorkspaceGitInfoQuerySchema>;
 export type WorkspaceGitInfoResponseContract = z.infer<typeof WorkspaceGitInfoResponseSchema>;

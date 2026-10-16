@@ -5,6 +5,7 @@ import {
   parseGetSessionMessagesQuery,
   parseGetSessionQuery,
   parseRunEventsQuery,
+  parseSourceDefinitionQuery,
 } from "../../apps/api/src/http/validation/requestParsers.js";
 
 test("parseGetSessionQuery accepts comma-separated trace message types", () => {
@@ -64,4 +65,30 @@ test("parseListModelsQuery accepts supported harness filters", () => {
     value: {},
   });
   assert.equal(parseListModelsQuery({ harness: "invalid" }).ok, false);
+});
+
+test("parseSourceDefinitionQuery coerces position fields", () => {
+  const parsed = parseSourceDefinitionQuery({
+    workspace: "/workspace",
+    filePath: "src/lib.rs",
+    line: "12",
+    character: "4",
+  });
+
+  assert.equal(parsed.ok, true);
+  assert.deepEqual(parsed.ok ? parsed.value : undefined, {
+    workspace: "/workspace",
+    filePath: "src/lib.rs",
+    line: 12,
+    character: 4,
+  });
+  assert.equal(
+    parseSourceDefinitionQuery({
+      workspace: "/workspace",
+      filePath: "src/lib.rs",
+      line: "0",
+      character: "4",
+    }).ok,
+    false,
+  );
 });

@@ -395,6 +395,7 @@ export function App() {
             navigationTarget={reviewNavigationTarget}
             review={review}
             reviewRoute={reviewRoute}
+            workspace={sessionController.activeSession?.workspace ?? ""}
             roundNavigation={reviewRoundNavigation}
             sessionBlocked={
               sessionController.activeSessionBlocked ||

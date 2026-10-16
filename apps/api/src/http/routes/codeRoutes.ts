@@ -6,15 +6,24 @@ import {
   CodeRangeTooLargeError,
   type CodeQueryService,
 } from "../../domain/code/CodeQueryService.js";
+import {
+  UnsupportedLanguageServerError,
+  type SourceDefinitionService,
+} from "../../domain/lsp/SourceDefinitionService.js";
 import { InvalidPathError } from "../../domain/paths/pathValidation.js";
+import { LanguageServerProcessError } from "../../infrastructure/lsp/JsonRpcLanguageClient.js";
 import { suggestWorkspacePaths } from "../../domain/paths/workspacePaths.js";
 import {
   parseCodeRangeQuery,
+  parseSourceDefinitionQuery,
   parseWorkspaceGitInfoQuery,
   parseWorkspacePathSuggestionsQuery,
 } from "../validation/requestParsers.js";
 
-export function createCodeRouter(codeQueryService: CodeQueryService): Router {
+export function createCodeRouter(
+  codeQueryService: CodeQueryService,
+  sourceDefinitionService: SourceDefinitionService,
+): Router {
   const router = Router();
 
   router.get("/api/v1/workspaces/path-suggestions", async (request, response, next) => {
@@ -89,6 +98,33 @@ export function createCodeRouter(codeQueryService: CodeQueryService): Router {
 
       if (error instanceof InvalidPathError) {
         response.status(400).json({ error: error.message });
+        return;
+      }
+
+      next(error);
+    }
+  });
+
+  router.get("/api/v1/source-files/definition", async (request, response, next) => {
+    try {
+      const parsed = parseSourceDefinitionQuery(request.query);
+
+      if (!parsed.ok) {
+        response.status(400).json({ error: parsed.error });
+        return;
+      }
+
+      const result = await sourceDefinitionService.findDefinition(parsed.value);
+
+      response.json(result);
+    } catch (error) {
+      if (error instanceof UnsupportedLanguageServerError || error instanceof InvalidPathError) {
+        response.status(400).json({ error: error.message });
+        return;
+      }
+
+      if (error instanceof LanguageServerProcessError) {
+        response.status(503).json({ error: error.message });
         return;
       }
 

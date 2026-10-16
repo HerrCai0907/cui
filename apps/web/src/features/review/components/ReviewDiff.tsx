@@ -13,6 +13,7 @@ import {
 type ReviewDiffProps = {
   review: ApiRoundReview;
   sessionId: string;
+  workspace: string;
   round: number;
   mode: "atomic" | "full";
   reviewState: ReviewBrowserState;
@@ -27,6 +28,7 @@ type ReviewDiffProps = {
 export function ReviewDiff({
   review,
   sessionId,
+  workspace,
   round,
   mode,
   reviewState,
@@ -67,6 +69,7 @@ export function ReviewDiff({
         <AtomicReview
           review={review.atomicReview}
           sessionId={sessionId}
+          workspace={workspace}
           round={round}
           itemStates={reviewState.atomicItems}
           commentCount={commentCount}
@@ -103,6 +106,7 @@ export function ReviewDiff({
         </header>
         <DiffFileList
           files={files}
+          workspace={workspace}
           initialPages={initialPages}
           loadFilePage={
             review.diffSummary
