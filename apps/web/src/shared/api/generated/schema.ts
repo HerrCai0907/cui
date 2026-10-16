@@ -222,6 +222,80 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/source-files/definition": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Jump to the source definition at a file position using a language server */
+    get: {
+      parameters: {
+        query: {
+          workspace: string;
+          filePath: string;
+          line: number;
+          character?: number | null;
+          language?: "rust";
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The definition target, when the language server finds one. */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              found: boolean;
+              language: string;
+              target?: {
+                filePath: string;
+                startLine: number;
+                startCharacter: number;
+                endLine: number;
+                endCharacter: number;
+              };
+            };
+          };
+        };
+        /** @description Error response. */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+        /** @description Error response. */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              error: string;
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/models": {
     parameters: {
       query?: never;
@@ -2311,6 +2385,17 @@ export interface components {
         lineNumber: number;
         content: string;
       }[];
+    };
+    SourceDefinitionResponse: {
+      found: boolean;
+      language: string;
+      target?: {
+        filePath: string;
+        startLine: number;
+        startCharacter: number;
+        endLine: number;
+        endCharacter: number;
+      };
     };
     WorkspaceGitInfoResponse: {
       workspace: string;

@@ -1006,6 +1006,12 @@
   vertical-align: baseline;
 }
 
+.source-definition-target {
+  position: relative;
+  display: inline;
+  cursor: text;
+}
+
 .message-code-link {
   display: inline-flex;
   max-width: min(360px, 100%);
@@ -1052,6 +1058,11 @@
   box-shadow: 0 18px 44px rgb(15 23 42 / 18%);
   color: #1f2937;
   line-height: 1.45;
+}
+
+.source-definition-status {
+  width: max-content;
+  min-width: 180px;
 }
 
 .message-code-card.is-dragging {

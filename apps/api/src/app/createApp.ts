@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 import type { AppLogger } from "../infrastructure/logging/AppLogger.js";
 import { createOpenApiDocument } from "../contracts/openapi.js";
+import type { SourceDefinitionService } from "../domain/lsp/SourceDefinitionService.js";
 import type { SessionService } from "../domain/sessions/SessionService.js";
 import type { CodeQueryService } from "../domain/code/CodeQueryService.js";
 import { createErrorHandler } from "../http/middleware/errorHandler.js";
@@ -19,6 +20,7 @@ export function createApp(input: {
   aiModel: AiModel;
   sessionService: SessionService;
   codeQueryService: CodeQueryService;
+  sourceDefinitionService: SourceDefinitionService;
 }): express.Express {
   const app = express();
 
@@ -31,7 +33,7 @@ export function createApp(input: {
   });
   app.use(createHealthRouter());
   app.use(createModelRouter(input.aiModel));
-  app.use(createCodeRouter(input.codeQueryService));
+  app.use(createCodeRouter(input.codeQueryService, input.sourceDefinitionService));
   app.use(createSessionRouter(input.sessionService));
   app.use(createRunRouter(input.sessionService));
   app.use(createErrorHandler(input.logger));

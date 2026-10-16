@@ -11,6 +11,7 @@ import { AppLogger } from "./infrastructure/logging/AppLogger.js";
 import { SessionService } from "./domain/sessions/SessionService.js";
 import { WorkerSessionStore } from "./infrastructure/store/WorkerSessionStore.js";
 import { CodeQueryService } from "./domain/code/CodeQueryService.js";
+import { SourceDefinitionService } from "./domain/lsp/SourceDefinitionService.js";
 
 dotenv.config();
 
@@ -23,7 +24,14 @@ const aiModel = new RoutingAiModel({
 const sessionStore = new WorkerSessionStore();
 const sessionService = new SessionService(aiModel, sessionStore, logger);
 const codeQueryService = new CodeQueryService();
-const app = createApp({ logger, aiModel, sessionService, codeQueryService });
+const sourceDefinitionService = new SourceDefinitionService();
+const app = createApp({
+  logger,
+  aiModel,
+  sessionService,
+  codeQueryService,
+  sourceDefinitionService,
+});
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const SESSION_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
@@ -71,6 +79,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
     clearInterval(sessionCleanupTimer);
     server.close(() => {
+      sourceDefinitionService.close();
       sessionStore.close();
       void logger.framework.info("server.stopped", { signal });
       process.exit(0);

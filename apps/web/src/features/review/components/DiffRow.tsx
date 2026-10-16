@@ -1,10 +1,12 @@
 import { ChevronsDown, ChevronsUp, MessageSquare, X } from "lucide-react";
+import { SourceDefinitionNavigator } from "../../code/components/CodePreviewPopup";
 import { markerForKind, type DiffLine } from "../model/diffParser";
 import { HighlightedCode } from "./HighlightedCode";
 
 type DiffRowProps = {
   filePath: string;
   line: DiffLine;
+  workspace?: string;
   commentOpen?: boolean;
   commentDraft?: string;
   hasComment?: boolean;
@@ -17,6 +19,7 @@ type DiffRowProps = {
 export function DiffRow({
   filePath,
   line,
+  workspace,
   commentOpen = false,
   commentDraft = "",
   hasComment = false,
@@ -59,7 +62,14 @@ export function DiffRow({
         <span className="review-diff-line-number">{line.newLine ?? ""}</span>
         <code>
           <span className="review-diff-marker">{markerForKind(line.kind)}</span>
-          <HighlightedCode content={line.content} filePath={filePath} />
+          <SourceDefinitionNavigator
+            className="source-definition-target"
+            filePath={filePath}
+            startLine={line.newLine ?? line.oldLine ?? 1}
+            workspace={workspace}
+          >
+            <HighlightedCode content={line.content} filePath={filePath} />
+          </SourceDefinitionNavigator>
         </code>
         {canComment && (
           <span className="review-diff-comment-cell">

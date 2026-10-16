@@ -34,6 +34,8 @@ import {
   RunEventsQuerySchema,
   RunSchema,
   SessionIdParamsSchema,
+  SourceDefinitionQuerySchema,
+  SourceDefinitionResponseSchema,
   SubmittedRunResponseSchema,
   RunIdParamsSchema,
   RunStreamEventSchema,
@@ -59,6 +61,7 @@ registry.register("MessagePageInfo", GetSessionMessagesResponseSchema.shape.page
 registry.register("QueuedPrompt", QueuedPromptSchema);
 registry.register("AiModelPreferences", AiModelPreferencesSchema);
 registry.register("CodeRangeResponse", CodeRangeResponseSchema);
+registry.register("SourceDefinitionResponse", SourceDefinitionResponseSchema);
 registry.register("WorkspaceGitInfoResponse", WorkspaceGitInfoResponseSchema);
 registry.register("WorkspacePathSuggestionsResponse", WorkspacePathSuggestionsResponseSchema);
 registry.register("CreateSessionRequest", CreateSessionRequestSchema);
@@ -150,6 +153,27 @@ registry.registerPath({
     },
     400: errorResponse,
     404: errorResponse,
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/v1/source-files/definition",
+  summary: "Jump to the source definition at a file position using a language server",
+  request: {
+    query: SourceDefinitionQuerySchema,
+  },
+  responses: {
+    200: {
+      description: "The definition target, when the language server finds one.",
+      content: {
+        "application/json": {
+          schema: SourceDefinitionResponseSchema,
+        },
+      },
+    },
+    400: errorResponse,
+    503: errorResponse,
   },
 });
 
