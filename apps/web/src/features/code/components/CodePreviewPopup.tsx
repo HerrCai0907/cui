@@ -74,6 +74,7 @@ type SourceDefinitionMenuState = {
 };
 
 const SOURCE_DEFINITION_MENU_DELAY_MS = 1000;
+const SOURCE_DEFINITION_MENU_HIDE_DELAY_MS = 1000;
 
 export type CodeLocationTarget = CodeRangeQuery;
 
@@ -130,6 +131,7 @@ export function SourceDefinitionNavigator({
 }) {
   const containerRef = useRef<HTMLSpanElement | null>(null);
   const hoverTimerRef = useRef<number | undefined>(undefined);
+  const hideTimerRef = useRef<number | undefined>(undefined);
   const hoverPointRef = useRef<SourceDefinitionMenuState | undefined>(undefined);
   const [lookup, setLookup] = useState<DefinitionLookupState>({ status: "idle" });
   const [menu, setMenu] = useState<SourceDefinitionMenuState | undefined>(undefined);
@@ -141,11 +143,15 @@ export function SourceDefinitionNavigator({
   );
 
   useEffect(() => {
-    return () => clearHoverTimer();
+    return () => {
+      clearHoverTimer();
+      clearHideTimer();
+    };
   }, []);
 
   function closeDefinitionOverlays() {
     clearHoverTimer();
+    clearHideTimer();
     setMenu(undefined);
     setLookup({ status: "idle" });
   }
@@ -154,6 +160,8 @@ export function SourceDefinitionNavigator({
     if (!workspace || event.pointerType === "touch") {
       return;
     }
+
+    clearHideTimer();
 
     if (event.target instanceof Element && event.target.closest(".source-definition-menu")) {
       return;
@@ -193,10 +201,24 @@ export function SourceDefinitionNavigator({
     hoverTimerRef.current = undefined;
   }
 
-  function hideDefinitionMenu() {
+  function clearHideTimer() {
+    if (hideTimerRef.current === undefined) {
+      return;
+    }
+
+    window.clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = undefined;
+  }
+
+  function scheduleHideDefinitionMenu() {
     clearHoverTimer();
-    hoverPointRef.current = undefined;
-    setMenu(undefined);
+    clearHideTimer();
+
+    hideTimerRef.current = window.setTimeout(() => {
+      hoverPointRef.current = undefined;
+      setMenu(undefined);
+      hideTimerRef.current = undefined;
+    }, SOURCE_DEFINITION_MENU_HIDE_DELAY_MS);
   }
 
   async function openDefinitionFromMenu() {
@@ -259,9 +281,9 @@ export function SourceDefinitionNavigator({
     <span
       className={sourceDefinitionTargetClassName(className)}
       ref={containerRef}
+      onPointerEnter={clearHideTimer}
       onPointerMove={scheduleDefinitionMenu}
-      onPointerLeave={hideDefinitionMenu}
-      title={workspace ? "Hover over a symbol to jump to definition" : undefined}
+      onPointerLeave={scheduleHideDefinitionMenu}
     >
       {children}
       {menu && lookup.status !== "loading" && lookup.status !== "ready" && (
