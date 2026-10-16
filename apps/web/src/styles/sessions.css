@@ -1012,6 +1012,48 @@
   cursor: text;
 }
 
+.source-definition-menu {
+  position: absolute;
+  z-index: 24;
+  display: inline-flex;
+  min-width: 170px;
+  border: 1px solid #c9d5e3;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 16%);
+  padding: 4px;
+  white-space: nowrap;
+}
+
+.source-definition-menu-item {
+  display: inline-flex;
+  width: 100%;
+  min-height: 28px;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #123b61;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+  padding: 0 8px;
+  text-align: left;
+}
+
+.source-definition-menu-item:hover,
+.source-definition-menu-item:focus-visible {
+  background: #eef6ff;
+  outline: none;
+}
+
+.source-definition-menu-item svg {
+  flex: 0 0 auto;
+}
+
 .message-code-link {
   display: inline-flex;
   max-width: min(360px, 100%);

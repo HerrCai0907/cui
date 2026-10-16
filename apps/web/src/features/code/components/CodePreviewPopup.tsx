@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, FileCode, Loader2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, FileCode, Loader2, SquareArrowOutUpRight, X } from "lucide-react";
 import {
   useEffect,
   useRef,
@@ -66,6 +66,15 @@ type CodeCardPointerDownState = {
   y: number;
 };
 
+type SourceDefinitionMenuState = {
+  x: number;
+  y: number;
+  clientX: number;
+  clientY: number;
+};
+
+const SOURCE_DEFINITION_MENU_DELAY_MS = 1000;
+
 export type CodeLocationTarget = CodeRangeQuery;
 
 export function CodePreviewButton({
@@ -120,25 +129,101 @@ export function SourceDefinitionNavigator({
   workspace?: string;
 }) {
   const containerRef = useRef<HTMLSpanElement | null>(null);
+  const hoverTimerRef = useRef<number | undefined>(undefined);
+  const hoverPointRef = useRef<SourceDefinitionMenuState | undefined>(undefined);
   const [lookup, setLookup] = useState<DefinitionLookupState>({ status: "idle" });
+  const [menu, setMenu] = useState<SourceDefinitionMenuState | undefined>(undefined);
 
   useCloseOnOutsidePointerDown(
-    lookup.status === "ready" || lookup.status === "error",
+    Boolean(menu) || lookup.status === "ready" || lookup.status === "error",
     containerRef,
-    () => setLookup({ status: "idle" }),
+    () => closeDefinitionOverlays(),
   );
 
-  async function openDefinition() {
+  useEffect(() => {
+    return () => clearHoverTimer();
+  }, []);
+
+  function closeDefinitionOverlays() {
+    clearHoverTimer();
+    setMenu(undefined);
+    setLookup({ status: "idle" });
+  }
+
+  function scheduleDefinitionMenu(event: ReactPointerEvent<HTMLElement>) {
+    if (!workspace || event.pointerType === "touch") {
+      return;
+    }
+
+    if (event.target instanceof Element && event.target.closest(".source-definition-menu")) {
+      return;
+    }
+
+    const nextMenu = readSourceDefinitionMenuState(
+      containerRef.current,
+      event.clientX,
+      event.clientY,
+    );
+
+    if (!nextMenu) {
+      clearHoverTimer();
+      setMenu(undefined);
+      return;
+    }
+
+    if (lookup.status === "error") {
+      setLookup({ status: "idle" });
+    }
+
+    hoverPointRef.current = nextMenu;
+    clearHoverTimer();
+
+    hoverTimerRef.current = window.setTimeout(() => {
+      setMenu(hoverPointRef.current);
+      hoverTimerRef.current = undefined;
+    }, SOURCE_DEFINITION_MENU_DELAY_MS);
+  }
+
+  function clearHoverTimer() {
+    if (hoverTimerRef.current === undefined) {
+      return;
+    }
+
+    window.clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = undefined;
+  }
+
+  function hideDefinitionMenu() {
+    clearHoverTimer();
+    hoverPointRef.current = undefined;
+    setMenu(undefined);
+  }
+
+  async function openDefinitionFromMenu() {
     if (!workspace) {
       return;
     }
 
-    const position = readSelectedCodePosition(containerRef.current, startLine);
+    const hoverPoint = menu ?? hoverPointRef.current;
 
-    if (!position) {
+    if (!hoverPoint) {
+      setLookup({ status: "error", message: "Hover over a symbol first" });
       return;
     }
 
+    const position = readSelectedCodePosition(
+      containerRef.current,
+      startLine,
+      hoverPoint.clientX,
+      hoverPoint.clientY,
+    );
+
+    if (!position) {
+      setLookup({ status: "error", message: "Hover over a symbol first" });
+      return;
+    }
+
+    setMenu(undefined);
     setLookup({ status: "loading" });
 
     try {
@@ -172,12 +257,26 @@ export function SourceDefinitionNavigator({
 
   return (
     <span
-      className={className}
+      className={sourceDefinitionTargetClassName(className)}
       ref={containerRef}
-      onDoubleClick={() => void openDefinition()}
-      title={workspace ? "Double-click a symbol to jump to definition" : undefined}
+      onPointerMove={scheduleDefinitionMenu}
+      onPointerLeave={hideDefinitionMenu}
+      title={workspace ? "Hover over a symbol to jump to definition" : undefined}
     >
       {children}
+      {menu && lookup.status !== "loading" && lookup.status !== "ready" && (
+        <span className="source-definition-menu" style={{ left: menu.x, top: menu.y }} role="menu">
+          <button
+            className="source-definition-menu-item"
+            type="button"
+            role="menuitem"
+            onClick={() => void openDefinitionFromMenu()}
+          >
+            <SquareArrowOutUpRight size={14} />
+            Jump to definition
+          </button>
+        </span>
+      )}
       {lookup.status === "loading" && (
         <span className="message-code-card source-definition-status" role="status">
           <span className="message-code-card-status">
@@ -474,9 +573,20 @@ function useCloseOnOutsidePointerDown(
 function readSelectedCodePosition(
   container: HTMLElement | null,
   startLine: number,
+  clientX?: number,
+  clientY?: number,
 ): { line: number; character: number } | undefined {
   if (!container) {
     return undefined;
+  }
+
+  const pointerPosition =
+    clientX === undefined || clientY === undefined
+      ? undefined
+      : readCodePositionFromPoint(container, startLine, clientX, clientY);
+
+  if (pointerPosition) {
+    return pointerPosition;
   }
 
   const selection = window.getSelection();
@@ -491,10 +601,48 @@ function readSelectedCodePosition(
     return undefined;
   }
 
+  return readCodePositionFromRangeBoundary(
+    container,
+    startLine,
+    range.startContainer,
+    range.startOffset,
+  );
+}
+
+function readCodePositionFromPoint(
+  container: HTMLElement,
+  startLine: number,
+  clientX: number,
+  clientY: number,
+): { line: number; character: number } | undefined {
+  const range = getCaretRangeFromPoint(clientX, clientY);
+
+  if (!range || !container.contains(range.startContainer)) {
+    return undefined;
+  }
+
+  return readCodePositionFromRangeBoundary(
+    container,
+    startLine,
+    range.startContainer,
+    range.startOffset,
+  );
+}
+
+function readCodePositionFromRangeBoundary(
+  container: HTMLElement,
+  startLine: number,
+  node: Node,
+  offset: number,
+): { line: number; character: number } | undefined {
   const prefixRange = document.createRange();
 
-  prefixRange.setStart(container, 0);
-  prefixRange.setEnd(range.startContainer, range.startOffset);
+  try {
+    prefixRange.setStart(container, 0);
+    prefixRange.setEnd(node, offset);
+  } catch {
+    return undefined;
+  }
 
   const prefix = prefixRange.toString();
   const lines = prefix.split("\n");
@@ -503,6 +651,61 @@ function readSelectedCodePosition(
     line: startLine + lines.length - 1,
     character: lines.at(-1)?.length ?? 0,
   };
+}
+
+function getCaretRangeFromPoint(clientX: number, clientY: number): Range | undefined {
+  const documentWithCaretApi = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+  };
+
+  const caretPosition = documentWithCaretApi.caretPositionFromPoint?.(clientX, clientY);
+
+  if (caretPosition) {
+    const range = document.createRange();
+
+    range.setStart(caretPosition.offsetNode, caretPosition.offset);
+    range.collapse(true);
+
+    return range;
+  }
+
+  return documentWithCaretApi.caretRangeFromPoint?.(clientX, clientY) ?? undefined;
+}
+
+function readSourceDefinitionMenuState(
+  container: HTMLElement | null,
+  clientX: number,
+  clientY: number,
+): SourceDefinitionMenuState | undefined {
+  if (!container) {
+    return undefined;
+  }
+
+  const range = getCaretRangeFromPoint(clientX, clientY);
+
+  if (!range || !container.contains(range.startContainer)) {
+    return undefined;
+  }
+
+  const bounds = container.getBoundingClientRect();
+
+  return {
+    x: Math.max(0, clientX - bounds.left),
+    y: Math.max(0, clientY - bounds.top + 18),
+    clientX,
+    clientY,
+  };
+}
+
+function sourceDefinitionTargetClassName(className: string | undefined): string {
+  if (!className) {
+    return "source-definition-target";
+  }
+
+  return className.split(/\s+/).includes("source-definition-target")
+    ? className
+    : `source-definition-target ${className}`;
 }
 
 function isInteractiveDragTarget(target: EventTarget): boolean {
