@@ -182,6 +182,23 @@
     overscroll-behavior: contain;
   }
 
+  .review-summary {
+    align-items: stretch;
+  }
+
+  .review-summary-details {
+    flex: 1 1 100%;
+  }
+
+  .review-round-switcher {
+    width: 100%;
+  }
+
+  .review-round-switcher .secondary-button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
   .message {
     grid-template-columns: 34px minmax(0, 1fr);
   }

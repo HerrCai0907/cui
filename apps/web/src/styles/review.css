@@ -19,6 +19,13 @@
   padding: 12px 14px;
 }
 
+.review-summary-details {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
 .review-summary strong {
   display: block;
   max-width: min(76vw, 960px);
@@ -27,6 +34,25 @@
   font-size: 0.88rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.review-round-switcher {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.review-round-switcher .secondary-button {
+  min-width: 118px;
+}
+
+.review-round-position {
+  min-width: 42px;
+  color: #667085;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
 }
 
 .review-diff {
