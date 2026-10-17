@@ -7,6 +7,7 @@ import {
   type RefObject,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { HighlightedCode } from "../../review/components/HighlightedCode";
 import {
   getCodeRange,
@@ -41,6 +42,7 @@ type DefinitionLookupState =
   | {
       status: "ready";
       target: CodeLocationTarget;
+      anchor: SourceDefinitionMenuState;
     }
   | {
       status: "error";
@@ -71,6 +73,16 @@ type SourceDefinitionMenuState = {
   y: number;
   clientX: number;
   clientY: number;
+};
+
+type FloatingCodePreviewPosition = {
+  left: number;
+  top: number;
+};
+
+type DefinitionPreviewState = {
+  anchor: SourceDefinitionMenuState;
+  target: CodeLocationTarget;
 };
 
 const SOURCE_DEFINITION_MENU_DELAY_MS = 1000;
@@ -120,12 +132,14 @@ export function SourceDefinitionNavigator({
   children,
   className,
   filePath,
+  onDefinitionTarget,
   startLine,
   workspace,
 }: {
   children: ReactNode;
   className?: string;
   filePath: string;
+  onDefinitionTarget?: (preview: DefinitionPreviewState) => void;
   startLine: number;
   workspace?: string;
 }) {
@@ -261,14 +275,19 @@ export function SourceDefinitionNavigator({
         return;
       }
 
-      setLookup({
-        status: "ready",
-        target: {
-          filePath: definition.target.filePath,
-          startLine: definition.target.startLine,
-          endLine: definition.target.endLine,
-        },
-      });
+      const target = {
+        filePath: definition.target.filePath,
+        startLine: definition.target.startLine,
+        endLine: definition.target.endLine,
+      };
+
+      if (onDefinitionTarget) {
+        onDefinitionTarget({ anchor: hoverPoint, target });
+        setLookup({ status: "idle" });
+        return;
+      }
+
+      setLookup({ status: "ready", anchor: hoverPoint, target });
     } catch (error) {
       setLookup({
         status: "error",
@@ -313,8 +332,8 @@ export function SourceDefinitionNavigator({
         </span>
       )}
       {lookup.status === "ready" && workspace && (
-        <FloatingCodePreview
-          key={formatCodePathForClipboard(lookup.target)}
+        <DefinitionCodePreviewPortal
+          anchor={lookup.anchor}
           target={lookup.target}
           workspace={workspace}
           onClose={() => setLookup({ status: "idle" })}
@@ -324,11 +343,40 @@ export function SourceDefinitionNavigator({
   );
 }
 
-function FloatingCodePreview({
+function DefinitionCodePreviewPortal({
+  anchor,
   onClose,
   target,
   workspace,
 }: {
+  anchor: SourceDefinitionMenuState | undefined;
+  onClose: () => void;
+  target: CodeLocationTarget;
+  workspace: string;
+}) {
+  if (!anchor) {
+    return null;
+  }
+
+  return createPortal(
+    <FloatingCodePreview
+      key={formatCodePathForClipboard(target)}
+      fixedPosition={readFloatingCodePreviewPosition(anchor)}
+      target={target}
+      workspace={workspace}
+      onClose={onClose}
+    />,
+    document.body,
+  );
+}
+
+function FloatingCodePreview({
+  fixedPosition,
+  onClose,
+  target,
+  workspace,
+}: {
+  fixedPosition?: FloatingCodePreviewPosition;
   onClose: () => void;
   target: CodeLocationTarget;
   workspace: string;
@@ -340,6 +388,9 @@ function FloatingCodePreview({
   const [query, setQuery] = useState<CodeLocationTarget>(() => getInitialCodePreviewQuery(target));
   const [cardOffset, setCardOffset] = useState<CodeCardOffset>({ x: 0, y: 0 });
   const [isDraggingCard, setIsDraggingCard] = useState(false);
+  const [definitionPreview, setDefinitionPreview] = useState<DefinitionPreviewState | undefined>(
+    undefined,
+  );
   const [pathCopied, setPathCopied] = useState(false);
 
   useEffect(() => {
@@ -478,91 +529,109 @@ function FloatingCodePreview({
   const hasRange = query.startLine !== undefined && query.endLine !== undefined;
 
   return (
-    <span
-      className={`message-code-card${isDraggingCard ? " is-dragging" : ""}`}
-      role="dialog"
-      aria-label="Code preview"
-      style={{ transform: `translate3d(${cardOffset.x}px, ${cardOffset.y}px, 0)` }}
-    >
+    <>
       <span
-        className="message-code-card-header"
-        onPointerDown={startCardDrag}
-        onPointerMove={dragCard}
-        onPointerUp={stopCardDrag}
-        onPointerCancel={stopCardDrag}
-        onDoubleClick={(event) => void copyCodePath(event.target)}
-        title="Double-click to copy code path"
+        className={`message-code-card${fixedPosition ? " is-fixed" : ""}${isDraggingCard ? " is-dragging" : ""}`}
+        role="dialog"
+        aria-label="Code preview"
+        style={{
+          ...(fixedPosition ? { left: fixedPosition.left, top: fixedPosition.top } : {}),
+          transform: `translate3d(${cardOffset.x}px, ${cardOffset.y}px, 0)`,
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
       >
-        <span className="message-code-card-title">
-          {target.filePath}
-          {hasRange
-            ? `:${query.startLine}${query.startLine === query.endLine ? "" : `-${query.endLine}`}`
-            : ""}
-        </span>
-        {pathCopied && <span className="message-code-card-copy-status">Copied</span>}
-        <button
-          className="message-code-card-close"
-          type="button"
-          aria-label="Close code preview"
-          onClick={onClose}
+        <span
+          className="message-code-card-header"
+          onPointerDown={startCardDrag}
+          onPointerMove={dragCard}
+          onPointerUp={stopCardDrag}
+          onPointerCancel={stopCardDrag}
+          onDoubleClick={(event) => void copyCodePath(event.target)}
+          title="Double-click to copy code path"
         >
-          <X size={14} />
-        </button>
-      </span>
-      {preview.status === "loading" && (
-        <span className="message-code-card-status">
-          <Loader2 size={14} />
-          Loading
-        </span>
-      )}
-      {preview.status === "error" && (
-        <span className="message-code-card-error">{preview.message}</span>
-      )}
-      {preview.status === "ready" && (
-        <span className="message-code-card-block">
-          <span className="message-code-card-code-stack">
-            {hasRange && (
-              <button
-                className="message-code-card-line-action"
-                type="button"
-                onClick={expandBackward}
-                disabled={preview.result.startLine <= 1}
-                title="Show 10 previous lines"
-                aria-label="Show 10 previous lines"
-              >
-                <ChevronUp size={14} />
-                <span className="message-code-card-line-range">
-                  Lines {preview.result.startLine}-{preview.result.endLine}
-                </span>
-              </button>
-            )}
-            <code>
-              <SourceDefinitionNavigator
-                filePath={preview.result.filePath}
-                startLine={preview.result.startLine}
-                workspace={workspace}
-              >
-                <HighlightedCode content={preview.result.code} filePath={preview.result.filePath} />
-              </SourceDefinitionNavigator>
-            </code>
-            {hasRange && (
-              <button
-                className="message-code-card-line-action"
-                type="button"
-                onClick={expandForward}
-                title="Show 10 next lines"
-                aria-label="Show 10 next lines"
-              >
-                <ChevronDown size={14} />
-                <span className="message-code-card-line-range">
-                  Lines {preview.result.startLine}-{preview.result.endLine}
-                </span>
-              </button>
-            )}
+          <span className="message-code-card-title">
+            {target.filePath}
+            {hasRange
+              ? `:${query.startLine}${query.startLine === query.endLine ? "" : `-${query.endLine}`}`
+              : ""}
           </span>
+          {pathCopied && <span className="message-code-card-copy-status">Copied</span>}
+          <button
+            className="message-code-card-close"
+            type="button"
+            aria-label="Close code preview"
+            onClick={onClose}
+          >
+            <X size={14} />
+          </button>
         </span>
+        {preview.status === "loading" && (
+          <span className="message-code-card-status">
+            <Loader2 size={14} />
+            Loading
+          </span>
+        )}
+        {preview.status === "error" && (
+          <span className="message-code-card-error">{preview.message}</span>
+        )}
+        {preview.status === "ready" && (
+          <span className="message-code-card-block">
+            <span className="message-code-card-code-stack">
+              {hasRange && (
+                <button
+                  className="message-code-card-line-action"
+                  type="button"
+                  onClick={expandBackward}
+                  disabled={preview.result.startLine <= 1}
+                  title="Show 10 previous lines"
+                  aria-label="Show 10 previous lines"
+                >
+                  <ChevronUp size={14} />
+                  <span className="message-code-card-line-range">
+                    Lines {preview.result.startLine}-{preview.result.endLine}
+                  </span>
+                </button>
+              )}
+              <code>
+                <SourceDefinitionNavigator
+                  filePath={preview.result.filePath}
+                  onDefinitionTarget={setDefinitionPreview}
+                  startLine={preview.result.startLine}
+                  workspace={workspace}
+                >
+                  <HighlightedCode
+                    content={preview.result.code}
+                    filePath={preview.result.filePath}
+                  />
+                </SourceDefinitionNavigator>
+              </code>
+              {hasRange && (
+                <button
+                  className="message-code-card-line-action"
+                  type="button"
+                  onClick={expandForward}
+                  title="Show 10 next lines"
+                  aria-label="Show 10 next lines"
+                >
+                  <ChevronDown size={14} />
+                  <span className="message-code-card-line-range">
+                    Lines {preview.result.startLine}-{preview.result.endLine}
+                  </span>
+                </button>
+              )}
+            </span>
+          </span>
+        )}
+      </span>
+      {definitionPreview && (
+        <DefinitionCodePreviewPortal
+          anchor={definitionPreview.anchor}
+          target={definitionPreview.target}
+          workspace={workspace}
+          onClose={() => setDefinitionPreview(undefined)}
+        />
       )}
-    </span>
+    </>
   );
 }
 
@@ -717,6 +786,18 @@ function readSourceDefinitionMenuState(
     y: Math.max(0, clientY - bounds.top + 18),
     clientX,
     clientY,
+  };
+}
+
+function readFloatingCodePreviewPosition(
+  anchor: SourceDefinitionMenuState,
+): FloatingCodePreviewPosition {
+  const maxLeft = Math.max(16, window.innerWidth - Math.min(720, window.innerWidth - 56) - 16);
+  const maxTop = Math.max(16, window.innerHeight - 260);
+
+  return {
+    left: Math.max(16, Math.min(anchor.clientX, maxLeft)),
+    top: Math.max(16, Math.min(anchor.clientY + 18, maxTop)),
   };
 }
 
