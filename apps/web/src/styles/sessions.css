@@ -1102,6 +1102,11 @@
   line-height: 1.45;
 }
 
+.message-code-card.is-fixed {
+  position: fixed;
+  z-index: 35;
+}
+
 .source-definition-status {
   width: max-content;
   min-width: 180px;

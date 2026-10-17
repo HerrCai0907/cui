@@ -14,8 +14,8 @@ const SKIPPED_DISCOVERY_DIRS = new Set([
   "build",
   ".idea",
 ]);
-const DEFINITION_RETRY_COUNT = 8;
-const DEFINITION_RETRY_DELAY_MS = 250;
+const DEFINITION_RETRY_COUNT = 30;
+const DEFINITION_RETRY_DELAY_MS = 500;
 
 export type LspRange = {
   start: {
@@ -40,7 +40,7 @@ type LspLocationLink = {
 
 type CachedRustAnalyzerClient = {
   client: JsonRpcLanguageClient;
-  openDocuments: Set<string>;
+  openDocuments: Map<string, number>;
 };
 
 export class RustAnalyzerProvider {
@@ -75,6 +75,8 @@ export class RustAnalyzerProvider {
         if (!isTransientDefinitionError(error) || attempt === DEFINITION_RETRY_COUNT) {
           throw error;
         }
+
+        await this.reopenDocument(cached, input.filePath, documentUri);
       }
 
       await delay(DEFINITION_RETRY_DELAY_MS);
@@ -124,7 +126,7 @@ export class RustAnalyzerProvider {
         })),
       },
     });
-    const cached = { client, openDocuments: new Set<string>() };
+    const cached = { client, openDocuments: new Map<string, number>() };
 
     this.clients.set(workspace, cached);
     try {
@@ -147,17 +149,43 @@ export class RustAnalyzerProvider {
       return;
     }
 
+    await this.openDocument(cached, filePath, documentUri, 1);
+  }
+
+  private async reopenDocument(
+    cached: CachedRustAnalyzerClient,
+    filePath: string,
+    documentUri: string,
+  ): Promise<void> {
+    const version = cached.openDocuments.get(documentUri);
+
+    if (version !== undefined) {
+      await cached.client.notify("textDocument/didClose", {
+        textDocument: { uri: documentUri },
+      });
+      cached.openDocuments.delete(documentUri);
+    }
+
+    await this.openDocument(cached, filePath, documentUri, (version ?? 0) + 1);
+  }
+
+  private async openDocument(
+    cached: CachedRustAnalyzerClient,
+    filePath: string,
+    documentUri: string,
+    version: number,
+  ): Promise<void> {
     const text = await readFile(filePath, "utf8");
 
     await cached.client.notify("textDocument/didOpen", {
       textDocument: {
         uri: documentUri,
         languageId: "rust",
-        version: 1,
+        version,
         text,
       },
     });
-    cached.openDocuments.add(documentUri);
+    cached.openDocuments.set(documentUri, version);
   }
 }
 
