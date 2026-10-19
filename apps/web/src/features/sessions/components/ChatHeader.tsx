@@ -26,13 +26,6 @@ export function ChatHeader({
   onOpenNavigation,
 }: ChatHeaderProps) {
   const gitInfo = activeSession ?? newSessionGitInfo;
-  const sectionLabel = configOpen
-    ? "Configuration"
-    : reviewRoute
-      ? reviewRoute.mode === "atomic"
-        ? "Atomic Review"
-        : "Full Review"
-      : "Session";
   const title = configOpen
     ? "Config"
     : reviewRoute
@@ -50,24 +43,17 @@ export function ChatHeader({
         <Menu size={20} />
       </button>
       <div className="chat-header-title">
-        <span className="section-label">{sectionLabel}</span>
         <h1>{title}</h1>
-        {reviewRoute && !configOpen ? (
-          <p className="session-progress">{activeSession?.title ?? reviewRoute.sessionId}</p>
-        ) : (
-          !configOpen &&
-          activeSession?.summary && <p className="session-progress">{activeSession.summary}</p>
-        )}
-      </div>
-      <div className="chat-header-actions">
         {!configOpen && <SessionGitInfoBadge gitInfo={gitInfo} />}
-        {reviewRoute && (
+      </div>
+      {reviewRoute && (
+        <div className="chat-header-actions">
           <button className="secondary-button" type="button" onClick={onCloseReview}>
             <ArrowLeft size={16} />
             Back
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </header>
   );
 }

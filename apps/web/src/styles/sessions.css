@@ -532,12 +532,16 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 72px;
+  min-height: 54px;
   border-bottom: 1px solid #e0e6ee;
-  padding: 14px 28px;
+  padding: 9px 28px;
 }
 
 .chat-header-title {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -552,8 +556,9 @@
 
 .session-git-info {
   display: inline-flex;
+  flex: 0 1 auto;
   min-width: 0;
-  max-width: min(34vw, 360px);
+  max-width: min(42vw, 420px);
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
@@ -600,19 +605,15 @@
 }
 
 .chat-header h1 {
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
   color: #151b23;
-  font-size: 1.1rem;
+  font-size: 1.04rem;
   line-height: 1.25;
   letter-spacing: 0;
-}
-
-.session-progress {
-  max-width: 760px;
-  margin: 5px 0 0;
-  color: #7b8491;
-  font-size: 0.82rem;
-  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .message-stream-shell {
