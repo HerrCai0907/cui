@@ -1,5 +1,7 @@
 import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
+  createDefaultModelPreferences,
+  createDefaultReasoningEffortPreferences,
   createModelRequestPreferences,
   getVisibleExecutionTraceMessageTypes,
   type AiHarness,
@@ -1084,6 +1086,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   }
 
   async function updateActiveSessionModelSelection(
+    harness: AiHarness,
     model: string,
     reasoningEffort: ReasoningEffort,
   ) {
@@ -1094,14 +1097,21 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     }
 
     const currentSelection = getSessionModelSelection(currentSession, config);
+    const harnessChanged = harness !== currentSelection.harness;
+    const baseModels = harnessChanged
+      ? createDefaultModelPreferences(harness)
+      : currentSelection.models;
+    const baseReasoningEfforts = harnessChanged
+      ? createDefaultReasoningEffortPreferences(harness)
+      : currentSelection.reasoningEfforts;
     const nextModels = createModelRequestPreferences(
-      currentSelection.harness,
+      harness,
       {
-        ...currentSelection.models,
+        ...baseModels,
         normal: model,
       },
       {
-        ...currentSelection.reasoningEfforts,
+        ...baseReasoningEfforts,
         normal: reasoningEffort,
       },
     );
@@ -1490,6 +1500,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
         ? sidebarSessionPartition.active.length
         : (sessionPageCacheRef.current.get(sessionPage)?.sessions.length ?? 0),
     sessionCount: sessionPagination.total,
+    selectedHarness: composerModelSelection.harness,
     selectedModel: composerModelSelection.models.normal,
     selectedReasoningEffort: composerModelSelection.reasoningEfforts.normal,
   };

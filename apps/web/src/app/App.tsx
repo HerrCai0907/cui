@@ -3,9 +3,13 @@ import { getAppPath, isEmbeddedAndroidApp, navigateApp } from "../shared/lib/app
 import { listModels } from "../features/config/api/modelApi";
 import { ConfigPage } from "../features/config/components/ConfigPage";
 import {
+  AI_HARNESSES,
   loadAppConfig,
   saveAppConfig,
   createVisibleModelOptions,
+  createDefaultModelPreferences,
+  createDefaultReasoningEffortPreferences,
+  type AiHarness,
   type AppConfig,
   type ModelOption,
   type ReasoningEffort,
@@ -30,6 +34,8 @@ import { useSessionController } from "../features/sessions/hooks/useSessionContr
 import type { ApiRoundReview, ApiSession } from "../types";
 
 const DEFAULT_WORKSPACE = "~";
+const EMPTY_MODEL_CATALOG = createEmptyModelCatalog();
+const EMPTY_MODEL_ERROR_CATALOG = createEmptyModelErrorCatalog();
 
 export function App() {
   const initialPath = getAppPath();
@@ -37,8 +43,10 @@ export function App() {
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [mobileLayout, setMobileLayout] = useState(isMobileLayoutViewport);
   const [config, setConfig] = useState<AppConfig>(loadAppConfig);
-  const [models, setModels] = useState<ModelOption[]>([]);
-  const [modelsError, setModelsError] = useState<string | null>(null);
+  const [modelCatalog, setModelCatalog] =
+    useState<Record<AiHarness, ModelOption[]>>(EMPTY_MODEL_CATALOG);
+  const [modelErrors, setModelErrors] =
+    useState<Record<AiHarness, string | null>>(EMPTY_MODEL_ERROR_CATALOG);
   const [reviewRoute, setReviewRoute] = useState<ReviewRoute | null>(() =>
     initialPath === "/config" ? null : parseReviewRoute(initialPath),
   );
@@ -49,7 +57,8 @@ export function App() {
   const [reviewNavigationTarget, setReviewNavigationTarget] =
     useState<ReviewNavigationTarget | null>(null);
   const sessionController = useSessionController(DEFAULT_WORKSPACE, config);
-  const visibleModels = createVisibleModelOptions(models, config);
+  const configModels = modelCatalog[config.harness];
+  const configModelsError = modelErrors[config.harness];
   const mobileClient = mobileLayout || isEmbeddedAndroidApp();
   const showVscodeControls = !mobileClient;
   const showSshTunnelConfig = isAndroidSshTunnelAvailable();
@@ -79,24 +88,38 @@ export function App() {
   useEffect(() => {
     let cancelled = false;
 
-    listModels(config.harness)
-      .then((loadedModels) => {
-        if (!cancelled) {
-          setModels(loadedModels);
-          setModelsError(null);
-        }
-      })
-      .catch((reason) => {
-        if (!cancelled) {
-          setModels([]);
-          setModelsError(reason instanceof Error ? reason.message : "Failed to load models");
-        }
-      });
+    AI_HARNESSES.forEach((harness) => {
+      listModels(harness)
+        .then((loadedModels) => {
+          if (!cancelled) {
+            setModelCatalog((current) => ({
+              ...current,
+              [harness]: loadedModels,
+            }));
+            setModelErrors((current) => ({
+              ...current,
+              [harness]: null,
+            }));
+          }
+        })
+        .catch((reason) => {
+          if (!cancelled) {
+            setModelCatalog((current) => ({
+              ...current,
+              [harness]: [],
+            }));
+            setModelErrors((current) => ({
+              ...current,
+              [harness]: reason instanceof Error ? reason.message : "Failed to load models",
+            }));
+          }
+        });
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [config.harness]);
+  }, []);
 
   useEffect(() => {
     const handleNavigation = () => {
@@ -122,27 +145,42 @@ export function App() {
     saveAppConfig(nextConfig);
   }
 
-  function updateNormalModelSelection(model: string, reasoningEffort: ReasoningEffort) {
+  function updateNormalModelSelection(
+    harness: AiHarness,
+    model: string,
+    reasoningEffort: ReasoningEffort,
+  ) {
+    const harnessChanged = harness !== config.harness;
+    const baseModels = harnessChanged ? createDefaultModelPreferences(harness) : config.models;
+    const baseReasoningEfforts = harnessChanged
+      ? createDefaultReasoningEffortPreferences(harness)
+      : config.reasoningEfforts;
+
     updateConfig({
       ...config,
+      harness,
       models: {
-        ...config.models,
+        ...baseModels,
         normal: model,
       },
       reasoningEfforts: {
-        ...config.reasoningEfforts,
+        ...baseReasoningEfforts,
         normal: reasoningEffort,
       },
     });
   }
 
-  function updateComposerModelSelection(model: string, reasoningEffort: ReasoningEffort) {
+  function updateComposerModelSelection(
+    harness: AiHarness,
+    model: string,
+    reasoningEffort: ReasoningEffort,
+  ) {
     if (sessionController.activeSession) {
-      void sessionController.updateActiveSessionModelSelection(model, reasoningEffort);
+      void sessionController.updateActiveSessionModelSelection(harness, model, reasoningEffort);
       return;
     }
 
-    updateNormalModelSelection(model, reasoningEffort);
+    updateNormalModelSelection(harness, model, reasoningEffort);
   }
 
   useEffect(() => {
@@ -382,8 +420,8 @@ export function App() {
         {configOpen ? (
           <ConfigPage
             config={config}
-            models={models}
-            modelsError={modelsError}
+            models={createVisibleModelOptions(configModels, config)}
+            modelsError={configModelsError}
             onConfigChange={updateConfig}
             showSshTunnelConfig={showSshTunnelConfig}
             showVscodeConfig={showVscodeControls}
@@ -432,8 +470,9 @@ export function App() {
               active={Boolean(sessionController.activeSession)}
               disabled={sessionController.composerSubmitDisabled}
               draft={sessionController.draft}
-              modelOptions={visibleModels}
-              modelsError={modelsError}
+              modelOptionsByHarness={modelCatalog}
+              modelsErrorByHarness={modelErrors}
+              selectedHarness={sessionController.selectedHarness}
               selectedModel={sessionController.selectedModel}
               selectedReasoningEffort={sessionController.selectedReasoningEffort}
               shellMode={sessionController.composerMode === "shell"}
@@ -454,6 +493,22 @@ export function App() {
       </section>
     </main>
   );
+}
+
+function createEmptyModelCatalog(): Record<AiHarness, ModelOption[]> {
+  return {
+    traex: [],
+    codex: [],
+    dsh: [],
+  };
+}
+
+function createEmptyModelErrorCatalog(): Record<AiHarness, string | null> {
+  return {
+    traex: null,
+    codex: null,
+    dsh: null,
+  };
 }
 
 function isMobileLayoutViewport(): boolean {

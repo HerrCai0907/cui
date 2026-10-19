@@ -1,10 +1,14 @@
 import { randomUUID } from "node:crypto";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   AiModel,
   AiModelPreferences,
   AiRunEvent,
   AiRunResult,
   AiRunCancelledError,
+  AiHarness,
   ChatMessage,
   ChatRound,
   DiffFilePage,
@@ -145,6 +149,28 @@ type StartRunOptions = {
   runId?: string;
   createdAt?: string;
 };
+
+type PreparedAssistantRunInput =
+  | {
+      kind: "continue";
+      input: {
+        sessionId: string;
+        workspace: string;
+        prompt: string;
+        models?: AiModelPreferences;
+      };
+    }
+  | {
+      kind: "create";
+      input: {
+        workspace: string;
+        prompt: string;
+        models?: AiModelPreferences;
+      };
+      bindAiThreadId: boolean;
+      aiHarness?: AiHarness;
+      cleanup?: () => Promise<void>;
+    };
 
 function toSessionMessageWindowOptions(
   options: GetSessionViewOptions,
@@ -619,11 +645,24 @@ export class SessionService {
         }
       });
     };
-    const runInput = this.createChatRunInput(runSession, request, workspace);
+    const runInput = await this.createChatRunInput(updatedSession, request, workspace);
     const run =
       runInput.kind === "continue"
         ? this.aiModel.continueSessionStream(runInput.input, onAiRunEvent)
         : this.aiModel.createSessionStream(runInput.input, onAiRunEvent);
+    const runResult =
+      runInput.kind === "create" && runInput.cleanup
+        ? run.result.finally(() => {
+            void runInput.cleanup?.().catch((error: unknown) => {
+              void this.logger
+                .session(runSession.id)
+                .warn("session.harness_switch.cleanup_failed", {
+                  sessionId: runSession.id,
+                  error,
+                });
+            });
+          })
+        : run.result;
 
     if (runInput.kind === "create") {
       void run.sessionId.catch(() => undefined);
@@ -645,8 +684,9 @@ export class SessionService {
     );
 
     bufferedEvents.forEach((event) => this.runRegistry.emitRunEvent(runningRun!, event));
-    this.finishAssistantRun(request, run.result, runningRun, workspace, inputSummaryPromise, {
-      bindAiThreadId: runInput.kind === "create",
+    this.finishAssistantRun(request, runResult, runningRun, workspace, inputSummaryPromise, {
+      bindAiThreadId: runInput.kind === "create" ? runInput.bindAiThreadId : false,
+      aiHarness: runInput.kind === "create" ? runInput.aiHarness : undefined,
     });
 
     return toRunningSubmittedRun(
@@ -770,15 +810,15 @@ export class SessionService {
     run: RunningRun,
     workspace: string,
     inputSummaryPromise: Promise<ChatSession>,
-    options: { bindAiThreadId?: boolean } = {},
+    options: { bindAiThreadId?: boolean; aiHarness?: AiHarness } = {},
   ): void {
     result
       .then(async (aiResponse) => {
-        if (options.bindAiThreadId && request.models?.harness !== "dsh") {
+        if (options.bindAiThreadId && options.aiHarness !== "dsh") {
           await this.store.updateSessionAiThreadId(
             run.sessionId,
             aiResponse.sessionId,
-            request.models?.harness,
+            options.aiHarness,
           );
         }
 
@@ -840,35 +880,16 @@ export class SessionService {
       });
   }
 
-  private createChatRunInput(
+  private async createChatRunInput(
     session: ChatSession,
     request: AssistantRunInput,
     workspace: string,
-  ):
-    | {
-        kind: "continue";
-        input: {
-          sessionId: string;
-          workspace: string;
-          prompt: string;
-          models?: AiModelPreferences;
-        };
-      }
-    | {
-        kind: "create";
-        input: {
-          workspace: string;
-          prompt: string;
-          models?: AiModelPreferences;
-        };
-      } {
+  ): Promise<PreparedAssistantRunInput> {
     const aiThreadId = session.aiThreadId;
+    const targetHarness = this.resolveTargetHarness(session, request.models);
 
-    if (aiThreadId && request.models?.harness !== "dsh") {
-      const models = {
-        ...request.models,
-        ...(session.aiHarness ? { harness: session.aiHarness } : {}),
-      };
+    if (aiThreadId && targetHarness !== "dsh" && this.canResumeAiThread(session, targetHarness)) {
+      const models = this.createHarnessRunModels(session, request.models, targetHarness);
 
       return {
         kind: "continue",
@@ -881,13 +902,61 @@ export class SessionService {
       };
     }
 
+    const bridgeInput = aiThreadId
+      ? await this.createHarnessSwitchInput(session, request.prompt)
+      : undefined;
+
     return {
       kind: "create",
       input: {
         workspace,
-        prompt: createSessionInputTranscript(session, request.prompt),
-        models: request.models,
+        prompt: bridgeInput?.prompt ?? createSessionInputTranscript(session, request.prompt),
+        models: this.createHarnessRunModels(session, request.models, targetHarness),
       },
+      bindAiThreadId: targetHarness !== "dsh",
+      aiHarness: targetHarness,
+      cleanup: bridgeInput?.cleanup,
+    };
+  }
+
+  private resolveTargetHarness(
+    session: ChatSession,
+    models: AiModelPreferences | undefined,
+  ): AiHarness {
+    return models?.harness ?? session.aiHarness ?? "traex";
+  }
+
+  private canResumeAiThread(session: ChatSession, targetHarness: AiHarness): boolean {
+    return (session.aiHarness ?? "traex") === targetHarness;
+  }
+
+  private createHarnessRunModels(
+    session: ChatSession,
+    models: AiModelPreferences | undefined,
+    targetHarness: AiHarness,
+  ): AiModelPreferences | undefined {
+    if (!models && !session.aiHarness) {
+      return undefined;
+    }
+
+    return {
+      ...models,
+      ...(models?.harness || session.aiHarness ? { harness: targetHarness } : {}),
+    };
+  }
+
+  private async createHarnessSwitchInput(
+    session: ChatSession,
+    currentPrompt: string,
+  ): Promise<{ prompt: string; cleanup: () => Promise<void> }> {
+    const directory = await mkdtemp(join(tmpdir(), "cui-session-history-"));
+    const transcriptPath = join(directory, "history.txt");
+
+    await writeFile(transcriptPath, createSessionInputTranscript(session, currentPrompt), "utf8");
+
+    return {
+      prompt: createHarnessSwitchPrompt(transcriptPath),
+      cleanup: () => rm(directory, { force: true, recursive: true }),
     };
   }
 
@@ -1353,6 +1422,16 @@ function handleAiRunEvent(event: AiRunEvent, emit: (event: RunStreamEvent) => vo
   if (event.type === "raw") {
     emit({ type: "run.trace", event: event.event });
   }
+}
+
+function createHarnessSwitchPrompt(transcriptPath: string): string {
+  return [
+    "系统提示：",
+    "你正在接手一个已经存在的 CUI session，这次请求需要在新的 AI harness 中继续处理。",
+    `临时历史文件路径: ${transcriptPath}`,
+    "请先读取这个文件，把它作为当前 session 的完整历史上下文。",
+    "文件末尾包含当前用户最新请求。不要要求用户重新提供历史，也不要只总结历史；请直接继续完成最新请求。",
+  ].join("\n");
 }
 
 function delay(milliseconds: number): Promise<void> {
