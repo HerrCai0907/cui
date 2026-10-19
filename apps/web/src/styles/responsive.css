@@ -62,7 +62,7 @@
   }
 
   .chat-header {
-    min-height: 64px;
+    min-height: 52px;
     gap: 10px;
     padding-top: max(10px, env(safe-area-inset-top));
   }
@@ -71,8 +71,7 @@
     flex: 1;
   }
 
-  .chat-header h1,
-  .session-progress {
+  .chat-header h1 {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
