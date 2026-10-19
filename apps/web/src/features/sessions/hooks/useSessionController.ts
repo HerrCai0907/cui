@@ -474,7 +474,12 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
         return;
       }
 
-      const loadedSessions = mergeCachedSessionPages();
+      const authoritativeSessionsById = new Map(
+        loadedPage.sessions.map((session) => [session.id, session]),
+      );
+      const loadedSessions = mergeCachedSessionPages().map(
+        (session) => authoritativeSessionsById.get(session.id) ?? session,
+      );
       const currentActiveSession = activeSessionRef.current;
       const previousActiveSessionRunningRunId = currentActiveSession
         ? runningRunIdBySessionIdRef.current.get(currentActiveSession.id)
@@ -482,19 +487,24 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       const locallyRunningSessionIds = new Set(runningSessionIdsRef.current);
       const localRunningRunIds = new Map(runningRunIdBySessionIdRef.current);
       const nextRunningSessionIds = new Set(
-        loadedSessions
-          .filter((session) => session.isRunning ?? session.runningRunId)
-          .map((session) => session.id),
+        loadedSessions.filter(isSessionReportedRunning).map((session) => session.id),
       );
       const nextRunningRunIds = new Map(
         loadedSessions
-          .filter((session) => session.runningRunId)
+          .filter(
+            (session): session is CachedSessionListItem & { runningRunId: string } =>
+              isSessionReportedRunning(session) && Boolean(session.runningRunId),
+          )
           .map((session) => [session.id, session.runningRunId!]),
       );
 
-      locallyRunningSessionIds.forEach((sessionId) => nextRunningSessionIds.add(sessionId));
+      locallyRunningSessionIds.forEach((sessionId) => {
+        if (!authoritativeSessionsById.has(sessionId)) {
+          nextRunningSessionIds.add(sessionId);
+        }
+      });
       localRunningRunIds.forEach((runId, sessionId) => {
-        if (!nextRunningRunIds.has(sessionId)) {
+        if (!authoritativeSessionsById.has(sessionId) && !nextRunningRunIds.has(sessionId)) {
           nextRunningRunIds.set(sessionId, runId);
         }
       });
@@ -505,6 +515,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
           ...session,
           ...toSessionSummary(session),
           isRunning: nextRunningSessionIds.has(session.id),
+          runningRunId: nextRunningRunIds.get(session.id),
         }))
         .map((session) => {
           const previousSummary = previousSummariesById.get(session.id);
@@ -1174,6 +1185,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
                 currentRound: getCurrentRound(visibleSession),
                 queuedPrompts: visibleSession.queuedPrompts,
                 isRunning: visibleSession.isRunning ?? Boolean(visibleSession.runningRunId),
+                runningRunId: visibleSession.runningRunId,
                 hasUnreadRound: false,
               }
             : summary,
@@ -1254,9 +1266,14 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
 
     runningSessionIdsRef.current = next;
     setRunningSessionIds(next);
+    const nextRunId = running
+      ? (runId ?? runningRunIdBySessionIdRef.current.get(sessionId))
+      : undefined;
     updateSessions((current) =>
       current.map((summary) =>
-        summary.id === sessionId ? { ...summary, isRunning: running } : summary,
+        summary.id === sessionId
+          ? { ...summary, isRunning: running, runningRunId: nextRunId }
+          : summary,
       ),
     );
   }
@@ -1598,6 +1615,10 @@ function toCachedSessionListItem(session: ApiSession | ApiSessionListItem): Cach
     ...session,
     ...toSessionSummary(session),
   };
+}
+
+function isSessionReportedRunning(session: ApiSession | ApiSessionListItem): boolean {
+  return session.isRunning ?? Boolean(session.runningRunId);
 }
 
 function getActiveSessionWindow(

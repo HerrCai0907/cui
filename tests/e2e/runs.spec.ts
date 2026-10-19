@@ -1443,6 +1443,104 @@ test("stays on new session when a background run completes", async ({ page }) =>
   );
 });
 
+test("clears stale sidebar running state from refreshed session data", async ({ page }) => {
+  const initialSession = {
+    id: "session-1",
+    workspace: currentWorkspace,
+    title: "Stale running session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [],
+    currentRound: 0,
+    isRunning: false,
+  };
+  const startedSession = {
+    ...initialSession,
+    updatedAt: "2026-08-22T00:00:01.000Z",
+    messages: [
+      {
+        id: "message-1",
+        role: "user",
+        content: "Run without a terminal stream event",
+        createdAt: "2026-08-22T00:00:01.000Z",
+      },
+    ],
+    isRunning: true,
+    runningRunId: "run-1",
+  };
+  const completedSession = {
+    ...startedSession,
+    updatedAt: "2026-08-22T00:00:02.000Z",
+    messages: [
+      ...startedSession.messages,
+      {
+        id: "message-2",
+        role: "assistant",
+        kind: "response",
+        content: "Finished from refreshed session data.",
+        createdAt: "2026-08-22T00:00:02.000Z",
+      },
+    ],
+    currentRound: 1,
+    isRunning: false,
+    runningRunId: undefined,
+  };
+  let runSubmitted = false;
+  let sessionListRequests = 0;
+
+  await page.addInitScript(() => {
+    class MockEventSource extends EventTarget {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSED = 2;
+      readonly CONNECTING = 0;
+      readonly OPEN = 1;
+      readonly CLOSED = 2;
+      readonly url: string;
+      readonly withCredentials = false;
+      readyState = MockEventSource.CONNECTING;
+      onerror: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onopen: ((event: Event) => void) | null = null;
+
+      constructor(url: string | URL) {
+        super();
+        this.url = String(url);
+        this.readyState = MockEventSource.OPEN;
+      }
+
+      close() {
+        this.readyState = MockEventSource.CLOSED;
+      }
+    }
+
+    window.EventSource = MockEventSource as typeof EventSource;
+  });
+
+  await mockSessions(page, () => {
+    sessionListRequests += 1;
+    return [runSubmitted ? completedSession : initialSession];
+  });
+  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
+    runSubmitted = true;
+    await fulfillJson(route, createSubmittedRunResponse(startedSession, "run-1"));
+  });
+
+  await page.goto("/");
+  const sessionButton = page.getByRole("button", { name: "Stale running session" });
+
+  await expect(sessionButton).not.toHaveClass(/is-running-session/);
+  await page
+    .getByPlaceholder("Continue this session...")
+    .fill("Run without a terminal stream event");
+  await page.getByRole("button", { name: "Send message" }).click();
+
+  await expect.poll(() => sessionListRequests).toBeGreaterThan(1);
+  await expect(sessionButton).not.toHaveClass(/is-running-session/);
+  await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
+});
+
 test("reconnects to a running run after page reload", async ({ page }) => {
   const runningSession = {
     id: "session-1",
