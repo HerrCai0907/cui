@@ -929,6 +929,52 @@ test("supports expandable assistant code previews", async ({ page }) => {
   expect(draggedBox!.x).toBeGreaterThan(initialBox!.x + 40);
   expect(draggedBox!.y).toBeGreaterThan(initialBox!.y + 20);
 
+  async function dragPreviewHeaderTo(targetX: number, targetY: number) {
+    const currentHeaderBox = await header.boundingBox();
+    expect(currentHeaderBox).not.toBeNull();
+
+    await page.mouse.move(currentHeaderBox!.x + 20, currentHeaderBox!.y + 15);
+    await page.mouse.down();
+    await page.mouse.move(targetX, targetY, { steps: 8 });
+    await page.mouse.up();
+  }
+
+  async function expectPreviewAtPoint(targetX: number, targetY: number) {
+    await expect
+      .poll(async () =>
+        page.evaluate(
+          ({ x, y }) =>
+            Boolean(
+              document
+                .elementFromPoint(x, y)
+                ?.closest('.message-code-card[role="dialog"][aria-label="Code preview"]'),
+            ),
+          { x: targetX, y: targetY },
+        ),
+      )
+      .toBe(true);
+  }
+
+  const chatHeaderBox = await page.locator(".chat-header").boundingBox();
+  expect(chatHeaderBox).not.toBeNull();
+  const titleBarTarget = {
+    x: chatHeaderBox!.x + 96,
+    y: chatHeaderBox!.y + Math.min(32, chatHeaderBox!.height / 2),
+  };
+
+  await dragPreviewHeaderTo(titleBarTarget.x, titleBarTarget.y);
+  await expectPreviewAtPoint(titleBarTarget.x, titleBarTarget.y);
+
+  const sidebarBox = await page.getByLabel("Workspace sessions").boundingBox();
+  expect(sidebarBox).not.toBeNull();
+  const sidebarTarget = {
+    x: sidebarBox!.x + Math.min(96, sidebarBox!.width / 2),
+    y: sidebarBox!.y + 96,
+  };
+
+  await dragPreviewHeaderTo(sidebarTarget.x, sidebarTarget.y);
+  await expectPreviewAtPoint(sidebarTarget.x, sidebarTarget.y);
+
   await page.getByRole("heading", { name: "Code preview session" }).click();
   await expect(preview).toBeHidden();
 });
