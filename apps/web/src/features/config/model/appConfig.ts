@@ -21,7 +21,7 @@ export const MODEL_PURPOSES = ["normal", "summary", "atomicReview"] as const;
 
 export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
 
-export const AI_HARNESSES = ["traex", "codex"] as const;
+export const AI_HARNESSES = ["traex", "codex", "dsh"] as const;
 
 export type AiHarness = (typeof AI_HARNESSES)[number];
 
@@ -124,6 +124,7 @@ export const MODEL_PURPOSE_LABELS: Record<ModelPurpose, string> = {
 export const AI_HARNESS_LABELS: Record<AiHarness, string> = {
   traex: "TraeX",
   codex: "Codex",
+  dsh: "DSH",
 };
 
 export const REASONING_EFFORT_LABELS: Record<ReasoningEffort, string> = {
@@ -178,22 +179,52 @@ export function createDefaultVscodeConfig(): VscodeConfig {
   };
 }
 
+export function createDefaultModelPreferences(harness: AiHarness): ModelPreferences {
+  if (harness === "codex") {
+    return { normal: "", summary: "", atomicReview: "" };
+  }
+
+  if (harness === "dsh") {
+    return {
+      normal: "deepseek-flash",
+      summary: "deepseek-v4-flash",
+      atomicReview: "deepseek-v4-pro",
+    };
+  }
+
+  return {
+    normal: "GPT-5.5",
+    summary: "GPT-5.4",
+    atomicReview: "GPT-5.5",
+  };
+}
+
+export function createDefaultReasoningEffortPreferences(
+  harness: AiHarness,
+): ReasoningEffortPreferences {
+  if (harness === "dsh") {
+    return {
+      normal: "high",
+      summary: "low",
+      atomicReview: "high",
+    };
+  }
+
+  return {
+    normal: "high",
+    summary: "low",
+    atomicReview: "medium",
+  };
+}
+
 export function createDefaultAppConfig(): AppConfig {
   return {
     apiBaseUrl: getDefaultApiBaseUrl(),
     harness: "traex",
     sshTunnel: createDefaultSshTunnelConfig(),
     vscode: createDefaultVscodeConfig(),
-    models: {
-      normal: "GPT-5.5",
-      summary: "GPT-5.4",
-      atomicReview: "GPT-5.5",
-    },
-    reasoningEfforts: {
-      normal: "high",
-      summary: "low",
-      atomicReview: "medium",
-    },
+    models: createDefaultModelPreferences("traex"),
+    reasoningEfforts: createDefaultReasoningEffortPreferences("traex"),
     executionTrace: {
       visibleMessageTypes: Object.fromEntries(
         EXECUTION_TRACE_MESSAGE_TYPES.map((type) => [
@@ -232,13 +263,15 @@ export function loadAppConfig(): AppConfig {
       sshTunnel: parseSshTunnelConfig(parsed.sshTunnel),
       vscode: parseVscodeConfig(parsed.vscode),
       models: {
-        ...(parsed.harness === "codex"
-          ? { normal: "", summary: "", atomicReview: "" }
-          : defaultConfig.models),
+        ...createDefaultModelPreferences(
+          isAiHarness(parsed.harness) ? parsed.harness : defaultConfig.harness,
+        ),
         ...parseModelPreferences(parsed.models),
       },
       reasoningEfforts: {
-        ...defaultConfig.reasoningEfforts,
+        ...createDefaultReasoningEffortPreferences(
+          isAiHarness(parsed.harness) ? parsed.harness : defaultConfig.harness,
+        ),
         ...parseReasoningEffortPreferences(parsed.reasoningEfforts),
       },
       executionTrace: {

@@ -60,6 +60,10 @@ test("parseListModelsQuery accepts supported harness filters", () => {
     ok: true,
     value: { harness: "codex" },
   });
+  assert.deepEqual(parseListModelsQuery({ harness: "dsh" }), {
+    ok: true,
+    value: { harness: "dsh" },
+  });
   assert.deepEqual(parseListModelsQuery({}), {
     ok: true,
     value: {},

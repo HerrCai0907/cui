@@ -773,7 +773,7 @@ export class SessionService {
   ): void {
     result
       .then(async (aiResponse) => {
-        if (options.bindAiThreadId) {
+        if (options.bindAiThreadId && request.models?.harness !== "dsh") {
           await this.store.updateSessionAiThreadId(
             run.sessionId,
             aiResponse.sessionId,
@@ -863,7 +863,7 @@ export class SessionService {
       } {
     const aiThreadId = session.aiThreadId;
 
-    if (aiThreadId) {
+    if (aiThreadId && request.models?.harness !== "dsh") {
       const models = {
         ...request.models,
         ...(session.aiHarness ? { harness: session.aiHarness } : {}),

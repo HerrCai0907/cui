@@ -256,6 +256,20 @@ test("app config persists selected models and reasoning efforts", () => {
       JSON.parse(storage.get(APP_CONFIG_STORAGE_KEY) ?? "{}").vscode.remoteSsh.host,
       "prod-box",
     );
+
+    config.harness = "dsh";
+    config.models = {
+      normal: "deepseek-flash",
+      summary: "deepseek-v4-flash",
+      atomicReview: "deepseek-v4-pro",
+    };
+    saveAppConfig(config);
+
+    const loadedDsh = loadAppConfig();
+
+    assert.equal(loadedDsh.harness, "dsh");
+    assert.deepEqual(loadedDsh.models, config.models);
+    assert.equal(JSON.parse(storage.get(APP_CONFIG_STORAGE_KEY) ?? "{}").harness, "dsh");
   } finally {
     Object.defineProperty(globalThis, "window", {
       configurable: true,

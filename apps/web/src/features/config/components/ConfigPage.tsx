@@ -11,6 +11,8 @@ import {
   REASONING_EFFORTS,
   REASONING_EFFORT_LABELS,
   createDefaultAppConfig,
+  createDefaultModelPreferences,
+  createDefaultReasoningEffortPreferences,
   createVisibleModelOptions,
   createVisibleReasoningEffortOptions,
   findModelOption,
@@ -199,10 +201,8 @@ export function ConfigPage({
     onConfigChange({
       ...config,
       harness,
-      models:
-        harness === "codex"
-          ? { normal: "", summary: "", atomicReview: "" }
-          : createDefaultAppConfig().models,
+      models: createDefaultModelPreferences(harness),
+      reasoningEfforts: createDefaultReasoningEffortPreferences(harness),
     });
   }
 
