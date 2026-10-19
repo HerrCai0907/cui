@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { fulfillJson, mockSessions, mockWorkspaceGitInfo } from "./helpers";
+import { mockRpcMethod, mockSessions, mockWorkspaceGitInfo } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
   await mockSessions(page, []);
@@ -13,9 +13,10 @@ test("completes workspace paths with keyboard and mouse, including nested direct
     "~/pro": ["~/project/", "~/project-two/"],
     "~/project/": ["~/project/src/"],
   };
-  await page.route("**/api/v1/workspaces/path-suggestions?**", async (route) => {
-    const path = new URL(route.request().url()).searchParams.get("path")!;
-    await fulfillJson(route, { suggestions: suggestions[path] ?? [] });
+  await mockRpcMethod(page, "code.workspacePathSuggestions", (params) => {
+    const path = (params as { path?: string }).path ?? "";
+
+    return { suggestions: suggestions[path] ?? [] };
   });
   await page.goto("/");
   const input = page.getByRole("combobox", { name: "Workspace path" });
@@ -42,13 +43,14 @@ test("completes workspace paths with keyboard and mouse, including nested direct
 });
 
 test("dismisses suggestions and keeps manual entry usable when lookup fails", async ({ page }) => {
-  await page.route("**/api/v1/workspaces/path-suggestions?**", async (route) => {
-    const path = new URL(route.request().url()).searchParams.get("path");
+  await mockRpcMethod(page, "code.workspacePathSuggestions", (params) => {
+    const path = (params as { path?: string }).path;
+
     if (path === "/unavailable") {
-      await route.fulfill({ status: 500, body: "unavailable" });
-    } else {
-      await fulfillJson(route, { suggestions: ["~/project/"] });
+      throw new Error("unavailable");
     }
+
+    return { suggestions: ["~/project/"] };
   });
   await page.goto("/");
   const input = page.getByLabel("Workspace path");
@@ -58,11 +60,7 @@ test("dismisses suggestions and keeps manual entry usable when lookup fails", as
   await expect(page.getByRole("listbox")).toHaveCount(0);
   await input.press("Tab");
   await expect(input).not.toBeFocused();
-  const failedResponse = page.waitForResponse((response) =>
-    response.url().includes("path-suggestions?path=%2Funavailable"),
-  );
   await input.fill("/unavailable");
-  await failedResponse;
   await expect(page.getByRole("listbox")).toHaveCount(0);
   await input.press("Tab");
   await expect(input).not.toBeFocused();
@@ -74,16 +72,22 @@ test("does not show stale suggestions after the path changes", async ({ page }) 
   const oldResponseReady = new Promise<void>((resolve) => {
     releaseOldResponse = resolve;
   });
-  await page.route("**/api/v1/workspaces/path-suggestions?**", async (route) => {
-    const path = new URL(route.request().url()).searchParams.get("path");
+  let oldRequestSeen!: () => void;
+  const oldRequest = new Promise<void>((resolve) => {
+    oldRequestSeen = resolve;
+  });
+  await mockRpcMethod(page, "code.workspacePathSuggestions", async (params) => {
+    const path = (params as { path?: string }).path;
+
     if (path === "/old") {
+      oldRequestSeen();
       await oldResponseReady;
     }
-    await fulfillJson(route, { suggestions: [`${path}-directory/`] });
+
+    return { suggestions: [`${path}-directory/`] };
   });
   await page.goto("/");
   const input = page.getByLabel("Workspace path");
-  const oldRequest = page.waitForRequest("**/path-suggestions?path=%2Fold");
   await input.fill("/old");
   await oldRequest;
   await input.fill("/new");

@@ -1,64 +1,64 @@
-import { fetchJson } from "../../../shared/api/fetchJson";
-import type { paths } from "../../../shared/api/generated/schema";
+import { rpcRequest } from "../../../shared/api/rpcClient";
 
-type GetCodeQuery = paths["/api/v1/source-files/content"]["get"]["parameters"]["query"];
-type GetCodeResponse =
-  paths["/api/v1/source-files/content"]["get"]["responses"][200]["content"]["application/json"];
-type GetSourceDefinitionQuery =
-  paths["/api/v1/source-files/definition"]["get"]["parameters"]["query"];
-type GetSourceDefinitionResponse =
-  paths["/api/v1/source-files/definition"]["get"]["responses"][200]["content"]["application/json"];
-type GetWorkspaceGitInfoQuery = paths["/api/v1/workspaces/git-info"]["get"]["parameters"]["query"];
-type GetWorkspaceGitInfoResponse =
-  paths["/api/v1/workspaces/git-info"]["get"]["responses"][200]["content"]["application/json"];
+export type CodeRangeQuery = {
+  filePath: string;
+  startLine?: number;
+  endLine?: number;
+};
 
-export type CodeRangeQuery = GetCodeQuery;
-export type CodeRangeResult = GetCodeResponse;
-export type SourceDefinitionQuery = GetSourceDefinitionQuery;
-export type SourceDefinitionResult = GetSourceDefinitionResponse;
-export type WorkspaceGitInfo = GetWorkspaceGitInfoResponse;
+export type CodeRangeResult = {
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  code: string;
+  lines: Array<{
+    lineNumber: number;
+    content: string;
+  }>;
+};
 
-export async function getWorkspacePathSuggestions(path: string, signal: AbortSignal) {
-  const params = new URLSearchParams({ path });
-  return fetchJson<
-    paths["/api/v1/workspaces/path-suggestions"]["get"]["responses"][200]["content"]["application/json"]
-  >(`/api/v1/workspaces/path-suggestions?${params.toString()}`, { signal });
-}
+export type SourceDefinitionQuery = {
+  workspace: string;
+  filePath: string;
+  line: number;
+  character: number;
+  language?: "rust";
+};
 
-export async function getCodeRange(query: GetCodeQuery): Promise<CodeRangeResult> {
-  const params = new URLSearchParams({ filePath: query.filePath });
+export type SourceDefinitionResult = {
+  found: boolean;
+  language: string;
+  target?: {
+    filePath: string;
+    startLine: number;
+    startCharacter: number;
+    endLine: number;
+    endCharacter: number;
+  };
+};
 
-  if (query.startLine !== undefined && query.endLine !== undefined) {
-    params.set("startLine", String(query.startLine));
-    params.set("endLine", String(query.endLine));
-  }
+export type WorkspaceGitInfo = {
+  workspace: string;
+  gitBranch?: string;
+  gitCommitSha?: string;
+};
 
-  return fetchJson<GetCodeResponse>(`/api/v1/source-files/content?${params.toString()}`);
-}
-
-export async function getSourceDefinition(
-  query: GetSourceDefinitionQuery,
-): Promise<SourceDefinitionResult> {
-  const params = new URLSearchParams({
-    workspace: query.workspace,
-    filePath: query.filePath,
-    line: String(query.line),
-    character: String(query.character),
-  });
-
-  if (query.language) {
-    params.set("language", query.language);
-  }
-
-  return fetchJson<GetSourceDefinitionResponse>(
-    `/api/v1/source-files/definition?${params.toString()}`,
+export function getWorkspacePathSuggestions(path: string, signal: AbortSignal) {
+  return rpcRequest<{ suggestions: string[] }>(
+    "code.workspacePathSuggestions",
+    { path },
+    { signal },
   );
 }
 
-export async function getWorkspaceGitInfo(
-  query: GetWorkspaceGitInfoQuery,
-): Promise<WorkspaceGitInfo> {
-  const params = new URLSearchParams({ workspace: query.workspace });
+export function getCodeRange(query: CodeRangeQuery): Promise<CodeRangeResult> {
+  return rpcRequest<CodeRangeResult>("code.getRange", query);
+}
 
-  return fetchJson<GetWorkspaceGitInfoResponse>(`/api/v1/workspaces/git-info?${params.toString()}`);
+export function getSourceDefinition(query: SourceDefinitionQuery): Promise<SourceDefinitionResult> {
+  return rpcRequest<SourceDefinitionResult>("code.getSourceDefinition", query);
+}
+
+export function getWorkspaceGitInfo(query: { workspace: string }): Promise<WorkspaceGitInfo> {
+  return rpcRequest<WorkspaceGitInfo>("code.workspaceGitInfo", query);
 }

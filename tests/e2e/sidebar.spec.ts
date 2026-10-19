@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 
 import {
   currentWorkspace,
-  fulfillJson,
   mockSession,
+  mockRpcMethod,
   mockSessions,
   storeAppConfig,
 } from "./helpers";
@@ -196,25 +196,16 @@ test("marks a session done and removes it from Active after feedback", async ({ 
   let doneAt: string | undefined;
 
   await mockSessions(page, () => sessions.map((session) => ({ ...session, doneAt })));
-  await page.route("**/api/v1/sessions/session-1", async (route) => {
-    if (route.request().method() === "PATCH") {
-      expect(route.request().postDataJSON()).toEqual({ done: true });
-      doneAt = "2026-08-22T00:00:10.000Z";
-      await fulfillJson(route, {
-        session: {
-          ...sessions[0],
-          doneAt,
-        },
-      });
-      return;
-    }
+  await mockRpcMethod(page, "sessions.update", (params) => {
+    expect(params).toEqual({ sessionId: "session-1", done: true });
+    doneAt = "2026-08-22T00:00:10.000Z";
 
-    await fulfillJson(route, {
+    return {
       session: {
         ...sessions[0],
         doneAt,
       },
-    });
+    };
   });
 
   await page.goto("/");

@@ -5,6 +5,7 @@ import {
   getDefaultApiBaseUrl,
   loadApiBaseUrl,
   normalizeApiBaseUrl,
+  resolveApiWebSocketUrl,
   resolveApiUrl,
   saveApiBaseUrl,
 } from "../../apps/web/src/shared/api/apiBaseUrl.js";
@@ -35,11 +36,22 @@ test("normalizes API server addresses and resolves API paths", () => {
   assert.equal(normalizeApiBaseUrl(" server.example:3000/ "), "http://server.example:3000");
   assert.equal(normalizeApiBaseUrl("https://server.example/base/"), "https://server.example/base");
   assert.equal(
-    resolveApiUrl("/api/v1/health", "http://127.0.0.1:3000"),
-    "http://127.0.0.1:3000/api/v1/health",
+    resolveApiUrl("/api/v1/rpc", "http://127.0.0.1:3000"),
+    "http://127.0.0.1:3000/api/v1/rpc",
   );
-  assert.equal(resolveApiUrl("/api/v1/health", ""), "/api/v1/health");
+  assert.equal(resolveApiUrl("/api/v1/rpc", ""), "/api/v1/rpc");
   assert.throws(() => normalizeApiBaseUrl("ftp://server.example"));
+});
+
+test("resolves API WebSocket paths against the configured HTTP server", () => {
+  assert.equal(
+    resolveApiWebSocketUrl("/api/v1/rpc", "http://127.0.0.1:3000"),
+    "ws://127.0.0.1:3000/api/v1/rpc",
+  );
+  assert.equal(
+    resolveApiWebSocketUrl("/api/v1/rpc", "https://server.example"),
+    "wss://server.example/api/v1/rpc",
+  );
 });
 
 test("embedded Android defaults to no API endpoint without native tunnel config", () => {

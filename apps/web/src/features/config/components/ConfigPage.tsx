@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Activity, Check, KeyRound, RotateCcw, Server } from "lucide-react";
-import { resolveApiUrl } from "../../../shared/api/apiBaseUrl";
+import { rpcRequest } from "../../../shared/api/rpcClient";
 import {
   AI_HARNESSES,
   AI_HARNESS_LABELS,
@@ -102,17 +102,7 @@ export function ConfigPage({
       }));
 
       try {
-        const response = await fetch(resolveApiUrl("/api/v1/health"), {
-          cache: "no-store",
-          headers: {
-            "Cache-Control": "no-cache",
-          },
-          signal: abortController.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
+        await rpcRequest("health.check", {}, { signal: abortController.signal });
 
         const latencyMs = Math.max(0, Math.round(performance.now() - startedAt));
 

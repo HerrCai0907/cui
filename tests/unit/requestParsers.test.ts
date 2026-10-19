@@ -6,7 +6,7 @@ import {
   parseGetSessionQuery,
   parseRunEventsQuery,
   parseSourceDefinitionQuery,
-} from "../../apps/api/src/http/validation/requestParsers.js";
+} from "../../apps/api/src/rpc/requestParsers.js";
 
 test("parseGetSessionQuery accepts comma-separated trace message types", () => {
   const parsed = parseGetSessionQuery({

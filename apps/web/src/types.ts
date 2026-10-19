@@ -1,27 +1,169 @@
-import type { components, paths } from "./shared/api/generated/schema";
+export type ApiMessage = {
+  id: string;
+  role: "assistant" | "user";
+  kind?: "response" | "trace";
+  round?: number;
+  model?: string;
+  content: string;
+  createdAt: string;
+};
 
-export type ApiMessage = components["schemas"]["ChatMessage"];
-export type ApiRound = components["schemas"]["ChatRound"];
-export type ApiRoundReview =
-  paths["/api/v1/sessions/{sessionId}/rounds/{round}/review"]["get"]["responses"][200]["content"]["application/json"]["review"];
-export type ApiRoundSummary = components["schemas"]["ChatRoundSummary"];
-export type ApiSession = components["schemas"]["ChatSessionView"];
-export type ApiSessionListItem = components["schemas"]["ChatSessionListItem"];
-export type ApiAtomicCapabilityType = components["schemas"]["ChatRound"]["atomicReview"] extends {
-  items: Array<infer Item>;
-}
-  ? Item extends { capabilityType: infer CapabilityType }
-    ? CapabilityType
-    : never
-  : never;
-export type ApiAtomicDiffReview = NonNullable<components["schemas"]["ChatRound"]["atomicReview"]>;
-export type ApiAtomicDiffReviewItem = Extract<
-  ApiAtomicDiffReview,
-  { status: "ready" }
->["items"][number];
-export type ApiDiffFileSummary = components["schemas"]["DiffFilePage"]["file"];
-export type ApiDiffFilePage = components["schemas"]["DiffFilePage"];
-export type ApiDiffSummary = NonNullable<ApiRoundReview["diffSummary"]>;
+export type AiHarness = "traex" | "codex";
+export type AiModelPurpose = "normal" | "summary" | "atomicReview";
+export type AiReasoningEffort =
+  "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+
+export type AiModelPreferences = Partial<Record<AiModelPurpose, string>> & {
+  harness?: AiHarness;
+  reasoningEfforts?: Partial<Record<AiModelPurpose, AiReasoningEffort>>;
+};
+
+export type ApiAtomicCapabilityType = 0 | 1 | 2 | 3 | 5;
+
+export type ApiDiffFileSummary = {
+  id: string;
+  path: string;
+  oldPath?: string;
+  status: "added" | "modified" | "deleted" | "renamed" | "binary";
+  additions: number;
+  deletions: number;
+  hunkCount: number;
+  lineCount: number;
+  byteSize: number;
+  isLarge: boolean;
+  isBinary: boolean;
+  metadata: string[];
+};
+
+export type ApiDiffSummary = {
+  version: 1;
+  totalFiles: number;
+  totalAdditions: number;
+  totalDeletions: number;
+  totalLines: number;
+  totalBytes: number;
+  files: ApiDiffFileSummary[];
+  round?: number;
+};
+
+export type ApiDiffFilePage = {
+  file: ApiDiffFileSummary;
+  lines: Array<{
+    id: string;
+    kind: "add" | "remove" | "context" | "meta" | "ellipsis";
+    oldLine?: number;
+    newLine?: number;
+    content: string;
+    canExpandUp?: boolean;
+    canExpandDown?: boolean;
+    gapKey?: string;
+  }>;
+  pageInfo: {
+    cursor?: string;
+    nextCursor?: string;
+    returned: number;
+    totalVisible: number;
+    hasMoreBefore: boolean;
+    hasMoreAfter: boolean;
+    hasExpandableContext: boolean;
+    contextLines: number;
+    truncated: boolean;
+  };
+};
+
+export type ApiAtomicDiffReviewItem = {
+  id: string;
+  order: number;
+  capabilityType: ApiAtomicCapabilityType;
+  capabilityLabel: string;
+  title: string;
+  intent: string;
+  files: string[];
+  diff?: string;
+  diffSummary?: ApiDiffSummary;
+  diffRef?: {
+    itemId: string;
+  };
+  outputJson: Record<string, unknown>;
+};
+
+export type ApiAtomicDiffReview =
+  | {
+      status: "ready";
+      generatedAt: string;
+      analysisSessionId: string;
+      items: ApiAtomicDiffReviewItem[];
+      rawResponse: string;
+    }
+  | {
+      status: "failed";
+      generatedAt: string;
+      error: string;
+      rawResponse?: string;
+    };
+
+export type ApiRound = {
+  round: number;
+  baseCommit?: string;
+  traceRunId?: string;
+  beforeDiff: string;
+  afterDiff: string;
+  diff: string;
+  hasChanges: boolean;
+  createdAt: string;
+  diffSummary?: ApiDiffSummary & { round: number };
+  atomicReview?: ApiAtomicDiffReview;
+};
+
+export type ApiRoundReview = Omit<ApiRound, "beforeDiff" | "afterDiff" | "diff" | "atomicReview"> &
+  Partial<Pick<ApiRound, "beforeDiff" | "afterDiff" | "diff">> & {
+    diffSummary?: ApiDiffSummary & { round: number };
+    atomicReview?: ApiAtomicDiffReview;
+  };
+
+export type ApiRoundSummary = Pick<ApiRound, "round" | "hasChanges" | "createdAt"> & {
+  atomicReviewStatus?: ApiAtomicDiffReview["status"];
+};
+
+export type QueuedPromptView = {
+  id: string;
+  mode: "chat" | "shell";
+  prompt: string;
+  createdAt: string;
+};
+
+export type MessagePageInfo = {
+  total: number;
+  returned: number;
+  hasMoreBefore: boolean;
+  hasMoreAfter: boolean;
+  oldestMessageId?: string;
+  newestMessageId?: string;
+};
+
+export type ApiSession = {
+  id: string;
+  origin?: "chat" | "shell";
+  aiHarness?: AiHarness;
+  models?: AiModelPreferences;
+  workspace: string;
+  title: string;
+  summary?: string;
+  doneAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: ApiMessage[];
+  rounds?: ApiRoundSummary[];
+  queuedPrompts?: QueuedPromptView[];
+  currentRound: number;
+  gitBranch?: string;
+  gitCommitSha?: string;
+  isRunning: boolean;
+  runningRunId?: string;
+  messagePageInfo?: MessagePageInfo;
+};
+
+export type ApiSessionListItem = Omit<ApiSession, "messages" | "messagePageInfo" | "rounds">;
 
 export type SessionSummary = {
   id: string;
@@ -40,8 +182,50 @@ export type SessionSummary = {
   hasUnreadRound: boolean;
 };
 
-export type SubmittedRun = components["schemas"]["SubmittedRunResponse"];
-export type RunStreamEvent = components["schemas"]["RunStreamEvent"];
+export type SubmittedRun = {
+  run: {
+    id: string;
+    sessionId: string;
+    type: "assistant_response" | "shell_command" | "round_review";
+    status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+    createdAt?: string;
+  };
+  session: ApiSession;
+};
+
+export type AiModelInfo = {
+  name: string;
+  provider?: string;
+  description?: string;
+  contextWindow?: number;
+  defaultReasoningEffort?: AiReasoningEffort;
+  supportedReasoningEfforts?: AiReasoningEffort[];
+};
+
+export type RunStreamEvent =
+  | {
+      type: "run.output.delta";
+      text: string;
+    }
+  | {
+      type: "run.trace";
+      event: unknown;
+    }
+  | {
+      type: "session.updated";
+      session: ApiSession;
+    }
+  | {
+      type: "run.succeeded";
+      session: ApiSession;
+    }
+  | {
+      type: "run.failed";
+      error: string;
+    }
+  | {
+      type: "run.cancelled";
+    };
 
 export type ExecutionTraceEvent =
   | ThreadStartedTraceEvent

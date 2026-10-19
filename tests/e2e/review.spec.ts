@@ -3,9 +3,9 @@ import { expect, test } from "@playwright/test";
 import {
   createSubmittedRunResponse,
   currentWorkspace,
-  fulfillJson,
   mockDiffFilePage,
   mockRoundReview,
+  mockRpcMethod,
   mockSession,
   mockSessions,
 } from "./helpers";
@@ -510,21 +510,14 @@ test("loads large atomic diff pages only after expanding the item", async ({ pag
       ],
     },
   });
-  await page.route(
-    "**/api/v1/sessions/session-large-diff/rounds/1/diff/files/**",
-    async (route) => {
-      roundDiffRequests += 1;
-      await route.fallback();
-    },
-  );
-  await mockDiffFilePage(
-    page,
-    "**/api/v1/sessions/session-large-diff/rounds/1/atomic/items/atomic-1/diff/files/**",
-    () => {
-      atomicDiffRequests += 1;
-      return diffPage;
-    },
-  );
+  await mockRpcMethod(page, "reviews.getRoundDiffFilePage", () => {
+    roundDiffRequests += 1;
+    throw new Error("Round diff should not be requested");
+  });
+  await mockDiffFilePage(page, { atomic: true }, () => {
+    atomicDiffRequests += 1;
+    return diffPage;
+  });
 
   await page.addInitScript(() => {
     localStorage.setItem(
@@ -664,14 +657,10 @@ test("auto-loads small atomic diff pages when expanding the item", async ({ page
       ],
     },
   });
-  await mockDiffFilePage(
-    page,
-    "**/api/v1/sessions/session-small-diff/rounds/1/atomic/items/atomic-1/diff/files/**",
-    () => {
-      atomicDiffRequests += 1;
-      return diffPage;
-    },
-  );
+  await mockDiffFilePage(page, { atomic: true }, () => {
+    atomicDiffRequests += 1;
+    return diffPage;
+  });
 
   await page.addInitScript(() => {
     localStorage.setItem(
@@ -784,14 +773,10 @@ test("auto-loads small full review diff pages", async ({ page }) => {
       files: [fileSummary],
     },
   });
-  await mockDiffFilePage(
-    page,
-    "**/api/v1/sessions/session-small-full-diff/rounds/1/diff/files/**",
-    () => {
-      roundDiffRequests += 1;
-      return diffPage;
-    },
-  );
+  await mockDiffFilePage(page, {}, () => {
+    roundDiffRequests += 1;
+    return diffPage;
+  });
 
   await page.goto("/ui/sessions/session-small-full-diff/rounds/1/full_review");
 
@@ -1034,14 +1019,11 @@ test("sends all atomic review comments together", async ({ page }) => {
       ],
     },
   });
-  await page.route("**/api/v1/sessions/session-comment/runs", async (route) => {
-    const body = route.request().postDataJSON() as { input: { prompt: string } };
+  await mockRpcMethod(page, "sessions.createRun", (params) => {
+    const body = (params as { request?: { input?: { prompt?: string } } }).request;
 
-    submittedPrompt = body.input.prompt;
-    await fulfillJson(route, createSubmittedRunResponse(startedSession, "run-comment"));
-  });
-  await page.route("**/api/v1/runs/run-comment/events", async () => {
-    // Keep the stream open so the review send flow can switch back to the session view.
+    submittedPrompt = body?.input?.prompt;
+    return createSubmittedRunResponse(startedSession, "run-comment");
   });
 
   await page.goto("/ui/sessions/session-comment/rounds/1/atomic_review");

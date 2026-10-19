@@ -1,41 +1,17 @@
 import cors from "cors";
 import express from "express";
 import type { AppLogger } from "../infrastructure/logging/AppLogger.js";
-import { createOpenApiDocument } from "../contracts/openapi.js";
-import type { SourceDefinitionService } from "../domain/lsp/SourceDefinitionService.js";
-import type { SessionService } from "../domain/sessions/SessionService.js";
-import type { CodeQueryService } from "../domain/code/CodeQueryService.js";
 import { createErrorHandler } from "../http/middleware/errorHandler.js";
-import { createJsonEtagMiddleware } from "../http/middleware/jsonEtag.js";
 import { createRequestLogger } from "../http/middleware/requestLogger.js";
-import { createCodeRouter } from "../http/routes/codeRoutes.js";
-import { createHealthRouter } from "../http/routes/healthRoutes.js";
-import { createModelRouter } from "../http/routes/modelRoutes.js";
-import { createSessionRouter } from "../http/routes/sessionRoutes.js";
-import { createRunRouter } from "../http/routes/runRoutes.js";
-import type { AiModel } from "../types.js";
 
-export function createApp(input: {
-  logger: AppLogger;
-  aiModel: AiModel;
-  sessionService: SessionService;
-  codeQueryService: CodeQueryService;
-  sourceDefinitionService: SourceDefinitionService;
-}): express.Express {
+export function createApp(input: { logger: AppLogger }): express.Express {
   const app = express();
 
-  app.use(cors({ exposedHeaders: ["ETag"] }));
-  app.use(express.json());
+  app.use(cors());
   app.use(createRequestLogger(input.logger));
-  app.use(createJsonEtagMiddleware());
-  app.get("/api/v1/openapi.json", (_request, response) => {
-    response.json(createOpenApiDocument());
+  app.use((_request, response) => {
+    response.status(404).json({ error: "Use the WebSocket JSON-RPC endpoint at /api/v1/rpc" });
   });
-  app.use(createHealthRouter());
-  app.use(createModelRouter(input.aiModel));
-  app.use(createCodeRouter(input.codeQueryService, input.sourceDefinitionService));
-  app.use(createSessionRouter(input.sessionService));
-  app.use(createRunRouter(input.sessionService));
   app.use(createErrorHandler(input.logger));
 
   return app;

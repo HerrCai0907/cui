@@ -12,6 +12,7 @@ import { SessionService } from "./domain/sessions/SessionService.js";
 import { WorkerSessionStore } from "./infrastructure/store/WorkerSessionStore.js";
 import { CodeQueryService } from "./domain/code/CodeQueryService.js";
 import { SourceDefinitionService } from "./domain/lsp/SourceDefinitionService.js";
+import { attachRpcServer } from "./rpc/rpcServer.js";
 
 dotenv.config();
 
@@ -27,10 +28,6 @@ const codeQueryService = new CodeQueryService();
 const sourceDefinitionService = new SourceDefinitionService();
 const app = createApp({
   logger,
-  aiModel,
-  sessionService,
-  codeQueryService,
-  sourceDefinitionService,
 });
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const SESSION_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -54,9 +51,17 @@ if (harnessAvailability.every((result) => result.status === "rejected")) {
 }
 
 const server = app.listen(port);
+const rpcServer = attachRpcServer(server, {
+  logger,
+  aiModel,
+  sessionService,
+  codeQueryService,
+  sourceDefinitionService,
+});
 
 server.on("listening", () => {
   console.log(`API listening on http://localhost:${port}`);
+  console.log(`JSON-RPC WebSocket listening on ws://localhost:${port}/api/v1/rpc`);
   void logger.framework.info("server.started", { port });
   void runStartupSessionMaintenance();
 });
@@ -78,11 +83,13 @@ server.on("error", (error) => {
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
     clearInterval(sessionCleanupTimer);
-    server.close(() => {
-      sourceDefinitionService.close();
-      sessionStore.close();
-      void logger.framework.info("server.stopped", { signal });
-      process.exit(0);
+    rpcServer.close(() => {
+      server.close(() => {
+        sourceDefinitionService.close();
+        sessionStore.close();
+        void logger.framework.info("server.stopped", { signal });
+        process.exit(0);
+      });
     });
   });
 }
