@@ -529,6 +529,72 @@ test("createRun stores streamed execution trace when the assistant run fails", a
   }
 });
 
+test("getSessionView includes persisted in-flight trace for a running run", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    await store.createSession({
+      id: "session-1",
+      aiThreadId: "traex-thread-1",
+      workspace: cwd,
+      title: "Initial title",
+      summary: "",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [],
+      rounds: [],
+      models: {
+        normal: "GPT-5.4",
+        reasoningEfforts: {
+          normal: "high",
+        },
+      },
+    });
+
+    const submitted = await service.createRun(
+      "session-1",
+      createAssistantRunRequest("Run with visible in-flight trace."),
+    );
+
+    aiModel.emitRawEvent({
+      type: "item.completed",
+      item: {
+        id: "item-1",
+        type: "agent_message",
+        text: "Trace persisted before completion.",
+      },
+    });
+    aiModel.emitDelta("Partial answer.");
+
+    const session = await service.getSessionView("session-1", {
+      messageWindow: "tail",
+      messageLimit: 2,
+      traceMessageTypes: ["assistant_message"],
+    });
+    const persistedEvents = await store.listRunEvents(submitted.run.id);
+
+    assert.equal(session?.isRunning, true);
+    assert.equal(session?.runningRunId, submitted.run.id);
+    assert.deepEqual(
+      session?.messages.map((message) => message.id),
+      [`stream-${submitted.run.id}-trace`, `stream-${submitted.run.id}-response`],
+    );
+    assert.equal(session?.messages[0]?.kind, "trace");
+    assert.equal(session?.messages[0]?.model, "GPT-5.4 / High");
+    assert.match(session?.messages[0]?.content ?? "", /Trace persisted before completion/);
+    assert.equal(session?.messages[1]?.content, "Partial answer.");
+    assert.deepEqual(
+      persistedEvents.map((event) => event.event.type),
+      ["run.trace", "run.output.delta"],
+    );
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 test("createRun queues prompts while a session is running", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
@@ -1217,6 +1283,13 @@ class FakeAiModel implements AiModel {
     this.streamEventHandlers[index]?.({
       type: "raw",
       event,
+    });
+  }
+
+  emitDelta(text: string, index = 0) {
+    this.streamEventHandlers[index]?.({
+      type: "delta",
+      text,
     });
   }
 
