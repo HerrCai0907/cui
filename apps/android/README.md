@@ -41,8 +41,8 @@ Required tunnel settings:
 - Local port: the Android-device loopback port the WebView should call.
 - Remote host and remote port: the address reachable from the SSH server.
 
-Enter the fields, then tap **Apply**. When the tunnel is connected, all CUI REST and SSE requests
-go to `http://localhost:<local-port>` on the Android device and are forwarded over SSH to
+Enter the fields, then tap **Apply**. When the tunnel is connected, CUI WebSocket RPC traffic goes
+to `ws://localhost:<local-port>` on the Android device and is forwarded over SSH to
 `<remote-host>:<remote-port>` from the SSH server.
 
 While the app is in the foreground and the screen is on, it checks the tunnel periodically and

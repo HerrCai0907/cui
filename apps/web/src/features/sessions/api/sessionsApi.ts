@@ -1,34 +1,55 @@
-import { fetchJson } from "../../../shared/api/fetchJson";
-import type { paths } from "../../../shared/api/generated/schema";
+import { rpcRequest } from "../../../shared/api/rpcClient";
+import type {
+  AiModelPreferences,
+  ApiSession,
+  ApiSessionListItem,
+  SubmittedRun,
+} from "../../../types";
 import type { ExecutionTraceMessageType } from "../../config/model/appConfig";
-import type { ApiSession, ApiSessionListItem, SubmittedRun } from "../../../types";
 
-type ListSessionsResponse =
-  paths["/api/v1/sessions"]["get"]["responses"][200]["content"]["application/json"];
-type GetSessionResponse =
-  paths["/api/v1/sessions/{sessionId}"]["get"]["responses"][200]["content"]["application/json"];
-type GetSessionMessagesResponse =
-  paths["/api/v1/sessions/{sessionId}/messages"]["get"]["responses"][200]["content"]["application/json"];
-type CreateSessionRequest =
-  paths["/api/v1/sessions"]["post"]["requestBody"]["content"]["application/json"];
-type CreateSessionResponse =
-  paths["/api/v1/sessions"]["post"]["responses"][201]["content"]["application/json"];
-type CreateRunRequest =
-  paths["/api/v1/sessions/{sessionId}/runs"]["post"]["requestBody"]["content"]["application/json"];
-type CreateRunResponse =
-  paths["/api/v1/sessions/{sessionId}/runs"]["post"]["responses"][202]["content"]["application/json"];
-type UpdateSessionRequest =
-  paths["/api/v1/sessions/{sessionId}"]["patch"]["requestBody"]["content"]["application/json"];
-type UpdateSessionResponse =
-  paths["/api/v1/sessions/{sessionId}"]["patch"]["responses"][200]["content"]["application/json"];
-type WithdrawQueuedPromptsResponse =
-  paths["/api/v1/sessions/{sessionId}/queued-prompts/{queuedPromptId}"]["delete"]["responses"][200]["content"]["application/json"];
-type CancelRunResponse =
-  paths["/api/v1/runs/{runId}/cancellation"]["post"]["responses"][202]["content"]["application/json"];
+export type SessionListPage = {
+  sessions: ApiSessionListItem[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    hasPreviousPage: boolean;
+    hasNextPage: boolean;
+  };
+};
 
-export type SessionListPage = ListSessionsResponse;
-export type CreateRunInput = CreateRunRequest;
-export type SessionMessagesPage = GetSessionMessagesResponse;
+export type CreateSessionInput = {
+  workspace: string;
+  origin?: "chat" | "shell";
+  title?: string;
+  models?: AiModelPreferences;
+};
+
+export type CreateRunInput =
+  | {
+      type: "assistant_response";
+      input: {
+        prompt: string;
+      };
+      models?: AiModelPreferences;
+    }
+  | {
+      type: "shell_command";
+      input: {
+        command: string;
+      };
+    };
+
+export type UpdateSessionInput = {
+  done?: boolean;
+  models?: AiModelPreferences;
+};
+
+export type SessionMessagesPage = {
+  messages: ApiSession["messages"];
+  pageInfo: NonNullable<ApiSession["messagePageInfo"]>;
+};
 
 export type GetSessionOptions = {
   messageWindow?: "tail";
@@ -42,38 +63,30 @@ export type GetSessionMessagesOptions = {
   traceMessageTypes?: ExecutionTraceMessageType[];
 };
 
-export async function listSessions(page = 1, pageSize = 30): Promise<SessionListPage> {
-  const params = new URLSearchParams({
-    page: String(page),
-    pageSize: String(pageSize),
-  });
-  const data = await fetchJson<ListSessionsResponse>(`/api/v1/sessions?${params.toString()}`);
+type SessionResponse = {
+  session: ApiSession;
+};
 
-  return data;
+type WithdrawQueuedPromptsResponse = {
+  session: ApiSession;
+  queuedPrompts: NonNullable<ApiSession["queuedPrompts"]>;
+};
+
+export async function listSessions(page = 1, pageSize = 30): Promise<SessionListPage> {
+  return rpcRequest<SessionListPage>("sessions.list", {
+    page,
+    pageSize,
+  });
 }
 
 export async function getSession(
   sessionId: string,
   options: GetSessionOptions = {},
 ): Promise<ApiSession> {
-  const params = new URLSearchParams();
-
-  if (options.messageWindow) {
-    params.set("messageWindow", options.messageWindow);
-  }
-
-  if (options.messageLimit !== undefined) {
-    params.set("messageLimit", String(options.messageLimit));
-  }
-
-  if (options.traceMessageTypes) {
-    params.set("traceMessageTypes", options.traceMessageTypes.join(","));
-  }
-
-  const query = params.toString();
-  const data = await fetchJson<GetSessionResponse>(
-    `/api/v1/sessions/${encodeURIComponent(sessionId)}${query ? `?${query}` : ""}`,
-  );
+  const data = await rpcRequest<SessionResponse>("sessions.get", {
+    sessionId,
+    ...options,
+  });
 
   return data.session;
 }
@@ -82,63 +95,33 @@ export async function getSessionMessages(
   sessionId: string,
   options: GetSessionMessagesOptions = {},
 ): Promise<SessionMessagesPage> {
-  const params = new URLSearchParams();
-
-  if (options.beforeMessageId) {
-    params.set("beforeMessageId", options.beforeMessageId);
-  }
-
-  if (options.limit !== undefined) {
-    params.set("limit", String(options.limit));
-  }
-
-  if (options.traceMessageTypes) {
-    params.set("traceMessageTypes", options.traceMessageTypes.join(","));
-  }
-
-  const query = params.toString();
-
-  return fetchJson<GetSessionMessagesResponse>(
-    `/api/v1/sessions/${encodeURIComponent(sessionId)}/messages${query ? `?${query}` : ""}`,
-  );
+  return rpcRequest<SessionMessagesPage>("sessions.messages", {
+    sessionId,
+    ...options,
+  });
 }
 
-export async function createSession(input: CreateSessionRequest): Promise<ApiSession> {
-  const data = await fetchJson<CreateSessionResponse>("/api/v1/sessions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(input),
-  });
+export async function createSession(input: CreateSessionInput): Promise<ApiSession> {
+  const data = await rpcRequest<SessionResponse>("sessions.create", input);
 
   return data.session;
 }
 
-export async function createRun(sessionId: string, input: CreateRunRequest): Promise<SubmittedRun> {
-  return fetchJson<CreateRunResponse>(`/api/v1/sessions/${encodeURIComponent(sessionId)}/runs`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(input),
+export async function createRun(sessionId: string, input: CreateRunInput): Promise<SubmittedRun> {
+  return rpcRequest<SubmittedRun>("sessions.createRun", {
+    sessionId,
+    request: input,
   });
 }
 
 export async function updateSession(
   sessionId: string,
-  input: UpdateSessionRequest,
+  input: UpdateSessionInput,
 ): Promise<ApiSession> {
-  const data = await fetchJson<UpdateSessionResponse>(
-    `/api/v1/sessions/${encodeURIComponent(sessionId)}`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(input),
-    },
-  );
+  const data = await rpcRequest<SessionResponse>("sessions.update", {
+    sessionId,
+    ...input,
+  });
 
   return data.session;
 }
@@ -147,18 +130,12 @@ export async function withdrawQueuedPrompts(
   sessionId: string,
   queuedPromptId: string,
 ): Promise<WithdrawQueuedPromptsResponse> {
-  return fetchJson<WithdrawQueuedPromptsResponse>(
-    `/api/v1/sessions/${encodeURIComponent(sessionId)}/queued-prompts/${encodeURIComponent(
-      queuedPromptId,
-    )}`,
-    {
-      method: "DELETE",
-    },
-  );
+  return rpcRequest<WithdrawQueuedPromptsResponse>("sessions.withdrawQueuedPrompts", {
+    sessionId,
+    queuedPromptId,
+  });
 }
 
 export async function cancelRun(runId: string): Promise<void> {
-  await fetchJson<CancelRunResponse>(`/api/v1/runs/${encodeURIComponent(runId)}/cancellation`, {
-    method: "POST",
-  });
+  await rpcRequest("runs.cancel", { runId });
 }

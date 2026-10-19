@@ -4,7 +4,7 @@ import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import test from "node:test";
 import { suggestWorkspacePaths } from "../../apps/api/src/domain/paths/workspacePaths.js";
-import { parseWorkspacePathSuggestionsQuery } from "../../apps/api/src/http/validation/requestParsers.js";
+import { parseWorkspacePathSuggestionsQuery } from "../../apps/api/src/rpc/requestParsers.js";
 
 test("workspace completion filters directories and follows directory symlinks", async () => {
   const root = await mkdtemp(join(tmpdir(), "cui-paths-"));

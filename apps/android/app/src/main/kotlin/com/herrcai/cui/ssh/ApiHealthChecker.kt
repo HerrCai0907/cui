@@ -1,47 +1,53 @@
 package com.herrcai.cui.ssh
 
+import java.io.BufferedReader
 import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URL
+import java.io.InputStreamReader
+import java.net.Socket
+import java.util.Base64
+import java.util.UUID
 
 internal class ApiHealthChecker {
     @Throws(IOException::class)
     fun verify(localPort: Int) {
-        val currentStatus = requestStatus(localPort, CURRENT_HEALTH_PATH)
-        if (currentStatus in 200..299) {
-            return
-        }
+        Socket("127.0.0.1", localPort).use { socket ->
+            socket.soTimeout = REQUEST_TIMEOUT_MILLIS
+            socket.getOutputStream().write(createHandshakeRequest().toByteArray(Charsets.US_ASCII))
+            socket.getOutputStream().flush()
 
-        if (currentStatus == HttpURLConnection.HTTP_NOT_FOUND) {
-            val legacyStatus = requestStatus(localPort, LEGACY_HEALTH_PATH)
-            if (legacyStatus in 200..299) {
-                throw IOException(
-                    "Tunnel is reachable, but the server API is incompatible: " +
-                        "/api/v1/health returned HTTP 404 while legacy /api/health is available.",
-                )
+            val statusLine = BufferedReader(
+                InputStreamReader(socket.getInputStream(), Charsets.US_ASCII),
+            ).readLine()
+
+            if (statusLine?.contains(" 101 ") == true) {
+                return
             }
-        }
 
-        throw IOException("API health check failed with HTTP $currentStatus.")
+            throw IOException(
+                "API WebSocket health check failed: " + (statusLine ?: "no response"),
+            )
+        }
     }
 
-    @Throws(IOException::class)
-    private fun requestStatus(localPort: Int, path: String): Int {
-        val connection = URL("http://127.0.0.1:$localPort$path").openConnection() as HttpURLConnection
-        return try {
-            connection.connectTimeout = REQUEST_TIMEOUT_MILLIS
-            connection.readTimeout = REQUEST_TIMEOUT_MILLIS
-            connection.requestMethod = "GET"
-            connection.useCaches = false
-            connection.responseCode
-        } finally {
-            connection.disconnect()
+    private fun createHandshakeRequest(): String {
+        val key = Base64.getEncoder().encodeToString(UUID.randomUUID().toString().toByteArray())
+
+        return buildString {
+            append("GET ")
+            append(RPC_PATH)
+            append(" HTTP/1.1\r\n")
+            append("Host: 127.0.0.1\r\n")
+            append("Upgrade: websocket\r\n")
+            append("Connection: Upgrade\r\n")
+            append("Sec-WebSocket-Version: 13\r\n")
+            append("Sec-WebSocket-Key: ")
+            append(key)
+            append("\r\n\r\n")
         }
     }
 
     private companion object {
-        const val CURRENT_HEALTH_PATH = "/api/v1/health"
-        const val LEGACY_HEALTH_PATH = "/api/health"
+        const val RPC_PATH = "/api/v1/rpc"
         const val REQUEST_TIMEOUT_MILLIS = 5_000
     }
 }

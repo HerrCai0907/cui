@@ -141,14 +141,6 @@ PLAYWRIGHT_TEST_PORT=5175 PLAYWRIGHT_TEST_API_PORT=3002 npm run test:e2e
 
 Use `PLAYWRIGHT_TEST_BASE_URL` when testing against an already-running web app.
 
-## Generated API Types
-
-When API schemas change, regenerate OpenAPI output and the web client types:
-
-```sh
-npm run openapi:generate
-```
-
 ## Pull Requests
 
 Commit messages should follow the Angular convention, for example:

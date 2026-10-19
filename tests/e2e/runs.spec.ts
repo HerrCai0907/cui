@@ -3,11 +3,35 @@ import { expect, test } from "@playwright/test";
 import {
   createSubmittedRunResponse,
   currentWorkspace,
-  fulfillJson,
+  emitRunEvent,
+  mockRpcMethod,
   mockSession,
   mockSessionById,
   mockSessions,
 } from "./helpers";
+
+type CreateRunRpcRequest =
+  | { type: "assistant_response"; input: { prompt: string } }
+  | { type: "shell_command"; input: { command: string } };
+
+function readCreateRunRequest(params: unknown): CreateRunRpcRequest {
+  return (params as { request: CreateRunRpcRequest }).request;
+}
+
+function readSubmittedPrompt(request: CreateRunRpcRequest) {
+  return request.type === "shell_command" ? request.input.command : request.input.prompt;
+}
+
+function createCompletedTraceEvent(id: string, text: string) {
+  return {
+    type: "item.completed",
+    item: {
+      id,
+      type: "agent_message",
+      text,
+    },
+  };
+}
 
 test("keeps only the running session blocked while another run is active", async ({ page }) => {
   const sessionOne = {
@@ -55,12 +79,9 @@ test("keeps only the running session blocked while another run is active", async
   await mockSessions(page, () => [sessionStarted ? startedSessionOne : sessionOne, sessionTwo]);
   await mockSessionById(page, "session-1", () => (sessionStarted ? startedSessionOne : sessionOne));
   await mockSession(page, sessionTwo);
-  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
+  await mockRpcMethod(page, "sessions.createRun", () => {
     sessionStarted = true;
-    await fulfillJson(route, createSubmittedRunResponse(startedSessionOne, "run-1"));
-  });
-  await page.route(/\/api\/v1\/runs\/run-1\/events(?:\?.*)?$/, async () => {
-    // Keep the stream open so session-1 remains blocked.
+    return createSubmittedRunResponse(startedSessionOne, "run-1");
   });
 
   await page.goto("/");
@@ -123,90 +144,17 @@ test("stops a running session and restores the send button", async ({ page }) =>
   let running = false;
   let stopRequests = 0;
 
-  await page.addInitScript(() => {
-    class MockEventSource extends EventTarget {
-      static readonly CONNECTING = 0;
-      static readonly OPEN = 1;
-      static readonly CLOSED = 2;
-      readonly CONNECTING = 0;
-      readonly OPEN = 1;
-      readonly CLOSED = 2;
-      readonly url: string;
-      readonly withCredentials = false;
-      readyState = MockEventSource.CONNECTING;
-      onerror: ((event: Event) => void) | null = null;
-      onmessage: ((event: MessageEvent) => void) | null = null;
-      onopen: ((event: Event) => void) | null = null;
-
-      constructor(url: string | URL) {
-        super();
-        this.url = String(url);
-
-        (
-          window as Window & {
-            __cancelRun?: () => void;
-            __emitTrace?: () => void;
-          }
-        ).__cancelRun = () => {
-          this.dispatchEvent(
-            new MessageEvent("run.cancelled", {
-              data: JSON.stringify({
-                type: "run.cancelled",
-              }),
-            }),
-          );
-        };
-        (
-          window as Window & {
-            __cancelRun?: () => void;
-            __emitTrace?: () => void;
-          }
-        ).__emitTrace = () => {
-          this.dispatchEvent(
-            new MessageEvent("run.trace", {
-              data: JSON.stringify({
-                type: "run.trace",
-                event: {
-                  type: "item.completed",
-                  item: {
-                    id: "item-stop",
-                    type: "agent_message",
-                    text: "Trace before stop.",
-                  },
-                },
-              }),
-            }),
-          );
-        };
-      }
-
-      close() {
-        this.readyState = MockEventSource.CLOSED;
-      }
-    }
-
-    window.EventSource = MockEventSource as typeof EventSource;
-  });
-
   await mockSessions(page, () => [running ? startedSession : stoppedSession]);
   await mockSessionById(page, "session-1", () => (running ? startedSession : stoppedSession));
-  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
+  await mockRpcMethod(page, "sessions.createRun", () => {
     running = true;
-    await fulfillJson(route, createSubmittedRunResponse(startedSession, "run-1"));
+    return createSubmittedRunResponse(startedSession, "run-1");
   });
-  await page.route("**/api/v1/runs/run-1/cancellation", async (route) => {
+  await mockRpcMethod(page, "runs.cancel", async () => {
     stopRequests += 1;
     running = false;
-    await page.evaluate(() =>
-      (
-        window as Window & {
-          __cancelRun?: () => void;
-        }
-      ).__cancelRun?.(),
-    );
-    await fulfillJson(route, {
-      status: "ok",
-    });
+    await emitRunEvent(page, "run-1", { type: "run.cancelled" });
+    return { status: "ok" };
   });
 
   await page.goto("/");
@@ -214,25 +162,17 @@ test("stops a running session and restores the send button", async ({ page }) =>
   await page.getByRole("button", { name: "Send message" }).click();
 
   await expect(page.getByRole("button", { name: "Stop generation" })).toBeVisible();
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          typeof (
-            window as Window & {
-              __emitTrace?: () => void;
-            }
-          ).__emitTrace,
-      ),
-    )
-    .toBe("function");
-  await page.evaluate(() =>
-    (
-      window as Window & {
-        __emitTrace?: () => void;
-      }
-    ).__emitTrace?.(),
-  );
+  await emitRunEvent(page, "run-1", {
+    type: "run.trace",
+    event: {
+      type: "item.completed",
+      item: {
+        id: "item-stop",
+        type: "agent_message",
+        text: "Trace before stop.",
+      },
+    },
+  });
   await expect(page.getByText("Hide execution trace")).toBeVisible();
   await expect(page.getByText("Trace before stop.")).toBeVisible();
 
@@ -281,69 +221,11 @@ test("keeps streamed execution trace visible when a run fails", async ({ page })
   };
   let running = false;
 
-  await page.addInitScript(() => {
-    class MockEventSource extends EventTarget {
-      static readonly CONNECTING = 0;
-      static readonly OPEN = 1;
-      static readonly CLOSED = 2;
-      readonly CONNECTING = 0;
-      readonly OPEN = 1;
-      readonly CLOSED = 2;
-      readonly url: string;
-      readonly withCredentials = false;
-      readyState = MockEventSource.CONNECTING;
-      onerror: ((event: Event) => void) | null = null;
-      onmessage: ((event: MessageEvent) => void) | null = null;
-      onopen: ((event: Event) => void) | null = null;
-
-      constructor(url: string | URL) {
-        super();
-        this.url = String(url);
-
-        (
-          window as Window & {
-            __failRunWithTrace?: () => void;
-          }
-        ).__failRunWithTrace = () => {
-          this.dispatchEvent(
-            new MessageEvent("run.trace", {
-              data: JSON.stringify({
-                type: "run.trace",
-                event: {
-                  type: "item.completed",
-                  item: {
-                    id: "item-failure",
-                    type: "agent_message",
-                    text: "Trace before failure.",
-                  },
-                },
-              }),
-            }),
-          );
-          this.dispatchEvent(
-            new MessageEvent("run.failed", {
-              data: JSON.stringify({
-                type: "run.failed",
-                error: "TraeX command produced no output for 1000ms",
-              }),
-            }),
-          );
-        };
-      }
-
-      close() {
-        this.readyState = MockEventSource.CLOSED;
-      }
-    }
-
-    window.EventSource = MockEventSource as typeof EventSource;
-  });
-
   await mockSessions(page, () => [running ? startedSession : failedSession]);
   await mockSessionById(page, "session-1", () => (running ? startedSession : failedSession));
-  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
+  await mockRpcMethod(page, "sessions.createRun", () => {
     running = true;
-    await fulfillJson(route, createSubmittedRunResponse(startedSession, "run-1"));
+    return createSubmittedRunResponse(startedSession, "run-1");
   });
 
   await page.goto("/");
@@ -351,27 +233,23 @@ test("keeps streamed execution trace visible when a run fails", async ({ page })
   await page.getByRole("button", { name: "Send message" }).click();
 
   await expect(page.getByRole("button", { name: "Stop generation" })).toBeVisible();
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          typeof (
-            window as Window & {
-              __failRunWithTrace?: () => void;
-            }
-          ).__failRunWithTrace,
-      ),
-    )
-    .toBe("function");
 
   running = false;
-  await page.evaluate(() =>
-    (
-      window as Window & {
-        __failRunWithTrace?: () => void;
-      }
-    ).__failRunWithTrace?.(),
-  );
+  await emitRunEvent(page, "run-1", {
+    type: "run.trace",
+    event: {
+      type: "item.completed",
+      item: {
+        id: "item-failure",
+        type: "agent_message",
+        text: "Trace before failure.",
+      },
+    },
+  });
+  await emitRunEvent(page, "run-1", {
+    type: "run.failed",
+    error: "TraeX command produced no output for 1000ms",
+  });
 
   await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
   await expect(page.getByText("Waiting for the AI harness...")).not.toBeVisible();
@@ -456,104 +334,20 @@ test("queues a prompt while a session is running and sends it after stop", async
   let visibleSession = initialSession;
   const prompts: string[] = [];
 
-  await page.addInitScript(() => {
-    const eventSources = new Map<string, EventTarget>();
-    const getRunEventsPath = (url: string | URL) =>
-      new URL(String(url), window.location.href).pathname;
-
-    (
-      window as Window & {
-        __cancelRun?: (runId: string) => void;
-        __emitTrace?: (runId: string) => void;
-      }
-    ).__cancelRun = (runId: string) => {
-      eventSources.get(`/api/v1/runs/${runId}/events`)?.dispatchEvent(
-        new MessageEvent("run.cancelled", {
-          data: JSON.stringify({
-            type: "run.cancelled",
-          }),
-        }),
-      );
-    };
-    (
-      window as Window & {
-        __cancelRun?: (runId: string) => void;
-        __emitTrace?: (runId: string) => void;
-      }
-    ).__emitTrace = (runId: string) => {
-      eventSources.get(`/api/v1/runs/${runId}/events`)?.dispatchEvent(
-        new MessageEvent("run.trace", {
-          data: JSON.stringify({
-            type: "run.trace",
-            event: {
-              type: "item.completed",
-              item: {
-                id: "item-stop",
-                type: "agent_message",
-                text: "Trace before stop.",
-              },
-            },
-          }),
-        }),
-      );
-    };
-
-    class MockEventSource extends EventTarget {
-      static readonly CONNECTING = 0;
-      static readonly OPEN = 1;
-      static readonly CLOSED = 2;
-      readonly CONNECTING = 0;
-      readonly OPEN = 1;
-      readonly CLOSED = 2;
-      readonly url: string;
-      readonly withCredentials = false;
-      readyState = MockEventSource.CONNECTING;
-      onerror: ((event: Event) => void) | null = null;
-      onmessage: ((event: MessageEvent) => void) | null = null;
-      onopen: ((event: Event) => void) | null = null;
-
-      constructor(url: string | URL) {
-        super();
-        this.url = String(url);
-        this.readyState = MockEventSource.OPEN;
-        eventSources.set(getRunEventsPath(url), this);
-      }
-
-      close() {
-        this.readyState = MockEventSource.CLOSED;
-        eventSources.delete(getRunEventsPath(this.url));
-      }
-    }
-
-    window.EventSource = MockEventSource as typeof EventSource;
-  });
-
   await mockSessions(page, () => [visibleSession]);
   await mockSessionById(page, "session-1", () => visibleSession);
-  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
-    const body = route.request().postDataJSON() as { input: { prompt: string } };
+  await mockRpcMethod(page, "sessions.createRun", (params) => {
+    const body = (params as { request: { input: { prompt: string } } }).request;
 
     prompts.push(body.input.prompt);
     visibleSession = prompts.length === 1 ? firstRunningSession : queuedSession;
-    await fulfillJson(
-      route,
-      prompts.length === 1
-        ? createSubmittedRunResponse(visibleSession, "run-1")
-        : createSubmittedRunResponse(visibleSession, "queued-1", { status: "queued" }),
-    );
+    return prompts.length === 1
+      ? createSubmittedRunResponse(visibleSession, "run-1")
+      : createSubmittedRunResponse(visibleSession, "queued-1", { status: "queued" });
   });
-  await page.route("**/api/v1/runs/run-1/cancellation", async (route) => {
+  await mockRpcMethod(page, "runs.cancel", async () => {
     visibleSession = secondRunningSession;
-    await page.evaluate(() =>
-      (
-        window as Window & {
-          __cancelRun?: (runId: string) => void;
-        }
-      ).__cancelRun?.("run-1"),
-    );
-    await fulfillJson(route, {
-      status: "ok",
-    });
+    return { status: "ok" };
   });
 
   await page.goto("/");
@@ -562,13 +356,17 @@ test("queues a prompt while a session is running and sends it after stop", async
 
   await expect(page.getByRole("button", { name: "Stop generation" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
-  await page.evaluate(() =>
-    (
-      window as Window & {
-        __emitTrace?: (runId: string) => void;
-      }
-    ).__emitTrace?.("run-1"),
-  );
+  await emitRunEvent(page, "run-1", {
+    type: "run.trace",
+    event: {
+      type: "item.completed",
+      item: {
+        id: "item-stop",
+        type: "agent_message",
+        text: "Trace before stop.",
+      },
+    },
+  });
   await expect(page.getByText("Trace before stop.")).toBeVisible();
 
   await page.getByPlaceholder("Continue this session...").fill("Queued follow-up");
@@ -672,18 +470,22 @@ test("edits a queued prompt by withdrawing it and later queued prompts", async (
 
   await mockSessions(page, () => [visibleSession]);
   await mockSessionById(page, "session-1", () => visibleSession);
-  await page.route("**/api/v1/sessions/session-1/queued-prompts/queued-2", async (route) => {
+  await mockRpcMethod(page, "sessions.withdrawQueuedPrompts", () => {
     withdrawnPromptIds.push("queued-2");
     visibleSession = withdrawnSession;
-    await fulfillJson(route, {
+    return {
       session: withdrawnSession,
       queuedPrompts: [queuedPromptTwo, queuedPromptThree],
-    });
+    };
   });
-  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
-    const body = route.request().postDataJSON() as
-      | { type: "assistant_response"; input: { prompt: string } }
-      | { type: "shell_command"; input: { command: string } };
+  await mockRpcMethod(page, "sessions.createRun", (params) => {
+    const body = (
+      params as {
+        request:
+          | { type: "assistant_response"; input: { prompt: string } }
+          | { type: "shell_command"; input: { command: string } };
+      }
+    ).request;
     const submittedPrompt = body.type === "shell_command" ? body.input.command : body.input.prompt;
 
     submittedPrompts.push({
@@ -692,20 +494,14 @@ test("edits a queued prompt by withdrawing it and later queued prompts", async (
     });
     visibleSession =
       submittedPrompts.length === 1 ? firstResubmittedSession : secondResubmittedSession;
-    await fulfillJson(
-      route,
-      createSubmittedRunResponse(
-        visibleSession,
-        submittedPrompts.length === 1 ? "queued-2-edited" : "queued-3-edited",
-        {
-          status: "queued",
-          type: body.type,
-        },
-      ),
+    return createSubmittedRunResponse(
+      visibleSession,
+      submittedPrompts.length === 1 ? "queued-2-edited" : "queued-3-edited",
+      {
+        status: "queued",
+        type: body.type,
+      },
     );
-  });
-  await page.route(/\/api\/v1\/runs\/run-1\/events(?:\?.*)?$/, async () => {
-    // Keep the stream open so queued prompts remain queued.
   });
 
   await page.goto("/");
@@ -835,93 +631,16 @@ test("queues a prompt while a session is running and sends it after completion",
   let visibleSession = initialSession;
   const prompts: string[] = [];
 
-  await page.addInitScript(() => {
-    const eventSources = new Map<string, EventTarget>();
-    const getRunEventsPath = (url: string | URL) =>
-      new URL(String(url), window.location.href).pathname;
-
-    (
-      window as Window & {
-        __completeRun?: (runId: string) => void;
-      }
-    ).__completeRun = (runId: string) => {
-      eventSources.get(`/api/v1/runs/${runId}/events`)?.dispatchEvent(
-        new MessageEvent("run.succeeded", {
-          data: JSON.stringify({
-            type: "run.succeeded",
-            session: {
-              id: "session-1",
-              workspace: "/Users/bytedance/cui",
-              title: "Running session",
-              createdAt: "2026-08-22T00:00:00.000Z",
-              updatedAt: "2026-08-22T00:00:01.000Z",
-              messages: [
-                {
-                  id: "message-1",
-                  role: "user",
-                  content: "Run a long task",
-                  createdAt: "2026-08-22T00:00:00.000Z",
-                },
-                {
-                  id: "message-2",
-                  role: "assistant",
-                  kind: "response",
-                  content: "First response.",
-                  createdAt: "2026-08-22T00:00:01.000Z",
-                },
-              ],
-              rounds: [],
-              currentRound: 1,
-              isRunning: false,
-            },
-          }),
-        }),
-      );
-    };
-
-    class MockEventSource extends EventTarget {
-      static readonly CONNECTING = 0;
-      static readonly OPEN = 1;
-      static readonly CLOSED = 2;
-      readonly CONNECTING = 0;
-      readonly OPEN = 1;
-      readonly CLOSED = 2;
-      readonly url: string;
-      readonly withCredentials = false;
-      readyState = MockEventSource.CONNECTING;
-      onerror: ((event: Event) => void) | null = null;
-      onmessage: ((event: MessageEvent) => void) | null = null;
-      onopen: ((event: Event) => void) | null = null;
-
-      constructor(url: string | URL) {
-        super();
-        this.url = String(url);
-        this.readyState = MockEventSource.OPEN;
-        eventSources.set(getRunEventsPath(url), this);
-      }
-
-      close() {
-        this.readyState = MockEventSource.CLOSED;
-        eventSources.delete(getRunEventsPath(this.url));
-      }
-    }
-
-    window.EventSource = MockEventSource as typeof EventSource;
-  });
-
   await mockSessions(page, () => [visibleSession]);
   await mockSessionById(page, "session-1", () => visibleSession);
-  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
-    const body = route.request().postDataJSON() as { input: { prompt: string } };
+  await mockRpcMethod(page, "sessions.createRun", (params) => {
+    const body = readCreateRunRequest(params);
 
-    prompts.push(body.input.prompt);
+    prompts.push(readSubmittedPrompt(body));
     visibleSession = prompts.length === 1 ? firstRunningSession : queuedSession;
-    await fulfillJson(
-      route,
-      prompts.length === 1
-        ? createSubmittedRunResponse(visibleSession, "run-1")
-        : createSubmittedRunResponse(visibleSession, "queued-1", { status: "queued" }),
-    );
+    return prompts.length === 1
+      ? createSubmittedRunResponse(visibleSession, "run-1")
+      : createSubmittedRunResponse(visibleSession, "queued-1", { status: "queued" });
   });
 
   await page.goto("/");
@@ -938,13 +657,7 @@ test("queues a prompt while a session is running and sends it after completion",
   await expect.poll(() => prompts).toEqual(["Run a long task", "Queued follow-up"]);
 
   visibleSession = secondRunningSession;
-  await page.evaluate(() =>
-    (
-      window as Window & {
-        __completeRun?: (runId: string) => void;
-      }
-    ).__completeRun?.("run-1"),
-  );
+  await emitRunEvent(page, "run-1", { type: "run.succeeded", session: firstCompletedSession });
 
   await expect.poll(() => prompts).toEqual(["Run a long task", "Queued follow-up"]);
   await expect(page.getByRole("region", { name: "Queued prompts" })).not.toBeVisible();
@@ -993,91 +706,19 @@ test("restores streamed execution trace after switching back to a running sessio
     isRunning: false,
   };
 
-  await page.addInitScript(() => {
-    (
-      window as Window & {
-        __emitHiddenTrace?: () => void;
-      }
-    ).__emitHiddenTrace = undefined;
-
-    class MockEventSource extends EventTarget {
-      static readonly CONNECTING = 0;
-      static readonly OPEN = 1;
-      static readonly CLOSED = 2;
-      readonly CONNECTING = 0;
-      readonly OPEN = 1;
-      readonly CLOSED = 2;
-      readonly url: string;
-      readonly withCredentials = false;
-      readyState = MockEventSource.CONNECTING;
-      onerror: ((event: Event) => void) | null = null;
-      onmessage: ((event: MessageEvent) => void) | null = null;
-      onopen: ((event: Event) => void) | null = null;
-
-      constructor(url: string | URL) {
-        super();
-        this.url = String(url);
-        this.readyState = MockEventSource.OPEN;
-
-        (
-          window as Window & {
-            __emitHiddenTrace?: () => void;
-          }
-        ).__emitHiddenTrace = () => {
-          this.dispatchEvent(
-            new MessageEvent("run.trace", {
-              data: JSON.stringify({
-                type: "run.trace",
-                event: {
-                  type: "item.completed",
-                  item: {
-                    id: "item-hidden",
-                    type: "agent_message",
-                    text: "Hidden trace event.",
-                  },
-                },
-              }),
-            }),
-          );
-        };
-      }
-
-      close() {
-        this.readyState = MockEventSource.CLOSED;
-      }
-    }
-
-    window.EventSource = MockEventSource as typeof EventSource;
-  });
-
   await mockSessions(page, [runningSession, otherSession]);
   await mockSessionById(page, "session-1", runningSession);
   await mockSession(page, otherSession);
 
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Running session" })).toBeVisible();
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          typeof (
-            window as Window & {
-              __emitHiddenTrace?: () => void;
-            }
-          ).__emitHiddenTrace,
-      ),
-    )
-    .toBe("function");
   await page.getByRole("button", { name: "Other session" }).click();
   await expect(page.getByRole("heading", { name: "Other session" })).toBeVisible();
 
-  await page.evaluate(() =>
-    (
-      window as Window & {
-        __emitHiddenTrace?: () => void;
-      }
-    ).__emitHiddenTrace?.(),
-  );
+  await emitRunEvent(page, "run-1", {
+    type: "run.trace",
+    event: createCompletedTraceEvent("item-hidden", "Hidden trace event."),
+  });
   await expect(page.getByText("Show execution trace")).not.toBeVisible();
 
   await page.getByRole("button", { name: "Running session" }).click();
@@ -1174,78 +815,6 @@ test("highlights running and unread sidebar sessions", async ({ page }) => {
         ).__sessionCompletionNotifications?.push({ sessionId, sessionTitle });
       },
     };
-    (
-      window as Window & {
-        __completeRun?: () => void;
-      }
-    ).__completeRun = undefined;
-
-    class MockEventSource extends EventTarget {
-      static readonly CONNECTING = 0;
-      static readonly OPEN = 1;
-      static readonly CLOSED = 2;
-      readonly CONNECTING = 0;
-      readonly OPEN = 1;
-      readonly CLOSED = 2;
-      readonly url: string;
-      readonly withCredentials = false;
-      readyState = MockEventSource.CONNECTING;
-      onerror: ((event: Event) => void) | null = null;
-      onmessage: ((event: MessageEvent) => void) | null = null;
-      onopen: ((event: Event) => void) | null = null;
-
-      constructor(url: string | URL) {
-        super();
-        this.url = String(url);
-        this.readyState = MockEventSource.OPEN;
-
-        (
-          window as Window & {
-            __completeRun?: () => void;
-          }
-        ).__completeRun = () => {
-          this.dispatchEvent(new Event("open"));
-          this.dispatchEvent(
-            new MessageEvent("run.succeeded", {
-              data: JSON.stringify({
-                type: "run.succeeded",
-                session: {
-                  id: "session-1",
-                  workspace: "/Users/bytedance/cui",
-                  title: "Running session",
-                  createdAt: "2026-08-22T00:00:00.000Z",
-                  updatedAt: "2026-08-22T00:00:01.000Z",
-                  messages: [
-                    {
-                      id: "message-1",
-                      role: "user",
-                      content: "Run a long task",
-                      createdAt: "2026-08-22T00:00:00.000Z",
-                    },
-                    {
-                      id: "message-2",
-                      role: "assistant",
-                      kind: "response",
-                      content: "Finished while hidden.",
-                      createdAt: "2026-08-22T00:00:01.000Z",
-                    },
-                  ],
-                  rounds: [],
-                  currentRound: 1,
-                  isRunning: false,
-                },
-              }),
-            }),
-          );
-        };
-      }
-
-      close() {
-        this.readyState = MockEventSource.CLOSED;
-      }
-    }
-
-    window.EventSource = MockEventSource as typeof EventSource;
   });
 
   await mockSessions(page, () => {
@@ -1269,13 +838,7 @@ test("highlights running and unread sidebar sessions", async ({ page }) => {
   await expect(runningButton).not.toHaveClass(/is-unread-session/);
   await page.evaluate(() => localStorage.setItem("cui:session-last-seen-round:v1:session-1", "0"));
   runCompleted = true;
-  await page.evaluate(() =>
-    (
-      window as Window & {
-        __completeRun?: () => void;
-      }
-    ).__completeRun?.(),
-  );
+  await emitRunEvent(page, "run-1", { type: "run.succeeded", session: completedSession });
   await expect.poll(() => sessionListRequests).toBeGreaterThan(1);
   await expect
     .poll(() =>
@@ -1343,80 +906,6 @@ test("stays on new session when a background run completes", async ({ page }) =>
   };
   let runCompleted = false;
 
-  await page.addInitScript(() => {
-    (
-      window as Window & {
-        __completeRun?: () => void;
-      }
-    ).__completeRun = undefined;
-
-    class MockEventSource extends EventTarget {
-      static readonly CONNECTING = 0;
-      static readonly OPEN = 1;
-      static readonly CLOSED = 2;
-      readonly CONNECTING = 0;
-      readonly OPEN = 1;
-      readonly CLOSED = 2;
-      readonly url: string;
-      readonly withCredentials = false;
-      readyState = MockEventSource.CONNECTING;
-      onerror: ((event: Event) => void) | null = null;
-      onmessage: ((event: MessageEvent) => void) | null = null;
-      onopen: ((event: Event) => void) | null = null;
-
-      constructor(url: string | URL) {
-        super();
-        this.url = String(url);
-        this.readyState = MockEventSource.OPEN;
-
-        (
-          window as Window & {
-            __completeRun?: () => void;
-          }
-        ).__completeRun = () => {
-          this.dispatchEvent(
-            new MessageEvent("run.succeeded", {
-              data: JSON.stringify({
-                type: "run.succeeded",
-                session: {
-                  id: "session-1",
-                  workspace: "/Users/bytedance/cui",
-                  title: "Running session",
-                  createdAt: "2026-08-22T00:00:00.000Z",
-                  updatedAt: "2026-08-22T00:00:01.000Z",
-                  messages: [
-                    {
-                      id: "message-1",
-                      role: "user",
-                      content: "Run a long task",
-                      createdAt: "2026-08-22T00:00:00.000Z",
-                    },
-                    {
-                      id: "message-2",
-                      role: "assistant",
-                      kind: "response",
-                      content: "Finished while on new session.",
-                      createdAt: "2026-08-22T00:00:01.000Z",
-                    },
-                  ],
-                  rounds: [],
-                  currentRound: 1,
-                  isRunning: false,
-                },
-              }),
-            }),
-          );
-        };
-      }
-
-      close() {
-        this.readyState = MockEventSource.CLOSED;
-      }
-    }
-
-    window.EventSource = MockEventSource as typeof EventSource;
-  });
-
   await mockSessions(page, () => [runCompleted ? completedSession : runningSession]);
   await mockSessionById(page, "session-1", () =>
     runCompleted ? completedSession : runningSession,
@@ -1428,13 +917,7 @@ test("stays on new session when a background run completes", async ({ page }) =>
   await expect(page.getByRole("heading", { name: "New session" })).toBeVisible();
 
   runCompleted = true;
-  await page.evaluate(() =>
-    (
-      window as Window & {
-        __completeRun?: () => void;
-      }
-    ).__completeRun?.(),
-  );
+  await emitRunEvent(page, "run-1", { type: "run.succeeded", session: completedSession });
 
   await expect(page.getByRole("heading", { name: "New session" })).toBeVisible();
   await expect(page.getByText("Finished while on new session.")).not.toBeVisible();
@@ -1489,42 +972,13 @@ test("clears stale sidebar running state from refreshed session data", async ({ 
   let runSubmitted = false;
   let sessionListRequests = 0;
 
-  await page.addInitScript(() => {
-    class MockEventSource extends EventTarget {
-      static readonly CONNECTING = 0;
-      static readonly OPEN = 1;
-      static readonly CLOSED = 2;
-      readonly CONNECTING = 0;
-      readonly OPEN = 1;
-      readonly CLOSED = 2;
-      readonly url: string;
-      readonly withCredentials = false;
-      readyState = MockEventSource.CONNECTING;
-      onerror: ((event: Event) => void) | null = null;
-      onmessage: ((event: MessageEvent) => void) | null = null;
-      onopen: ((event: Event) => void) | null = null;
-
-      constructor(url: string | URL) {
-        super();
-        this.url = String(url);
-        this.readyState = MockEventSource.OPEN;
-      }
-
-      close() {
-        this.readyState = MockEventSource.CLOSED;
-      }
-    }
-
-    window.EventSource = MockEventSource as typeof EventSource;
-  });
-
   await mockSessions(page, () => {
     sessionListRequests += 1;
     return [runSubmitted ? completedSession : initialSession];
   });
-  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
+  await mockRpcMethod(page, "sessions.createRun", () => {
     runSubmitted = true;
-    await fulfillJson(route, createSubmittedRunResponse(startedSession, "run-1"));
+    return createSubmittedRunResponse(startedSession, "run-1");
   });
 
   await page.goto("/");
@@ -1578,96 +1032,7 @@ test("reconnects to a running run after page reload", async ({ page }) => {
     ],
   };
   let runCompleted = false;
-
-  await page.exposeFunction("__markRunCompleted", () => {
-    runCompleted = true;
-  });
-  await page.addInitScript(() => {
-    const eventSourceUrls: string[] = [];
-
-    (
-      window as Window & {
-        __eventSourceUrls?: string[];
-      }
-    ).__eventSourceUrls = eventSourceUrls;
-
-    class MockEventSource extends EventTarget {
-      static readonly CONNECTING = 0;
-      static readonly OPEN = 1;
-      static readonly CLOSED = 2;
-      readonly CONNECTING = 0;
-      readonly OPEN = 1;
-      readonly CLOSED = 2;
-      readonly url: string;
-      readonly withCredentials = false;
-      readyState = MockEventSource.CONNECTING;
-      onerror: ((event: Event) => void) | null = null;
-      onmessage: ((event: MessageEvent) => void) | null = null;
-      onopen: ((event: Event) => void) | null = null;
-
-      constructor(url: string | URL) {
-        super();
-        this.url = String(url);
-        eventSourceUrls.push(this.url);
-
-        window.setTimeout(async () => {
-          this.readyState = MockEventSource.OPEN;
-          this.dispatchEvent(new Event("open"));
-          this.dispatchEvent(
-            new MessageEvent("run.output.delta", {
-              data: JSON.stringify({
-                type: "run.output.delta",
-                text: "Recovered response",
-              }),
-            }),
-          );
-          await (
-            window as Window & {
-              __markRunCompleted?: () => Promise<void>;
-            }
-          ).__markRunCompleted?.();
-          this.dispatchEvent(
-            new MessageEvent("run.succeeded", {
-              data: JSON.stringify({
-                type: "run.succeeded",
-                session: {
-                  id: "session-1",
-                  workspace: "/Users/bytedance/cui",
-                  title: "Running session",
-                  createdAt: "2026-08-22T00:00:00.000Z",
-                  updatedAt: "2026-08-22T00:00:00.000Z",
-                  messages: [
-                    {
-                      id: "message-1",
-                      role: "user",
-                      content: "Run a long task",
-                      createdAt: "2026-08-22T00:00:00.000Z",
-                    },
-                    {
-                      id: "message-2",
-                      role: "assistant",
-                      kind: "response",
-                      content: "Finished after reconnect.",
-                      createdAt: "2026-08-22T00:00:01.000Z",
-                    },
-                  ],
-                  rounds: [],
-                  currentRound: 1,
-                  isRunning: false,
-                },
-              }),
-            }),
-          );
-        }, 0);
-      }
-
-      close() {
-        this.readyState = MockEventSource.CLOSED;
-      }
-    }
-
-    window.EventSource = MockEventSource as typeof EventSource;
-  });
+  const subscribedRuns: string[] = [];
 
   await mockSessions(page, () => {
     return [runCompleted ? completedSession : runningSession];
@@ -1675,24 +1040,29 @@ test("reconnects to a running run after page reload", async ({ page }) => {
   await mockSessionById(page, "session-1", () =>
     runCompleted ? completedSession : runningSession,
   );
+  await mockRpcMethod(page, "runs.subscribe", async (params) => {
+    const runId = String((params as { runId: string }).runId);
+
+    subscribedRuns.push(runId);
+    await emitRunEvent(page, runId, {
+      type: "run.output.delta",
+      text: "Recovered response",
+    });
+    runCompleted = true;
+    await emitRunEvent(page, runId, {
+      type: "run.succeeded",
+      session: completedSession,
+    });
+
+    return { subscriptionId: `subscription-${runId}` };
+  });
 
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "Running session" })).toBeVisible();
   await expect(page.getByText("Finished after reconnect.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          (
-            window as Window & {
-              __eventSourceUrls?: string[];
-            }
-          ).__eventSourceUrls ?? [],
-      ),
-    )
-    .toContainEqual(expect.stringContaining("/api/v1/runs/run-1/events"));
+  await expect.poll(() => subscribedRuns).toContainEqual("run-1");
 });
 
 test("applies summary updates without replacing streamed messages", async ({ page }) => {
@@ -1738,95 +1108,12 @@ test("applies summary updates without replacing streamed messages", async ({ pag
   };
   let sessionListRequests = 0;
 
-  await page.addInitScript(() => {
-    class MockEventSource extends EventTarget {
-      static readonly CONNECTING = 0;
-      static readonly OPEN = 1;
-      static readonly CLOSED = 2;
-      readonly CONNECTING = 0;
-      readonly OPEN = 1;
-      readonly CLOSED = 2;
-      readonly url: string;
-      readonly withCredentials = false;
-      readyState = MockEventSource.CONNECTING;
-      onerror: ((event: Event) => void) | null = null;
-      onmessage: ((event: MessageEvent) => void) | null = null;
-      onopen: ((event: Event) => void) | null = null;
-
-      constructor(url: string | URL) {
-        super();
-        this.url = String(url);
-
-        window.setTimeout(() => {
-          this.readyState = MockEventSource.OPEN;
-          this.dispatchEvent(new Event("open"));
-          this.dispatchEvent(
-            new MessageEvent("run.output.delta", {
-              data: JSON.stringify({
-                type: "run.output.delta",
-                text: "Streamed ",
-              }),
-            }),
-          );
-          this.dispatchEvent(
-            new MessageEvent("session.updated", {
-              data: JSON.stringify({
-                type: "session.updated",
-                session: {
-                  id: "session-1",
-                  workspace: "/Users/bytedance/cui",
-                  title: "Early summary title",
-                  summary: "Summary generated from the latest user input.",
-                  createdAt: "2026-08-22T00:00:00.000Z",
-                  updatedAt: "2026-08-22T00:00:01.000Z",
-                  messages: [
-                    {
-                      id: "message-1",
-                      role: "assistant",
-                      kind: "response",
-                      content: "Previous response.",
-                      createdAt: "2026-08-22T00:00:00.000Z",
-                    },
-                    {
-                      id: "message-2",
-                      role: "user",
-                      content: "Continue with a streamed summary test",
-                      createdAt: "2026-08-22T00:00:00.000Z",
-                    },
-                  ],
-                  rounds: [],
-                  currentRound: 0,
-                  isRunning: true,
-                  runningRunId: "run-1",
-                },
-              }),
-            }),
-          );
-          this.dispatchEvent(
-            new MessageEvent("run.output.delta", {
-              data: JSON.stringify({
-                type: "run.output.delta",
-                text: "answer.",
-              }),
-            }),
-          );
-        }, 0);
-      }
-
-      close() {
-        this.readyState = MockEventSource.CLOSED;
-      }
-    }
-
-    window.EventSource = MockEventSource as typeof EventSource;
-  });
-
   await mockSessions(page, () => {
     sessionListRequests += 1;
     return sessionListRequests < 3 ? [initialSession] : [summarizedSession];
   });
-  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
-    await fulfillJson(route, createSubmittedRunResponse(startedSession, "run-1"));
+  await mockRpcMethod(page, "sessions.createRun", () => {
+    return createSubmittedRunResponse(startedSession, "run-1");
   });
   await mockSession(page, initialSession);
 
@@ -1836,12 +1123,26 @@ test("applies summary updates without replacing streamed messages", async ({ pag
     .getByPlaceholder("Continue this session...")
     .fill("Continue with a streamed summary test");
   await page.getByRole("button", { name: "Send message" }).click();
+  await emitRunEvent(page, "run-1", {
+    type: "run.output.delta",
+    text: "Streamed ",
+  });
+  await emitRunEvent(page, "run-1", {
+    type: "session.updated",
+    session: summarizedSession,
+  });
+  await emitRunEvent(page, "run-1", {
+    type: "run.output.delta",
+    text: "answer.",
+  });
 
   const conversation = page.getByLabel("AI conversation");
 
   await expect(conversation.getByRole("heading", { name: "Early summary title" })).toBeVisible();
   await expect(
-    conversation.getByText("Summary generated from the latest user input."),
+    page.getByRole("button", {
+      name: /Early summary title Summary generated from the latest user input\./,
+    }),
   ).toBeVisible();
   await expect(conversation.getByText("Streamed answer.")).toBeVisible();
 });
@@ -1872,97 +1173,61 @@ test("shows persisted assistant trace messages as soon as a run completes", asyn
     isRunning: true,
     runningRunId: "run-1",
   };
-
-  await page.addInitScript(() => {
-    class MockEventSource extends EventTarget {
-      static readonly CONNECTING = 0;
-      static readonly OPEN = 1;
-      static readonly CLOSED = 2;
-      readonly CONNECTING = 0;
-      readonly OPEN = 1;
-      readonly CLOSED = 2;
-      readonly url: string;
-      readonly withCredentials = false;
-      readyState = MockEventSource.CONNECTING;
-      onerror: ((event: Event) => void) | null = null;
-      onmessage: ((event: MessageEvent) => void) | null = null;
-      onopen: ((event: Event) => void) | null = null;
-
-      constructor(url: string | URL) {
-        super();
-        this.url = String(url);
-
-        window.setTimeout(() => {
-          this.readyState = MockEventSource.OPEN;
-          this.dispatchEvent(new Event("open"));
-          this.dispatchEvent(
-            new MessageEvent("session.updated", {
-              data: JSON.stringify({
-                type: "session.updated",
-                session: {
-                  id: "session-1",
-                  workspace: "/Users/bytedance/cui",
-                  title: "Trace completion session",
-                  summary: "",
-                  createdAt: "2026-08-22T00:00:00.000Z",
-                  updatedAt: "2026-08-22T00:00:01.000Z",
-                  messages: [
-                    {
-                      id: "message-2",
-                      role: "assistant",
-                      kind: "trace",
-                      content: JSON.stringify({
-                        type: "assistant_message",
-                        id: "assistant-message-1",
-                        phase: "completed",
-                        text: "Completed assistant trace.",
-                      }),
-                      createdAt: "2026-08-22T00:00:01.000Z",
-                    },
-                    {
-                      id: "message-3",
-                      role: "assistant",
-                      kind: "response",
-                      content: "Completed assistant response.",
-                      createdAt: "2026-08-22T00:00:01.000Z",
-                    },
-                  ],
-                  messagePageInfo: {
-                    total: 3,
-                    returned: 2,
-                    hasMoreBefore: true,
-                    hasMoreAfter: false,
-                    oldestMessageId: "message-2",
-                    newestMessageId: "message-3",
-                  },
-                  rounds: [],
-                  currentRound: 1,
-                  isRunning: true,
-                  runningRunId: "run-1",
-                },
-              }),
-            }),
-          );
-        }, 0);
-      }
-
-      close() {
-        this.readyState = MockEventSource.CLOSED;
-      }
-    }
-
-    window.EventSource = MockEventSource as typeof EventSource;
-  });
+  const traceUpdatedSession = {
+    id: "session-1",
+    workspace: currentWorkspace,
+    title: "Trace completion session",
+    summary: "",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:01.000Z",
+    messages: [
+      {
+        id: "message-2",
+        role: "assistant",
+        kind: "trace",
+        content: JSON.stringify({
+          type: "assistant_message",
+          id: "assistant-message-1",
+          phase: "completed",
+          text: "Completed assistant trace.",
+        }),
+        createdAt: "2026-08-22T00:00:01.000Z",
+      },
+      {
+        id: "message-3",
+        role: "assistant",
+        kind: "response",
+        content: "Completed assistant response.",
+        createdAt: "2026-08-22T00:00:01.000Z",
+      },
+    ],
+    messagePageInfo: {
+      total: 3,
+      returned: 2,
+      hasMoreBefore: true,
+      hasMoreAfter: false,
+      oldestMessageId: "message-2",
+      newestMessageId: "message-3",
+    },
+    rounds: [],
+    currentRound: 1,
+    isRunning: true,
+    runningRunId: "run-1",
+  };
 
   await mockSessions(page, [initialSession]);
   await mockSession(page, initialSession);
-  await page.route("**/api/v1/sessions/session-1/runs", async (route) => {
-    await fulfillJson(route, createSubmittedRunResponse(startedSession, "run-1"));
+  await mockRpcMethod(page, "sessions.createRun", () => {
+    return createSubmittedRunResponse(startedSession, "run-1");
   });
 
   await page.goto("/");
   await page.getByPlaceholder("Continue this session...").fill("Show the completed trace");
   await page.getByRole("button", { name: "Send message" }).click();
+  await emitRunEvent(page, "run-1", {
+    type: "session.updated",
+    session: traceUpdatedSession,
+  });
 
   const conversation = page.getByLabel("AI conversation");
 

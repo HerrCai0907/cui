@@ -15,7 +15,7 @@ import {
   parseCodeRangeQuery,
   parseCreateRunBody,
   parseCreateSessionBody,
-} from "../../apps/api/src/http/validation/requestParsers.js";
+} from "../../apps/api/src/rpc/requestParsers.js";
 
 test("getCodeRange returns the requested inclusive line range", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-code-query-"));

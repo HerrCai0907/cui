@@ -81,6 +81,24 @@ export function resolveApiUrl(path: string, baseUrl = loadApiBaseUrl()): string 
   return `${normalizedBaseUrl}/${relativePath}`;
 }
 
+export function resolveApiWebSocketUrl(path: string, baseUrl = loadApiBaseUrl()): string {
+  if (/^wss?:\/\//i.test(path)) {
+    return path;
+  }
+
+  const resolvedUrl = resolveApiUrl(path, baseUrl);
+  const base = typeof window === "undefined" ? "http://localhost/" : window.location.href;
+  const parsed = new URL(resolvedUrl, base);
+
+  if (parsed.protocol === "https:") {
+    parsed.protocol = "wss:";
+  } else if (parsed.protocol === "http:") {
+    parsed.protocol = "ws:";
+  }
+
+  return parsed.toString();
+}
+
 function getAndroidBridge(): AndroidBridge {
   return typeof window === "undefined"
     ? {}

@@ -1,7 +1,4 @@
-import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
-
-extendZodWithOpenApi(z);
 
 const nonEmptyStringSchema = z.string().trim().min(1);
 const jsonRecordSchema = z.record(z.string(), z.unknown());
@@ -173,14 +170,12 @@ export const RoundReviewSchema = ChatRoundSchema.omit({
   beforeDiff: true,
   afterDiff: true,
   diff: true,
-})
-  .extend({
-    beforeDiff: z.string().optional(),
-    afterDiff: z.string().optional(),
-    diff: z.string().optional(),
-    diffSummary: RoundDiffSummarySchema.optional(),
-  })
-  .openapi("RoundReview");
+}).extend({
+  beforeDiff: z.string().optional(),
+  afterDiff: z.string().optional(),
+  diff: z.string().optional(),
+  diffSummary: RoundDiffSummarySchema.optional(),
+});
 
 export const ChatRoundSummarySchema = ChatRoundSchema.pick({
   round: true,

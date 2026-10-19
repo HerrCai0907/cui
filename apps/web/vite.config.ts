@@ -8,13 +8,19 @@ export default defineConfig({
   plugins: [react()],
   preview: {
     proxy: {
-      "/api": apiTarget,
+      "/api": {
+        target: apiTarget,
+        ws: true,
+      },
     },
   },
   server: {
     port: 5173,
     proxy: {
-      "/api": apiTarget,
+      "/api": {
+        target: apiTarget,
+        ws: true,
+      },
     },
   },
 });

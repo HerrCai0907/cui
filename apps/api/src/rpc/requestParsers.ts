@@ -18,7 +18,7 @@ import {
   UpdateSessionRequestSchema,
   WorkspaceGitInfoQuerySchema,
   WorkspacePathSuggestionsQuerySchema,
-} from "../../contracts/apiSchemas.js";
+} from "../contracts/apiSchemas.js";
 
 export type ParsedBody<T> = { ok: true; value: T } | { ok: false; error: string };
 

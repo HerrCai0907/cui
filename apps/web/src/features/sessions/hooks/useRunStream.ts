@@ -5,7 +5,12 @@ import {
   useEffect,
   useRef,
 } from "react";
-import type { ApiSession } from "../../../types";
+import type { ApiSession, RunStreamEvent, SessionSummary } from "../../../types";
+import {
+  addRpcCloseListener,
+  addRpcNotificationListener,
+  rpcRequest,
+} from "../../../shared/api/rpcClient";
 import {
   appendResponseDeltaToState,
   appendTraceEventToState,
@@ -15,9 +20,6 @@ import {
 } from "../model/streamMessages";
 import { toSessionSummary } from "../model/sessionSummaries";
 import { formatModelLabel } from "../model/messages";
-import { parseRunStreamEvent } from "../model/runStream";
-import type { SessionSummary } from "../../../types";
-import { resolveApiUrl } from "../../../shared/api/apiBaseUrl";
 import type { ExecutionTraceMessageType } from "../../config/model/appConfig";
 
 type UseRunStreamInput = {
@@ -43,6 +45,12 @@ type StoppedTraceOverlay = {
   content: string;
 };
 
+type RunEventNotification = {
+  subscriptionId: string;
+  runId: string;
+  event: RunStreamEvent;
+};
+
 export function useRunStream({
   activeSessionRef,
   onRunSettled,
@@ -55,8 +63,9 @@ export function useRunStream({
   setRunningSession,
   setSessions,
 }: UseRunStreamInput) {
-  const eventSourceRefs = useRef<Map<string, EventSource>>(new Map());
+  const subscriptionRefs = useRef<Map<string, string>>(new Map());
   const runIdRefs = useRef<Map<string, string>>(new Map());
+  const runEventHandlersRef = useRef<Map<string, (event: RunStreamEvent) => void>>(new Map());
   const traceMessageTypeKeyRefs = useRef<Map<string, string>>(new Map());
   const streamStateRefs = useRef<Map<string, StreamMessageState>>(new Map());
   const streamMessageIdRefs = useRef<
@@ -72,12 +81,39 @@ export function useRunStream({
   const stoppedTraceOverlayRefs = useRef<Map<string, StoppedTraceOverlay[]>>(new Map());
 
   useEffect(() => {
-    return () => {
-      eventSourceRefs.current.forEach((eventSource) => {
-        eventSource.close();
-      });
-      eventSourceRefs.current.clear();
+    const removeNotificationListener = addRpcNotificationListener("run.event", (params) => {
+      const notification = parseRunEventNotification(params);
+
+      if (!notification) {
+        return;
+      }
+
+      runEventHandlersRef.current.get(notification.runId)?.(notification.event);
+    });
+    const removeCloseListener = addRpcCloseListener(() => {
+      for (const [sessionId, runId] of runIdRefs.current) {
+        if (activeSessionRef.current?.id === sessionId) {
+          setError("Stream connection failed");
+        }
+        preserveStoppedStreamOverlay(sessionId);
+        setRunningSession(sessionId, false, runId);
+      }
+
+      subscriptionRefs.current.clear();
       runIdRefs.current.clear();
+      runEventHandlersRef.current.clear();
+      traceMessageTypeKeyRefs.current.clear();
+    });
+
+    return () => {
+      removeNotificationListener();
+      removeCloseListener();
+      subscriptionRefs.current.forEach((subscriptionId) => {
+        void rpcRequest("runs.unsubscribe", { subscriptionId }).catch(() => undefined);
+      });
+      subscriptionRefs.current.clear();
+      runIdRefs.current.clear();
+      runEventHandlersRef.current.clear();
       traceMessageTypeKeyRefs.current.clear();
       streamStateRefs.current.clear();
       streamMessageIdRefs.current.clear();
@@ -91,19 +127,15 @@ export function useRunStream({
     if (
       runIdRefs.current.get(sessionId) === runId &&
       traceMessageTypeKeyRefs.current.get(sessionId) === traceMessageTypeKey &&
-      eventSourceRefs.current.has(sessionId)
+      runEventHandlersRef.current.has(runId)
     ) {
       return;
     }
 
-    eventSourceRefs.current.get(sessionId)?.close();
-
-    const eventSource = new EventSource(
-      resolveApiUrl(createRunEventsPath(runId, traceMessageTypes)),
-    );
-    eventSourceRefs.current.set(sessionId, eventSource);
+    closeRunStream(sessionId);
     runIdRefs.current.set(sessionId, runId);
     traceMessageTypeKeyRefs.current.set(sessionId, traceMessageTypeKey);
+
     const streamingTraceMessageId = `stream-${runId}-trace`;
     const streamingResponseMessageId = `stream-${runId}-response`;
     const existingStreamMessageIds = streamMessageIdRefs.current.get(sessionId);
@@ -130,12 +162,19 @@ export function useRunStream({
     let streamClosed = false;
 
     const closeCurrentStream = (options: { preserveOverlay?: boolean } = {}) => {
-      eventSource.close();
-      if (eventSourceRefs.current.get(sessionId) === eventSource) {
-        eventSourceRefs.current.delete(sessionId);
-        runIdRefs.current.delete(sessionId);
-        traceMessageTypeKeyRefs.current.delete(sessionId);
+      if (runIdRefs.current.get(sessionId) !== runId) {
+        return;
       }
+
+      const subscriptionId = subscriptionRefs.current.get(sessionId);
+
+      if (subscriptionId) {
+        void rpcRequest("runs.unsubscribe", { subscriptionId }).catch(() => undefined);
+      }
+      subscriptionRefs.current.delete(sessionId);
+      runEventHandlersRef.current.delete(runId);
+      runIdRefs.current.delete(sessionId);
+      traceMessageTypeKeyRefs.current.delete(sessionId);
 
       if (!options.preserveOverlay) {
         streamStateRefs.current.delete(sessionId);
@@ -151,11 +190,7 @@ export function useRunStream({
       setActiveSession((session) => {
         const currentSession = session ?? activeSessionRef.current;
 
-        if (!currentSession) {
-          return session;
-        }
-
-        if (currentSession.id !== sessionId) {
+        if (!currentSession || currentSession.id !== sessionId) {
           return session;
         }
 
@@ -180,11 +215,7 @@ export function useRunStream({
       setActiveSession((session) => {
         const currentSession = session ?? activeSessionRef.current;
 
-        if (!currentSession) {
-          return session;
-        }
-
-        if (currentSession.id !== sessionId) {
+        if (!currentSession || currentSession.id !== sessionId) {
           return session;
         }
 
@@ -266,100 +297,81 @@ export function useRunStream({
       });
     };
 
-    eventSource.addEventListener("run.output.delta", (event) => {
-      const data = parseRunStreamEvent(event);
-
-      if (data?.type === "run.output.delta") {
+    runEventHandlersRef.current.set(runId, (data) => {
+      if (data.type === "run.output.delta") {
         updateResponseMessage(data.text);
-      }
-    });
-
-    eventSource.addEventListener("run.trace", (event) => {
-      const data = parseRunStreamEvent(event);
-
-      if (data?.type === "run.trace") {
+      } else if (data.type === "run.trace") {
         updateTraceMessage(data.event);
+      } else if (data.type === "session.updated") {
+        updateSession(data.session);
+      } else if (data.type === "run.succeeded") {
+        notifyAndroidSessionCompleted(data.session);
+        streamStateRefs.current.delete(sessionId);
+        streamMessageIdRefs.current.delete(sessionId);
+        if (activeSessionRef.current?.id === data.session.id) {
+          setCurrentActiveSession(data.session, { recordAttention: false });
+        }
+        setSessions((current) => {
+          const nextSummary = toSessionSummary(data.session);
+
+          return current.map((session) =>
+            session.id === data.session.id ? { ...session, ...nextSummary } : session,
+          );
+        });
+        setExpandedTraceIds((current) => {
+          const next = new Set(current);
+
+          next.delete(streamingTraceMessageId);
+
+          return next;
+        });
+        setRunningSession(sessionId, false, runId);
+        refreshSessions();
+        onRunSettled?.(sessionId, data.session);
+        streamClosed = true;
+        closeCurrentStream();
+      } else if (data.type === "run.failed") {
+        if (activeSessionRef.current?.id === sessionId) {
+          setError(data.error || "Request failed");
+        }
+        preserveStoppedStreamOverlay(sessionId);
+        setRunningSession(sessionId, false, runId);
+        onRunSettled?.(sessionId);
+        streamClosed = true;
+        closeCurrentStream({ preserveOverlay: true });
+      } else if (data.type === "run.cancelled") {
+        preserveStoppedStreamOverlay(sessionId);
+        setRunningSession(sessionId, false, runId);
+        refreshSessions();
+        onRunSettled?.(sessionId);
+        streamClosed = true;
+        closeCurrentStream({ preserveOverlay: true });
       }
     });
 
-    eventSource.addEventListener("session.updated", (event) => {
-      const data = parseRunStreamEvent(event);
+    void rpcRequest<{ subscriptionId: string }>("runs.subscribe", {
+      runId,
+      traceMessageTypes,
+    })
+      .then(({ subscriptionId }) => {
+        if (runIdRefs.current.get(sessionId) === runId) {
+          subscriptionRefs.current.set(sessionId, subscriptionId);
+        } else {
+          void rpcRequest("runs.unsubscribe", { subscriptionId }).catch(() => undefined);
+        }
+      })
+      .catch(() => {
+        if (streamClosed) {
+          return;
+        }
 
-      if (data?.type !== "session.updated") {
-        return;
-      }
-
-      updateSession(data.session);
-    });
-
-    eventSource.addEventListener("run.succeeded", (event) => {
-      const data = parseRunStreamEvent(event);
-
-      if (data?.type !== "run.succeeded") {
-        return;
-      }
-
-      notifyAndroidSessionCompleted(data.session);
-      streamStateRefs.current.delete(sessionId);
-      streamMessageIdRefs.current.delete(sessionId);
-      if (activeSessionRef.current?.id === data.session.id) {
-        setCurrentActiveSession(data.session, { recordAttention: false });
-      }
-      setSessions((current) => {
-        const nextSummary = toSessionSummary(data.session);
-
-        return current.map((session) =>
-          session.id === data.session.id ? { ...session, ...nextSummary } : session,
-        );
+        if (activeSessionRef.current?.id === sessionId) {
+          setError("Stream connection failed");
+        }
+        preserveStoppedStreamOverlay(sessionId);
+        setRunningSession(sessionId, false, runId);
+        closeCurrentStream({ preserveOverlay: true });
       });
-      setExpandedTraceIds((current) => {
-        const next = new Set(current);
-
-        next.delete(streamingTraceMessageId);
-
-        return next;
-      });
-      setRunningSession(sessionId, false, runId);
-      refreshSessions();
-      onRunSettled?.(sessionId, data.session);
-      streamClosed = true;
-      closeCurrentStream();
-    });
-
-    eventSource.addEventListener("run.failed", (event) => {
-      const data = parseRunStreamEvent(event);
-
-      if (activeSessionRef.current?.id === sessionId) {
-        setError(data?.type === "run.failed" ? data.error : "Request failed");
-      }
-      preserveStoppedStreamOverlay(sessionId);
-      setRunningSession(sessionId, false, runId);
-      onRunSettled?.(sessionId);
-      streamClosed = true;
-      closeCurrentStream({ preserveOverlay: true });
-    });
-
-    eventSource.addEventListener("run.cancelled", () => {
-      preserveStoppedStreamOverlay(sessionId);
-      setRunningSession(sessionId, false, runId);
-      refreshSessions();
-      onRunSettled?.(sessionId);
-      streamClosed = true;
-      closeCurrentStream({ preserveOverlay: true });
-    });
-
-    eventSource.onerror = () => {
-      if (streamClosed) {
-        return;
-      }
-
-      if (activeSessionRef.current?.id === sessionId) {
-        setError("Stream connection failed");
-      }
-      preserveStoppedStreamOverlay(sessionId);
-      setRunningSession(sessionId, false, runId);
-      closeCurrentStream({ preserveOverlay: true });
-    };
   }
 
   function applyLocalRunOverlay(session: ApiSession): ApiSession {
@@ -394,8 +406,17 @@ export function useRunStream({
       return;
     }
 
-    eventSourceRefs.current.get(sessionId)?.close();
-    eventSourceRefs.current.delete(sessionId);
+    const currentRunId = runIdRefs.current.get(sessionId);
+    const subscriptionId = subscriptionRefs.current.get(sessionId);
+
+    if (subscriptionId) {
+      void rpcRequest("runs.unsubscribe", { subscriptionId }).catch(() => undefined);
+    }
+    if (currentRunId) {
+      runEventHandlersRef.current.delete(currentRunId);
+    }
+
+    subscriptionRefs.current.delete(sessionId);
     runIdRefs.current.delete(sessionId);
     traceMessageTypeKeyRefs.current.delete(sessionId);
     if (options.preserveOverlay) {
@@ -505,15 +526,22 @@ export function useRunStream({
   return { applyLocalRunOverlay, closeRunStream, streamRun };
 }
 
-export function createRunEventsPath(
-  runId: string,
-  traceMessageTypes: ExecutionTraceMessageType[],
-): string {
-  const params = new URLSearchParams();
+function parseRunEventNotification(params: unknown): RunEventNotification | undefined {
+  if (!params || typeof params !== "object") {
+    return undefined;
+  }
 
-  params.set("traceMessageTypes", traceMessageTypes.join(","));
+  const record = params as Partial<RunEventNotification>;
 
-  return `/api/v1/runs/${encodeURIComponent(runId)}/events?${params.toString()}`;
+  if (typeof record.runId !== "string" || !record.event || typeof record.event !== "object") {
+    return undefined;
+  }
+
+  return {
+    subscriptionId: typeof record.subscriptionId === "string" ? record.subscriptionId : "",
+    runId: record.runId,
+    event: record.event as RunStreamEvent,
+  };
 }
 
 function findInitialTraceInsertAfterMessageId(

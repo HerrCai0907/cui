@@ -1,20 +1,41 @@
 import { expect, test } from "@playwright/test";
-import { mockSessions } from "./helpers";
+import { mockRpcMethod, mockSessions } from "./helpers";
 
 test("Codex uses its hardcoded model catalog and supported reasoning efforts", async ({ page }) => {
   await mockSessions(page, []);
-  await page.route("**/api/v1/health", async (route) => {
-    await route.fulfill({
-      json: {
-        status: "ok",
-        service: "@cui/api",
-        time: new Date().toISOString(),
-      },
-    });
-  });
   let catalogRequests = 0;
-  page.on("request", (request) => {
-    if (new URL(request.url()).pathname === "/api/v1/models") catalogRequests++;
+  await mockRpcMethod(page, "models.list", (params) => {
+    catalogRequests += 1;
+    const harness = (params as { harness?: string }).harness ?? "traex";
+
+    return {
+      models:
+        harness === "codex"
+          ? [
+              {
+                name: "gpt-6-astra",
+                provider: "openai",
+                description: "Mock Codex model",
+                defaultReasoningEffort: "medium",
+                supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max", "ultra"],
+              },
+              {
+                name: "gpt-5.5",
+                provider: "openai",
+                description: "Mock Codex model",
+                defaultReasoningEffort: "medium",
+                supportedReasoningEfforts: ["low", "medium", "high", "xhigh"],
+              },
+            ]
+          : [
+              {
+                name: "GPT-5.4",
+                provider: "trae",
+                description: "Mock model",
+                contextWindow: 200000,
+              },
+            ],
+    };
   });
   await page.goto("/config");
   await expect(page.getByRole("status").filter({ hasText: "Server latency" })).toContainText(

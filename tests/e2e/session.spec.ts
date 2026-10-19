@@ -3,9 +3,10 @@ import { expect, test } from "@playwright/test";
 import {
   createSubmittedRunResponse,
   currentWorkspace,
-  fulfillJson,
+  emitRunEvent,
   mockSession,
   mockSessionById,
+  mockRpcMethod,
   mockSessions,
   mockWorkspaceGitInfo,
   storeAppConfig,
@@ -150,12 +151,10 @@ test("loads twice the current message count when requesting earlier messages", a
 
   await mockSessions(page, [session]);
   await mockSession(page, session);
-  await page.route(`**/api/v1/sessions/${session.id}/messages**`, async (route) => {
-    const url = new URL(route.request().url());
+  await mockRpcMethod(page, "sessions.messages", (params) => {
+    requestedLimit = String((params as { limit?: number }).limit ?? "");
 
-    requestedLimit = url.searchParams.get("limit");
-
-    await fulfillJson(route, {
+    return {
       messages: [
         {
           id: "message-1",
@@ -172,7 +171,7 @@ test("loads twice the current message count when requesting earlier messages", a
         oldestMessageId: "message-1",
         newestMessageId: "message-1",
       },
-    });
+    };
   });
 
   await page.goto("/");
@@ -242,38 +241,22 @@ test("sends composer-selected model preferences when starting a chat session", a
   let createRunBody: unknown;
 
   await mockSessions(page, []);
-  await page.route("**/api/v1/sessions", async (route) => {
-    if (route.request().method() === "POST") {
-      createSessionBody = route.request().postDataJSON();
-      await fulfillJson(route, {
-        session: {
-          ...startedSession,
-          messages: [],
-          isRunning: false,
-          runningRunId: undefined,
-        },
-      });
-      return;
-    }
+  await mockRpcMethod(page, "sessions.create", (params) => {
+    createSessionBody = params;
 
-    await fulfillJson(route, {
-      sessions: [],
-      pagination: {
-        page: 1,
-        pageSize: 30,
-        total: 0,
-        totalPages: 1,
-        hasPreviousPage: false,
-        hasNextPage: false,
+    return {
+      session: {
+        ...startedSession,
+        messages: [],
+        isRunning: false,
+        runningRunId: undefined,
       },
-    });
+    };
   });
-  await page.route("**/api/v1/sessions/session-models/runs", async (route) => {
-    createRunBody = route.request().postDataJSON();
-    await fulfillJson(route, createSubmittedRunResponse(startedSession, "run-models"));
-  });
-  await page.route("**/api/v1/runs/run-models/events", async () => {
-    // Keep the stream open so the submitted session remains visible.
+  await mockRpcMethod(page, "sessions.createRun", (params) => {
+    createRunBody = (params as { request?: unknown }).request;
+
+    return createSubmittedRunResponse(startedSession, "run-models");
   });
   await storeAppConfig(page, {
     harness: "traex",
@@ -346,25 +329,13 @@ test("keeps a newly created session visible when starting its run fails", async 
   const sessions: (typeof createdSession)[] = [];
 
   await mockSessions(page, () => sessions);
-  await page.route("**/api/v1/sessions", async (route) => {
-    if (route.request().method() !== "POST") {
-      await route.fallback();
-      return;
-    }
-
+  await mockRpcMethod(page, "sessions.create", () => {
     sessions.push(createdSession);
-    await fulfillJson(route, { session: createdSession });
+
+    return { session: createdSession };
   });
-  await page.route(`**/api/v1/sessions/${createdSession.id}/runs`, async (route) => {
-    await route.fulfill({
-      status: 500,
-      contentType: "application/json",
-      body: JSON.stringify({
-        error: {
-          message: "run failed after session creation",
-        },
-      }),
-    });
+  await mockRpcMethod(page, "sessions.createRun", () => {
+    throw new Error("run failed after session creation");
   });
 
   await page.goto("/");
@@ -460,31 +431,24 @@ test("sends a shell command on a single Enter key press", async ({ page }) => {
   let createRunBody: unknown;
 
   await mockSessions(page, []);
-  await page.route("**/api/v1/sessions", async (route) => {
-    if (route.request().method() !== "POST") {
-      await route.fallback();
-      return;
-    }
+  await mockRpcMethod(page, "sessions.create", (params) => {
+    createSessionBody = params;
 
-    createSessionBody = route.request().postDataJSON();
-    await fulfillJson(route, {
+    return {
       session: {
         ...startedSession,
         messages: [],
         isRunning: false,
         runningRunId: undefined,
       },
+    };
+  });
+  await mockRpcMethod(page, "sessions.createRun", (params) => {
+    createRunBody = (params as { request?: unknown }).request;
+
+    return createSubmittedRunResponse(startedSession, "run-shell-enter", {
+      type: "shell_command",
     });
-  });
-  await page.route("**/api/v1/sessions/shell-session-enter/runs", async (route) => {
-    createRunBody = route.request().postDataJSON();
-    await fulfillJson(
-      route,
-      createSubmittedRunResponse(startedSession, "run-shell-enter", { type: "shell_command" }),
-    );
-  });
-  await page.route("**/api/v1/runs/run-shell-enter/events", async () => {
-    // Keep the stream open so the submitted session remains visible.
   });
 
   await page.goto("/");
@@ -871,13 +835,14 @@ test("supports expandable assistant code previews", async ({ page }) => {
   });
   await mockSessions(page, [session]);
   await mockSession(page, session);
-  await page.route("**/api/v1/source-files/content?**", async (route) => {
-    const url = new URL(route.request().url());
-    const startLine = Number(url.searchParams.get("startLine"));
-    const endLine = Number(url.searchParams.get("endLine"));
+  await mockRpcMethod(page, "code.getRange", (params) => {
+    const record = params as { startLine?: number; endLine?: number };
+    const startLine = Number(record.startLine);
+    const endLine = Number(record.endLine);
+
     requests.push(`${startLine}-${endLine}`);
 
-    await fulfillJson(route, {
+    return {
       filePath,
       startLine,
       endLine,
@@ -886,7 +851,7 @@ test("supports expandable assistant code previews", async ({ page }) => {
         { lineNumber: startLine, content: `line ${startLine}` },
         { lineNumber: endLine, content: `line ${endLine}` },
       ],
-    });
+    };
   });
 
   await page.goto("/");
@@ -1001,8 +966,8 @@ test("keeps the source definition jump menu briefly after hover leaves", async (
 
   await mockSessions(page, [session]);
   await mockSession(page, session);
-  await page.route("**/api/v1/source-files/content?**", async (route) => {
-    await fulfillJson(route, {
+  await mockRpcMethod(page, "code.getRange", () => {
+    return {
       filePath,
       startLine: 20,
       endLine: 30,
@@ -1012,7 +977,7 @@ test("keeps the source definition jump menu briefly after hover leaves", async (
         { lineNumber: 21, content: "  return 1;" },
         { lineNumber: 22, content: "}" },
       ],
-    });
+    };
   });
 
   await page.goto("/");
@@ -1060,20 +1025,20 @@ test("supports assistant code previews for local markdown links outside the work
 
   await mockSessions(page, [session]);
   await mockSession(page, session);
-  await page.route("**/api/v1/source-files/content?**", async (route) => {
-    const url = new URL(route.request().url());
+  await mockRpcMethod(page, "code.getRange", (params) => {
+    const record = params as { filePath?: string; startLine?: number; endLine?: number };
 
-    expect(url.searchParams.get("filePath")).toBe(filePath);
-    expect(url.searchParams.get("startLine")).toBe("2");
-    expect(url.searchParams.get("endLine")).toBe("12");
+    expect(record.filePath).toBe(filePath);
+    expect(record.startLine).toBe(2);
+    expect(record.endLine).toBe(12);
 
-    await fulfillJson(route, {
+    return {
       filePath,
       startLine: 2,
       endLine: 12,
       code: "finalizer repro",
       lines: [{ lineNumber: 2, content: "finalizer repro" }],
-    });
+    };
   });
 
   await page.goto("/");
