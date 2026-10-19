@@ -40,3 +40,15 @@ test("Codex not found error points to CODEX_BIN", () => {
   assert.match(error.message, /Codex binary "codex" was not found/);
   assert.match(error.message, /set CODEX_BIN to the absolute codex path/);
 });
+
+test("DSH not found error points to DSH_BIN", () => {
+  const error = createAiHarnessNotFoundError({
+    harness: "dsh",
+    command: "dsh",
+    displayName: "DSH",
+    envVar: "DSH_BIN",
+  });
+
+  assert.match(error.message, /DSH binary "dsh" was not found/);
+  assert.match(error.message, /set DSH_BIN to the absolute dsh path/);
+});

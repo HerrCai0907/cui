@@ -16,6 +16,10 @@ export function getConfiguredCodexBinary(): string {
   return process.env.CODEX_BIN?.trim() || "codex";
 }
 
+export function getConfiguredDshBinary(): string {
+  return process.env.DSH_BIN?.trim() || "dsh";
+}
+
 export function getAiHarnessBinaryConfig(harness: AiHarness): AiHarnessBinaryConfig {
   if (harness === "codex") {
     return {
@@ -23,6 +27,15 @@ export function getAiHarnessBinaryConfig(harness: AiHarness): AiHarnessBinaryCon
       command: getConfiguredCodexBinary(),
       displayName: "Codex",
       envVar: "CODEX_BIN",
+    };
+  }
+
+  if (harness === "dsh") {
+    return {
+      harness,
+      command: getConfiguredDshBinary(),
+      displayName: "DSH",
+      envVar: "DSH_BIN",
     };
   }
 

@@ -23,7 +23,7 @@ const traceMessageTypesQuerySchema = z
   )
   .pipe(z.array(traceMessageTypeSchema))
   .optional();
-const aiHarnessSchema = z.enum(["traex", "codex"]);
+const aiHarnessSchema = z.enum(["traex", "codex", "dsh"]);
 const aiReasoningEffortSchema = z.enum([
   "none",
   "minimal",

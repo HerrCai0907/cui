@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { CodexModel } from "../../apps/api/src/infrastructure/ai/CodexModel.js";
 import { TraexModel } from "../../apps/api/src/infrastructure/ai/TraexModel.js";
+import { DshModel } from "../../apps/api/src/infrastructure/ai/DshModel.js";
 import { RoutingAiModel } from "../../apps/api/src/infrastructure/ai/RoutingAiModel.js";
 import type { AiProcessRunner } from "../../apps/api/src/infrastructure/ai/CliAiModel.js";
 import { AiRunCancelledError, type AiRunEvent } from "../../apps/api/src/types.js";
@@ -29,6 +30,7 @@ for (const harness of [undefined, "traex", "codex"] as const) {
     const router = new RoutingAiModel({
       traex: new TraexModel({ binary: "/test/traex", permissionMode: "ask", processRunner }),
       codex: new CodexModel({ binary: "/test/codex", processRunner }),
+      dsh: new DshModel(),
     });
     const input = { workspace: "/tmp/workspace", prompt: "test", models: { harness } };
     const resumeInput = { ...input, sessionId: "existing-session" };
@@ -102,6 +104,7 @@ test("model-list API selects the requested harness catalog", async () => {
   const router = new RoutingAiModel({
     traex: new TraexModel({ modelListRunner: async () => [{ name: "traex-model" }] }),
     codex,
+    dsh: new DshModel(),
   });
   assert.deepEqual(await router.listModels(), [{ name: "traex-model" }]);
   assert.deepEqual(await router.listModels("traex"), [{ name: "traex-model" }]);
@@ -110,6 +113,10 @@ test("model-list API selects the requested harness catalog", async () => {
     ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5"],
   );
   assert.deepEqual(await codex.listModels(), await router.listModels("codex"));
+  assert.deepEqual(
+    (await router.listModels("dsh")).map((model) => model.name),
+    ["deepseek-flash", "deepseek-v4-flash", "deepseek-v4-pro", "deepseek-v4-flash-vision-exp"],
+  );
 });
 
 for (const harness of ["traex", "codex"] as const) {
@@ -130,6 +137,7 @@ for (const harness of ["traex", "codex"] as const) {
     const router = new RoutingAiModel({
       traex: new TraexModel({ processRunner }),
       codex: new CodexModel({ processRunner }),
+      dsh: new DshModel(),
     });
     const run = router.createSessionStream(
       { workspace: "/tmp", prompt: "test", models: { harness } },

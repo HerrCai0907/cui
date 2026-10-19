@@ -8,7 +8,7 @@ export type ApiMessage = {
   createdAt: string;
 };
 
-export type AiHarness = "traex" | "codex";
+export type AiHarness = "traex" | "codex" | "dsh";
 export type AiModelPurpose = "normal" | "summary" | "atomicReview";
 export type AiReasoningEffort =
   "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";

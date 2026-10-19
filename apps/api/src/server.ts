@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import { createApp } from "./app/createApp.js";
 import { TraexModel } from "./infrastructure/ai/TraexModel.js";
 import { CodexModel } from "./infrastructure/ai/CodexModel.js";
+import { DshModel } from "./infrastructure/ai/DshModel.js";
 import { RoutingAiModel } from "./infrastructure/ai/RoutingAiModel.js";
 import {
   assertAiHarnessBinaryAvailable,
@@ -21,6 +22,7 @@ const logger = new AppLogger();
 const aiModel = new RoutingAiModel({
   traex: new TraexModel(),
   codex: new CodexModel(),
+  dsh: new DshModel(),
 });
 const sessionStore = new WorkerSessionStore();
 const sessionService = new SessionService(aiModel, sessionStore, logger);
@@ -35,6 +37,7 @@ const SESSION_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const harnessAvailability = await Promise.allSettled([
   assertAiHarnessBinaryAvailable(getAiHarnessBinaryConfig("traex")),
   assertAiHarnessBinaryAvailable(getAiHarnessBinaryConfig("codex")),
+  assertAiHarnessBinaryAvailable(getAiHarnessBinaryConfig("dsh")),
 ]);
 
 if (harnessAvailability.every((result) => result.status === "rejected")) {
