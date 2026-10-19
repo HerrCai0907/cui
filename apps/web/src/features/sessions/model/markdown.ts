@@ -465,11 +465,14 @@ class InlineMarkdownParser {
     private readonly workspace: string,
   ) {}
 
-  parse(stopDelimiter?: string): { parts: InlinePart[]; closed: boolean } {
+  parse(
+    stopDelimiter?: string,
+    stopDelimiterLineEnd?: number,
+  ): { parts: InlinePart[]; closed: boolean } {
     const parts: InlinePart[] = [];
 
     while (!this.isAtEnd()) {
-      if (stopDelimiter && this.startsUnescaped(stopDelimiter)) {
+      if (stopDelimiter && this.isStopDelimiterAtCursor(stopDelimiter, stopDelimiterLineEnd)) {
         this.cursor += stopDelimiter.length;
         return { parts, closed: true };
       }
@@ -482,7 +485,7 @@ class InlineMarkdownParser {
         continue;
       }
 
-      this.parseText(parts, stopDelimiter);
+      this.parseText(parts, stopDelimiter, stopDelimiterLineEnd);
     }
 
     return { parts, closed: false };
@@ -513,6 +516,7 @@ class InlineMarkdownParser {
   }
 
   private parseEmphasis(parts: InlinePart[]): boolean {
+    const delimiterStart = this.cursor;
     const delimiter = this.readEmphasisDelimiter();
 
     if (!delimiter) {
@@ -520,7 +524,10 @@ class InlineMarkdownParser {
     }
 
     this.cursor += delimiter.length;
-    const parsed = this.parse(delimiter);
+    const parsed = this.parse(
+      delimiter,
+      delimiter.startsWith("_") ? this.findLineEnd(delimiterStart) : undefined,
+    );
 
     if (!parsed.closed) {
       pushInlineTextPart(parts, delimiter);
@@ -575,13 +582,20 @@ class InlineMarkdownParser {
     return true;
   }
 
-  private parseText(parts: InlinePart[], stopDelimiter: string | undefined) {
+  private parseText(
+    parts: InlinePart[],
+    stopDelimiter: string | undefined,
+    stopDelimiterLineEnd: number | undefined,
+  ) {
     const textStart = this.cursor;
 
     this.cursor += 1;
 
     while (!this.isAtEnd()) {
-      if ((stopDelimiter && this.startsUnescaped(stopDelimiter)) || this.isInlineConstructStart()) {
+      if (
+        (stopDelimiter && this.isStopDelimiterAtCursor(stopDelimiter, stopDelimiterLineEnd)) ||
+        this.isInlineConstructStart()
+      ) {
         break;
       }
 
@@ -678,7 +692,8 @@ class InlineMarkdownParser {
 
   private readEmphasisDelimiter(): string | undefined {
     if (this.startsUnescaped("**") || this.startsUnescaped("__")) {
-      return this.source.slice(this.cursor, this.cursor + 2);
+      const delimiter = this.source.slice(this.cursor, this.cursor + 2);
+      return this.canOpenEmphasisDelimiter(delimiter) ? delimiter : undefined;
     }
 
     const char = this.source[this.cursor];
@@ -695,7 +710,7 @@ class InlineMarkdownParser {
       return undefined;
     }
 
-    return char;
+    return this.canOpenEmphasisDelimiter(char) ? char : undefined;
   }
 
   private isInlineConstructStart(): boolean {
@@ -714,6 +729,39 @@ class InlineMarkdownParser {
 
   private startsUnescaped(value: string): boolean {
     return this.source.startsWith(value, this.cursor) && !this.isEscaped(this.cursor);
+  }
+
+  private isStopDelimiterAtCursor(delimiter: string, lineEnd: number | undefined): boolean {
+    return (
+      (lineEnd === undefined || this.cursor < lineEnd) &&
+      this.startsUnescaped(delimiter) &&
+      this.canCloseEmphasisDelimiter(delimiter)
+    );
+  }
+
+  private canOpenEmphasisDelimiter(delimiter: string): boolean {
+    return (
+      !delimiter.startsWith("_") ||
+      !isMarkdownWhitespace(this.source[this.cursor + delimiter.length])
+    );
+  }
+
+  private canCloseEmphasisDelimiter(delimiter: string): boolean {
+    return !delimiter.startsWith("_") || !isMarkdownWhitespace(this.source[this.cursor - 1]);
+  }
+
+  private findLineEnd(start: number): number {
+    let cursor = start;
+
+    while (
+      cursor < this.source.length &&
+      this.source[cursor] !== "\n" &&
+      this.source[cursor] !== "\r"
+    ) {
+      cursor += 1;
+    }
+
+    return cursor;
   }
 
   private isEscaped(index: number): boolean {
@@ -758,6 +806,10 @@ function appendInlineParts(parts: InlinePart[], nextParts: InlinePart[]) {
 
     parts.push(part);
   }
+}
+
+function isMarkdownWhitespace(value: string | undefined): boolean {
+  return value === undefined || value === " " || value === "\t" || value === "\n" || value === "\r";
 }
 
 function parseWorkspaceCodeLink(href: string, workspace: string): CodeLinkTarget | undefined {

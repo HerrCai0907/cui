@@ -254,6 +254,17 @@ test("parseInlineContent keeps unmatched underscore before inline code as text",
   ]);
 });
 
+test("parseInlineContent only matches underscore emphasis on the same line", () => {
+  assert.deepEqual(parseInlineContent("Use _one\ntwo_ and _three_.", "/workspace"), [
+    { type: "text", text: "Use _one\ntwo_ and " },
+    {
+      type: "emphasis",
+      children: [{ type: "text", text: "three" }],
+    },
+    { type: "text", text: "." },
+  ]);
+});
+
 test("parseMessageContent parses headings, text, and fenced code blocks", () => {
   assert.deepEqual(
     parseMessageContent("# Title\nIntro\n```ts\nconst value = 1;\n```\n## Next ##\n"),
