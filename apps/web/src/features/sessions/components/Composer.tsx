@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Cpu, Send, Square, Terminal } from "lucide-react";
+import { Check, ChevronRight, Send, Square, Terminal } from "lucide-react";
 import {
   useEffect,
   useMemo,
@@ -9,9 +9,14 @@ import {
   type RefObject,
 } from "react";
 import {
+  AI_HARNESSES,
+  AI_HARNESS_LABELS,
   REASONING_EFFORT_LABELS,
+  createDefaultModelPreferences,
+  createDefaultReasoningEffortPreferences,
   createVisibleReasoningEffortOptions,
   findModelOption,
+  type AiHarness,
   type ModelOption,
   type ReasoningEffort,
 } from "../../config/model/appConfig";
@@ -20,8 +25,9 @@ type ComposerProps = {
   active: boolean;
   disabled: boolean;
   draft: string;
-  modelOptions: ModelOption[];
-  modelsError?: string | null;
+  modelOptionsByHarness: Record<AiHarness, ModelOption[]>;
+  modelsErrorByHarness: Record<AiHarness, string | null>;
+  selectedHarness: AiHarness;
   selectedModel: string;
   selectedReasoningEffort: ReasoningEffort;
   shellMode: boolean;
@@ -30,7 +36,11 @@ type ComposerProps = {
   lastEnterKeyDownRef: RefObject<number | null>;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   onDraftChange: (draft: string) => void;
-  onModelSelectionChange: (model: string, reasoningEffort: ReasoningEffort) => void;
+  onModelSelectionChange: (
+    harness: AiHarness,
+    model: string,
+    reasoningEffort: ReasoningEffort,
+  ) => void;
   onShellModeChange: (shellMode: boolean) => void;
   onStop: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -40,8 +50,9 @@ export function Composer({
   active,
   disabled,
   draft,
-  modelOptions,
-  modelsError,
+  modelOptionsByHarness,
+  modelsErrorByHarness,
+  selectedHarness,
   selectedModel,
   selectedReasoningEffort,
   shellMode,
@@ -56,29 +67,36 @@ export function Composer({
   onSubmit,
 }: ComposerProps) {
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [pendingHarness, setPendingHarness] = useState<AiHarness>(selectedHarness);
   const [pendingModel, setPendingModel] = useState(selectedModel);
   const modelMenuRef = useRef<HTMLDivElement | null>(null);
+  const pendingModelOptions = useMemo(
+    () => createModelOptions(modelOptionsByHarness[pendingHarness], pendingModel),
+    [modelOptionsByHarness, pendingHarness, pendingModel],
+  );
   const modelChoices = useMemo(
     () => [
       { name: "", label: "Harness default" },
-      ...modelOptions.map((model) => ({
+      ...pendingModelOptions.map((model) => ({
         name: model.name,
         label: model.name,
       })),
     ],
-    [modelOptions],
+    [pendingModelOptions],
   );
-  const reasoningOptions = createVisibleReasoningEffortOptions(pendingModel, modelOptions);
+  const reasoningOptions = createVisibleReasoningEffortOptions(pendingModel, pendingModelOptions);
+  const modelsError = modelsErrorByHarness[pendingHarness];
   const selectedModelLabel = selectedModel || "Harness default";
-  const modelButtonTitle = `${selectedModelLabel} / ${REASONING_EFFORT_LABELS[selectedReasoningEffort]}`;
+  const modelButtonTitle = `${AI_HARNESS_LABELS[selectedHarness]} - ${selectedModelLabel} - ${REASONING_EFFORT_LABELS[selectedReasoningEffort]}`;
 
   useEffect(() => {
     if (!modelMenuOpen) {
       return;
     }
 
+    setPendingHarness(selectedHarness);
     setPendingModel(selectedModel);
-  }, [modelMenuOpen, selectedModel]);
+  }, [modelMenuOpen, selectedHarness, selectedModel]);
 
   useEffect(() => {
     if (!modelMenuOpen) {
@@ -138,18 +156,25 @@ export function Composer({
     }
   }
 
+  function selectHarness(harness: AiHarness) {
+    setPendingHarness(harness);
+    setPendingModel(
+      harness === selectedHarness ? selectedModel : createDefaultModelPreferences(harness).normal,
+    );
+  }
+
   function selectModel(model: string) {
     setPendingModel(model);
   }
 
   function selectReasoningEffort(reasoningEffort: ReasoningEffort) {
-    onModelSelectionChange(pendingModel, reasoningEffort);
+    onModelSelectionChange(pendingHarness, pendingModel, reasoningEffort);
     setModelMenuOpen(false);
   }
 
-  function getModelDefaultReasoningEffort(model: string): ReasoningEffort {
-    const options = createVisibleReasoningEffortOptions(model, modelOptions);
-    const selectedModelOption = findModelOption(model, modelOptions);
+  function getModelDefaultReasoningEffort(harness: AiHarness, model: string): ReasoningEffort {
+    const options = createVisibleReasoningEffortOptions(model, pendingModelOptions);
+    const selectedModelOption = findModelOption(model, pendingModelOptions);
 
     if (
       selectedModelOption?.defaultReasoningEffort &&
@@ -158,7 +183,11 @@ export function Composer({
       return selectedModelOption.defaultReasoningEffort;
     }
 
-    return options[0] ?? selectedReasoningEffort;
+    const harnessDefaultReasoning = createDefaultReasoningEffortPreferences(harness).normal;
+
+    return options.includes(harnessDefaultReasoning)
+      ? harnessDefaultReasoning
+      : (options[0] ?? selectedReasoningEffort);
   }
 
   return (
@@ -166,6 +195,108 @@ export function Composer({
       <label className="sr-only" htmlFor="message-input">
         {shellMode ? "Shell command" : "Message"}
       </label>
+      <div className="composer-model-menu" ref={modelMenuRef}>
+        <button
+          className="composer-model-button"
+          type="button"
+          aria-label="Select harness, model, and reasoning effort"
+          aria-expanded={modelMenuOpen}
+          title={modelButtonTitle}
+          onClick={() => setModelMenuOpen((open) => !open)}
+        >
+          <span>{modelButtonTitle}</span>
+        </button>
+        {modelMenuOpen && (
+          <div
+            className="composer-model-popover"
+            role="menu"
+            aria-label="Harness, model, and reasoning"
+          >
+            <div className="composer-model-column" role="group" aria-label="Harnesses">
+              {AI_HARNESSES.map((harness) => {
+                const active = harness === pendingHarness;
+                const selected = harness === selectedHarness;
+
+                return (
+                  <button
+                    className={`composer-model-menu-item ${active ? "is-active" : ""} ${
+                      selected ? "is-selected" : ""
+                    }`}
+                    type="button"
+                    role="menuitem"
+                    key={harness}
+                    aria-checked={active}
+                    onMouseEnter={() => selectHarness(harness)}
+                    onFocus={() => selectHarness(harness)}
+                    onClick={() => selectHarness(harness)}
+                  >
+                    <span>{AI_HARNESS_LABELS[harness]}</span>
+                    {selected ? <Check size={14} /> : <ChevronRight size={14} />}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="composer-model-column" role="group" aria-label="Models">
+              {modelChoices.map((model) => {
+                const active = model.name === pendingModel;
+                const selected = pendingHarness === selectedHarness && model.name === selectedModel;
+
+                return (
+                  <button
+                    className={`composer-model-menu-item ${active ? "is-active" : ""} ${
+                      selected ? "is-selected" : ""
+                    }`}
+                    type="button"
+                    role="menuitem"
+                    key={model.name || "default"}
+                    aria-checked={active}
+                    onMouseEnter={() => selectModel(model.name)}
+                    onFocus={() => selectModel(model.name)}
+                    onClick={() => selectModel(model.name)}
+                  >
+                    <span>{model.label}</span>
+                    {selected ? <Check size={14} /> : <ChevronRight size={14} />}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="composer-model-column" role="group" aria-label="Reasoning efforts">
+              {reasoningOptions.map((reasoningEffort) => {
+                const selected =
+                  pendingHarness === selectedHarness &&
+                  pendingModel === selectedModel &&
+                  reasoningEffort === selectedReasoningEffort;
+
+                return (
+                  <button
+                    className={`composer-model-menu-item ${selected ? "is-selected" : ""}`}
+                    type="button"
+                    role="menuitem"
+                    key={reasoningEffort}
+                    onClick={() => selectReasoningEffort(reasoningEffort)}
+                  >
+                    <span>{REASONING_EFFORT_LABELS[reasoningEffort]}</span>
+                    {selected ? <Check size={14} /> : null}
+                  </button>
+                );
+              })}
+              <button
+                className="composer-model-menu-item is-muted"
+                type="button"
+                role="menuitem"
+                onClick={() =>
+                  selectReasoningEffort(
+                    getModelDefaultReasoningEffort(pendingHarness, pendingModel),
+                  )
+                }
+              >
+                <span>Model default</span>
+              </button>
+            </div>
+            {modelsError && <p className="composer-model-error">{modelsError}</p>}
+          </div>
+        )}
+      </div>
       <button
         className="composer-mode-button"
         type="button"
@@ -217,75 +348,19 @@ export function Composer({
           <span className="composer-control-label">Send</span>
         </button>
       </div>
-      <div className="composer-model-menu" ref={modelMenuRef}>
-        <button
-          className="composer-model-button"
-          type="button"
-          aria-label="Select model and reasoning effort"
-          aria-expanded={modelMenuOpen}
-          title={modelButtonTitle}
-          onClick={() => setModelMenuOpen((open) => !open)}
-        >
-          <Cpu size={18} />
-          <span className="composer-control-label">Model</span>
-        </button>
-        {modelMenuOpen && (
-          <div className="composer-model-popover" role="menu" aria-label="Model and reasoning">
-            <div className="composer-model-column" role="group" aria-label="Models">
-              {modelChoices.map((model) => {
-                const active = model.name === pendingModel;
-                const selected = model.name === selectedModel;
-
-                return (
-                  <button
-                    className={`composer-model-menu-item ${active ? "is-active" : ""} ${
-                      selected ? "is-selected" : ""
-                    }`}
-                    type="button"
-                    role="menuitem"
-                    key={model.name || "default"}
-                    aria-checked={active}
-                    onMouseEnter={() => selectModel(model.name)}
-                    onFocus={() => selectModel(model.name)}
-                    onClick={() => selectModel(model.name)}
-                  >
-                    <span>{model.label}</span>
-                    {selected ? <Check size={14} /> : <ChevronRight size={14} />}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="composer-model-column" role="group" aria-label="Reasoning efforts">
-              {reasoningOptions.map((reasoningEffort) => {
-                const selected =
-                  pendingModel === selectedModel && reasoningEffort === selectedReasoningEffort;
-
-                return (
-                  <button
-                    className={`composer-model-menu-item ${selected ? "is-selected" : ""}`}
-                    type="button"
-                    role="menuitem"
-                    key={reasoningEffort}
-                    onClick={() => selectReasoningEffort(reasoningEffort)}
-                  >
-                    <span>{REASONING_EFFORT_LABELS[reasoningEffort]}</span>
-                    {selected ? <Check size={14} /> : null}
-                  </button>
-                );
-              })}
-              <button
-                className="composer-model-menu-item is-muted"
-                type="button"
-                role="menuitem"
-                onClick={() => selectReasoningEffort(getModelDefaultReasoningEffort(pendingModel))}
-              >
-                <span>Model default</span>
-              </button>
-            </div>
-            {modelsError && <p className="composer-model-error">{modelsError}</p>}
-          </div>
-        )}
-      </div>
     </form>
   );
+}
+
+function createModelOptions(
+  modelOptions: ModelOption[] | undefined,
+  selectedModel: string,
+): ModelOption[] {
+  const modelByName = new Map((modelOptions ?? []).map((model) => [model.name, model]));
+
+  if (selectedModel && !modelByName.has(selectedModel)) {
+    modelByName.set(selectedModel, { name: selectedModel });
+  }
+
+  return [...modelByName.values()];
 }

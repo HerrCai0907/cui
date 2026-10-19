@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { readFile, mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -1050,6 +1050,109 @@ test("createRun resumes a bound Codex thread for later shell-session chat", asyn
   }
 });
 
+test("createRun switches harness by creating a new thread with a history file prompt", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    await store.createSession({
+      id: "session-1",
+      aiThreadId: "codex-thread-1",
+      aiHarness: "codex",
+      workspace: cwd,
+      title: "Bound Codex session",
+      summary: "",
+      models: {
+        harness: "codex",
+      },
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [
+        {
+          id: "message-1",
+          role: "user",
+          content: "Original request.",
+          createdAt: "2026-08-22T00:00:00.000Z",
+        },
+        {
+          id: "message-2",
+          role: "assistant",
+          kind: "response",
+          content: "Original response.",
+          createdAt: "2026-08-22T00:00:01.000Z",
+        },
+      ],
+      rounds: [],
+    });
+
+    const submitted = await service.createRun(
+      "session-1",
+      createAssistantRunRequest("Continue with TraeX.", {
+        harness: "traex",
+        normal: "Seed-2.1-Turbo",
+      }),
+    );
+    const events: unknown[] = [];
+
+    service.subscribeToRun(submitted.run.id, (event) => {
+      events.push(event);
+    });
+
+    assert.equal(aiModel.createStreamInputs.length, 1);
+    assert.equal(aiModel.continueStreamInputs.length, 0);
+    assert.deepEqual(aiModel.createStreamInputs[0]?.models, {
+      harness: "traex",
+      normal: "Seed-2.1-Turbo",
+    });
+    assert.match(aiModel.createStreamInputs[0]?.prompt ?? "", /临时历史文件路径:/);
+    assert.doesNotMatch(aiModel.createStreamInputs[0]?.prompt ?? "", /Original response\./);
+
+    const historyPath = extractHistoryFilePath(aiModel.createStreamInputs[0]?.prompt ?? "");
+    const history = await readFile(historyPath, "utf8");
+
+    assert.match(history, /用户：Original request\./);
+    assert.match(history, /助手：Original response\./);
+    assert.match(history, /用户：Continue with TraeX\./);
+
+    await waitFor(() => aiModel.summaryPrompts.length === 1);
+    aiModel.resolveSummary({
+      title: "Harness switch input",
+      progress: "The switched harness input was summarized.",
+    });
+    aiModel.resolveRun({
+      sessionId: "traex-thread-1",
+      content: "Continued on TraeX.",
+      rawEventCount: 0,
+    });
+    await waitFor(() => aiModel.summaryPrompts.length === 2);
+    aiModel.resolveSummary(
+      {
+        title: "Harness switched",
+        progress: "The session continued on TraeX.",
+      },
+      1,
+    );
+
+    await waitFor(() => events.some(isDoneEvent));
+
+    const storedSession = await store.getSession("session-1");
+
+    assert.equal(storedSession?.aiThreadId, "traex-thread-1");
+    assert.equal(storedSession?.aiHarness, "traex");
+    assert.equal(storedSession?.messages.at(-1)?.content, "Continued on TraeX.");
+    await waitFor(async () =>
+      readFile(historyPath, "utf8").then(
+        () => false,
+        () => true,
+      ),
+    );
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 test("createRun creates a TraeX thread for any session without a bound TraeX thread", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
@@ -1388,4 +1491,12 @@ function createAssistantRunRequest(prompt: string, models?: AiModelPreferences) 
     input: { prompt },
     ...(models ? { models } : {}),
   };
+}
+
+function extractHistoryFilePath(prompt: string): string {
+  const match = prompt.match(/临时历史文件路径: ([^\n]+)/);
+
+  assert.ok(match, "expected harness switch prompt to include a history file path");
+
+  return match[1]!;
 }

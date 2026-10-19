@@ -488,7 +488,7 @@ export function ConfigPage({
       <section className="config-section" aria-labelledby="model-config-heading">
         <div className="config-section-header">
           <div>
-            <span className="section-label">Configuration</span>
+            <span className="section-label">New Session Defaults</span>
             <h2 id="model-config-heading">Model Selection</h2>
           </div>
           <button className="secondary-button" type="button" onClick={resetConfig}>
@@ -500,11 +500,11 @@ export function ConfigPage({
         <div className="config-table" role="group" aria-label="AI harness selection">
           <label className="config-select-row">
             <span>
-              <strong>AI Harness</strong>
+              <strong>Default AI Harness</strong>
             </span>
             <span className="config-select-controls">
               <select
-                aria-label="AI harness"
+                aria-label="Default AI harness"
                 value={config.harness}
                 onChange={(event) => setHarness(event.target.value as AiHarness)}
               >
