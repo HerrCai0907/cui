@@ -133,6 +133,7 @@ export class RunRegistry {
 
     run.nextEventId += 1;
     this.appendToNewestGeneration(run, storedEvent);
+    this.enqueuePersistence(run, [storedEvent]);
     run.subscribers.forEach((subscriber) => subscriber(storedEvent));
 
     if (
@@ -226,13 +227,15 @@ export class RunRegistry {
   }
 
   private enqueuePersistence(run: RunningRun, events: PersistedRunStreamEvent[]): void {
-    if (!this.store || events.length === 0) {
+    const durableEvents = events.filter(isDurableRunContentEvent);
+
+    if (!this.store || durableEvents.length === 0) {
       return;
     }
 
     run.persistence = run.persistence
       .catch(() => undefined)
-      .then(() => this.store?.appendRunEvents(events));
+      .then(() => this.store?.appendRunEvents(durableEvents));
   }
 }
 
@@ -242,4 +245,8 @@ function createEmptyGenerations(): RunEventGeneration[] {
 
 function getGenerationCapacity(maxStoredRunEvents: number): number {
   return Math.max(1, Math.floor(maxStoredRunEvents / RUN_EVENT_GENERATION_COUNT));
+}
+
+function isDurableRunContentEvent(event: PersistedRunStreamEvent): boolean {
+  return event.event.type === "run.trace" || event.event.type === "run.output.delta";
 }

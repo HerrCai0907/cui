@@ -1065,6 +1065,76 @@ test("reconnects to a running run after page reload", async ({ page }) => {
   await expect.poll(() => subscribedRuns).toContainEqual("run-1");
 });
 
+test("keeps replayed execution trace visible when reload receives a persisted response update", async ({
+  page,
+}) => {
+  const runningSession = {
+    id: "session-1",
+    workspace: currentWorkspace,
+    title: "Running trace session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-1",
+        role: "user",
+        content: "Run a traced task",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    rounds: [],
+    currentRound: 0,
+    isRunning: true,
+    runningRunId: "run-1",
+  };
+  const responseUpdatedSession = {
+    ...runningSession,
+    updatedAt: "2026-08-22T00:00:01.000Z",
+    messages: [
+      ...runningSession.messages,
+      {
+        id: "message-2",
+        role: "assistant",
+        kind: "response",
+        content: "Persisted response after reload.",
+        createdAt: "2026-08-22T00:00:01.000Z",
+      },
+    ],
+    messagePageInfo: {
+      total: 2,
+      returned: 2,
+      hasMoreBefore: false,
+      hasMoreAfter: false,
+      oldestMessageId: "message-1",
+      newestMessageId: "message-2",
+    },
+  };
+
+  await mockSessions(page, [runningSession]);
+  await mockSessionById(page, "session-1", runningSession);
+  await mockRpcMethod(page, "runs.subscribe", async (params) => {
+    const runId = String((params as { runId: string }).runId);
+
+    await emitRunEvent(page, runId, {
+      type: "run.trace",
+      event: createCompletedTraceEvent("trace-replayed", "Trace before reload."),
+    });
+    await emitRunEvent(page, runId, {
+      type: "session.updated",
+      session: responseUpdatedSession,
+    });
+
+    return { subscriptionId: `subscription-${runId}` };
+  });
+
+  await page.goto("/");
+
+  const conversation = page.getByLabel("AI conversation");
+
+  await expect(conversation.getByText("Persisted response after reload.")).toBeVisible();
+  await expect(conversation.getByText("Trace before reload.")).toBeVisible();
+});
+
 test("applies summary updates without replacing streamed messages", async ({ page }) => {
   const initialSession = {
     id: "session-1",

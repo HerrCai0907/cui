@@ -5,6 +5,7 @@ import {
   AiRunEvent,
   AiRunResult,
   AiRunCancelledError,
+  ChatMessage,
   ChatRound,
   DiffFilePage,
   ChatSessionMessagesPage,
@@ -22,7 +23,7 @@ import type {
   StoredRunStreamEvent,
 } from "../../infrastructure/store/SessionStore.js";
 import { AppLogger } from "../../infrastructure/logging/AppLogger.js";
-import { createMessage } from "./sessionMessages.js";
+import { createMessage, formatNormalModelLabel } from "./sessionMessages.js";
 import {
   createSessionMessagesPage,
   toSessionListItem,
@@ -1066,8 +1067,9 @@ export class SessionService {
     messages?: SessionMessageWindowOptions,
   ): Promise<ChatSessionView> {
     const gitInfo = await this.getWorkspaceGitInfo(session.workspace);
+    const visibleSession = await this.applyPersistedRunningRunMessages(session, runningRunId);
 
-    return toSessionView(session, {
+    return toSessionView(visibleSession, {
       gitBranch: gitInfo.branch,
       gitCommitSha: gitInfo.commitSha,
       messages,
@@ -1083,6 +1085,50 @@ export class SessionService {
       window: "tail",
       limit: SESSION_MESSAGE_WINDOW_LIMIT,
     });
+  }
+
+  private async applyPersistedRunningRunMessages(
+    session: ChatSession,
+    runningRunId: string | undefined,
+  ): Promise<ChatSession> {
+    if (!runningRunId) {
+      return session;
+    }
+
+    const run = this.runRegistry.getRunningRun(runningRunId);
+
+    if (!run || run.completed) {
+      return session;
+    }
+
+    await run.persistence;
+    const events = await this.listAllRunEvents(runningRunId);
+    const overlay = createRunningRunMessageOverlay(session, run, events);
+
+    if (overlay.length === 0) {
+      return session;
+    }
+
+    return {
+      ...session,
+      messages: mergeRunningRunMessageOverlay(session.messages, run, overlay),
+    };
+  }
+
+  private async listAllRunEvents(runId: string): Promise<PersistedRunStreamEvent[]> {
+    const events: PersistedRunStreamEvent[] = [];
+    let afterSeq = 0;
+
+    while (true) {
+      const page = await this.store.listRunEvents(runId, { afterSeq, limit: 1000 });
+
+      if (page.length === 0) {
+        return events;
+      }
+
+      events.push(...page);
+      afterSeq = page.at(-1)!.id;
+    }
   }
 
   private async getWorkspaceGitInfo(
@@ -1157,6 +1203,101 @@ export class RoundReviewNotFoundError extends Error {
     super(`Round review not found: ${sessionId}:${round}`);
     this.name = "RoundReviewNotFoundError";
   }
+}
+
+function createRunningRunMessageOverlay(
+  session: ChatSession,
+  run: RunningRun,
+  events: PersistedRunStreamEvent[],
+): ChatMessage[] {
+  const hasPersistedTrace = hasPersistedRunAssistantMessage(session, run, "trace");
+  const hasPersistedResponse = hasPersistedRunAssistantMessage(session, run, "response");
+  const traceLines: string[] = [];
+  let responseContent = "";
+  let firstTraceCreatedAt: string | undefined;
+  let firstResponseCreatedAt: string | undefined;
+
+  for (const { event, createdAt } of events) {
+    if (!hasPersistedTrace && event.type === "run.trace") {
+      traceLines.push(JSON.stringify(event.event));
+      firstTraceCreatedAt ??= createdAt;
+    }
+
+    if (!hasPersistedResponse && event.type === "run.output.delta" && event.text) {
+      responseContent += event.text;
+      firstResponseCreatedAt ??= createdAt;
+    }
+  }
+
+  const messages: ChatMessage[] = [];
+  const model = formatNormalModelLabel(session.models);
+
+  if (traceLines.length > 0) {
+    messages.push({
+      id: `stream-${run.id}-trace`,
+      role: "assistant",
+      kind: "trace",
+      ...(model ? { model } : {}),
+      content: traceLines.join("\n"),
+      createdAt: firstTraceCreatedAt ?? run.createdAt,
+    });
+  }
+
+  if (responseContent) {
+    messages.push({
+      id: `stream-${run.id}-response`,
+      role: "assistant",
+      kind: "response",
+      ...(model ? { model } : {}),
+      content: responseContent,
+      createdAt: firstResponseCreatedAt ?? run.createdAt,
+    });
+  }
+
+  return messages;
+}
+
+function mergeRunningRunMessageOverlay(
+  messages: ChatMessage[],
+  run: RunningRun,
+  overlay: ChatMessage[],
+): ChatMessage[] {
+  const traceMessage = overlay.find((message) => message.kind === "trace");
+  const responseMessage = overlay.find((message) => message.kind === "response");
+
+  if (!traceMessage) {
+    return responseMessage ? [...messages, responseMessage] : messages;
+  }
+
+  const persistedResponseIndex = messages.findIndex(
+    (message) =>
+      message.role === "assistant" &&
+      message.kind === "response" &&
+      !message.id.startsWith("stream-") &&
+      message.createdAt >= run.createdAt,
+  );
+  const insertionIndex = persistedResponseIndex === -1 ? messages.length : persistedResponseIndex;
+  const nextMessages = [
+    ...messages.slice(0, insertionIndex),
+    traceMessage,
+    ...messages.slice(insertionIndex),
+  ];
+
+  return responseMessage ? [...nextMessages, responseMessage] : nextMessages;
+}
+
+function hasPersistedRunAssistantMessage(
+  session: ChatSession,
+  run: RunningRun,
+  kind: "response" | "trace",
+): boolean {
+  return session.messages.some(
+    (message) =>
+      message.role === "assistant" &&
+      message.kind === kind &&
+      !message.id.startsWith("stream-") &&
+      message.createdAt >= run.createdAt,
+  );
 }
 
 function createShellTraceEvent(

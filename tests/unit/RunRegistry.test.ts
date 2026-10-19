@@ -21,6 +21,25 @@ test("RunRegistry keeps replay history bounded", () => {
   assert.deepEqual(replayed, ["two", "three"]);
 });
 
+test("RunRegistry persists events while a run is still active", async () => {
+  const persisted: unknown[] = [];
+  const registry = new RunRegistry({
+    appendRunEvents: async (events) => {
+      persisted.push(...events);
+    },
+  });
+  const run = registry.createRunningRun("session-1", "assistant_response", () => undefined);
+
+  registry.emitRunEvent(run, { type: "run.output.delta", text: "still running" });
+  await run.persistence;
+
+  assert.equal(persisted.length, 1);
+  assert.deepEqual(
+    persisted.map((event) => (event as { event: { type: string } }).event.type),
+    ["run.output.delta"],
+  );
+});
+
 test("RunRegistry compacts large trace events before storing and broadcasting", () => {
   const registry = new RunRegistry();
   const run = registry.createRunningRun("session-1", "assistant_response", () => undefined);

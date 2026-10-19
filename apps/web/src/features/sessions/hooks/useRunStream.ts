@@ -242,17 +242,16 @@ export function useRunStream({
           return;
         }
 
-        if (sessionHasNewPersistedAssistantMessage(currentSession, updatedSession)) {
-          streamStateRefs.current.delete(sessionId);
-          streamMessageIdRefs.current.delete(sessionId);
-          setExpandedTraceIds((current) => {
-            const next = new Set(current);
-
-            next.delete(streamingTraceMessageId);
-
-            return next;
-          });
-        }
+        clearPersistedStreamMessageParts({
+          currentSession,
+          incomingSession: updatedSession,
+          streamMessageState,
+          traceMessageId: streamingTraceMessageId,
+          sessionId,
+          streamStateRefs,
+          streamMessageIdRefs,
+          setExpandedTraceIds,
+        });
 
         setCurrentActiveSession(updatedSession, { recordAttention: false });
         updateSessionSummary(updatedSession);
@@ -562,19 +561,70 @@ function getSessionNormalModelLabel(
   return formatModelLabel(session.models.normal, session.models.reasoningEfforts?.normal);
 }
 
-function sessionHasNewPersistedAssistantMessage(
+function clearPersistedStreamMessageParts(input: {
+  currentSession: ApiSession | null;
+  incomingSession: ApiSession;
+  streamMessageState: StreamMessageState;
+  traceMessageId: string;
+  sessionId: string;
+  streamStateRefs: MutableRefObject<Map<string, StreamMessageState>>;
+  streamMessageIdRefs: MutableRefObject<
+    Map<
+      string,
+      {
+        traceMessageId: string;
+        responseMessageId: string;
+        traceInsertAfterMessageId?: string;
+      }
+    >
+  >;
+  setExpandedTraceIds: Dispatch<SetStateAction<Set<string>>>;
+}) {
+  const persistedKinds = getNewPersistedAssistantMessageKinds(
+    input.currentSession,
+    input.incomingSession,
+  );
+
+  if (persistedKinds.has("trace")) {
+    input.streamMessageState.streamedTrace = "";
+    input.setExpandedTraceIds((current) => {
+      const next = new Set(current);
+
+      next.delete(input.traceMessageId);
+
+      return next;
+    });
+  }
+
+  if (persistedKinds.has("response")) {
+    input.streamMessageState.streamedResponse = "";
+  }
+
+  if (!input.streamMessageState.streamedTrace && !input.streamMessageState.streamedResponse) {
+    input.streamStateRefs.current.delete(input.sessionId);
+    input.streamMessageIdRefs.current.delete(input.sessionId);
+  }
+}
+
+function getNewPersistedAssistantMessageKinds(
   currentSession: ApiSession | null,
   incomingSession: ApiSession,
-): boolean {
+): Set<"response" | "trace"> {
   const currentMessageIds = new Set(currentSession?.messages.map((message) => message.id) ?? []);
+  const kinds = new Set<"response" | "trace">();
 
-  return incomingSession.messages.some(
-    (message) =>
+  for (const message of incomingSession.messages) {
+    if (
       !message.id.startsWith("stream-") &&
       !currentMessageIds.has(message.id) &&
       message.role === "assistant" &&
-      (message.kind === "response" || message.kind === "trace"),
-  );
+      (message.kind === "response" || message.kind === "trace")
+    ) {
+      kinds.add(message.kind);
+    }
+  }
+
+  return kinds;
 }
 
 type AndroidSessionCompletionBridge = {
