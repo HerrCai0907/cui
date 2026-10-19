@@ -4,10 +4,12 @@ import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
 import java.net.Socket
+import java.security.SecureRandom
 import java.util.Base64
-import java.util.UUID
 
 internal class ApiHealthChecker {
+    private val secureRandom = SecureRandom()
+
     @Throws(IOException::class)
     fun verify(localPort: Int) {
         Socket("127.0.0.1", localPort).use { socket ->
@@ -30,7 +32,9 @@ internal class ApiHealthChecker {
     }
 
     private fun createHandshakeRequest(): String {
-        val key = Base64.getEncoder().encodeToString(UUID.randomUUID().toString().toByteArray())
+        val keyBytes = ByteArray(WEBSOCKET_KEY_BYTE_LENGTH)
+        secureRandom.nextBytes(keyBytes)
+        val key = Base64.getEncoder().encodeToString(keyBytes)
 
         return buildString {
             append("GET ")
@@ -49,5 +53,6 @@ internal class ApiHealthChecker {
     private companion object {
         const val RPC_PATH = "/api/v1/rpc"
         const val REQUEST_TIMEOUT_MILLIS = 5_000
+        const val WEBSOCKET_KEY_BYTE_LENGTH = 16
     }
 }
