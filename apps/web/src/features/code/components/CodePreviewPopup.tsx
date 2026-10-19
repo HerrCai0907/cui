@@ -101,8 +101,21 @@ export function CodePreviewButton({
 }) {
   const previewRef = useRef<HTMLSpanElement | null>(null);
   const [open, setOpen] = useState(false);
+  const [previewPosition, setPreviewPosition] = useState<FloatingCodePreviewPosition | undefined>(
+    undefined,
+  );
 
   useCloseOnOutsidePointerDown(open, previewRef, () => setOpen(false));
+
+  function togglePreview() {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+
+    setPreviewPosition(readAnchoredCodePreviewPosition(previewRef.current));
+    setOpen(true);
+  }
 
   return (
     <span className="message-code-preview" ref={previewRef}>
@@ -110,20 +123,25 @@ export function CodePreviewButton({
         className="message-code-link"
         type="button"
         aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
+        onClick={togglePreview}
         title={target.filePath}
       >
         <FileCode size={14} />
         {label}
       </button>
-      {open && (
-        <FloatingCodePreview
-          key={formatCodePathForClipboard(target)}
-          target={target}
-          workspace={workspace}
-          onClose={() => setOpen(false)}
-        />
-      )}
+      {open &&
+        previewPosition &&
+        createPortal(
+          <FloatingCodePreview
+            key={formatCodePreviewQueryKey(target)}
+            fixedPosition={previewPosition}
+            target={target}
+            workspace={workspace}
+            onClose={() => setOpen(false)}
+          />,
+          document.body,
+          formatCodePreviewQueryKey(target),
+        )}
     </span>
   );
 }
@@ -383,6 +401,7 @@ function FloatingCodePreview({
 }) {
   const dragStateRef = useRef<CodeCardDragState | null>(null);
   const lastHeaderPointerDownRef = useRef<CodeCardPointerDownState | undefined>(undefined);
+  const lastLoadedQueryKeyRef = useRef<string | undefined>(undefined);
   const copyFeedbackTimerRef = useRef<number | undefined>(undefined);
   const [preview, setPreview] = useState<CodePreviewState>({ status: "idle" });
   const [query, setQuery] = useState<CodeLocationTarget>(() => getInitialCodePreviewQuery(target));
@@ -406,6 +425,13 @@ function FloatingCodePreview({
   }, []);
 
   async function loadPreview(nextQuery: CodeLocationTarget) {
+    const nextQueryKey = formatCodePreviewQueryKey(nextQuery);
+
+    if (lastLoadedQueryKeyRef.current === nextQueryKey) {
+      return;
+    }
+
+    lastLoadedQueryKeyRef.current = nextQueryKey;
     setQuery(nextQuery);
     setPreview({ status: "loading" });
 
@@ -801,6 +827,23 @@ function readFloatingCodePreviewPosition(
   };
 }
 
+function readAnchoredCodePreviewPosition(
+  anchor: HTMLElement | null,
+): FloatingCodePreviewPosition | undefined {
+  if (!anchor) {
+    return undefined;
+  }
+
+  const bounds = anchor.getBoundingClientRect();
+  const maxLeft = Math.max(16, window.innerWidth - Math.min(720, window.innerWidth - 56) - 16);
+  const maxTop = Math.max(16, window.innerHeight - 260);
+
+  return {
+    left: Math.max(16, Math.min(bounds.left, maxLeft)),
+    top: Math.max(16, Math.min(bounds.bottom + 6, maxTop)),
+  };
+}
+
 function sourceDefinitionTargetClassName(className: string | undefined): string {
   if (!className) {
     return "source-definition-target";
@@ -837,4 +880,8 @@ function formatCodePathForClipboard(target: CodeLocationTarget): string {
   }
 
   return `${target.filePath}:${target.startLine}`;
+}
+
+function formatCodePreviewQueryKey(target: CodeLocationTarget): string {
+  return `${target.filePath}:${target.startLine ?? ""}:${target.endLine ?? ""}`;
 }
