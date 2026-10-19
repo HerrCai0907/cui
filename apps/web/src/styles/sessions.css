@@ -1668,17 +1668,18 @@
 }
 
 .composer-model-menu-item {
+  position: relative;
   display: flex;
   width: 100%;
   min-height: 34px;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: #1f2937;
-  padding: 7px 9px;
+  padding: 6px 8px;
   text-align: left;
 }
 
@@ -1693,6 +1694,35 @@
 .composer-model-menu-item:focus-visible,
 .composer-model-menu-item.is-active {
   background: #eaf1f8;
+}
+
+.composer-model-menu-item.is-selected {
+  border-color: #8bb7f0;
+  background: #dbeafe;
+  box-shadow: inset 3px 0 0 #2563eb;
+  color: #14376d;
+  font-weight: 760;
+}
+
+.composer-model-menu-item.is-selected:hover,
+.composer-model-menu-item.is-selected:focus-visible,
+.composer-model-menu-item.is-selected.is-active {
+  border-color: #6aa1ec;
+  background: #cfe4ff;
+}
+
+.composer-model-menu-item svg {
+  flex: 0 0 auto;
+  color: #64748b;
+}
+
+.composer-model-menu-item.is-selected svg {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #ffffff;
+  padding: 2px;
 }
 
 .composer-model-menu-item.is-muted {

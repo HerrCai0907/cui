@@ -238,7 +238,9 @@ export function Composer({
 
                 return (
                   <button
-                    className={`composer-model-menu-item ${active ? "is-active" : ""}`}
+                    className={`composer-model-menu-item ${active ? "is-active" : ""} ${
+                      selected ? "is-selected" : ""
+                    }`}
                     type="button"
                     role="menuitem"
                     key={model.name || "default"}
@@ -260,7 +262,7 @@ export function Composer({
 
                 return (
                   <button
-                    className={`composer-model-menu-item ${selected ? "is-active" : ""}`}
+                    className={`composer-model-menu-item ${selected ? "is-selected" : ""}`}
                     type="button"
                     role="menuitem"
                     key={reasoningEffort}
