@@ -450,9 +450,11 @@ test("cancelRun stops an active stream and emits a cancellation event", async ()
       true,
     );
     const session = await service.getSessionView("session-1");
+    const traceMessage = session?.messages.find((message) => message.kind === "trace");
     const persistedEvents = await store.listRunEvents(submitted.run.id);
 
     assert.equal(session?.isRunning, false);
+    assert.match(traceMessage?.content ?? "", /Trace before stop/);
     assert.ok(
       persistedEvents.some(
         (event) =>
@@ -510,6 +512,7 @@ test("createRun stores streamed execution trace when the assistant run fails", a
     await waitFor(() => events.some((event) => eventType(event) === "run.failed"));
 
     const session = await service.getSessionView("session-1");
+    const traceMessage = session?.messages.find((message) => message.kind === "trace");
     const persistedEvents = await store.listRunEvents(submitted.run.id);
 
     assert.equal(
@@ -517,6 +520,7 @@ test("createRun stores streamed execution trace when the assistant run fails", a
       true,
     );
     assert.equal(session?.isRunning, false);
+    assert.match(traceMessage?.content ?? "", /Trace before failure/);
     assert.ok(
       persistedEvents.some(
         (event) =>
