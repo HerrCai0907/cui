@@ -1122,12 +1122,30 @@ export class SessionService {
   private async flushInterruptedRunEvents(run: RunningRun, failureLogEvent: string): Promise<void> {
     try {
       await this.runRegistry.flushRunEvents(run);
+      await this.persistInterruptedTraceMessage(run);
     } catch (error) {
       void this.logger.session(run.sessionId).warn(failureLogEvent, {
         sessionId: run.sessionId,
         error,
       });
     }
+  }
+
+  private async persistInterruptedTraceMessage(run: RunningRun): Promise<void> {
+    const session = await this.store.getSession(run.sessionId);
+
+    if (!session || hasPersistedRunAssistantMessage(session, run, "trace")) {
+      return;
+    }
+
+    const events = await this.listAllRunEvents(run.id);
+    const traceMessage = createInterruptedTraceMessage(session, events);
+
+    if (!traceMessage) {
+      return;
+    }
+
+    await this.store.appendMessages(run.sessionId, [traceMessage]);
   }
 
   private async toSessionView(
@@ -1258,6 +1276,33 @@ export class RunNotFoundError extends Error {
     super(`Run not found: ${runId}`);
     this.name = "RunNotFoundError";
   }
+}
+
+function createInterruptedTraceMessage(
+  session: ChatSession,
+  events: PersistedRunStreamEvent[],
+): ChatMessage | undefined {
+  const traceLines = events.flatMap(({ event }) => {
+    if (event.type !== "run.trace") {
+      return [];
+    }
+
+    const line = JSON.stringify(event.event);
+
+    return line === undefined ? [] : [line];
+  });
+
+  if (traceLines.length === 0) {
+    return undefined;
+  }
+
+  return createMessage(
+    "assistant",
+    traceLines.join("\n"),
+    "trace",
+    undefined,
+    formatNormalModelLabel(session.models),
+  );
 }
 
 export class QueuedPromptNotFoundError extends Error {

@@ -189,6 +189,79 @@ test("stops a running session and restores the send button", async ({ page }) =>
   await expect(page.getByText("Trace before stop.")).toBeVisible();
 });
 
+test("restores interrupted execution trace from history after reload", async ({ page }) => {
+  const traceEvent = createCompletedTraceEvent("item-stop", "Trace persisted after stop.");
+  const initialSession = {
+    id: "session-1",
+    workspace: currentWorkspace,
+    title: "Interrupted trace session",
+    createdAt: "2026-08-22T00:00:01.000Z",
+    updatedAt: "2026-08-22T00:00:01.000Z",
+    messages: [],
+    rounds: [],
+    currentRound: 0,
+    isRunning: false,
+  };
+  const startedSession = {
+    ...initialSession,
+    messages: [
+      {
+        id: "message-1",
+        role: "user",
+        content: "Run a long traced task",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    isRunning: true,
+    runningRunId: "run-1",
+  };
+  const stoppedSession = {
+    ...startedSession,
+    messages: [
+      ...startedSession.messages,
+      {
+        id: "message-trace",
+        role: "assistant",
+        kind: "trace",
+        content: JSON.stringify(traceEvent),
+        createdAt: "2026-08-22T00:00:01.000Z",
+      },
+    ],
+    isRunning: false,
+    runningRunId: undefined,
+  };
+  let running = false;
+
+  await mockSessions(page, () => [running ? startedSession : stoppedSession]);
+  await mockSessionById(page, "session-1", () => (running ? startedSession : stoppedSession));
+  await mockRpcMethod(page, "sessions.createRun", () => {
+    running = true;
+    return createSubmittedRunResponse(startedSession, "run-1");
+  });
+  await mockRpcMethod(page, "runs.cancel", async () => {
+    running = false;
+    await emitRunEvent(page, "run-1", { type: "run.cancelled" });
+    return { status: "ok" };
+  });
+
+  await page.goto("/");
+  await page.getByPlaceholder("Continue this session...").fill("Run a long traced task");
+  await page.getByRole("button", { name: "Send message" }).click();
+  await emitRunEvent(page, "run-1", {
+    type: "run.trace",
+    event: traceEvent,
+  });
+  await page.getByRole("button", { name: "Stop generation" }).click();
+
+  await expect(page.getByText("Show execution trace")).toBeVisible();
+  await page.reload();
+
+  await expect(page.getByRole("heading", { name: "Interrupted trace session" })).toBeVisible();
+  await expect(page.getByText("Show execution trace")).toBeVisible();
+  await page.getByText("Show execution trace").click();
+  await expect(page.getByText("Trace persisted after stop.")).toBeVisible();
+});
+
 test("keeps streamed execution trace visible when a run fails", async ({ page }) => {
   const initialSession = {
     id: "session-1",
