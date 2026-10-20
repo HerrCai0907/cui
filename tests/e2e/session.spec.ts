@@ -271,7 +271,7 @@ test("sends composer-selected model preferences when starting a chat session", a
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Select model and reasoning effort" }).click();
+  await page.getByRole("button", { name: "Select harness, model, and reasoning effort" }).click();
   await page.getByRole("menuitem", { name: "Seed-2.1-Turbo" }).click();
   await page.getByRole("menuitem", { name: "High", exact: true }).click();
   await page.getByPlaceholder("Start with an initial prompt...").fill("Use the selected models.");
@@ -314,6 +314,23 @@ test("sends composer-selected model preferences when starting a chat session", a
         },
       },
     });
+});
+
+test("keeps the composer model popover anchored while previewing harnesses", async ({ page }) => {
+  await mockSessions(page, []);
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Select harness, model, and reasoning effort" }).click();
+
+  const popover = page.getByRole("menu", { name: "Harness, model, and reasoning" });
+  const topBefore = await popover.evaluate((element) => element.getBoundingClientRect().top);
+
+  await page.getByRole("menuitem", { name: "Codex" }).hover();
+
+  await expect(page.getByRole("menuitem", { name: "gpt-6-astra" })).toBeVisible();
+  await expect
+    .poll(async () => popover.evaluate((element) => element.getBoundingClientRect().top))
+    .toBe(topBefore);
 });
 
 test("keeps a newly created session visible when starting its run fails", async ({ page }) => {
@@ -396,14 +413,14 @@ test("switches the composer model selector with the active session", async ({ pa
   await page.goto("/");
 
   const modelButton = page.getByRole("button", {
-    name: "Select model and reasoning effort",
+    name: "Select harness, model, and reasoning effort",
   });
 
-  await expect(modelButton).toHaveAttribute("title", "GPT-5.4 / Low");
+  await expect(modelButton).toHaveAttribute("title", "TraeX - GPT-5.4 - Low");
   await page.getByRole("button", { name: "Second model session" }).click();
-  await expect(modelButton).toHaveAttribute("title", "Seed-2.1-Turbo / High");
+  await expect(modelButton).toHaveAttribute("title", "TraeX - Seed-2.1-Turbo - High");
   await page.getByRole("button", { name: "New session", exact: true }).click();
-  await expect(modelButton).toHaveAttribute("title", "GPT-5.5 / High");
+  await expect(modelButton).toHaveAttribute("title", "TraeX - GPT-5.5 - High");
 });
 
 test("sends a shell command on a single Enter key press", async ({ page }) => {
