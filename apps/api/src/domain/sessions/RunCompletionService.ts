@@ -1,10 +1,17 @@
 import type { AiModelPreferences, AiRunResult, ChatRound, ChatSession } from "../../types.js";
-import type { SessionStore } from "../../infrastructure/store/SessionStore.js";
+import type {
+  PersistedRunStreamEvent,
+  SessionStore,
+} from "../../infrastructure/store/SessionStore.js";
 import type { AppLogger } from "../../infrastructure/logging/AppLogger.js";
 import { DiffArtifactService } from "../../infrastructure/diff/DiffArtifactService.js";
 import { AtomicReviewService } from "../reviews/AtomicReviewService.js";
 import { RoundService } from "../reviews/RoundService.js";
-import { createAssistantMessages, formatNormalModelLabel } from "./sessionMessages.js";
+import {
+  createAssistantMessages,
+  createMessage,
+  formatNormalModelLabel,
+} from "./sessionMessages.js";
 import { toSessionView } from "./sessionViews.js";
 import { createSessionInputTranscript } from "./transcripts.js";
 
@@ -40,11 +47,12 @@ export class RunCompletionService {
       };
     }
 
-    const assistantMessages = createAssistantMessages(
-      input.aiResponse,
-      round,
-      formatNormalModelLabel(input.models),
-    );
+    const model = formatNormalModelLabel(input.models);
+    const traceMessage = await this.createExecutionTraceMessage(input.aiResponse.traceRunId, model);
+    const assistantMessages = [
+      ...(traceMessage ? [traceMessage] : []),
+      ...createAssistantMessages(input.aiResponse, round, model),
+    ];
     const updatedSession = await this.store.appendRoundAndMessages(
       input.aiResponse.sessionId,
       round,
@@ -65,6 +73,47 @@ export class RunCompletionService {
     await this.logCompletedRun(input);
 
     return toSessionView(updatedSession);
+  }
+
+  private async createExecutionTraceMessage(runId: string | undefined, model: string | undefined) {
+    if (!runId) {
+      return createMessage("assistant", "TRAEX run completed.", "trace", undefined, model);
+    }
+
+    const events = await this.listAllRunEvents(runId);
+    const traceLines = events.flatMap(({ event }) => {
+      if (event.type !== "run.trace") {
+        return [];
+      }
+
+      const line = JSON.stringify(event.event);
+
+      return line === undefined ? [] : [line];
+    });
+
+    return createMessage(
+      "assistant",
+      traceLines.length > 0 ? traceLines.join("\n") : "TRAEX run completed.",
+      "trace",
+      undefined,
+      model,
+    );
+  }
+
+  private async listAllRunEvents(runId: string): Promise<PersistedRunStreamEvent[]> {
+    const events: PersistedRunStreamEvent[] = [];
+    let afterSeq = 0;
+
+    while (true) {
+      const page = await this.store.listRunEvents(runId, { afterSeq, limit: 1000 });
+
+      if (page.length === 0) {
+        return events;
+      }
+
+      events.push(...page);
+      afterSeq = page.at(-1)!.id;
+    }
   }
 
   private scheduleAtomicReview(input: {
