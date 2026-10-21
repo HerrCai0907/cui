@@ -141,6 +141,85 @@ test("createRun refreshes summary after user input and assistant response", asyn
   }
 });
 
+test("createRun stores execution trace for successful assistant runs", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    await store.createSession({
+      id: "session-1",
+      aiThreadId: "traex-thread-1",
+      workspace: cwd,
+      title: "Initial title",
+      summary: "",
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [],
+      rounds: [],
+    });
+
+    const submitted = await service.createRun(
+      "session-1",
+      createAssistantRunRequest("Run successfully with trace."),
+    );
+    const events: unknown[] = [];
+
+    service.subscribeToRun(submitted.run.id, (event) => {
+      events.push(event);
+    });
+    aiModel.resolveSummary({
+      title: "Successful trace",
+      progress: "The latest user input has been summarized.",
+    });
+    await waitFor(() => events.length === 1);
+
+    aiModel.emitRawEvent({
+      type: "item.completed",
+      item: {
+        id: "item-1",
+        type: "command_execution",
+        command: "printf trace",
+        aggregated_output: "Trace for successful run.",
+        status: "completed",
+        exit_code: 0,
+      },
+    });
+    aiModel.resolveRun({
+      sessionId: "traex-thread-1",
+      content: "Done.",
+      rawEventCount: 1,
+    });
+    await waitFor(async () => {
+      const session = await store.getSession("session-1");
+
+      return session?.messages.some((message) => message.kind === "trace") ?? false;
+    });
+
+    const storedSession = await store.getSession("session-1");
+
+    assert.equal(storedSession?.messages.length, 3);
+    assert.equal(storedSession?.messages[0]?.role, "user");
+    assert.equal(storedSession?.messages[1]?.kind, "trace");
+    assert.match(storedSession?.messages[1]?.content ?? "", /Trace for successful run/);
+    assert.equal(storedSession?.messages[2]?.kind, "response");
+    assert.equal(storedSession?.messages[2]?.content, "Done.");
+
+    await waitFor(() => aiModel.summaryPrompts.length === 2);
+    aiModel.resolveSummary(
+      {
+        title: "Successful trace",
+        progress: "The completed turn is summarized.",
+      },
+      1,
+    );
+    await waitFor(() => events.some(isDoneEvent));
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 test("createRun uses session model preferences when request omits models", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
