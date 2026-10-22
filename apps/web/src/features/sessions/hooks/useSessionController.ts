@@ -41,6 +41,11 @@ import {
   type SessionListMode,
   type SessionSidebarBrowserState,
 } from "../model/sessionBrowserState";
+import {
+  loadComposerDraftState,
+  saveComposerDraftState,
+  type ComposerMode,
+} from "../model/composerDraftState";
 import { normalizeWorkspacePath } from "../model/workspacePaths";
 import { useRunStream } from "./useRunStream";
 import type { ApiSession, ApiSessionListItem, SessionSummary } from "../../../types";
@@ -53,8 +58,6 @@ type SetCurrentActiveSessionOptions = {
   persist?: boolean;
   recordAttention?: boolean;
 };
-
-type ComposerMode = "chat" | "shell";
 
 export type QueuedPromptView = {
   id: string;
@@ -101,6 +104,7 @@ const INITIAL_SESSION_PAGINATION: SessionPagination = {
 };
 
 export function useSessionController(defaultWorkspace: string, config: AppConfig) {
+  const [initialComposerDraftState] = useState(loadComposerDraftState);
   const [sidebarBrowserState, setSidebarBrowserState] = useState(() =>
     loadSessionSidebarBrowserState(defaultWorkspace),
   );
@@ -117,8 +121,8 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   const [sessionPageLoading, setSessionPageLoading] = useState(false);
   const [activeSession, setActiveSession] = useState<ApiSession | null>(null);
   const [olderMessagesLoading, setOlderMessagesLoading] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [composerMode, setComposerMode] = useState<ComposerMode>("chat");
+  const [draft, setDraft] = useState(initialComposerDraftState.draft);
+  const [composerMode, setComposerMode] = useState<ComposerMode>(initialComposerDraftState.mode);
   const [workspaceDraft, setWorkspaceDraft] = useState(defaultWorkspace);
   const [newSessionGitInfo, setNewSessionGitInfo] = useState<WorkspaceGitInfo | null>(null);
   const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(() => new Set());
@@ -247,6 +251,10 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
       });
     };
   });
+
+  useEffect(() => {
+    saveComposerDraftState({ draft, mode: composerMode });
+  }, [composerMode, draft]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -1085,6 +1093,16 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     }
   }
 
+  function updateDraft(nextDraft: string) {
+    setDraft(nextDraft);
+    saveComposerDraftState({ draft: nextDraft, mode: composerMode });
+  }
+
+  function updateComposerMode(nextMode: ComposerMode) {
+    setComposerMode(nextMode);
+    saveComposerDraftState({ draft, mode: nextMode });
+  }
+
   async function updateActiveSessionModelSelection(
     harness: AiHarness,
     model: string,
@@ -1473,8 +1491,8 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     newSessionGitInfo,
     pendingDoneSessionIds,
     runningSessionIds,
-    setDraft,
-    setComposerMode,
+    setDraft: updateDraft,
+    setComposerMode: updateComposerMode,
     updateActiveSessionModelSelection,
     setSessionListMode,
     setSessionListPage,
