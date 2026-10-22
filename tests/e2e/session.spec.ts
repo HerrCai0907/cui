@@ -600,6 +600,77 @@ test("reuses the composer draft between new and existing sessions", async ({ pag
   await expect(page.getByPlaceholder("Start with an initial prompt...")).toHaveValue(draft);
 });
 
+test("restores the composer draft after a browser refresh", async ({ page }) => {
+  const startedSession = {
+    id: "session-restored-draft-submit",
+    workspace: currentWorkspace,
+    title: "Restored draft prompt",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-1",
+        role: "user",
+        content: "Restored draft prompt",
+        createdAt: "2026-08-22T00:00:00.000Z",
+      },
+    ],
+    rounds: [],
+    currentRound: 0,
+    isRunning: true,
+    runningRunId: "run-restored-draft-submit",
+  };
+  let createRunBody: unknown;
+
+  await mockSessions(page, []);
+  await mockRpcMethod(page, "sessions.create", () => ({
+    session: {
+      ...startedSession,
+      messages: [],
+      isRunning: false,
+      runningRunId: undefined,
+    },
+  }));
+  await mockRpcMethod(page, "sessions.createRun", (params) => {
+    createRunBody = (params as { request?: unknown }).request;
+
+    return createSubmittedRunResponse(startedSession, "run-restored-draft-submit");
+  });
+
+  await page.goto("/");
+  await page.getByPlaceholder("Start with an initial prompt...").fill("Restored draft prompt");
+  await page.reload();
+
+  await expect(page.getByPlaceholder("Start with an initial prompt...")).toHaveValue(
+    "Restored draft prompt",
+  );
+
+  await page.getByRole("button", { name: "Send message" }).click();
+  await expect
+    .poll(() => createRunBody)
+    .toEqual({
+      type: "assistant_response",
+      input: {
+        prompt: "Restored draft prompt",
+      },
+      models: {
+        harness: "traex",
+        normal: "GPT-5.5",
+        summary: "GPT-5.4",
+        atomicReview: "GPT-5.5",
+        reasoningEfforts: {
+          normal: "high",
+          summary: "low",
+          atomicReview: "medium",
+        },
+      },
+    });
+  await expect(page.getByPlaceholder("Continue this session...")).toHaveValue("");
+  await expect(
+    page.evaluate(() => localStorage.getItem("cui:composer-draft:v1")),
+  ).resolves.toBeNull();
+});
+
 test("restores the last opened session after a browser refresh", async ({ page }) => {
   const firstSession = {
     id: "session-1",
