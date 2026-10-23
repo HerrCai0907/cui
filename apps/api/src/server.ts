@@ -64,7 +64,8 @@ const rpcServer = attachRpcServer(server, {
 
 server.on("listening", () => {
   console.log(`API listening on http://localhost:${port}`);
-  console.log(`JSON-RPC WebSocket listening on ws://localhost:${port}/api/v1/rpc`);
+  console.log(`JSON-RPC state WebSocket listening on ws://localhost:${port}/api/v1/rpc/state`);
+  console.log(`JSON-RPC actions WebSocket listening on ws://localhost:${port}/api/v1/rpc/actions`);
   void logger.framework.info("server.started", { port });
   void runStartupSessionMaintenance();
 });

@@ -10,7 +10,9 @@ export function createApp(input: { logger: AppLogger }): express.Express {
   app.use(cors());
   app.use(createRequestLogger(input.logger));
   app.use((_request, response) => {
-    response.status(404).json({ error: "Use the WebSocket JSON-RPC endpoint at /api/v1/rpc" });
+    response.status(404).json({
+      error: "Use the WebSocket JSON-RPC endpoints at /api/v1/rpc/state or /api/v1/rpc/actions",
+    });
   });
   app.use(createErrorHandler(input.logger));
 

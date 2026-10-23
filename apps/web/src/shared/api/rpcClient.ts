@@ -23,18 +23,41 @@ type PendingRequest = {
 };
 type NotificationListener = (params: unknown) => void;
 type ConnectionListener = () => void;
+type RpcChannel = "state" | "actions";
+type RpcConnection = {
+  path: string;
+  socket: WebSocket | null;
+  socketPromise: Promise<WebSocket> | null;
+  pendingRequests: Map<JsonRpcId, PendingRequest>;
+  closeListeners: Set<ConnectionListener>;
+};
 
-const RPC_PATH = "/api/v1/rpc";
+const RPC_PATHS: Record<RpcChannel, string> = {
+  state: "/api/v1/rpc/state",
+  actions: "/api/v1/rpc/actions",
+};
+const STATE_REFRESH_METHODS = new Set([
+  "sessions.list",
+  "sessions.get",
+  "sessions.messages",
+  "reviews.getRound",
+  "reviews.getRoundDiffFilePage",
+  "reviews.getAtomicDiffFilePage",
+  "runs.subscribe",
+  "runs.unsubscribe",
+]);
 
-let socket: WebSocket | null = null;
-let socketPromise: Promise<WebSocket> | null = null;
+const connections: Record<RpcChannel, RpcConnection> = {
+  state: createRpcConnection(RPC_PATHS.state),
+  actions: createRpcConnection(RPC_PATHS.actions),
+};
+
 let nextRequestId = 1;
-const pendingRequests = new Map<JsonRpcId, PendingRequest>();
 const notificationListeners = new Map<string, Set<NotificationListener>>();
-const closeListeners = new Set<ConnectionListener>();
 
 export type RpcRequestOptions = {
   signal?: AbortSignal;
+  channel?: RpcChannel;
 };
 
 export async function rpcRequest<T>(
@@ -46,12 +69,13 @@ export async function rpcRequest<T>(
     throw new DOMException("Request aborted", "AbortError");
   }
 
-  const client = await getRpcSocket();
+  const connection = getRpcConnection(options.channel ?? getDefaultRpcChannel(method));
+  const client = await getRpcSocket(connection);
   const id = nextRequestId++;
 
   return new Promise<T>((resolve, reject) => {
     const abort = () => {
-      pendingRequests.delete(id);
+      connection.pendingRequests.delete(id);
       reject(new DOMException("Request aborted", "AbortError"));
     };
 
@@ -59,7 +83,7 @@ export async function rpcRequest<T>(
       options.signal.addEventListener("abort", abort, { once: true });
     }
 
-    pendingRequests.set(id, {
+    connection.pendingRequests.set(id, {
       resolve: (value) => resolve(value as T),
       reject,
       abort: options.signal ? () => options.signal?.removeEventListener("abort", abort) : undefined,
@@ -93,59 +117,79 @@ export function addRpcNotificationListener(
 }
 
 export function addRpcCloseListener(listener: ConnectionListener): () => void {
-  closeListeners.add(listener);
+  const connection = connections.state;
+
+  connection.closeListeners.add(listener);
 
   return () => {
-    closeListeners.delete(listener);
+    connection.closeListeners.delete(listener);
   };
 }
 
-async function getRpcSocket(): Promise<WebSocket> {
-  if (socket?.readyState === WebSocket.OPEN) {
-    return socket;
+function createRpcConnection(path: string): RpcConnection {
+  return {
+    path,
+    socket: null,
+    socketPromise: null,
+    pendingRequests: new Map(),
+    closeListeners: new Set(),
+  };
+}
+
+function getRpcConnection(channel: RpcChannel): RpcConnection {
+  return connections[channel];
+}
+
+function getDefaultRpcChannel(method: string): RpcChannel {
+  return STATE_REFRESH_METHODS.has(method) ? "state" : "actions";
+}
+
+async function getRpcSocket(connection: RpcConnection): Promise<WebSocket> {
+  if (connection.socket?.readyState === WebSocket.OPEN) {
+    return connection.socket;
   }
 
-  if (socketPromise) {
-    return socketPromise;
+  if (connection.socketPromise) {
+    return connection.socketPromise;
   }
 
-  socketPromise = new Promise<WebSocket>((resolve, reject) => {
-    const client = new WebSocket(resolveApiWebSocketUrl(RPC_PATH));
+  connection.socketPromise = new Promise<WebSocket>((resolve, reject) => {
+    const client = new WebSocket(resolveApiWebSocketUrl(connection.path));
 
-    socket = client;
+    connection.socket = client;
     client.addEventListener(
       "open",
       () => {
-        socketPromise = null;
+        connection.socketPromise = null;
         resolve(client);
       },
       { once: true },
     );
-    client.addEventListener("message", (event) => handleSocketMessage(event.data));
+    client.addEventListener("message", (event) => handleSocketMessage(connection, event.data));
     client.addEventListener(
       "error",
       () => {
         if (client.readyState !== WebSocket.OPEN) {
-          socketPromise = null;
+          connection.socketPromise = null;
           reject(new Error("RPC connection failed"));
         }
       },
       { once: true },
     );
     client.addEventListener("close", () => {
-      if (socket === client) {
-        socket = null;
+      if (connection.socket === client) {
+        connection.socket = null;
       }
-      socketPromise = null;
-      rejectPendingRequests(new Error("RPC connection closed"));
-      closeListeners.forEach((listener) => listener());
+      connection.socketPromise = null;
+      rejectPendingRequests(connection, new Error("RPC connection closed"));
+      connection.closeListeners.forEach((listener) => listener());
     });
   });
 
-  return socketPromise;
+  return connection.socketPromise;
 }
 
-function handleSocketMessage(rawData: unknown) {
+function handleSocketMessage(connection: RpcConnection, rawData: unknown) {
   const message = parseRpcMessage(rawData);
 
   if (!message) {
@@ -153,7 +197,7 @@ function handleSocketMessage(rawData: unknown) {
   }
 
   if ("id" in message) {
-    handleRpcResponse(message);
+    handleRpcResponse(connection, message);
     return;
   }
 
@@ -162,14 +206,14 @@ function handleSocketMessage(rawData: unknown) {
   listeners?.forEach((listener) => listener(message.params));
 }
 
-function handleRpcResponse(message: JsonRpcResponse) {
-  const pending = pendingRequests.get(message.id);
+function handleRpcResponse(connection: RpcConnection, message: JsonRpcResponse) {
+  const pending = connection.pendingRequests.get(message.id);
 
   if (!pending) {
     return;
   }
 
-  pendingRequests.delete(message.id);
+  connection.pendingRequests.delete(message.id);
   pending.abort?.();
 
   if (message.error) {
@@ -208,10 +252,10 @@ function parseRpcMessage(rawData: unknown): JsonRpcResponse | JsonRpcNotificatio
   }
 }
 
-function rejectPendingRequests(reason: Error) {
-  const requests = [...pendingRequests.values()];
+function rejectPendingRequests(connection: RpcConnection, reason: Error) {
+  const requests = [...connection.pendingRequests.values()];
 
-  pendingRequests.clear();
+  connection.pendingRequests.clear();
   requests.forEach((request) => {
     request.abort?.();
     request.reject(reason);
