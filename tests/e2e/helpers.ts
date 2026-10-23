@@ -114,6 +114,7 @@ async function ensureRpcMock(page: Page): Promise<RpcMockState> {
   await page.addInitScript(() => {
     const nativeWebSocket = window.WebSocket;
     const rpcSockets = new Set<MockRpcWebSocket>();
+    const rpcPaths = new Set(["/api/v1/rpc", "/api/v1/rpc/state", "/api/v1/rpc/actions"]);
 
     class MockRpcWebSocket extends EventTarget {
       static CONNECTING = 0;
@@ -121,6 +122,7 @@ async function ensureRpcMock(page: Page): Promise<RpcMockState> {
       static CLOSING = 2;
       static CLOSED = 3;
       readonly url: string;
+      rpcChannel: "legacy" | "state" | "actions" = "legacy";
       readyState = MockRpcWebSocket.CONNECTING;
 
       constructor(url: string | URL, protocols?: string | string[]) {
@@ -128,10 +130,16 @@ async function ensureRpcMock(page: Page): Promise<RpcMockState> {
         this.url = String(url);
         const parsed = new URL(this.url, window.location.href);
 
-        if (parsed.pathname !== "/api/v1/rpc") {
+        if (!rpcPaths.has(parsed.pathname)) {
           return new nativeWebSocket(url, protocols) as unknown as MockRpcWebSocket;
         }
 
+        this.rpcChannel =
+          parsed.pathname === "/api/v1/rpc/state"
+            ? "state"
+            : parsed.pathname === "/api/v1/rpc/actions"
+              ? "actions"
+              : "legacy";
         queueMicrotask(() => {
           this.readyState = MockRpcWebSocket.OPEN;
           rpcSockets.add(this);
@@ -188,7 +196,10 @@ async function ensureRpcMock(page: Page): Promise<RpcMockState> {
       }
 
       for (const socket of rpcSockets) {
-        if (socket.readyState !== MockRpcWebSocket.OPEN) {
+        if (
+          socket.readyState !== MockRpcWebSocket.OPEN ||
+          (socket.rpcChannel !== "state" && socket.rpcChannel !== "legacy")
+        ) {
           continue;
         }
 

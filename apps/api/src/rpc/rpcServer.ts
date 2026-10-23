@@ -56,7 +56,7 @@ import {
   type ParsedBody,
 } from "./requestParsers.js";
 
-const RPC_PATH = "/api/v1/rpc";
+const RPC_PATHS = ["/api/v1/rpc", "/api/v1/rpc/state", "/api/v1/rpc/actions"] as const;
 const jsonRpcVersion = "2.0";
 
 type JsonRpcId = string | number | null;
@@ -106,7 +106,9 @@ export function attachRpcServer(
   const webSocketServer = new WebSocketServer({ noServer: true });
 
   server.on("upgrade", (request, socket, head) => {
-    if (request.url && new URL(request.url, "http://localhost").pathname !== RPC_PATH) {
+    const pathname = request.url ? new URL(request.url, "http://localhost").pathname : "";
+
+    if (!RPC_PATHS.includes(pathname as (typeof RPC_PATHS)[number])) {
       socket.destroy();
       return;
     }

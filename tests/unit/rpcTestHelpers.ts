@@ -4,9 +4,12 @@ export type RpcRequest = {
   method: string;
   params?: unknown;
 };
+export type RpcSocketContext = {
+  url: string;
+};
 
 export async function withWebSocketRpcStub(
-  respond: (request: RpcRequest) => unknown,
+  respond: (request: RpcRequest, context: RpcSocketContext) => unknown,
   run: () => Promise<void>,
 ): Promise<void> {
   const originalWindow = globalThis.window;
@@ -57,7 +60,7 @@ class MockWebSocket {
 
   constructor(
     readonly url: string,
-    private readonly respond: (request: RpcRequest) => unknown,
+    private readonly respond: (request: RpcRequest, context: RpcSocketContext) => unknown,
   ) {
     queueMicrotask(() => {
       this.readyState = MockWebSocket.OPEN;
@@ -74,7 +77,7 @@ class MockWebSocket {
 
   send(data: string): void {
     const request = JSON.parse(data) as RpcRequest;
-    const result = this.respond(request);
+    const result = this.respond(request, { url: this.url });
 
     queueMicrotask(() => {
       this.dispatch("message", {
