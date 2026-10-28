@@ -240,6 +240,12 @@ async function dispatchRpcRequest(
 
       return { session };
     }
+    case "sessions.fork": {
+      const params = parseObject(request.params);
+      const { sessionId } = parseZod(SessionIdParamsSchema, params);
+
+      return services.sessionService.forkSession(sessionId);
+    }
     case "sessions.createRun": {
       const params = parseObject(request.params);
       const { sessionId } = parseZod(SessionIdParamsSchema, params);

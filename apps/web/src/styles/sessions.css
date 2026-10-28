@@ -342,7 +342,7 @@
   white-space: normal;
 }
 
-.session-done-button {
+.session-action-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -355,16 +355,30 @@
   padding: 0;
 }
 
+.session-action-button:hover {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.session-action-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.session-action-button:disabled:hover {
+  background: transparent;
+  color: #94a3b8;
+}
+
+.session-action-spinner {
+  animation: session-running-spin 1.1s linear infinite;
+}
+
 .session-done-button span {
   width: 10px;
   height: 10px;
   border: 1.5px solid currentColor;
   border-radius: 999px;
-}
-
-.session-done-button:hover {
-  background: #e2e8f0;
-  color: #475569;
 }
 
 .session-done-button.is-done {

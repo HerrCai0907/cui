@@ -114,6 +114,12 @@ export async function createRun(sessionId: string, input: CreateRunInput): Promi
   });
 }
 
+export async function forkSession(sessionId: string): Promise<SubmittedRun> {
+  return rpcRequest<SubmittedRun>("sessions.fork", {
+    sessionId,
+  });
+}
+
 export async function updateSession(
   sessionId: string,
   input: UpdateSessionInput,

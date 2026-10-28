@@ -37,6 +37,7 @@ import {
 import {
   createRoundInputTranscript,
   createSessionInputTranscript,
+  createSessionTranscript,
   getRoundAssistantOutput,
 } from "./transcripts.js";
 import { RunRegistry, type RunningRun } from "../runs/RunRegistry.js";
@@ -148,6 +149,7 @@ type ShellCommandRunInput = {
 type StartRunOptions = {
   runId?: string;
   createdAt?: string;
+  preparedRunInput?: PreparedAssistantRunInput;
 };
 
 type PreparedAssistantRunInput =
@@ -322,6 +324,65 @@ export class SessionService {
     }
 
     return this.toWindowedSessionView(session);
+  }
+
+  async forkSession(sessionId: string): Promise<SubmittedRun> {
+    return this.enqueueSessionOperation(sessionId, async () => {
+      const sourceSession = await this.getExistingSession(sessionId, "session.fork.not_found");
+
+      if (this.runRegistry.isSessionActive(sessionId)) {
+        throw new SessionBusyError(sessionId);
+      }
+
+      const workspace = await assertExistingDirectory(sourceSession.workspace);
+      const targetHarness = this.resolveTargetHarness(sourceSession, sourceSession.models);
+      const models = this.createHarnessRunModels(
+        sourceSession,
+        sourceSession.models,
+        targetHarness,
+      );
+      const now = new Date().toISOString();
+      const forkedSession: ChatSession = {
+        id: randomUUID(),
+        origin: "chat",
+        ...(models ? { models } : {}),
+        workspace,
+        title: createForkTitle(sourceSession.title),
+        summary: sourceSession.summary ? `Forked from ${sourceSession.title}` : "Forked session",
+        createdAt: now,
+        updatedAt: now,
+        messages: [],
+      };
+      const createdSession = await this.store.createSession(forkedSession);
+      const bridgeInput = await this.createForkInput(sourceSession);
+
+      await this.logger.framework.info("session.fork.created", {
+        sourceSessionId: sessionId,
+        sessionId: createdSession.id,
+        workspace,
+      });
+
+      return this.startAssistantRun(
+        createdSession,
+        {
+          prompt: createForkUserPrompt(sourceSession.title),
+          models,
+        },
+        {
+          preparedRunInput: {
+            kind: "create",
+            input: {
+              workspace,
+              prompt: bridgeInput.prompt,
+              models,
+            },
+            bindAiThreadId: targetHarness !== "dsh",
+            aiHarness: targetHarness,
+            cleanup: bridgeInput.cleanup,
+          },
+        },
+      );
+    });
   }
 
   async withdrawQueuedPrompts(
@@ -645,7 +706,9 @@ export class SessionService {
         }
       });
     };
-    const runInput = await this.createChatRunInput(updatedSession, request, workspace);
+    const runInput =
+      options.preparedRunInput ??
+      (await this.createChatRunInput(updatedSession, request, workspace));
     const run =
       runInput.kind === "continue"
         ? this.aiModel.continueSessionStream(runInput.input, onAiRunEvent)
@@ -956,6 +1019,20 @@ export class SessionService {
 
     return {
       prompt: createHarnessSwitchPrompt(transcriptPath),
+      cleanup: () => rm(directory, { force: true, recursive: true }),
+    };
+  }
+
+  private async createForkInput(
+    session: ChatSession,
+  ): Promise<{ prompt: string; cleanup: () => Promise<void> }> {
+    const directory = await mkdtemp(join(tmpdir(), "cui-session-fork-"));
+    const transcriptPath = join(directory, "history.txt");
+
+    await writeFile(transcriptPath, createSessionTranscript(session), "utf8");
+
+    return {
+      prompt: createForkPrompt(transcriptPath),
       cleanup: () => rm(directory, { force: true, recursive: true }),
     };
   }
@@ -1476,6 +1553,26 @@ function createHarnessSwitchPrompt(transcriptPath: string): string {
     `临时历史文件路径: ${transcriptPath}`,
     "请先读取这个文件，把它作为当前 session 的完整历史上下文。",
     "文件末尾包含当前用户最新请求。不要要求用户重新提供历史，也不要只总结历史；请直接继续完成最新请求。",
+  ].join("\n");
+}
+
+function createForkTitle(sourceTitle: string): string {
+  const title = sourceTitle.trim() || "Untitled session";
+
+  return `${title} fork`;
+}
+
+function createForkUserPrompt(sourceTitle: string): string {
+  return `Forked from "${sourceTitle.trim() || "Untitled session"}". Continue from this point.`;
+}
+
+function createForkPrompt(transcriptPath: string): string {
+  return [
+    "系统提示：",
+    "你正在接手一个从既有 CUI session fork 出来的新 session。",
+    `临时历史文件路径: ${transcriptPath}`,
+    "请先读取这个文件，把它作为当前 fork session 的完整历史上下文。",
+    "不要要求用户重新提供历史，也不要只总结历史；请直接从这条分支继续工作。",
   ].join("\n");
 }
 

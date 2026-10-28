@@ -228,6 +228,73 @@ test("marks a session done and removes it from Active after feedback", async ({ 
   await expect(page.getByRole("button", { name: "Finishable session" })).toBeVisible();
 });
 
+test("forks a session from the sidebar", async ({ page }) => {
+  const sourceSession = {
+    id: "session-1",
+    workspace: currentWorkspace,
+    title: "Source session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [
+      {
+        id: "message-1",
+        role: "assistant",
+        kind: "response",
+        content: "Source response.",
+        createdAt: "2026-08-22T00:00:01.000Z",
+      },
+    ],
+    rounds: [],
+    currentRound: 1,
+    isRunning: false,
+  };
+  const forkedSession = {
+    ...sourceSession,
+    id: "session-2",
+    title: "Source session fork",
+    updatedAt: "2026-08-22T00:00:10.000Z",
+    messages: [
+      {
+        id: "message-2",
+        role: "user",
+        content: 'Forked from "Source session". Continue from this point.',
+        createdAt: "2026-08-22T00:00:10.000Z",
+      },
+    ],
+    isRunning: true,
+    runningRunId: "run-2",
+  };
+  let sessions = [sourceSession];
+
+  await mockSessions(page, () => sessions);
+  await mockRpcMethod(page, "sessions.fork", (params) => {
+    expect(params).toEqual({ sessionId: "session-1" });
+    sessions = [forkedSession, sourceSession];
+
+    return {
+      run: {
+        id: "run-2",
+        sessionId: "session-2",
+        type: "assistant_response",
+        status: "running",
+        createdAt: "2026-08-22T00:00:10.000Z",
+      },
+      session: forkedSession,
+    };
+  });
+
+  await page.goto("/");
+
+  await expect(page.getByRole("button", { name: "Source session" })).toBeVisible();
+  await page.getByRole("button", { name: "Fork session" }).click();
+
+  await expect(page.getByRole("heading", { name: "Source session fork" })).toBeVisible();
+  await expect(
+    page.getByText('Forked from "Source session". Continue from this point.'),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Source session fork" })).toBeVisible();
+});
+
 test("keeps inactive workspaces active when used within seven days", async ({ page }) => {
   const sessions = [0, 1, 2, 3, 4].map((index) => ({
     id: `session-${index}`,
