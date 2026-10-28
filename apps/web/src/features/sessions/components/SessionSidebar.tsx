@@ -9,6 +9,7 @@ import {
   FileText,
   Folder,
   FolderOpen,
+  GitBranchPlus,
   Hash,
   LoaderCircle,
   PanelLeftClose,
@@ -47,6 +48,7 @@ type SessionSidebarProps = {
   activeSessionId?: string;
   configOpen?: boolean;
   pendingDoneSessionIds: Set<string>;
+  pendingForkSessionIds: Set<string>;
   runningSessionIds: Set<string>;
   reviewNavigation?: ReviewNavigation | null;
   reviewNavigationActive?: boolean;
@@ -60,6 +62,7 @@ type SessionSidebarProps = {
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
   onOpenSession: (sessionId: string) => void;
+  onForkSession: (sessionId: string) => void;
   onMarkSessionDone: (sessionId: string) => void;
   onNavigateReview?: (target: ReviewNavigationTarget) => void;
   onOpenConfig: () => void;
@@ -80,6 +83,7 @@ export function SessionSidebar({
   activeSessionId,
   configOpen,
   pendingDoneSessionIds,
+  pendingForkSessionIds,
   runningSessionIds,
   reviewNavigation,
   reviewNavigationActive,
@@ -93,6 +97,7 @@ export function SessionSidebar({
   onStartNewSession,
   onToggleWorkspace,
   onOpenSession,
+  onForkSession,
   onMarkSessionDone,
   onNavigateReview,
   onOpenConfig,
@@ -227,11 +232,13 @@ export function SessionSidebar({
                   expandedWorkspaces={expandedWorkspaces}
                   groups={workspaceGroups}
                   pendingDoneSessionIds={pendingDoneSessionIds}
+                  pendingForkSessionIds={pendingForkSessionIds}
                   sessionListMode={sessionListMode}
                   showVscodeWorkspaceLinks={showVscodeWorkspaceLinks}
                   vscodeConfig={vscodeConfig}
                   runningSessionIds={runningSessionIds}
                   onOpenSession={onOpenSession}
+                  onForkSession={onForkSession}
                   onMarkSessionDone={onMarkSessionDone}
                   onStartNewSession={onStartNewSession}
                   onToggleWorkspace={onToggleWorkspace}
@@ -306,9 +313,11 @@ function WorkspaceGroupList({
   expandedWorkspaces,
   groups,
   pendingDoneSessionIds,
+  pendingForkSessionIds,
   sessionListMode,
   runningSessionIds,
   onOpenSession,
+  onForkSession,
   onMarkSessionDone,
   onStartNewSession,
   onToggleWorkspace,
@@ -319,11 +328,13 @@ function WorkspaceGroupList({
   expandedWorkspaces: Set<string>;
   groups: WorkspaceTreeNode[];
   pendingDoneSessionIds: Set<string>;
+  pendingForkSessionIds: Set<string>;
   sessionListMode: SessionListMode;
   showVscodeWorkspaceLinks: boolean;
   vscodeConfig: VscodeConfig;
   runningSessionIds: Set<string>;
   onOpenSession: (sessionId: string) => void;
+  onForkSession: (sessionId: string) => void;
   onMarkSessionDone: (sessionId: string) => void;
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
@@ -338,9 +349,11 @@ function WorkspaceGroupList({
           key={node.id}
           node={node}
           pendingDoneSessionIds={pendingDoneSessionIds}
+          pendingForkSessionIds={pendingForkSessionIds}
           runningSessionIds={runningSessionIds}
           sessionListMode={sessionListMode}
           onOpenSession={onOpenSession}
+          onForkSession={onForkSession}
           onMarkSessionDone={onMarkSessionDone}
           onStartNewSession={onStartNewSession}
           onToggleWorkspace={onToggleWorkspace}
@@ -358,9 +371,11 @@ function WorkspaceTreeNodeView({
   expandedWorkspaces,
   node,
   pendingDoneSessionIds,
+  pendingForkSessionIds,
   runningSessionIds,
   sessionListMode,
   onOpenSession,
+  onForkSession,
   onMarkSessionDone,
   onStartNewSession,
   onToggleWorkspace,
@@ -372,9 +387,11 @@ function WorkspaceTreeNodeView({
   expandedWorkspaces: Set<string>;
   node: WorkspaceTreeNode;
   pendingDoneSessionIds: Set<string>;
+  pendingForkSessionIds: Set<string>;
   runningSessionIds: Set<string>;
   sessionListMode: SessionListMode;
   onOpenSession: (sessionId: string) => void;
+  onForkSession: (sessionId: string) => void;
   onMarkSessionDone: (sessionId: string) => void;
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
@@ -398,10 +415,12 @@ function WorkspaceTreeNodeView({
           expanded={expanded}
           runningSessionIds={runningSessionIds}
           pendingDoneSessionIds={pendingDoneSessionIds}
+          pendingForkSessionIds={pendingForkSessionIds}
           sessionListMode={sessionListMode}
           workspace={workspace}
           label={node.label}
           onOpenSession={onOpenSession}
+          onForkSession={onForkSession}
           onMarkSessionDone={onMarkSessionDone}
           onStartNewSession={onStartNewSession}
           onToggleWorkspace={onToggleWorkspace}
@@ -427,9 +446,11 @@ function WorkspaceTreeNodeView({
               key={child.id}
               node={child}
               pendingDoneSessionIds={pendingDoneSessionIds}
+              pendingForkSessionIds={pendingForkSessionIds}
               runningSessionIds={runningSessionIds}
               sessionListMode={sessionListMode}
               onOpenSession={onOpenSession}
+              onForkSession={onForkSession}
               onMarkSessionDone={onMarkSessionDone}
               onStartNewSession={onStartNewSession}
               onToggleWorkspace={onToggleWorkspace}
@@ -508,9 +529,11 @@ function WorkspaceGroup({
   label,
   runningSessionIds,
   pendingDoneSessionIds,
+  pendingForkSessionIds,
   sessionListMode,
   workspace,
   onOpenSession,
+  onForkSession,
   onMarkSessionDone,
   onStartNewSession,
   onToggleWorkspace,
@@ -523,10 +546,12 @@ function WorkspaceGroup({
   label: string;
   runningSessionIds: Set<string>;
   pendingDoneSessionIds: Set<string>;
+  pendingForkSessionIds: Set<string>;
   sessionListMode: SessionListMode;
   vscodeConfig: VscodeConfig;
   workspace: WorkspaceDisplayItem;
   onOpenSession: (sessionId: string) => void;
+  onForkSession: (sessionId: string) => void;
   onMarkSessionDone: (sessionId: string) => void;
   onStartNewSession: (workspace?: string) => void;
   onToggleWorkspace: (workspace: string) => void;
@@ -609,6 +634,7 @@ function WorkspaceGroup({
             const isRunning = runningSessionIds.has(session.id) || session.isRunning;
             const hasUnreadRound = !isRunning && session.hasUnreadRound;
             const isDone = Boolean(session.doneAt) || pendingDoneSessionIds.has(session.id);
+            const isForking = pendingForkSessionIds.has(session.id);
             const className = [
               "session-button",
               active ? "is-active" : "",
@@ -646,7 +672,21 @@ function WorkspaceGroup({
                   </small>
                 </button>
                 <button
-                  className={`session-done-button ${isDone ? "is-done" : ""}`}
+                  className="session-action-button session-fork-button"
+                  type="button"
+                  aria-label="Fork session"
+                  title={`Fork ${session.title}`}
+                  disabled={isRunning || isForking}
+                  onClick={() => onForkSession(session.id)}
+                >
+                  {isForking ? (
+                    <LoaderCircle className="session-action-spinner" size={13} aria-hidden="true" />
+                  ) : (
+                    <GitBranchPlus size={14} aria-hidden="true" />
+                  )}
+                </button>
+                <button
+                  className={`session-action-button session-done-button ${isDone ? "is-done" : ""}`}
                   type="button"
                   aria-label="Mark session done"
                   aria-pressed={isDone}

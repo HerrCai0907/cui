@@ -39,16 +39,13 @@ export function createSessionInputTranscript(
     messages.push(createMessage("user", currentPrompt));
   }
 
-  const transcript = messages
-    .filter((message) => message.kind !== "trace")
-    .map((message) => {
-      const role = message.role === "user" ? "用户" : "助手";
-
-      return `${role}：${message.content}`;
-    })
-    .join("\n\n");
+  const transcript = formatTranscriptMessages(messages);
 
   return transcript || currentPrompt;
+}
+
+export function createSessionTranscript(session: ChatSession): string {
+  return formatTranscriptMessages(session.messages) || "无";
 }
 
 export function createRoundInputTranscript(session: ChatSession, round: number): string {
@@ -105,6 +102,17 @@ function getRoundUserInput(session: ChatSession, round: number): string {
   }
 
   return "";
+}
+
+function formatTranscriptMessages(messages: ChatMessage[]): string {
+  return messages
+    .filter((message) => message.kind !== "trace")
+    .map((message) => {
+      const role = message.role === "user" ? "用户" : "助手";
+
+      return `${role}：${message.content}`;
+    })
+    .join("\n\n");
 }
 
 function findRoundResponseIndex(session: ChatSession, round: number): number {

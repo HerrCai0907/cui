@@ -15,6 +15,7 @@ import {
   cancelRun,
   createRun,
   createSession,
+  forkSession as forkSessionRequest,
   getSession,
   getSessionMessages,
   listSessions,
@@ -129,6 +130,7 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
   const [submittingSessionIds, setSubmittingSessionIds] = useState<Set<string>>(() => new Set());
   const [stoppingSessionIds, setStoppingSessionIds] = useState<Set<string>>(() => new Set());
   const [pendingDoneSessionIds, setPendingDoneSessionIds] = useState<Set<string>>(() => new Set());
+  const [pendingForkSessionIds, setPendingForkSessionIds] = useState<Set<string>>(() => new Set());
   const [creatingSession, setCreatingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedTraceIds, setExpandedTraceIds] = useState<Set<string>>(() => new Set());
@@ -1073,6 +1075,56 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     }
   }
 
+  async function forkSession(sessionId: string) {
+    if (runningSessionIdsRef.current.has(sessionId) || pendingForkSessionIds.has(sessionId)) {
+      return;
+    }
+
+    setError(null);
+    setPendingForkSessionIds((current) => new Set(current).add(sessionId));
+
+    try {
+      const data = await forkSessionRequest(sessionId);
+
+      recordSessionAttention(data.session);
+      setCurrentActiveSession(data.session);
+      setWorkspaceDraft(data.session.workspace);
+      expandWorkspace(data.session.workspace);
+      updateSessions((current) => {
+        const nextSummary = toCachedSessionListItem(data.session);
+        const existingIndex = current.findIndex((session) => session.id === nextSummary.id);
+
+        if (existingIndex === -1) {
+          return [nextSummary, ...current];
+        }
+
+        return current.map((session) => (session.id === nextSummary.id ? nextSummary : session));
+      });
+
+      if (data.run.status !== "queued") {
+        setRunningRun(data.session.id, data.run.id);
+        streamRun(data.session.id, data.run.id);
+      }
+      showNotification({
+        id: `fork-${data.session.id}`,
+        message: "Forked session started",
+        tone: "success",
+      });
+      void refreshSessions();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Failed to fork session");
+      await refreshSessions();
+    } finally {
+      setPendingForkSessionIds((current) => {
+        const next = new Set(current);
+
+        next.delete(sessionId);
+
+        return next;
+      });
+    }
+  }
+
   function startNewSession(workspace?: string) {
     autoRestoreSessionRef.current = false;
     setCurrentActiveSession(null);
@@ -1485,11 +1537,13 @@ export function useSessionController(defaultWorkspace: string, config: AppConfig
     loadOlderActiveSessionMessages,
     refreshSessions,
     openSession,
+    forkSession,
     markSessionDone,
     olderMessagesLoading,
     notification,
     newSessionGitInfo,
     pendingDoneSessionIds,
+    pendingForkSessionIds,
     runningSessionIds,
     setDraft: updateDraft,
     setComposerMode: updateComposerMode,

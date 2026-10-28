@@ -360,6 +360,7 @@ export function App() {
         open={sessionController.sidebarOpen}
         mobileOpen={mobileNavigationOpen}
         pendingDoneSessionIds={sessionController.pendingDoneSessionIds}
+        pendingForkSessionIds={sessionController.pendingForkSessionIds}
         width={sessionController.sidebarWidth}
         runningSessionIds={sessionController.runningSessionIds}
         sessionPage={sessionController.sessionPage}
@@ -375,6 +376,7 @@ export function App() {
         onSessionListModeChange={sessionController.setSessionListMode}
         onSessionPageChange={sessionController.setSessionListPage}
         onOpenSession={openSession}
+        onForkSession={sessionController.forkSession}
         onMarkSessionDone={sessionController.markSessionDone}
         onNavigateReview={reviewRoute?.mode === "atomic" ? navigateToReviewTarget : undefined}
         onOpenConfig={openConfig}

@@ -1236,6 +1236,120 @@ test("createRun switches harness by creating a new thread with a history file pr
   }
 });
 
+test("forkSession creates a new session and starts a bridged thread from history", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
+  const store = new JsonSessionStore(join(cwd, "sessions.json"));
+  const aiModel = new FakeAiModel();
+  const service = new SessionService(aiModel, store, createSilentLogger());
+
+  try {
+    await store.createSession({
+      id: "session-1",
+      aiThreadId: "codex-thread-1",
+      aiHarness: "codex",
+      workspace: cwd,
+      title: "Source session",
+      summary: "Original progress",
+      models: {
+        harness: "codex",
+        normal: "gpt-5.6-sol",
+      },
+      createdAt: "2026-08-22T00:00:00.000Z",
+      updatedAt: "2026-08-22T00:00:00.000Z",
+      messages: [
+        {
+          id: "message-1",
+          role: "user",
+          content: "Original request.",
+          createdAt: "2026-08-22T00:00:00.000Z",
+        },
+        {
+          id: "message-2",
+          role: "assistant",
+          kind: "response",
+          content: "Original response.",
+          createdAt: "2026-08-22T00:00:01.000Z",
+        },
+        {
+          id: "message-3",
+          role: "assistant",
+          kind: "trace",
+          content: "trace payload",
+          createdAt: "2026-08-22T00:00:02.000Z",
+        },
+      ],
+      rounds: [],
+    });
+
+    const submitted = await service.forkSession("session-1");
+    const forkSessionId = submitted.session.id;
+    const events: unknown[] = [];
+
+    service.subscribeToRun(submitted.run.id, (event) => {
+      events.push(event);
+    });
+
+    assert.notEqual(forkSessionId, "session-1");
+    assert.equal(submitted.session.title, "Source session fork");
+    assert.equal(
+      submitted.session.messages[0]?.content,
+      'Forked from "Source session". Continue from this point.',
+    );
+    assert.equal(aiModel.createStreamInputs.length, 1);
+    assert.equal(aiModel.continueStreamInputs.length, 0);
+    assert.deepEqual(aiModel.createStreamInputs[0]?.models, {
+      harness: "codex",
+      normal: "gpt-5.6-sol",
+    });
+    assert.match(aiModel.createStreamInputs[0]?.prompt ?? "", /fork 出来的新 session/);
+    assert.doesNotMatch(aiModel.createStreamInputs[0]?.prompt ?? "", /Original response\./);
+
+    const historyPath = extractHistoryFilePath(aiModel.createStreamInputs[0]?.prompt ?? "");
+    const history = await readFile(historyPath, "utf8");
+
+    assert.match(history, /用户：Original request\./);
+    assert.match(history, /助手：Original response\./);
+    assert.doesNotMatch(history, /trace payload/);
+
+    await waitFor(() => aiModel.summaryPrompts.length === 1);
+    aiModel.resolveSummary({
+      title: "Fork input",
+      progress: "The fork input has been summarized.",
+    });
+    aiModel.resolveRun({
+      sessionId: "codex-thread-2",
+      content: "Fork response.",
+      rawEventCount: 0,
+    });
+    await waitFor(() => aiModel.summaryPrompts.length === 2);
+    aiModel.resolveSummary(
+      {
+        title: "Fork complete",
+        progress: "The fork session has a response.",
+      },
+      1,
+    );
+
+    await waitFor(() => events.some(isDoneEvent));
+
+    const forkedSession = await store.getSession(forkSessionId);
+    const sourceSession = await store.getSession("session-1");
+
+    assert.equal(forkedSession?.aiThreadId, "codex-thread-2");
+    assert.equal(forkedSession?.aiHarness, "codex");
+    assert.equal(forkedSession?.messages.at(-1)?.content, "Fork response.");
+    assert.equal(sourceSession?.aiThreadId, "codex-thread-1");
+    await waitFor(async () =>
+      readFile(historyPath, "utf8").then(
+        () => false,
+        () => true,
+      ),
+    );
+  } finally {
+    await rm(cwd, { force: true, recursive: true });
+  }
+});
+
 test("createRun creates a TraeX thread for any session without a bound TraeX thread", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cui-session-service-"));
   const store = new JsonSessionStore(join(cwd, "sessions.json"));
