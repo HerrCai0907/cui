@@ -463,14 +463,15 @@ export function findModelOption(
 
 export function createVscodeWorkspaceUrl(workspace: string, config: VscodeConfig): string {
   const remoteSsh = config.remoteSsh;
+  const newWindowQuery = "?windowId=_blank";
 
   if (remoteSsh.enabled && remoteSsh.host.trim()) {
     return `vscode://vscode-remote/ssh-remote+${encodeURIComponent(
       remoteSsh.host.trim(),
-    )}${encodeWorkspacePath(mapRemoteWorkspacePath(workspace, remoteSsh))}`;
+    )}${encodeWorkspacePath(mapRemoteWorkspacePath(workspace, remoteSsh))}${newWindowQuery}`;
   }
 
-  return `vscode://file${encodeWorkspacePath(workspace)}`;
+  return `vscode://file${encodeWorkspacePath(workspace)}${newWindowQuery}`;
 }
 
 export function getExecutionTraceMessageType(

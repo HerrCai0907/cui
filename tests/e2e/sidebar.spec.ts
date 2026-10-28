@@ -93,7 +93,7 @@ test("opens workspace links in VSCode with configured Remote SSH mapping", async
   await expect(vscodeLink).toBeVisible();
   await expect(vscodeLink).toHaveAttribute(
     "href",
-    "vscode://vscode-remote/ssh-remote+dev-box/data/workspaces/cui/project%20a",
+    "vscode://vscode-remote/ssh-remote+dev-box/data/workspaces/cui/project%20a?windowId=_blank",
   );
 });
 

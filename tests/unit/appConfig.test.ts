@@ -281,7 +281,7 @@ test("app config persists selected models and reasoning efforts", () => {
 test("createVscodeWorkspaceUrl opens local workspaces through VSCode file URLs", () => {
   assert.equal(
     createVscodeWorkspaceUrl("/Users/me/work space", createDefaultAppConfig().vscode),
-    "vscode://file/Users/me/work%20space",
+    "vscode://file/Users/me/work%20space?windowId=_blank",
   );
 });
 
@@ -295,7 +295,7 @@ test("createVscodeWorkspaceUrl opens mapped workspaces through Remote SSH", () =
         remotePathPrefix: "/data/workspaces",
       },
     }),
-    "vscode://vscode-remote/ssh-remote+dev-box/data/workspaces/project%20a",
+    "vscode://vscode-remote/ssh-remote+dev-box/data/workspaces/project%20a?windowId=_blank",
   );
 });
 
@@ -309,6 +309,6 @@ test("createVscodeWorkspaceUrl keeps the workspace path when no remote prefix ma
         remotePathPrefix: "/data/workspaces",
       },
     }),
-    "vscode://vscode-remote/ssh-remote+dev%20box/tmp/project",
+    "vscode://vscode-remote/ssh-remote+dev%20box/tmp/project?windowId=_blank",
   );
 });
