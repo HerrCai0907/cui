@@ -88,6 +88,9 @@ export function Composer({
   const modelsError = modelsErrorByHarness[pendingHarness];
   const selectedModelLabel = selectedModel || "Harness default";
   const modelButtonTitle = `${AI_HARNESS_LABELS[selectedHarness]} - ${selectedModelLabel} - ${REASONING_EFFORT_LABELS[selectedReasoningEffort]}`;
+  const selectionScope = active
+    ? "This session only. New sessions continue to use the configuration default."
+    : "New session default. Changes here are saved to configuration.";
 
   useEffect(() => {
     if (!modelMenuOpen) {
@@ -212,6 +215,9 @@ export function Composer({
             role="menu"
             aria-label="Harness, model, and reasoning"
           >
+            <p className="composer-model-scope" role="status">
+              {selectionScope}
+            </p>
             <div className="composer-model-column" role="group" aria-label="Harnesses">
               {AI_HARNESSES.map((harness) => {
                 const active = harness === pendingHarness;
