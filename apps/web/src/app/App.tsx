@@ -145,7 +145,7 @@ export function App() {
     saveAppConfig(nextConfig);
   }
 
-  function updateNormalModelSelection(
+  function updateNewSessionDefaultModelSelection(
     harness: AiHarness,
     model: string,
     reasoningEffort: ReasoningEffort,
@@ -170,7 +170,7 @@ export function App() {
     });
   }
 
-  function updateComposerModelSelection(
+  function updateModelSelection(
     harness: AiHarness,
     model: string,
     reasoningEffort: ReasoningEffort,
@@ -180,7 +180,7 @@ export function App() {
       return;
     }
 
-    updateNormalModelSelection(harness, model, reasoningEffort);
+    updateNewSessionDefaultModelSelection(harness, model, reasoningEffort);
   }
 
   useEffect(() => {
@@ -483,7 +483,7 @@ export function App() {
               lastEnterKeyDownRef={sessionController.lastEnterKeyDownRef}
               textareaRef={sessionController.composerTextareaRef}
               onDraftChange={sessionController.setDraft}
-              onModelSelectionChange={updateComposerModelSelection}
+              onModelSelectionChange={updateModelSelection}
               onShellModeChange={(shellMode) =>
                 sessionController.setComposerMode(shellMode ? "shell" : "chat")
               }

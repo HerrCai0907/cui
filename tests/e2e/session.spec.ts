@@ -423,6 +423,98 @@ test("switches the composer model selector with the active session", async ({ pa
   await expect(modelButton).toHaveAttribute("title", "TraeX - GPT-5.5 - High");
 });
 
+test("keeps session harness changes separate from new session configuration defaults", async ({
+  page,
+}) => {
+  const session = {
+    id: "session-model-scope",
+    workspace: currentWorkspace,
+    title: "Scoped model session",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    updatedAt: "2026-08-22T00:00:00.000Z",
+    messages: [],
+    rounds: [],
+    currentRound: 0,
+    isRunning: false,
+    models: {
+      harness: "traex",
+      normal: "GPT-5.4",
+      summary: "GPT-5.4",
+      atomicReview: "GPT-5.5",
+      reasoningEfforts: {
+        normal: "low",
+        summary: "low",
+        atomicReview: "medium",
+      },
+    },
+  };
+  let updateSessionBody: unknown;
+
+  await mockSessions(page, [session]);
+  await mockRpcMethod(page, "sessions.update", (params) => {
+    updateSessionBody = params;
+
+    return {
+      session: {
+        ...session,
+        models: (params as { models: unknown }).models,
+      },
+    };
+  });
+  await storeAppConfig(page, {
+    harness: "dsh",
+    models: {
+      normal: "deepseek-flash",
+      summary: "deepseek-v4-flash",
+      atomicReview: "deepseek-v4-pro",
+    },
+    reasoningEfforts: {
+      normal: "high",
+      summary: "low",
+      atomicReview: "high",
+    },
+  });
+
+  await page.goto("/");
+
+  const modelButton = page.getByRole("button", {
+    name: "Select harness, model, and reasoning effort",
+  });
+  await expect(modelButton).toHaveAttribute("title", "TraeX - GPT-5.4 - Low");
+  await modelButton.click();
+  await expect(
+    page.getByText("This session only. New sessions continue to use the configuration default."),
+  ).toBeVisible();
+  await page.getByRole("menuitem", { name: "Codex" }).click();
+  await page.getByRole("menuitem", { name: "High", exact: true }).click();
+
+  await expect
+    .poll(() => updateSessionBody)
+    .toEqual({
+      sessionId: "session-model-scope",
+      models: {
+        harness: "codex",
+        reasoningEfforts: {
+          normal: "high",
+          summary: "low",
+          atomicReview: "medium",
+        },
+      },
+    });
+  await expect
+    .poll(() =>
+      page.evaluate(() => JSON.parse(window.localStorage.getItem("cui:app-config:v1") ?? "{}")),
+    )
+    .toMatchObject({ harness: "dsh" });
+
+  await page.getByRole("button", { name: "New session", exact: true }).click();
+  await expect(modelButton).toHaveAttribute("title", "DSH - deepseek-flash - High");
+  await modelButton.click();
+  await expect(
+    page.getByText("New session default. Changes here are saved to configuration."),
+  ).toBeVisible();
+});
+
 test("sends a shell command on a single Enter key press", async ({ page }) => {
   const startedSession = {
     id: "shell-session-enter",
